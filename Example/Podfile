@@ -1,0 +1,11 @@
+use_frameworks!
+
+target 'Realtime_Example' do
+  pod 'Realtime', :path => '../'
+
+  target 'Realtime_Tests' do
+    inherit! :search_paths
+
+    
+  end
+end
