@@ -83,6 +83,12 @@ public struct RealtimeNode: RTNode, ExpressibleByStringLiteral, CustomStringConv
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 }
+extension String: RTNode {
+    public var rawValue: String { return self }
+    public init(rawValue: String) {
+        self = rawValue
+    }
+}
 extension String {
     var realtimeNode: RealtimeNode { return .init(rawValue: self) }
 }
@@ -95,7 +101,7 @@ struct AssociatedRealtimeNode<Concrete: RealtimeValue>: AssociatedRTNode, Expres
 
 // TODO: Add possible to save relative link by parent level or root level
 
-struct RealtimeLink: DataSnapshotRepresented {
+public struct RealtimeLink: DataSnapshotRepresented {
     typealias OptionalSourceProperty = RealtimeProperty<RealtimeLink?, RealtimeLinkSourceSerializer>
     typealias OptionalProperty = RealtimeProperty<RealtimeLink?, RealtimeLinkSerializer>
     enum Nodes {
@@ -113,12 +119,12 @@ struct RealtimeLink: DataSnapshotRepresented {
         self.path = path
     }
 
-    init?(snapshot: DataSnapshot) {
+    public init?(snapshot: DataSnapshot) {
         guard let pth: String = Nodes.path.map(from: snapshot) else { return nil }
         self.init(id: snapshot.key, path: pth)
     }
     
-    func apply(snapshot: DataSnapshot, strongly: Bool) {
+    public func apply(snapshot: DataSnapshot, strongly: Bool) {
         fatalError("RealtimeLink is not mutated") // TODO: ?
     }
 }
@@ -130,7 +136,7 @@ extension RealtimeLink {
 }
 
 extension RealtimeLink: Equatable {
-    static func ==(lhs: RealtimeLink, rhs: RealtimeLink) -> Bool {
+    public static func ==(lhs: RealtimeLink, rhs: RealtimeLink) -> Bool {
         return lhs.id == rhs.id
     }
 }
@@ -138,11 +144,11 @@ extension RealtimeLink: Equatable {
 // TODO: For cancellation transaction need remove all changes from related objects
 // TODO: All local changes should make using RealtimeTransaction
 public class RealtimeTransaction {
-    var isCompleted: Bool = false
     private var updates: [Database.UpdateItem] = []
-    var completions: [(Error?) -> Void] = []
+    private var completions: [(Error?) -> Void] = []
+    public internal(set) var isCompleted: Bool = false
 
-    func perform(with completion: ((Error?) -> Void)? = nil) {
+    public func perform(with completion: ((Error?) -> Void)? = nil) {
         Database.database().update(use: updates) { (err, _) in
             self.isCompleted = true
             self.completions.forEach { $0(err) }
@@ -150,7 +156,7 @@ public class RealtimeTransaction {
         }
     }
 
-    func addUpdate(item updateItem: Database.UpdateItem) {
+    public func addUpdate(item updateItem: Database.UpdateItem) {
         var index = 0
         let indexes = updates.reduce([Int]()) { (indexes, item) -> [Int] in
             defer {
@@ -162,6 +168,10 @@ public class RealtimeTransaction {
 
         indexes.forEach { updates.remove(at: $0) }
         updates.append(updateItem)
+    }
+
+    public func addCompletion(_ completion: @escaping (Error?) -> Void) {
+        completions.append(completion)
     }
 
     deinit {

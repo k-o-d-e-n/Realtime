@@ -8,14 +8,14 @@
 
 import FirebaseDatabase
 
-extension DatabaseReference {
+public extension DatabaseReference {
     static func root() -> DatabaseReference { return Database.database().reference() }
     static func fromRoot(_ path: String) -> DatabaseReference { return Database.database().reference(withPath: path) }
 
     var pathFromRoot: String { return path(from: root) }
     
     func path(from ref: DatabaseReference) -> String {
-        return url.substring(from: ref.url.endIndex)
+        return String(url[..<ref.url.endIndex])
     }
     
     func isChild(for ref: DatabaseReference) -> Bool {
@@ -35,7 +35,7 @@ extension DatabaseReference {
     }
 }
 
-extension Database {
+public extension Database {
     public typealias UpdateItem = (ref: DatabaseReference, value: Any?)
     public typealias TransactionCompletion = (Error?, DatabaseReference) -> Void
     func update(use refValuePairs: [UpdateItem],
@@ -52,7 +52,7 @@ extension Database {
 //    }
 //}
 
-extension DataSnapshot {
+public extension DataSnapshot {
     func map<Mapped>(child: String, map: (DataSnapshot) -> Mapped) -> Mapped? {
         guard hasChild(child) else { return nil }
         return map(childSnapshot(forPath: child))

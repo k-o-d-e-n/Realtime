@@ -13,98 +13,98 @@ import FirebaseDatabase
 
 // TODO: View transformers in ObjectMapper as example implementation serializers
 
-protocol Initializable {
+public protocol Initializable {
     static var defValue: Self { get }
 }
 
 extension Bool: Initializable {
-    static var defValue: Bool { return false }
+    public static var defValue: Bool { return false }
 }
 
 extension Optional: Initializable {
-    static var defValue: Optional { return Optional<Wrapped>(nilLiteral:()) }
+    public static var defValue: Optional { return Optional<Wrapped>(nilLiteral:()) }
 }
 
 extension Array: Initializable {
-    static var defValue: [Element] { return [Element]() }
+    public static var defValue: [Element] { return [Element]() }
 }
 
 extension Dictionary: Initializable {
-    static var defValue: [Key: Value] { return [Key: Value]() }
+    public static var defValue: [Key: Value] { return [Key: Value]() }
 }
 
 extension String: Initializable {
-    static var defValue: String { return "" }
+    public static var defValue: String { return "" }
 }
 
 extension Data: Initializable {
-    static var defValue: Data { return Data() }
+    public static var defValue: Data { return Data() }
 }
 
-protocol _Serializer: class {
+public protocol _Serializer {
     associatedtype Entity: Initializable
     static func deserialize(entity: DataSnapshot) -> Entity
     static func serialize(entity: Entity) -> Any?
 }
 
-class Serializer<Entity: Initializable>: _Serializer {
-    class func deserialize(entity: DataSnapshot) -> Entity {
+public class Serializer<Entity: Initializable>: _Serializer {
+    public class func deserialize(entity: DataSnapshot) -> Entity {
         guard entity.exists() else { return Entity.defValue }
         
         return entity.value as! Entity
     }
     
-    class func serialize(entity: Entity) -> Any? {
+    public class func serialize(entity: Entity) -> Any? {
         return entity
     }
 }
 
-class ArraySerializer<Base: _Serializer>: _Serializer {
-    class func deserialize(entity: DataSnapshot) -> [Base.Entity] {
+public class ArraySerializer<Base: _Serializer>: _Serializer {
+    public class func deserialize(entity: DataSnapshot) -> [Base.Entity] {
         guard entity.hasChildren() else { return Entity.defValue }
         
         return entity.children.map { Base.deserialize(entity: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }
     }
     
-    class func serialize(entity: [Base.Entity]) -> Any? {
+    public class func serialize(entity: [Base.Entity]) -> Any? {
         return entity.map { Base.serialize(entity: $0) }
     }
 }
 
 // MARK: System types
 
-class DateSerializer: _Serializer {
-    class func serialize(entity: Date?) -> Any? {
+public class DateSerializer: _Serializer {
+    public class func serialize(entity: Date?) -> Any? {
         return entity?.timeIntervalSince1970
     }
     
-    class func deserialize(entity: DataSnapshot) -> Date? {
+    public class func deserialize(entity: DataSnapshot) -> Date? {
         guard entity.exists() else { return nil }
         
         return Date(timeIntervalSince1970: entity.value as! TimeInterval)
     }
 }
 
-class URLSerializer: _Serializer {
-    class func serialize(entity: URL?) -> Any? {
+public class URLSerializer: _Serializer {
+    public class func serialize(entity: URL?) -> Any? {
         return entity?.absoluteString
     }
     
-    class func deserialize(entity: DataSnapshot) -> URL? {
+    public class func deserialize(entity: DataSnapshot) -> URL? {
         guard entity.exists() else { return nil }
         
         return URL(string: entity.value as! String)
     }
 }
 
-class EnumSerializer<EnumType: RawRepresentable>: _Serializer {
-    class func deserialize(entity: DataSnapshot) -> EnumType? {
+public class EnumSerializer<EnumType: RawRepresentable>: _Serializer {
+    public class func deserialize(entity: DataSnapshot) -> EnumType? {
         guard entity.exists(), let val = entity.value as? EnumType.RawValue else { return nil }
         
         return EnumType(rawValue: val)
     }
     
-    class func serialize(entity: EnumType?) -> Any? {
+    public class func serialize(entity: EnumType?) -> Any? {
         return entity?.rawValue
     }
 }

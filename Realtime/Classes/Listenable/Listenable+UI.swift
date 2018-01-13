@@ -8,45 +8,27 @@
 
 import UIKit
 
-extension InsiderAccessor where Self: ListeningMaker, Self.OutData == String? {
+extension Listenable where Self.OutData == String? {
     func bind(to label: UILabel) -> ListeningItem {
-        return listeningItem({ [weak label] data in label?.text = data })
+        return listeningItem(.weak(label) { data, l in l?.text = data })
     }
     func bind(to label: UILabel, didSet: @escaping (UILabel, OutData) -> Void) -> ListeningItem {
-        return listeningItem({ [weak label] data in
-            label.map { $0.text = data; didSet($0, data) }
+        return listeningItem(.weak(label) { data, l in
+            l.map { $0.text = data; didSet($0, data) }
         })
     }
     func bindWithUpdateLayout(to label: UILabel) -> ListeningItem {
         return bind(to: label, didSet: { v, _ in v.superview?.setNeedsLayout() })
     }
 }
-extension InsiderAccessor where Self: ListeningMaker, Self.OutData == String {
+extension Listenable where Self.OutData == String {
     func bind(to label: UILabel) -> ListeningItem {
-        return listeningItem({ [weak label] data in label?.text = data })
+        return listeningItem(.weak(label) { data, l in l?.text = data })
     }
 }
-extension InsiderOwner where T == String? {
-    func bind(to label: UILabel) -> ListeningItem {
-        return listeningItem({ [weak label] data in label?.text = data })
-    }
-    func bind(to label: UILabel, didSet: @escaping (UILabel, T) -> Void) -> ListeningItem {
-        return listeningItem({ [weak label] data in
-            label.map { $0.text = data; didSet($0, data) }
-        })
-    }
-    func bindWithUpdateLayout(to label: UILabel) -> ListeningItem {
-        return bind(to: label, didSet: { v, _ in v.superview?.setNeedsLayout() })
-    }
-}
-extension InsiderOwner where T == UIImage? {
+extension Listenable where Self.OutData == UIImage? {
     func bind(to imageView: UIImageView) -> ListeningItem {
-        return listeningItem({ [weak imageView] data in imageView?.image = data })
-    }
-}
-extension InsiderAccessor where Self: ListeningMaker, Self.OutData == UIImage? {
-    func bind(to imageView: UIImageView) -> ListeningItem {
-        return listeningItem({ [weak imageView] data in imageView?.image = data })
+        return listeningItem(.weak(imageView) { data, iv in iv?.image = data })
     }
 }
 

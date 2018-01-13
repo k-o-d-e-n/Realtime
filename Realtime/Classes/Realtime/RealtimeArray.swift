@@ -29,7 +29,7 @@ import FirebaseDatabase
 
 // TODO: Add RealtimeValueActions implementation
 
-extension RTNode where RawValue == String {
+public extension RTNode where RawValue == String {
     func array<Element>(from parent: DatabaseReference) -> RealtimeArray<Element> {
         return RealtimeArray(dbRef: parent.child(rawValue))
     }
@@ -53,67 +53,68 @@ struct RealtimeArrayError: Error {
 
 /// MARK: RealtimeArray separated, new version
 
-protocol StringRepresentableRealtimeArrayKey {
+public protocol StringRepresentableRealtimeArrayKey {
     var dbKey: String { get }
 }
 extension String: StringRepresentableRealtimeArrayKey {
-    var dbKey: String { return self }
+    public var dbKey: String { return self }
 }
 extension Int: StringRepresentableRealtimeArrayKey {
-    var dbKey: String { return String(self) }
+    public var dbKey: String { return String(self) }
 }
 extension Double: StringRepresentableRealtimeArrayKey {
-    var dbKey: String { return String(Int(self)) }
+    public var dbKey: String { return String(Int(self)) }
 }
 
-protocol RealtimeCollectionKey: Hashable, StringRepresentableRealtimeArrayKey {
+public protocol RealtimeCollectionKey: Hashable, StringRepresentableRealtimeArrayKey {
     associatedtype EntityId: Hashable, LosslessStringConvertible
     associatedtype LinkId: Hashable
     var entityId: EntityId { get }
     var linkId: LinkId { get }
 }
 
-protocol RealtimeCollectionContainerKey {
+public protocol RealtimeCollectionContainerKey {
     associatedtype Key: Equatable
     var key: Key { get }
 }
 
 extension RealtimeCollectionContainerKey where Self: RealtimeCollectionKey {
-    var key: EntityId { return entityId }
+    public var key: EntityId { return entityId }
 }
 
-protocol KeyValueAccessableCollection {
+public protocol KeyValueAccessableCollection {
     associatedtype Key
     associatedtype Value
     subscript(for key: Key) -> Value? { get set }
 }
 
 extension Array: KeyValueAccessableCollection {
-    subscript(for key: Int) -> Element? {
+    public subscript(for key: Int) -> Element? {
         get { return self[key] }
         set(newValue) { self[key] = newValue! }
     }
 }
 extension Dictionary: KeyValueAccessableCollection {
-    subscript(for key: Key) -> Value? {
+    public subscript(for key: Key) -> Value? {
         get { return self[key] }
         set(newValue) { self[key] = newValue }
     }
 }
 
-typealias ElementContainer = Collection & KeyValueAccessableCollection
+public typealias ElementContainer = Collection & KeyValueAccessableCollection
 
-protocol RequiresPreparation: _Prepared {
+public protocol RequiresPreparation: _Prepared {
     var isPrepared: Bool { get }
     func prepare(forUse completion: @escaping (Error?) -> Void)
     func prepareRecursive(forUse completion: @escaping (Error?) -> Void)
 }
-extension RequiresPreparation {
+
+public extension RequiresPreparation {
     func prepare(forUse completion: @escaping (Self, Error?) -> Void) {
         prepare(forUse: { completion(self, $0) })
     }
 }
-extension RequiresPreparation where Self: RealtimeCollection {
+public extension RequiresPreparation where Self: RealtimeCollection {
     func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
         prepare { (err) in
             guard err == nil else { completion(err); return }
@@ -126,17 +127,17 @@ extension RequiresPreparation {
         guard isPrepared else { fatalError("Instance should be activated before performing this action.") }
     }
 }
-internal protocol _Prepared: class {
+public protocol _Prepared: class {
     var isPrepared: Bool { set get }
 }
 
-internal protocol _RC: class, Collection, RealtimeValue {}
-internal protocol _RCPrototype {
+public protocol _RC: class, Collection, RealtimeValue {}
+public protocol _RCPrototype {
     associatedtype KeysIterator: IteratorProtocol
     func makeKeysIterator() -> KeysIterator
     func key(by index: Int) -> KeysIterator.Element
 }
-internal protocol _RCElementProvider: Collection {
+public protocol _RCElementProvider: Collection {
     associatedtype StoreKey: StringRepresentableRealtimeArrayKey
     associatedtype StoreValue
     func valueRefBy(key: String) -> DatabaseReference
@@ -158,12 +159,12 @@ extension _RCElementProvider {
     }
 }
 extension _RC where Self: _RCElementProvider, Self.Iterator.Element == Self.StoreValue, Self: _RCPrototype, Self.KeysIterator.Element == Self.StoreKey, Index == Int {
-    func makeIterator() -> RCValueIterator<Self> { return RCValueIterator(self) }
-    subscript(position: Index) -> StoreValue {
+    public func makeIterator() -> RCValueIterator<Self> { return RCValueIterator(self) }
+    public subscript(position: Index) -> StoreValue {
         return object(for: key(by: position))
     }
 }
-struct RCValueIterator<C: _RC & _RCPrototype & _RCElementProvider>: IteratorProtocol where C.KeysIterator.Element == C.StoreKey {
+public struct RCValueIterator<C: _RC & _RCPrototype & _RCElementProvider>: IteratorProtocol where C.KeysIterator.Element == C.StoreKey {
     private weak var collection: C!
     private var keysIterator: C.KeysIterator
 
@@ -172,20 +173,20 @@ struct RCValueIterator<C: _RC & _RCPrototype & _RCElementProvider>: IteratorProt
         self.keysIterator = collection.makeKeysIterator()
     }
 
-    mutating func next() -> C.StoreValue? {
+    public mutating func next() -> C.StoreValue? {
         return keysIterator.next().map(collection.object)
     }
 }
 
-internal protocol _RCArrayPrototype {
+public protocol _RCArrayPrototype {
     associatedtype Prototype: ArrayPrototype
     var prototype: Prototype { get }
 }
 extension _RCArrayPrototype where Self: RealtimeCollection {
-    var debugDescription: String { return prototype.debugDescription }
+    public var debugDescription: String { return prototype.debugDescription }
 }
 extension _RCArrayPrototype where Self: RealtimeCollection {
-    func prepare(forUse completion: @escaping (Error?) -> Void) {
+    public func prepare(forUse completion: @escaping (Error?) -> Void) {
         guard !isPrepared else { completion(nil); return }
 
         prototype.load { (err, _) in
@@ -196,23 +197,23 @@ extension _RCArrayPrototype where Self: RealtimeCollection {
     }
 }
 extension _RCArrayPrototype where Self: RealtimeCollection, Prototype.T: Collection {
-    internal var startIndex: Prototype.T.Index { return prototype.value.startIndex }
-    internal var endIndex: Prototype.T.Index { return prototype.value.endIndex }
+    public var startIndex: Prototype.T.Index { return prototype.value.startIndex }
+    public var endIndex: Prototype.T.Index { return prototype.value.endIndex }
 
-    internal func index(after i: Prototype.T.Index) -> Prototype.T.Index {
+    public func index(after i: Prototype.T.Index) -> Prototype.T.Index {
         return prototype.value.index(after: i)
     }
 }
 extension _RCArrayPrototype where Self: RealtimeCollection, Prototype.T: Collection, Prototype.T.Iterator.Element == Self.KeysIterator.Element {
-    func makeKeysIterator() -> Prototype.T.Iterator {
+    public func makeKeysIterator() -> Prototype.T.Iterator {
         return prototype.value.makeIterator()
     }
-    func key(by index: Prototype.T.Index) -> Prototype.T.Iterator.Element {
+    public func key(by index: Prototype.T.Index) -> Prototype.T.Iterator.Element {
         return prototype.value[index]
     }
 }
 
-internal protocol _RCArrayContainer: class {
+public protocol _RCArrayContainer: class {
     var elementsRef: DatabaseReference { get }
 
     associatedtype Container: ElementContainer
@@ -224,20 +225,20 @@ extension _RCArrayContainer {
         try elements.forEach(body)
     }
 }
-extension _RCArrayContainer where Self: RealtimeCollection {
+public extension _RCArrayContainer where Self: RealtimeCollection {
     func valueRefBy(key: String) -> DatabaseReference { return elementsRef.child(key) }
     func newValueRef() -> DatabaseReference { return elementsRef.childByAutoId() }
 }
-extension _RCArrayContainer where Self: RealtimeCollection, Self.StoreValue: RealtimeValue {
+public extension _RCArrayContainer where Self: RealtimeCollection, Self.StoreValue: RealtimeValue {
     func valueBy(ref reference: DatabaseReference) -> StoreValue { return StoreValue(dbRef: reference) }
 }
-extension _RCArrayContainer where Self: RealtimeCollection, Self.Container.Value == Self.StoreValue, Self.Container.Key == Self.StoreKey {
+public extension _RCArrayContainer where Self: RealtimeCollection, Self.Container.Value == Self.StoreValue, Self.Container.Key == Self.StoreKey {
     func store(value: StoreValue, by key: StoreKey) { elements[for: key] = value }
     func storedValue(by key: StoreKey) -> StoreValue? { return elements[for: key] }
 }
 
-typealias ArrayPrototype = RealtimeValue & InsiderOwner & ValueWrapper & RealtimeValueActions
-protocol RealtimeCollection: _RC, _RCElementProvider, _RCPrototype, RequiresPreparation {
+public typealias ArrayPrototype = RealtimeValue & InsiderOwner & ValueWrapper & RealtimeValueActions
+public protocol RealtimeCollection: _RC, _RCElementProvider, _RCPrototype, RequiresPreparation {
     func changesListening(completion: @escaping () -> Void) -> ListeningItem
     func runObserving() -> Void
     func stopObserving() -> Void
@@ -245,10 +246,10 @@ protocol RealtimeCollection: _RC, _RCElementProvider, _RCPrototype, RequiresPrep
 extension RealtimeCollection {
     /// RealtimeCollection actions
 
-    func filtered<ValueGetter: InsiderOwner & ValueWrapper & RealtimeValueActions>(map values: @escaping (Iterator.Element) -> ValueGetter,
+    public func filtered<ValueGetter: InsiderOwner & ValueWrapper & RealtimeValueActions>(map values: @escaping (Iterator.Element) -> ValueGetter,
                   fetchIf: ((ValueGetter.T) -> Bool)? = nil,
                   predicate: @escaping (ValueGetter.T) -> Bool,
-                  onCompleted: @escaping ([Iterator.Element]) -> ()) {
+                  onCompleted: @escaping ([Iterator.Element]) -> ()) where ValueGetter.OutData == ValueGetter.T {
         var filteredElements: [Iterator.Element] = []
         let count = endIndex
         let completeIfNeeded = { (releasedCount: Index) in
@@ -261,7 +262,7 @@ extension RealtimeCollection {
         let current = self
         current.forEach { element in
             let value = values(element)
-            let listeningItem = value.listeningItem(as: { $0.once() }) { (val) in
+            let listeningItem = value.listeningItem(as: { $0.once() }, .just { (val) in
                 released = current.index(after: released)
                 guard predicate(val) else {
                     completeIfNeeded(released)
@@ -270,7 +271,7 @@ extension RealtimeCollection {
 
                 filteredElements.append(element)
                 completeIfNeeded(released)
-            }
+            })
 
             if fetchIf == nil || fetchIf!(value.value) {
                 value.load(completion: nil)
@@ -280,9 +281,9 @@ extension RealtimeCollection {
         }
     }
 }
-extension RealtimeCollection where Self: _RCArrayPrototype {
+public extension RealtimeCollection where Self: _RCArrayPrototype {
     func changesListening(completion: @escaping () -> Void) -> ListeningItem {
-        return prototype.listeningItem({ _ in completion() })
+        return prototype.listeningItem(.just { _ in completion() })
     }
     func runObserving() {
 //        var oldValue: Prototype.T? = nil
@@ -298,32 +299,32 @@ extension RealtimeCollection where Self: _RCArrayPrototype {
     }
 }
 
-extension _RCElementProvider {
+public extension _RCElementProvider {
     func newPlaceholder() -> StoreValue { return valueBy(ref: newValueRef()) }
     func newPlaceholder(with key: String) -> StoreValue { return valueBy(ref: valueRefBy(key: key)) }
 }
 
 // MARK: Implementation RealtimeCollection`s
 
-typealias RealtimeDictionaryKey = StringRepresentableRealtimeArrayKey & RealtimeCollectionContainerKey & KeyedRealtimeValue & Linkable
-final class RealtimeDictionary<Key, Value>: RealtimeCollection, _RCArrayPrototype, _RCArrayContainer
+public typealias RealtimeDictionaryKey = StringRepresentableRealtimeArrayKey & RealtimeCollectionContainerKey & KeyedRealtimeValue & Linkable
+public final class RealtimeDictionary<Key, Value>: RealtimeCollection, _RCArrayPrototype, _RCArrayContainer
 where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey, Key.UniqueKey == Key.Key {
-    internal typealias PrototypeKey = _PrototypeValue<Key.Key>
-    internal typealias PrototypeValueSerializer = _PrototypeValueSerializer<Key.Key>
-    var dbRef: DatabaseReference
-    internal var elementsRef: DatabaseReference { return dbRef }
+    public typealias PrototypeKey = _PrototypeValue<Key.Key>
+    public typealias PrototypeValueSerializer = _PrototypeValueSerializer<Key.Key>
+    public let dbRef: DatabaseReference
+    public var elementsRef: DatabaseReference { return dbRef }
     private var prototypeRef: DatabaseReference { return Nodes.items.reference(from: dbRef) }
     private var keysRef: DatabaseReference
     
-    internal var prototype: RealtimeProperty<[PrototypeKey], PrototypeValueSerializer>
-    internal var elements: [Key: Value] = [:]
+    public var prototype: RealtimeProperty<[PrototypeKey], PrototypeValueSerializer>
+    public var elements: [Key: Value] = [:]
 
-    internal(set) var isPrepared: Bool = false
+    public var isPrepared: Bool = false
 
     private var shouldLinking = true // TODO: Create class family for such cases
     func unlinked() -> RealtimeDictionary<Key, Value> { shouldLinking = false; return self }
     
-    required init(dbRef: DatabaseReference, keysRef: DatabaseReference) {
+    public required init(dbRef: DatabaseReference, keysRef: DatabaseReference) {
         self.dbRef = dbRef
         self.keysRef = keysRef
         self.prototype = RealtimeProperty(dbRef: Nodes.items.reference(from: dbRef))
@@ -331,12 +332,12 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
 
     // MARK: Implementation
 
-    typealias Element = (key: Key, value: Value)
+    public typealias Element = (key: Key, value: Value)
 
-    func makeIterator() -> IndexingIterator<RealtimeDictionary> {
+    public func makeIterator() -> IndexingIterator<RealtimeDictionary> {
         return IndexingIterator(_elements: self)
     }
-    subscript(position: Int) -> Element {
+    public subscript(position: Int) -> Element {
         let k = key(by: position)
         guard let element = storedElement(by: k) else {
             let value = valueBy(ref: valueRefBy(key: k.dbKey))
@@ -354,22 +355,22 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         return object(for: prototypeKey)
     }
 
-    func store(value: Value, by key: _PrototypeValue<Key.Key>) {
+    public func store(value: Value, by key: _PrototypeValue<Key.Key>) {
         let storeKey = Container.Key(dbRef: keysRef.child(key.dbKey))
         elements[for: storeKey] = value
     }
-    func storedValue(by key: _PrototypeValue<Key.Key>) -> Value? {
+    public func storedValue(by key: _PrototypeValue<Key.Key>) -> Value? {
         return storedElement(by: key)?.value
     }
     private func storedElement(by key: _PrototypeValue<Key.Key>) -> Element? {
         return elements.first(where: { $0.key.key == key.key })
     }
 
-    func filtered(by value: Any, for node: RealtimeNode, completion: @escaping ([Element], Error?) -> ()) {
+    public func filtered(by value: Any, for node: RealtimeNode, completion: @escaping ([Element], Error?) -> ()) {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
     }
     
-    func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+    public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
         query(dbRef).observeSingleEvent(of: .value, with: { (snapshot) in
             self.apply(snapshot: snapshot, strongly: false)
             
@@ -383,7 +384,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
 
     // TODO: Element must be referenced by key. Avoid this unnecessary pre-action
     // TODO: Use methods from store for save/retrieve
-    func set(element: Value, for key: Key, completion: ((Error?, DatabaseReference) -> ())? = nil) {
+    public func set(element: Value, for key: Key, completion: ((Error?, DatabaseReference) -> ())? = nil) {
         guard element.dbRef.isChild(for: dbRef) else { fatalError("Element has reference to location not inside that dictionary") }
         guard prototype.value.contains(where: { $0.key == key.key }) else {
             let link = key.generate(linkTo: prototypeRef)
@@ -404,7 +405,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         element.save(completion: completion)
     }
 
-    func remove(for key: Key, completion: ((Error?, DatabaseReference) -> ())? = nil) {
+    public func remove(for key: Key, completion: ((Error?, DatabaseReference) -> ())? = nil) {
         guard let index = prototype.value.index(where: { $0.key == key.key }) else { return }
 
         var p_value: PrototypeKey!
@@ -421,7 +422,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
     
     // MARK: Realtime
     
-    var localValue: Any? {
+    public var localValue: Any? {
         let keys = prototype.value.map { $0.key }
         let split = elements.reduce((exists: [], removed: [])) { (res, keyValue) -> (exists: [(Key, Value)], removed: [(Key, Value)]) in
             guard keys.contains(keyValue.key.key) else {
@@ -437,11 +438,11 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         return value
     }
     
-    required init(dbRef: DatabaseReference) {
+    public required init(dbRef: DatabaseReference) {
         fatalError("Realtime dictionary cannot be initialized with init(dbRef:) initializer")
     }
     
-    required convenience init(snapshot: DataSnapshot) {
+    public required convenience init(snapshot: DataSnapshot) {
         fatalError("Realtime dictionary cannot be initialized with init(snapshot:) initializer")
     }
     
@@ -450,7 +451,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         apply(snapshot: snapshot)
     }
     
-    func apply(snapshot: DataSnapshot, strongly: Bool) {
+    public func apply(snapshot: DataSnapshot, strongly: Bool) {
         if strongly || Nodes.items.has(in: snapshot) {
             prototype.apply(snapshot: Nodes.items.snapshot(from: snapshot))
             isPrepared = true
@@ -470,11 +471,11 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         }
     }
     
-    func didSave() {
+    public func didSave() {
         prototype.didSave()
     }
     
-    func didRemove() {
+    public func didRemove() {
         prototype.didRemove()
     }
 }
@@ -482,32 +483,32 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
 /// # Realtime Array
 /// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
 /// Comment writing guide
-final class RealtimeArray<Elem>: RealtimeCollection, _RCArrayPrototype, _RCArrayContainer
+public final class RealtimeArray<Elem>: RealtimeCollection, _RCArrayPrototype, _RCArrayContainer
 where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKey: StringRepresentableRealtimeArrayKey {
-    typealias PrototypeKey = _PrototypeValue<Element.UniqueKey>
-    typealias KeySerializer = _PrototypeValueSerializer<Element.UniqueKey>
-    typealias Element = Elem
+    public typealias PrototypeKey = _PrototypeValue<Element.UniqueKey>
+    public typealias KeySerializer = _PrototypeValueSerializer<Element.UniqueKey>
+    public typealias Element = Elem
 
-    var dbRef: DatabaseReference
-    internal var elementsRef: DatabaseReference { return dbRef }
+    public let dbRef: DatabaseReference
+    public var elementsRef: DatabaseReference { return dbRef }
     internal var prototypeRef: DatabaseReference { return Nodes.items.reference(from: dbRef) }
     
-    internal var prototype: RealtimeProperty<[PrototypeKey], KeySerializer>
-    internal(set) var elements: [PrototypeKey.Key: Element] = [:]
+    public var prototype: RealtimeProperty<[PrototypeKey], KeySerializer>
+    public var elements: [PrototypeKey.Key: Element] = [:]
 
-    internal(set) var isPrepared: Bool = false
+    public var isPrepared: Bool = false
     
-    required init(dbRef: DatabaseReference) {
+    public required init(dbRef: DatabaseReference) {
         self.dbRef = dbRef
         self.prototype = RealtimeProperty(dbRef: Nodes.items.reference(from: dbRef))
     }
 
     // Implementation
 
-    func store(value: Element, by key: PrototypeKey) {
+    public func store(value: Element, by key: PrototypeKey) {
         elements[for: key.key] = value
     }
-    func storedValue(by key: PrototypeKey) -> Element? {
+    public func storedValue(by key: PrototypeKey) -> Element? {
         return elements[key.key]
     }
     
@@ -517,11 +518,11 @@ where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKe
     
     // TODO: Create Realtime wrapper for DatabaseQuery
     // TODO: Check filter with difficult values aka dictionary
-    func filtered(by value: Any, for node: RealtimeNode, completion: @escaping ([Element], Error?) -> ()) {
+    public func filtered(by value: Any, for node: RealtimeNode, completion: @escaping ([Element], Error?) -> ()) {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
     }
     
-    func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+    public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
         query(dbRef).observeSingleEvent(of: .value, with: { (snapshot) in
             self.apply(snapshot: snapshot, strongly: false)
             
@@ -533,7 +534,7 @@ where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKe
     
     // MARK: Mutating
 
-    func write(to transaction: RealtimeTransaction, actions: ((Element, Int?) throws -> Void, (Int) -> Void) -> Void) {
+    public func write(to transaction: RealtimeTransaction, actions: ((Element, Int?) throws -> Void, (Int) -> Void) -> Void) {
         checkPreparation()
 
         let insert: (Element, Int?) throws -> Void = { element, index in
@@ -545,7 +546,7 @@ where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKe
             element.add(link: link.link)
             transaction.addUpdate(item: (element.dbRef, element.localValue))
 
-            transaction.completions.append { (err) in
+            transaction.addCompletion { (err) in
                 if err == nil {
                     self.elements[key.key] = element
                     self.prototype.didSave()
@@ -555,7 +556,7 @@ where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKe
         var removedKeys: [PrototypeKey] = []
         let remove: (Int) -> Void = { index in
             self.prototype.changeLocalValue { removedKeys.append($0.remove(at: index)) }
-            transaction.completions.append { (err) in
+            transaction.addCompletion { (err) in
                 if err == nil {
                     removedKeys.forEach { key in
                         self.elements.removeValue(forKey: key.key)
@@ -570,7 +571,7 @@ where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKe
         transaction.addUpdate(item: (prototype.dbRef, prototype.localValue))
     }
 
-    func insert(element: Element, at index: Int? = nil, completion: ((Error?, DatabaseReference) -> ())? = nil) {
+    public func insert(element: Element, at index: Int? = nil, completion: ((Error?, DatabaseReference) -> ())? = nil) {
         checkPreparation()
         guard !contains(element) else { completion?(RealtimeArrayError(type: .alreadyInserted), elementsRef); return }
 
@@ -587,13 +588,13 @@ where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKe
         }
     }
     
-    func remove(element: Element, completion: Database.TransactionCompletion?) {
+    public func remove(element: Element, completion: Database.TransactionCompletion?) {
         if let index = prototype.value.index(where: { $0.entityId == element.uniqueKey }) {
             remove(at: index, completion: completion)
         }
     }
     
-    func remove(at index: Int, completion: ((Error?, DatabaseReference) -> ())? = nil) {
+    public func remove(at index: Int, completion: ((Error?, DatabaseReference) -> ())? = nil) {
         checkPreparation()
         
         var key: PrototypeKey!
@@ -609,7 +610,7 @@ where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKe
     
     // MARK: Realtime
     
-    var localValue: Any? {
+    public var localValue: Any? {
         let keys = prototype.value.map { $0.key }
         let split = elements.reduce((exists: [], removed: [])) { (res, keyValue) -> (exists: [(PrototypeKey.Key, Element)], removed: [(PrototypeKey.Key, Element)]) in
             guard keys.contains(keyValue.key) else {
@@ -625,12 +626,12 @@ where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKe
         return value
     }
 
-    required convenience init(snapshot: DataSnapshot) {
+    public required convenience init(snapshot: DataSnapshot) {
         self.init(dbRef: snapshot.ref)
         apply(snapshot: snapshot)
     }
     
-    func apply(snapshot: DataSnapshot, strongly: Bool) {
+    public func apply(snapshot: DataSnapshot, strongly: Bool) {
         if strongly || Nodes.items.has(in: snapshot) {
             prototype.apply(snapshot: Nodes.items.snapshot(from: snapshot))
             isPrepared = true
@@ -649,22 +650,22 @@ where Elem: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Elem.UniqueKe
         }
     }
     
-    func didSave() {
+    public func didSave() {
         prototype.didSave()
     }
     
-    func didRemove() {
+    public func didRemove() {
         prototype.didRemove()
     }
 }
 
-struct _PrototypeValue<Key: Hashable & LosslessStringConvertible>: RealtimeCollectionKey, RealtimeCollectionContainerKey {
-    let entityId: Key
-    let linkId: String
+public struct _PrototypeValue<Key: Hashable & LosslessStringConvertible>: RealtimeCollectionKey, RealtimeCollectionContainerKey {
+    public let entityId: Key
+    public let linkId: String
     let index: Int
-    var dbKey: String { return String(entityId) }
+    public var dbKey: String { return String(entityId) }
     
-    var hashValue: Int {
+    public var hashValue: Int {
         return entityId.hashValue &- linkId.hashValue
     }
     
@@ -672,8 +673,8 @@ struct _PrototypeValue<Key: Hashable & LosslessStringConvertible>: RealtimeColle
         return lhs.entityId == rhs.entityId
     }
 }
-final class _PrototypeValueSerializer<Key: Hashable & LosslessStringConvertible>: _Serializer {
-    class func deserialize(entity: DataSnapshot) -> [_PrototypeValue<Key>] {
+public final class _PrototypeValueSerializer<Key: Hashable & LosslessStringConvertible>: _Serializer {
+    public class func deserialize(entity: DataSnapshot) -> [_PrototypeValue<Key>] {
         guard let keyes = entity.value as? [Key: [String: Int]] else { return Entity.defValue }
         
         return keyes
@@ -681,7 +682,7 @@ final class _PrototypeValueSerializer<Key: Hashable & LosslessStringConvertible>
             .sorted(by: { $0.index < $1.index })
     }
     
-    class func serialize(entity: [_PrototypeValue<Key>]) -> Any? {
+    public class func serialize(entity: [_PrototypeValue<Key>]) -> Any? {
         return entity.reduce(Dictionary<Key, Any>(), { (result, key) -> [Key: Any] in
             var result = result
             result[key.entityId] = [key.linkId: result.count]
@@ -692,24 +693,24 @@ final class _PrototypeValueSerializer<Key: Hashable & LosslessStringConvertible>
 
 // TODO: Listen prototype changes for remove deleted elements in other operations.
 // TODO: Add method for activate realtime mode (observing changes).
-final class LinkedRealtimeArray<Elem>: RealtimeCollection, _RC, _RCElementProvider, _RCPrototype, _RCArrayPrototype, _RCArrayContainer
+public final class LinkedRealtimeArray<Elem>: RealtimeCollection, _RC, _RCElementProvider, _RCPrototype, _RCArrayPrototype, _RCArrayContainer
 where Elem: KeyedRealtimeValue, Elem.UniqueKey: StringRepresentableRealtimeArrayKey {
-    typealias Key = _PrototypeValue<Element.UniqueKey>
-    typealias KeySerializer = _PrototypeValueSerializer<Element.UniqueKey>
-    typealias Element = Elem
+    public typealias Key = _PrototypeValue<Element.UniqueKey>
+    public typealias KeySerializer = _PrototypeValueSerializer<Element.UniqueKey>
+    public typealias Element = Elem
     
-    var dbRef: DatabaseReference
-    internal var elementsRef: DatabaseReference
+    public let dbRef: DatabaseReference
+    public var elementsRef: DatabaseReference
     internal var prototypeRef: DatabaseReference { return dbRef }
-    internal var prototype: RealtimeProperty<[Key], KeySerializer>
-    internal(set) var elements: [Key.Key: Element] = [:]
+    public var prototype: RealtimeProperty<[Key], KeySerializer>
+    public var elements: [Key.Key: Element] = [:]
     
     // optional
     var elementBuilder: ((Element.Type, DatabaseReference) -> Element)?
     var keyPath: String?
-    internal(set) var isPrepared: Bool = false
+    public var isPrepared: Bool = false
     
-    required init(dbRef: DatabaseReference, elementsRef: DatabaseReference) {
+    public required init(dbRef: DatabaseReference, elementsRef: DatabaseReference) {
         self.dbRef = dbRef
         self.elementsRef = elementsRef
         self.prototype = RealtimeProperty(dbRef: dbRef)
@@ -717,17 +718,17 @@ where Elem: KeyedRealtimeValue, Elem.UniqueKey: StringRepresentableRealtimeArray
     
     // MARK: Realtime
     
-    var localValue: Any? { return prototype.localValue }
+    public var localValue: Any? { return prototype.localValue }
     
-    required init(dbRef: DatabaseReference) {
+    public required init(dbRef: DatabaseReference) {
         fatalError("Linked array cannot be initialized with init(dbRef:) initializer")
     }
     // TODO: For resolve error can be store link to objects in private key
-    required init(snapshot: DataSnapshot) {
+    public required init(snapshot: DataSnapshot) {
         fatalError("Linked array cannot be initialized with init(snapshot:) initializer")
     }
     
-    convenience required init(snapshot: DataSnapshot, elementsRef: DatabaseReference) {
+    public convenience required init(snapshot: DataSnapshot, elementsRef: DatabaseReference) {
         self.init(dbRef: snapshot.ref, elementsRef: elementsRef)
         apply(snapshot: snapshot)
     }
@@ -738,34 +739,34 @@ where Elem: KeyedRealtimeValue, Elem.UniqueKey: StringRepresentableRealtimeArray
         return prototype.value.contains { $0.entityId == element.uniqueKey }
     }
 
-    typealias StoreKey = _PrototypeValue<Element.UniqueKey>.Key
-    typealias StoreValue = Element
-    func makeKeysIterator() -> AnyIterator<_PrototypeValue<Element.UniqueKey>.Key> {
+    public typealias StoreKey = _PrototypeValue<Element.UniqueKey>.Key
+    public typealias StoreValue = Element
+    public func makeKeysIterator() -> AnyIterator<_PrototypeValue<Element.UniqueKey>.Key> {
         var itr = prototype.value.makeIterator()
         return AnyIterator { itr.next()?.key }
     }
-    func key(by index: Int) -> _PrototypeValue<Element.UniqueKey>.Key {
+    public func key(by index: Int) -> _PrototypeValue<Element.UniqueKey>.Key {
         return prototype.value[index].key
     }
-    func valueRefBy(key: String) -> DatabaseReference {
+    public func valueRefBy(key: String) -> DatabaseReference {
         return elementsRef.child(keyPath.map { key + "/" + $0 } ?? key)
     }
 
-    func apply(snapshot: DataSnapshot, strongly: Bool) {
+    public func apply(snapshot: DataSnapshot, strongly: Bool) {
         prototype.apply(snapshot: snapshot, strongly: strongly)
         isPrepared = true
     }
 
-    func didSave() {
+    public func didSave() {
         prototype.didSave()
     }
 
-    func didRemove() {
+    public func didRemove() {
         prototype.didRemove()
     }
 }
 extension LinkedRealtimeArray: KeyedRealtimeValue {
-    var uniqueKey: String { return dbKey }
+    public var uniqueKey: String { return dbKey }
 }
 extension LinkedRealtimeArray {
     convenience init(dbRef: DatabaseReference, elementsRef: DatabaseReference, keyPath: String, elementBuilder: ((Element.Type, DatabaseReference) -> Element)?) {
@@ -809,23 +810,23 @@ extension LinkedRealtimeArray where Element: Linkable {
             element.add(link: link.link)
             transaction.addUpdate(item: (link.sourceRef, link.link.dbValue))
 
-            transaction.completions.append({ (err) in
+            transaction.addCompletion { (err) in
                 if err == nil {
                     self.elements[key.key] = element
                     self.prototype.didSave()
                 }
-            })
+            }
         }
         var removedKeys: [Key] = []
         let remove: (Int) -> Void = { index in
             self.prototype.changeLocalValue { removedKeys.append($0.remove(at: index)) }
-            transaction.completions.append({ (err) in
+            transaction.addCompletion { (err) in
                 if err == nil {
                     removedKeys.forEach { key in
                         self.elements.removeValue(forKey: key.key)?.remove(linkBy: key.linkId)
                     }
                 }
-            })
+            }
         }
 
         actions(insert, remove)
@@ -1007,10 +1008,10 @@ where C.KeysIterator.Element == C.StoreKey, C.Index == Int {
 // 2) Sorting performs after load prototype (runtime sorting)
 
 extension RealtimeArray: KeyedRealtimeValue {
-    var uniqueKey: String { return dbKey }
+    public var uniqueKey: String { return dbKey }
 }
 extension KeyedRealtimeArray: KeyedRealtimeValue {
-    var uniqueKey: String { return dbKey }
+    public var uniqueKey: String { return dbKey }
 }
 
 extension RealtimeCollection where Self.Iterator.Element == Self.StoreValue, Self.Index == Int, Self.KeysIterator.Element == Self.StoreKey {
@@ -1023,10 +1024,10 @@ extension RealtimeCollection where Self.Iterator.Element == Self.StoreValue, Sel
 // TODO: Create lazy flatMap collection with keyPath access
 
 // TODO: Must be easier 
-final class KeyedRealtimeArray<Elem, StoreKey, BaseStoreValue>: RealtimeCollection
+public final class KeyedRealtimeArray<Elem, StoreKey, BaseStoreValue>: RealtimeCollection
 where Elem: KeyedRealtimeValue, Elem.UniqueKey: StringRepresentableRealtimeArrayKey, StoreKey: StringRepresentableRealtimeArrayKey {
-    typealias Element = Elem
-    typealias Index = Int
+    public typealias Element = Elem
+    public typealias Index = Int
     let keyPath: RealtimeNode
     private let elementBuilder: (DatabaseReference) -> Elem
     private let base: _AnyRealtimeCollectionBase<BaseStoreValue, StoreKey, BaseStoreValue>
@@ -1038,69 +1039,69 @@ where Elem: KeyedRealtimeValue, Elem.UniqueKey: StringRepresentableRealtimeArray
         self.elementBuilder = elementBuilder
     }
 
-    var dbRef: DatabaseReference { return base.dbRef }
-    internal(set) var isPrepared: Bool { get { return base.isPrepared } set {} }
-    var localValue: Any? { return base.localValue }
+    public var dbRef: DatabaseReference { return base.dbRef }
+    public var isPrepared: Bool { get { return base.isPrepared } set {} }
+    public var localValue: Any? { return base.localValue }
 
-    var startIndex: Index { return base.startIndex }
-    var endIndex: Index { return base.endIndex }
-    func index(after i: Index) -> Index { return base.index(after: i) }
+    public var startIndex: Index { return base.startIndex }
+    public var endIndex: Index { return base.endIndex }
+    public func index(after i: Index) -> Index { return base.index(after: i) }
 
-    func prepare(forUse completion: @escaping (Error?) -> Void) {
+    public func prepare(forUse completion: @escaping (Error?) -> Void) {
         base.prepare(forUse: completion)
     }
-    func changesListening(completion: @escaping () -> Void) -> ListeningItem {
+    public func changesListening(completion: @escaping () -> Void) -> ListeningItem {
         return base.changesListening(completion: completion)
     }
-    func runObserving() {
+    public func runObserving() {
         base.runObserving()
     }
-    func stopObserving() {
+    public func stopObserving() {
         base.stopObserving()
     }
 
-    typealias StoreValue = Element
-    func makeKeysIterator() -> AnyIterator<StoreKey> {
+    public typealias StoreValue = Element
+    public func makeKeysIterator() -> AnyIterator<StoreKey> {
         return base.makeKeysIterator()
     }
-    func key(by index: Int) -> StoreKey {
+    public func key(by index: Int) -> StoreKey {
         return base.key(by: index)
     }
-    func newValueRef() -> DatabaseReference {
+    public func newValueRef() -> DatabaseReference {
         return base.newValueRef()
     }
-    func valueRefBy(key: String) -> DatabaseReference {
+    public func valueRefBy(key: String) -> DatabaseReference {
         return base.valueRefBy(key: keyPath.path(from: key))
     }
-    func valueBy(ref reference: DatabaseReference) -> Element {
+    public func valueBy(ref reference: DatabaseReference) -> Element {
         return elementBuilder(reference)
     }
 
-    func storedValue(by key: StoreKey) -> Element? {
+    public func storedValue(by key: StoreKey) -> Element? {
         return elements[key.dbKey]
     }
-    func store(value: Element, by key: StoreKey) {
+    public func store(value: Element, by key: StoreKey) {
         elements[key.dbKey] = value
     }
-    var debugDescription: String { return base.debugDescription }
+    public var debugDescription: String { return base.debugDescription }
 
-    convenience required init?(snapshot: DataSnapshot) {
+    public convenience required init?(snapshot: DataSnapshot) {
         fatalError()
     }
 
-    required init(dbRef: DatabaseReference) {
+    public required init(dbRef: DatabaseReference) {
         fatalError()
     }
 
-    func apply(snapshot: DataSnapshot, strongly: Bool) {
+    public func apply(snapshot: DataSnapshot, strongly: Bool) {
         base.apply(snapshot: snapshot, strongly: strongly)
     }
 
-    func didSave() {
+    public func didSave() {
         base.didSave()
     }
 
-    func didRemove() {
+    public func didRemove() {
         base.didRemove()
     }
 }

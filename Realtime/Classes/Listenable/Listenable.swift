@@ -12,14 +12,14 @@ import Foundation
 
 // MARK: Listening stores, disposes and items
 
-struct Promise {
+public struct Promise {
     fileprivate let action: () -> Void
 
     func fulfill() {
         action()
     }
 }
-struct ResultPromise<T> {
+public struct ResultPromise<T> {
     fileprivate let receiver: (T) -> Void
 
     func fulfill(_ result: T) {
@@ -27,10 +27,12 @@ struct ResultPromise<T> {
     }
 }
 
-struct ListeningDisposeStore {
+public struct ListeningDisposeStore {
     private var disposes = [Disposable]()
     private var listeningItems = [ListeningItem]()
-    
+
+    public init() {}
+
     mutating func add(_ stop: Disposable) {
         disposes.append(stop)
     }
@@ -60,7 +62,7 @@ struct ListeningDisposeStore {
     }
 }
 
-protocol Disposable {
+public protocol Disposable {
     var dispose: () -> Void { get }
 }
 
@@ -98,7 +100,7 @@ public struct ListeningItem {
     }
 }
 extension ListeningItem: Disposable {
-    var dispose: () -> Void { return stop }
+    public var dispose: () -> Void { return stop }
 }
 extension ListeningItem {
     init<Token>(start: @escaping (AnyListening) -> Token?, stop: @escaping (Token) -> Void, listeningToken: (Token, AnyListening)) {
@@ -109,162 +111,120 @@ extension ListeningItem {
     }
 }
 
-extension ListeningItem {
+public extension ListeningItem {
     @discardableResult
     func add(to store: inout ListeningDisposeStore) -> ListeningItem {
         store.add(self); return self
     }
 }
 
-extension ListeningDispose {
-    @discardableResult
-    func add(to store: inout ListeningDisposeStore) -> ListeningDispose {
-        store.add(self); return self
+public extension Disposable {
+    func add(to store: inout ListeningDisposeStore) {
+        store.add(self)
     }
 }
 
 // MARK: Connections
 
-//fileprivate protocol LOwner {
-//    associatedtype Assigned
-//    func makeBridge<T>(with assign: @escaping (T, Assigned) -> Void, source: @escaping () -> T) -> () -> Void
-//    func wrap<T>(assign: @escaping (T, Assigned) -> Void) -> (T) -> Void
-//}
-//struct ListeningOwner<O: AnyObject, Assigned>: LOwner {
-//    struct AnyOwner<Assigned>: LOwner {
-//        let base: Base
-//
-//        func makeBridge<T>(with assign: @escaping (T, Assigned) -> Void, source: @escaping () -> T) -> () -> Void {
-//            return base.makeBridge(with: assign, source: source)
-//        }
-//        func wrap<T>(assign: @escaping (T, Assigned) -> Void) -> (T) -> Void {
-//            return base.wrap(assign: assign)
-//        }
-//    }
-//    let builder: AnyOwner<>
-//
-//    func makeBridge<T>(with assign: @escaping (T, Assigned) -> Void, source: @escaping () -> T) -> () -> Void {
-//        return bridging(assign, source)
-//    }
-//    func wrap<T>(assign: @escaping (T, Assigned) -> Void) -> (T) -> Void {
-//        return wrap(assign)
-//    }
-//    static func unowned(_ owner: O) -> ListeningOwner<O, O> { return ListeningOwner(owner: owner, builder: Unowned()) }
-//    struct Unowned: LOwner {
-//        private var owner: O
-//
-//        func makeBridge<T>(with assign: @escaping (T, O) -> Void, source: @escaping () -> T) -> () -> Void {
-//            return { [unowned owner] in assign(source(), owner) }
-//        }
-//        func wrap<T>(assign: @escaping (T, O) -> Void) -> (T) -> Void {
-//            return { [unowned owner] v in assign(v, owner) }
-//        }
-//    }
-//    static func weak(_ owner: O) -> ListeningOwner<O, O?> { return ListeningOwner(owner: owner, builder: Weak()) }
-//    struct Weak: LOwner {
-//        private var owner: O
-//
-//        func makeBridge<T>(with assign: @escaping (T, O?) -> Void, source: @escaping () -> T) -> () -> Void {
-//            return { [weak owner] in assign(source(), owner) }
-//        }
-//        func wrap<T>(assign: @escaping (T, O?) -> Void) -> (T) -> Void {
-//            return { [weak owner] v in assign(v, owner) }
-//        }
-//    }
-//}
-
-enum ListeningOwner<O: AnyObject> {
-    //    case none
-    case weak(O), unowned(O)
-    
-    // TODO: For unowned not must have optional wrapper
-    func makeBridge<T>(with assign: @escaping (T, O?) -> Void, source: @escaping () -> T) -> () -> Void {
-        switch self {
-            //        case .none:
-        //            return { assign(source(), nil) }
-        case .weak(let owner):
-            return { [weak owner] in assign(source(), owner) }
-        case .unowned(let owner):
-            return { [unowned owner] in assign(source(), owner) }
-        }
+public struct Assign<A> {
+    fileprivate let assign: (A) -> Void
+    static public func just(_ assign: @escaping (A) -> Void) -> Assign<A> {
+        return Assign(assign: assign)
     }
-    
-    func wrap<T>(assign: @escaping (T, O?) -> Void) -> (T) -> Void {
-        switch self {
-        case .weak(let owner):
-            return { [weak owner] v in assign(v, owner) }
-        case .unowned(let owner):
-            return { [unowned owner] v in assign(v, owner) }
-        }
+    static public func weak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
+        return Assign(assign: { [weak owner] v in assign(v, owner) })
+    }
+    static public func unowned<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
+        return Assign(assign: { [unowned owner] v in assign(v, owner) })
+    }
+    static public func guarded<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
+        return weak(owner) { if let o = $1 { assign($0, o) } }
+    }
+    static public func on(_ queue: DispatchQueue, assign: @escaping (A) -> Void) -> Assign<A> {
+        return Assign(assign: { v in queue.async { assign(v) } })
+    }
+
+    public func on(queue: DispatchQueue) -> Assign<A> {
+        return Assign.on(queue, assign: assign)
     }
 }
 
-internal protocol BridgeMaker {
+fileprivate protocol BridgeMaker {
     associatedtype Data
     associatedtype OutData
     func makeBridge(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void
-    func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (OutData, Owner?) -> Void, source: @escaping () -> Data) -> () -> Void
 }
 
 extension BridgeMaker where Data == OutData {
-    internal func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (OutData, Owner?) -> Void, source: @escaping () -> Data) -> () -> Void {
-        return owner.makeBridge(with: assign, source: source)
-    }
-}
-
-internal protocol ListeningMaker: BridgeMaker {
-    func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening
-    func makeListening<O>(owner: ListeningOwner<O>, assign: @escaping (OutData, O?) -> Void) -> AnyListening
-}
-
-extension ListeningMaker {
-    internal func makeBridge<OutData>(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void where OutData == Data {
+    fileprivate func makeBridge(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void {
         return { assign(source()) }
     }
-    internal func makeBridge<OutData>(on event: @escaping (OutData, Promise) -> Void, with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void where OutData == Data {
+    fileprivate func makeBridge(on event: @escaping (OutData, Promise) -> Void, with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void {
         let realBridge = makeBridge(with: assign, source: source)
         return makeBridge(on: event, bridge: realBridge, source: source)
     }
-    internal func makeBridge<OutData>(on event: @escaping (OutData, Promise) -> Void, bridge: @escaping () -> Void, source: @escaping () -> Data) -> () -> Void where OutData == Data {
+    fileprivate func makeBridge(on event: @escaping (OutData, Promise) -> Void, bridge: @escaping () -> Void, source: @escaping () -> Data) -> () -> Void {
         return { event(source(), Promise(action: bridge)) }
     }
 }
+
+fileprivate protocol ListeningMaker {
+    associatedtype OutData
+    associatedtype Data
+    func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening
+}
+
+struct SimpleBridgeMaker<Data>: BridgeMaker {
+    typealias OutData = Data
+}
 fileprivate protocol _ListeningMaker: ListeningMaker {
+    associatedtype Bridge: BridgeMaker
+    var bridgeMaker: Bridge { get }
     var dataSource: () -> Data { get }
 }
-extension _ListeningMaker {
-    internal func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening {
-        return Listening(bridge: makeBridge(with: assign, source: dataSource))
+extension _ListeningMaker where Bridge.Data == Self.Data, Bridge.OutData == Self.OutData {
+    fileprivate func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening {
+        return Listening(bridge: bridgeMaker.makeBridge(with: assign, source: dataSource))
     }
-    internal func makeListening(on event: @escaping (Data, Promise) -> Void, _ assign: @escaping (OutData) -> Void) -> AnyListening {
+    fileprivate func makeListening(on event: @escaping (Data, Promise) -> Void, _ assign: @escaping (OutData) -> Void) -> AnyListening {
         let source = dataSource
-        let realBridge = makeBridge(with: assign, source: source)
+        let realBridge = bridgeMaker.makeBridge(with: assign, source: source)
         return Listening(bridge: { event(source(), Promise(action: realBridge)) })
     }
-    internal func makeListening<O>(owner: ListeningOwner<O>, assign: @escaping (OutData, O?) -> Void) -> AnyListening {
-        return Listening(bridge: makeBridge(owner: owner, with: assign, source: dataSource))
+}
+
+public protocol Listenable {
+    associatedtype OutData
+    func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> Disposable
+    func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem
+}
+public extension Listenable {
+    func listening(_ assign: Assign<OutData>) -> Disposable {
+        return listening(as: { $0 }, assign)
+    }
+    func listeningItem(_ assign: Assign<OutData>) -> ListeningItem {
+        return listeningItem(as: { $0 }, assign)
     }
 }
 
 extension Insider: _ListeningMaker {
-    typealias OutData = Data
-    typealias ListeningToken = (token: Token, listening: AnyListening)
+    typealias OutData = D
+    public typealias Data = D
+    var bridgeMaker: SimpleBridgeMaker<D> { return SimpleBridgeMaker<D>() } // TODO: Avoid permanent reallocation
+    public typealias ListeningToken = (token: Token, listening: AnyListening)
     fileprivate mutating func addListening(_ listening: AnyListening) -> ListeningToken {
         return (connect(with: listening), listening)
     }
 
-    mutating func listen(as config: (AnyListening) -> AnyListening = { $0 }, onReceive: @escaping (Data, Promise) -> Void, _ assign: @escaping (Data) -> Void) -> ListeningToken {
-        return addListening(config(makeListening(on: onReceive, assign)))
+    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, onReceive: @escaping (D, Promise) -> Void, _ assign: Assign<D>) -> ListeningToken {
+        return addListening(config(makeListening(on: onReceive, assign.assign)))
     }
-    mutating func listen(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: @escaping (Data) -> Void) -> ListeningToken {
-        return addListening(config(makeListening(assign)))
-    }
-    mutating func listen<O>(as config: (AnyListening) -> AnyListening = { $0 }, owner: ListeningOwner<O>, _ assign: @escaping (Data, O?) -> Void) -> ListeningToken {
-        return addListening(config(makeListening(owner: owner, assign: assign)))
+    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: Assign<D>) -> ListeningToken {
+        return addListening(config(makeListening(assign.assign)))
     }
 }
 
-public protocol InsiderOwner: class {
+public protocol InsiderOwner: class, Listenable {
     associatedtype T
     var insider: Insider<T> { get set }
 }
@@ -274,18 +234,12 @@ protocol InsiderAccessor {
     weak var insiderOwner: Owner! { get }
 }
 
-extension InsiderAccessor where Self: ListeningMaker {
-    func listening(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: @escaping (OutData) -> Void) -> ListeningDispose {
-        return insiderOwner.connect(disposed: config(makeListening(assign)))
+extension InsiderAccessor where Self: _ListeningMaker {
+    fileprivate func _listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> Disposable {
+        return insiderOwner.connect(disposed: config(makeListening(assign.assign)))
     }
-    func listening<O>(as config: (AnyListening) -> AnyListening = { $0 }, owner: ListeningOwner<O>, _ assign: @escaping (OutData, O?) -> Void) -> ListeningDispose {
-        return insiderOwner.connect(disposed: config(makeListening(owner: owner, assign: assign)))
-    }
-    func listeningItem(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: @escaping (OutData) -> Void) -> ListeningItem {
-        return insiderOwner.connect(item: config(makeListening(assign)))
-    }
-    func listeningItem<O>(as config: (AnyListening) -> AnyListening = { $0 }, owner: ListeningOwner<O>, _ assign: @escaping (OutData, O?) -> Void) -> ListeningItem {
-        return insiderOwner.connect(item: config(makeListening(owner: owner, assign: assign)))
+    fileprivate func _listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem {
+        return insiderOwner.connect(item: config(makeListening(assign.assign)))
     }
 }
 
@@ -306,18 +260,11 @@ extension InsiderOwner {
         return makeListeningItem(token: insider.connect(with: listening), listening: listening)
     }
 
-    func listening(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: @escaping (T) -> Void) -> ListeningDispose {
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
         return makeDispose(for: insider.listen(as: config, assign).token)
     }
-    func listening<O>(as config: (AnyListening) -> AnyListening = { $0 }, owner: ListeningOwner<O>, _ assign: @escaping (T, O?) -> Void) -> ListeningDispose {
-        return makeDispose(for: insider.listen(as: config, owner: owner, assign).token)
-    }
-    func listeningItem(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: @escaping (T) -> Void) -> ListeningItem {
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
         let item = insider.listen(as: config, assign)
-        return makeListeningItem(token: item.token, listening: item.listening)
-    }
-    func listeningItem<O>(as config: (AnyListening) -> AnyListening = { $0 }, owner: ListeningOwner<O>, _ assign: @escaping (T, O?) -> Void) -> ListeningItem {
-        let item = insider.listen(as: config, owner: owner, assign)
         return makeListeningItem(token: item.token, listening: item.listening)
     }
 }
@@ -432,12 +379,12 @@ fileprivate struct AnyOnReceive<I, O> {
     }
 }
 
-protocol FilteringEntity {
+public protocol FilteringEntity {
     associatedtype Value
     associatedtype Filtered
     func filter(_ predicate: @escaping (Value) -> Bool) -> Filtered
 }
-extension FilteringEntity {
+public extension FilteringEntity {
     fileprivate func _distinctUntilChanged(_ def: Value?, comparer: @escaping (Value, Value) -> Bool) -> Filtered {
         var oldValue: Value? = def
         return filter { newValue in
@@ -452,7 +399,7 @@ extension FilteringEntity {
         return _distinctUntilChanged(nil, comparer: comparer)
     }
 }
-extension FilteringEntity where Value: Equatable {
+public extension FilteringEntity where Value: Equatable {
     func distinctUntilChanged(_ def: Value) -> Filtered {
         return distinctUntilChanged(def, comparer: { $0 != $1 })
     }
@@ -466,327 +413,378 @@ extension FilteringEntity where Value: Equatable {
 // TODO: Can be removed, because immediately transformed
 // TODO: Add flatMap, default value.
 // TODO: Make preprocessor type with private access and create filter-map protocol
-struct Preprocessor<V>: FilteringEntity, _ListeningMaker {
-    typealias OutData = V
+public struct Preprocessor<V>: FilteringEntity, _ListeningMaker, PublicPreprocessor {
+    public typealias OutData = V
+    typealias Data = V
     fileprivate let dataSource: () -> V
+    fileprivate let bridgeMaker = SimpleBridgeMaker<V>()
     
-    func filter(_ predicate: @escaping (V) -> Bool) -> FilteredPreprocessor<V> {
-        return FilteredPreprocessor(dataSource: dataSource, bridge: AnyFilter.wrap(predicate: predicate))
+    public func filter(_ predicate: @escaping (V) -> Bool) -> FilteredPreprocessor<V> {
+        return FilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: AnyFilter.wrap(predicate: predicate)))
     }
     
-    func map<U>(_ transform: @escaping (V) -> U) -> TransformedPreprocessor<U> {
+    public func map<U>(_ transform: @escaping (V) -> U) -> TransformedPreprocessor<U> {
         return TransformedPreprocessor(dataSource: AnyModificator.make(modificator: transform, with: dataSource))
     }
 
-    func onReceive(_ event: @escaping (V, Promise) -> Void) -> OnReceivePreprocessor<V, V> {
-        return OnReceivePreprocessor(dataSource: dataSource, event: event, bridge: { i, assign in assign(i) })
+    public func onReceive(_ event: @escaping (V, Promise) -> Void) -> OnReceivePreprocessor<V, V> {
+        return OnReceivePreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveBridge(event: event, bridge: { i, assign in assign(i) }))
     }
 
-    func onReceiveMap<O>(_ event: @escaping (V, ResultPromise<O>) -> Void) -> OnReceiveMapPreprocessor<O, V, V> {
-        return OnReceiveMapPreprocessor(dataSource: dataSource, event: event, bridge: { i, assign in assign(i) })
+    public func onReceiveMap<O>(_ event: @escaping (V, ResultPromise<O>) -> Void) -> OnReceiveMapPreprocessor<O, V, V> {
+        return OnReceiveMapPreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: { i, assign in assign(i) }))
+    }
+
+    public func wrap(_ assign: @escaping (V) -> Void) -> AnyListening {
+        return makeListening(assign)
     }
 }
-// TODO: Add `onReceive` with map value (url -> data)
-struct OwnedOnReceivePreprocessor<Owner: InsiderOwner, I, O>: InsiderAccessor, _ListeningMaker {
-    typealias OutData = O
-    weak var insiderOwner: Owner!
-    fileprivate var dataSource: () -> I
-    fileprivate let event: (O, Promise) -> Void
-    fileprivate let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
 
+public struct OwnedOnReceivePreprocessor<Owner: InsiderOwner, I, O>: InsiderAccessor, _ListeningMaker, Listenable {
+    public typealias OutData = O
+    typealias Data = I
+    fileprivate typealias Bridge = OnReceiveBridge<I, O>
+    internal weak var insiderOwner: Owner!
+    fileprivate let dataSource: () -> I
+    fileprivate let bridgeMaker: Bridge
 
-    func filter(_ predicate: @escaping (O) -> Bool) -> OwnedTransformedFilteredPreprocessor<Owner, I, O> {
-        let bridge = AnyFilter.wrap(predicate: predicate, on: AnyOnReceive.wrap(bridgeBlank: self.bridge, to: event))
+    public func filter(_ predicate: @escaping (O) -> Bool) -> OwnedTransformedFilteredPreprocessor<Owner, I, O> {
+        let bridge = AnyFilter.wrap(predicate: predicate, on: AnyOnReceive.wrap(bridgeBlank: bridgeMaker.bridge, to: bridgeMaker.event))
         return OwnedTransformedFilteredPreprocessor(insiderOwner: insiderOwner,
                                                     dataSource: dataSource,
-                                                    bridge: bridge)
+                                                    bridgeMaker: .init(bridge: bridge))
     }
 
-    func map<U>(_ transform: @escaping (O) -> U) -> OwnedTransformedFilteredPreprocessor<Owner, I, U> {
-        let bridge = AnyModificator.make(modificator: transform, with: AnyOnReceive.wrap(bridgeBlank: self.bridge, to: event))
+    public func map<U>(_ transform: @escaping (O) -> U) -> OwnedTransformedFilteredPreprocessor<Owner, I, U> {
+        let bridge = AnyModificator.make(modificator: transform, with: AnyOnReceive.wrap(bridgeBlank: bridgeMaker.bridge, to: bridgeMaker.event))
         return OwnedTransformedFilteredPreprocessor<Owner, I, U>(insiderOwner: insiderOwner,
                                                                  dataSource: dataSource,
-                                                                 bridge: bridge)
+                                                                 bridgeMaker: .init(bridge: bridge))
     }
 
-    internal func makeBridge(with assign: @escaping (O) -> Void, source: @escaping () -> I) -> () -> Void {
-        return AnyOnReceive.wrap(assign: assign, to: event, with: source, bridgeBlank: bridge)
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<O>) -> Disposable {
+        return _listening(as: config, assign)
     }
-
-    internal func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (O, Owner?) -> Void, source: @escaping () -> I) -> () -> Void {
-        return makeBridge(with: owner.wrap(assign: assign), source: source)
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<O>) -> ListeningItem {
+        return _listeningItem(as: config, assign)
     }
 }
-struct OnReceivePreprocessor<I, O>: _ListeningMaker {
-    typealias OutData = O
-    fileprivate var dataSource: () -> I
-    fileprivate let event: (O, Promise) -> Void
-    fileprivate let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
-
-    func filter(_ predicate: @escaping (O) -> Bool) -> TransformedFilteredPreprocessor<I, O> {
-        let bridge = AnyFilter.wrap(predicate: predicate, on: AnyOnReceive.wrap(bridgeBlank: self.bridge, to: event))
-        return TransformedFilteredPreprocessor(dataSource: dataSource, bridge: bridge)
-    }
-
-    func map<U>(_ transform: @escaping (O) -> U) -> TransformedFilteredPreprocessor<I, U> {
-        let bridge = AnyModificator.make(modificator: transform, with: AnyOnReceive.wrap(bridgeBlank: self.bridge, to: event))
-        return TransformedFilteredPreprocessor(dataSource: dataSource, bridge: bridge)
-    }
-
-    internal func makeBridge(with assign: @escaping (O) -> Void, source: @escaping () -> I) -> () -> Void {
+fileprivate struct OnReceiveBridge<I, O>: BridgeMaker {
+    let event: (O, Promise) -> Void
+    let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
+    fileprivate func makeBridge(with assign: @escaping (O) -> Void, source: @escaping () -> I) -> () -> Void {
         return AnyOnReceive.wrap(assign: assign, to: event, with: source, bridgeBlank: bridge)
     }
-
-    internal func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (O, Owner?) -> Void, source: @escaping () -> I) -> () -> Void {
-        return makeBridge(with: owner.wrap(assign: assign), source: source)
-    }
 }
-struct OnReceiveMapPreprocessor<Result, I, O>: _ListeningMaker {
-    typealias OutData = Result
-    fileprivate var dataSource: () -> I
-    fileprivate let event: (O, ResultPromise<Result>) -> Void
-    fileprivate let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
-
-    func filter(_ predicate: @escaping (Result) -> Bool) -> TransformedFilteredPreprocessor<I, Result> {
-        let bridge = AnyFilter.wrap(predicate: predicate, on: AnyOnReceive.wrap(bridgeBlank: self.bridge, to: event))
-        return TransformedFilteredPreprocessor(dataSource: dataSource, bridge: bridge)
-    }
-
-    func map<U>(_ transform: @escaping (Result) -> U) -> TransformedFilteredPreprocessor<I, U> {
-        let bridge = AnyModificator.make(modificator: transform, with: AnyOnReceive.wrap(bridgeBlank: self.bridge, to: event))
-        return TransformedFilteredPreprocessor(dataSource: dataSource, bridge: bridge)
-    }
-
-    internal func makeBridge(with assign: @escaping (Result) -> Void, source: @escaping () -> I) -> () -> Void {
+fileprivate struct OnReceiveMapBridge<I, O, R>: BridgeMaker {
+    let event: (O, ResultPromise<R>) -> Void
+    let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
+    fileprivate func makeBridge(with assign: @escaping (R) -> Void, source: @escaping () -> I) -> () -> Void {
         return AnyOnReceive.wrap(assign: assign, to: event, with: source, bridgeBlank: bridge)
     }
+}
+public struct OnReceivePreprocessor<I, O>: _ListeningMaker, PublicPreprocessor {
+    public typealias OutData = O
+    typealias Data = I
+    fileprivate typealias Bridge = OnReceiveBridge<I, O>
+    fileprivate let dataSource: () -> I
+    fileprivate let bridgeMaker: Bridge
 
-    internal func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (Result, Owner?) -> Void, source: @escaping () -> I) -> () -> Void {
-        return makeBridge(with: owner.wrap(assign: assign), source: source)
+    public func filter(_ predicate: @escaping (O) -> Bool) -> TransformedFilteredPreprocessor<I, O> {
+        let bridge = AnyFilter.wrap(predicate: predicate, on: AnyOnReceive.wrap(bridgeBlank: bridgeMaker.bridge, to: bridgeMaker.event))
+        return TransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: bridge))
+    }
+
+    public func map<U>(_ transform: @escaping (O) -> U) -> TransformedFilteredPreprocessor<I, U> {
+        let bridge = AnyModificator.make(modificator: transform, with: AnyOnReceive.wrap(bridgeBlank: bridgeMaker.bridge, to: bridgeMaker.event))
+        return TransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: bridge))
+    }
+
+    public func wrap(_ assign: @escaping (O) -> Void) -> AnyListening {
+        return makeListening(assign)
     }
 }
-struct OwnedOnReceiveMapPreprocessor<Owner: InsiderOwner, Result, I, O>: InsiderAccessor, _ListeningMaker {
-    typealias OutData = Result
+public struct OnReceiveMapPreprocessor<Result, I, O>: _ListeningMaker, PublicPreprocessor {
+    public typealias OutData = Result
+    typealias Data = I
+    fileprivate let dataSource: () -> I
+    fileprivate let bridgeMaker: OnReceiveMapBridge<I, O, Result>
+
+    public func filter(_ predicate: @escaping (Result) -> Bool) -> TransformedFilteredPreprocessor<I, Result> {
+        let bridge = AnyFilter.wrap(predicate: predicate, on: AnyOnReceive.wrap(bridgeBlank: bridgeMaker.bridge, to: bridgeMaker.event))
+        return TransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: bridge))
+    }
+
+    public func map<U>(_ transform: @escaping (Result) -> U) -> TransformedFilteredPreprocessor<I, U> {
+        let bridge = AnyModificator.make(modificator: transform, with: AnyOnReceive.wrap(bridgeBlank: bridgeMaker.bridge, to: bridgeMaker.event))
+        return TransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: bridge))
+    }
+
+    public func wrap(_ assign: @escaping (Result) -> Void) -> AnyListening {
+        return makeListening(assign)
+    }
+}
+public struct OwnedOnReceiveMapPreprocessor<Owner: InsiderOwner, Result, I, O>: InsiderAccessor, _ListeningMaker, Listenable {
+    public typealias OutData = Result
+    typealias Data = I
     weak var insiderOwner: Owner!
-    fileprivate var dataSource: () -> I
-    fileprivate let event: (O, ResultPromise<Result>) -> Void
-    fileprivate let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
+    fileprivate let dataSource: () -> I
+    fileprivate let bridgeMaker: OnReceiveMapBridge<I, O, Result>
 
-    func filter(_ predicate: @escaping (Result) -> Bool) -> TransformedFilteredPreprocessor<I, Result> {
-        let bridge = AnyFilter.wrap(predicate: predicate, on: AnyOnReceive.wrap(bridgeBlank: self.bridge, to: event))
-        return TransformedFilteredPreprocessor(dataSource: dataSource, bridge: bridge)
+    public func filter(_ predicate: @escaping (Result) -> Bool) -> TransformedFilteredPreprocessor<I, Result> {
+        let bridge = AnyFilter.wrap(predicate: predicate, on: AnyOnReceive.wrap(bridgeBlank: bridgeMaker.bridge, to: bridgeMaker.event))
+        return TransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: bridge))
     }
 
-    func map<U>(_ transform: @escaping (Result) -> U) -> TransformedFilteredPreprocessor<I, U> {
-        let bridge = AnyModificator.make(modificator: transform, with: AnyOnReceive.wrap(bridgeBlank: self.bridge, to: event))
-        return TransformedFilteredPreprocessor(dataSource: dataSource, bridge: bridge)
+    public func map<U>(_ transform: @escaping (Result) -> U) -> TransformedFilteredPreprocessor<I, U> {
+        let bridge = AnyModificator.make(modificator: transform, with: AnyOnReceive.wrap(bridgeBlank: bridgeMaker.bridge, to: bridgeMaker.event))
+        return TransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: bridge))
     }
 
-    internal func makeBridge(with assign: @escaping (Result) -> Void, source: @escaping () -> I) -> () -> Void {
-        return AnyOnReceive.wrap(assign: assign, to: event, with: source, bridgeBlank: bridge)
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<Result>) -> Disposable {
+        return _listening(as: config, assign)
     }
-
-    internal func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (Result, Owner?) -> Void, source: @escaping () -> I) -> () -> Void {
-        return makeBridge(with: owner.wrap(assign: assign), source: source)
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<Result>) -> ListeningItem {
+        return _listeningItem(as: config, assign)
     }
 }
-struct OwnedPreprocessor<Owner: InsiderOwner>: InsiderAccessor, FilteringEntity, _ListeningMaker {
+public struct OwnedPreprocessor<Owner: InsiderOwner>: InsiderAccessor, FilteringEntity, _ListeningMaker, Listenable {
     typealias Data = Owner.T
-    typealias OutData = Owner.T
+    public typealias OutData = Owner.T
     weak var insiderOwner: Owner!
     fileprivate var dataSource: () -> Owner.T {
         return insiderOwner.insider.dataSource
     }
+    fileprivate let bridgeMaker = SimpleBridgeMaker<Owner.T>()
     
-    func filter(_ predicate: @escaping (Owner.T) -> Bool) -> OwnedFilteredPreprocessor<Owner, Owner.T> {
-        return OwnedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: insiderOwner.insider.dataSource, bridge: AnyFilter.wrap(predicate: predicate))
+    public func filter(_ predicate: @escaping (Owner.T) -> Bool) -> OwnedFilteredPreprocessor<Owner, Owner.T> {
+        return OwnedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: insiderOwner.insider.dataSource, bridgeMaker: .init(bridge: AnyFilter.wrap(predicate: predicate)))
     }
     
-    func map<U>(_ transform: @escaping (Owner.T) -> U) -> OwnedTransformedPreprocessor<Owner, U> {
+    public func map<U>(_ transform: @escaping (Owner.T) -> U) -> OwnedTransformedPreprocessor<Owner, U> {
         return OwnedTransformedPreprocessor<Owner, U>(insiderOwner: insiderOwner, dataSource: AnyModificator.make(modificator: transform, with: dataSource))
     }
 
-    func onReceive(_ event: @escaping (Owner.T, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, Owner.T, Owner.T> {
-        return OwnedOnReceivePreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, event: event, bridge: { i, assign in assign(i) })
+    public func onReceive(_ event: @escaping (Owner.T, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, Owner.T, Owner.T> {
+        return OwnedOnReceivePreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveBridge(event: event, bridge: { i, assign in assign(i) }))
     }
 
-    func onReceiveMap<O>(_ event: @escaping (Owner.T, ResultPromise<O>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, O, Owner.T, Owner.T> {
-        return OwnedOnReceiveMapPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, event: event, bridge: { i, assign in assign(i) })
+    public func onReceiveMap<O>(_ event: @escaping (Owner.T, ResultPromise<O>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, O, Owner.T, Owner.T> {
+        return OwnedOnReceiveMapPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: { i, assign in assign(i) }))
+    }
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<Owner.T>) -> Disposable {
+        return _listening(as: config, assign)
+    }
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<Owner.T>) -> ListeningItem {
+        return _listeningItem(as: config, assign)
     }
 }
 
-struct TransformedPreprocessor<V>: FilteringEntity, _ListeningMaker {
-    typealias OutData = V
+public struct TransformedPreprocessor<V>: FilteringEntity, _ListeningMaker, PublicPreprocessor {
+    public typealias OutData = V
+    typealias Data = V
     fileprivate let dataSource: () -> V
+    fileprivate let bridgeMaker = SimpleBridgeMaker<V>()
     
-    func filter(_ predicate: @escaping (V) -> Bool) -> FilteredPreprocessor<V> {
-        return FilteredPreprocessor(dataSource: dataSource, bridge: AnyFilter.wrap(predicate: predicate))
+    public func filter(_ predicate: @escaping (V) -> Bool) -> FilteredPreprocessor<V> {
+        return FilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: AnyFilter.wrap(predicate: predicate)))
     }
     
-    func map<U>(_ transform: @escaping (V) -> U) -> TransformedPreprocessor<U> {
+    public func map<U>(_ transform: @escaping (V) -> U) -> TransformedPreprocessor<U> {
         return TransformedPreprocessor<U>(dataSource: AnyModificator.make(modificator: transform, with: dataSource))
     }
 
-    func onReceive(_ event: @escaping (V, Promise) -> Void) -> OnReceivePreprocessor<V, V> {
-        return OnReceivePreprocessor(dataSource: dataSource, event: event, bridge: { i, assign in assign(i) })
+    public func onReceive(_ event: @escaping (V, Promise) -> Void) -> OnReceivePreprocessor<V, V> {
+        return OnReceivePreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveBridge(event: event, bridge: { i, assign in assign(i) }))
     }
 
-    func onReceiveMap<Result>(_ event: @escaping (V, ResultPromise<Result>) -> Void) -> OnReceiveMapPreprocessor<Result, V, V> {
-        return OnReceiveMapPreprocessor(dataSource: dataSource, event: event, bridge: { i, assign in assign(i) })
+    public func onReceiveMap<Result>(_ event: @escaping (V, ResultPromise<Result>) -> Void) -> OnReceiveMapPreprocessor<Result, V, V> {
+        return OnReceiveMapPreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: { i, assign in assign(i) }))
+    }
+
+    public func wrap(_ assign: @escaping (V) -> Void) -> AnyListening {
+        return makeListening(assign)
     }
 }
-struct OwnedTransformedPreprocessor<Owner: InsiderOwner, V>: InsiderAccessor, FilteringEntity, _ListeningMaker {
-    typealias OutData = V
+public struct OwnedTransformedPreprocessor<Owner: InsiderOwner, V>: InsiderAccessor, FilteringEntity, _ListeningMaker, Listenable {
+    public typealias OutData = V
+    typealias Data = V
     weak var insiderOwner: Owner!
     fileprivate let dataSource: () -> V
+    fileprivate let bridgeMaker = SimpleBridgeMaker<V>()
     
-    func filter(_ predicate: @escaping (V) -> Bool) -> OwnedFilteredPreprocessor<Owner, V> {
-        return OwnedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridge: AnyFilter.wrap(predicate: predicate))
+    public func filter(_ predicate: @escaping (V) -> Bool) -> OwnedFilteredPreprocessor<Owner, V> {
+        return OwnedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: .init(bridge: AnyFilter.wrap(predicate: predicate)))
     }
     
-    func map<U>(_ transform: @escaping (V) -> U) -> OwnedTransformedPreprocessor<Owner, U> {
+    public func map<U>(_ transform: @escaping (V) -> U) -> OwnedTransformedPreprocessor<Owner, U> {
         return OwnedTransformedPreprocessor<Owner, U>(insiderOwner: insiderOwner, dataSource: AnyModificator.make(modificator: transform, with: dataSource))
     }
 
-    func onReceive(_ event: @escaping (V, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, V, V> {
-        return OwnedOnReceivePreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, event: event, bridge: { i, assign in assign(i) })
+    public func onReceive(_ event: @escaping (V, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, V, V> {
+        return OwnedOnReceivePreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveBridge(event: event, bridge: { i, assign in assign(i) }))
     }
-    func onReceiveMap<O>(_ event: @escaping (V, ResultPromise<O>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, O, V, V> {
-        return OwnedOnReceiveMapPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, event: event, bridge: { i, assign in assign(i) })
+    public func onReceiveMap<O>(_ event: @escaping (V, ResultPromise<O>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, O, V, V> {
+        return OwnedOnReceiveMapPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: { i, assign in assign(i) }))
+    }
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<V>) -> Disposable {
+        return _listening(as: config, assign)
+    }
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<V>) -> ListeningItem {
+        return _listeningItem(as: config, assign)
     }
 }
 
-struct TransformedFilteredPreprocessor<I, O>: FilteringEntity, _ListeningMaker {
-    typealias OutData = O
+public struct TransformedFilteredPreprocessor<I, O>: FilteringEntity, _ListeningMaker, PublicPreprocessor {
+    public typealias OutData = O
+    typealias Data = I
     fileprivate let dataSource: () -> I
-    fileprivate let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
+    fileprivate let bridgeMaker: TransformedFilteredBridgeMaker<I, O>
     
     /// filter for value from this source, but this behavior illogical, therefore it use not recommended
 //    func filter(_ predicate: @escaping (I) -> Bool) -> TransformedFilteredPreprocessor<I, O> {
 //        return TransformedFilteredPreprocessor(dataSource: dataSource, bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
 //    }
 
-    func filter(_ predicate: @escaping (O) -> Bool) -> TransformedFilteredPreprocessor<I, O> {
-        return TransformedFilteredPreprocessor(dataSource: dataSource, bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
+    public func filter(_ predicate: @escaping (O) -> Bool) -> TransformedFilteredPreprocessor<I, O> {
+        return TransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: bridgeMaker.filtered(predicate))
     }
     
-    func map<U>(_ transform: @escaping (O) -> U) -> TransformedFilteredPreprocessor<I, U> {
-        let bridge = AnyModificator.make(modificator: transform, with: self.bridge)
-        return TransformedFilteredPreprocessor<I, U>(dataSource: dataSource, bridge: bridge)
+    public func map<U>(_ transform: @escaping (O) -> U) -> TransformedFilteredPreprocessor<I, U> {
+        return TransformedFilteredPreprocessor<I, U>(dataSource: dataSource, bridgeMaker: bridgeMaker.transformed(transform))
     }
 
-    func onReceive(_ event: @escaping (O, Promise) -> Void) -> OnReceivePreprocessor<I, O> {
-        return OnReceivePreprocessor(dataSource: dataSource, event: event, bridge: bridge)
+    public func onReceive(_ event: @escaping (O, Promise) -> Void) -> OnReceivePreprocessor<I, O> {
+        return OnReceivePreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveBridge(event: event, bridge: bridgeMaker.bridge))
     }
 
-    func onReceiveMap<Result>(_ event: @escaping (O, ResultPromise<Result>) -> Void) -> OnReceiveMapPreprocessor<Result, I, O> {
-        return OnReceiveMapPreprocessor(dataSource: dataSource, event: event, bridge: bridge)
+    public func onReceiveMap<Result>(_ event: @escaping (O, ResultPromise<Result>) -> Void) -> OnReceiveMapPreprocessor<Result, I, O> {
+        return OnReceiveMapPreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: bridgeMaker.bridge))
     }
 
-    internal func makeBridge(with assign: @escaping (O) -> Void, source: @escaping () -> I) -> () -> Void {
-        return { self.bridge(source(), assign) }
-    }
-    
-    internal func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (O, Owner?) -> Void, source: @escaping () -> I) -> () -> Void {
-        return makeBridge(with: owner.wrap(assign: assign), source: source)
+    public func wrap(_ assign: @escaping (O) -> Void) -> AnyListening {
+        return makeListening(assign)
     }
 }
-struct OwnedTransformedFilteredPreprocessor<Owner: InsiderOwner, I, O>: InsiderAccessor, FilteringEntity, _ListeningMaker {
-    typealias OutData = O
+fileprivate struct TransformedFilteredBridgeMaker<I, O>: BridgeMaker {
+    let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
+    func makeBridge(with assign: @escaping (O) -> Void, source: @escaping () -> I) -> () -> Void {
+        return { self.bridge(source(), assign) }
+    }
+    func filtered(_ predicate: @escaping (O) -> Bool) -> TransformedFilteredBridgeMaker<I, O> {
+        return .init(bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
+    }
+    func transformed<U>(_ transform: @escaping (O) -> U) -> TransformedFilteredBridgeMaker<I, U> {
+        return .init(bridge: AnyModificator.make(modificator: transform, with: bridge))
+    }
+}
+public struct OwnedTransformedFilteredPreprocessor<Owner: InsiderOwner, I, O>: InsiderAccessor, FilteringEntity, _ListeningMaker, Listenable {
+    public typealias OutData = O
+    typealias Data = I
     weak var insiderOwner: Owner!
     fileprivate let dataSource: () -> I
-    fileprivate let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
+    fileprivate let bridgeMaker: TransformedFilteredBridgeMaker<I, O>
     
     /// filter for value from this source, but this behavior illogical, therefore it use not recommended
 //    func filter(_ predicate: @escaping (I) -> Bool) -> OwnedTransformedFilteredPreprocessor<Owner, I, O> {
 //        return OwnedTransformedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
 //    }
 
-    func filter(_ predicate: @escaping (O) -> Bool) -> OwnedTransformedFilteredPreprocessor<Owner, I, O> {
-        return OwnedTransformedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
+    public func filter(_ predicate: @escaping (O) -> Bool) -> OwnedTransformedFilteredPreprocessor<Owner, I, O> {
+        return OwnedTransformedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: bridgeMaker.filtered(predicate))
     }
     
-    func map<U>(_ transform: @escaping (O) -> U) -> OwnedTransformedFilteredPreprocessor<Owner, I, U> {
-        let bridge = AnyModificator.make(modificator: transform, with: self.bridge)
-        return OwnedTransformedFilteredPreprocessor<Owner, I, U>(insiderOwner: insiderOwner, dataSource: dataSource, bridge: bridge)
+    public func map<U>(_ transform: @escaping (O) -> U) -> OwnedTransformedFilteredPreprocessor<Owner, I, U> {
+        return OwnedTransformedFilteredPreprocessor<Owner, I, U>(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: bridgeMaker.transformed(transform))
     }
 
-    func onReceive(_ event: @escaping (O, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, I, O> {
-        return OwnedOnReceivePreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, event: event, bridge: bridge)
+    public func onReceive(_ event: @escaping (O, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, I, O> {
+        return OwnedOnReceivePreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveBridge(event: event, bridge: bridgeMaker.bridge))
     }
-    func onReceiveMap<Result>(_ event: @escaping (O, ResultPromise<Result>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, Result, I, O> {
-        return OwnedOnReceiveMapPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, event: event, bridge: bridge)
+    public func onReceiveMap<Result>(_ event: @escaping (O, ResultPromise<Result>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, Result, I, O> {
+        return OwnedOnReceiveMapPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: bridgeMaker.bridge))
     }
 
-    internal func makeBridge(with assign: @escaping (O) -> Void, source: @escaping () -> I) -> () -> Void {
-        return { self.bridge(source(), assign) }
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<O>) -> Disposable {
+        return _listening(as: config, assign)
     }
-    
-    internal func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (O, Owner?) -> Void, source: @escaping () -> I) -> () -> Void {
-        return makeBridge(with: owner.wrap(assign: assign), source: source)
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<O>) -> ListeningItem {
+        return _listeningItem(as: config, assign)
     }
 }
 
-struct FilteredPreprocessor<V>: FilteringEntity, _ListeningMaker {
-    fileprivate let dataSource: () -> V
+fileprivate struct FilteredBridge<V>: BridgeMaker {
+    typealias OutData = V
     fileprivate let bridge: (_ value: V, _ assign: (V) -> Void) -> Void
+    func makeBridge(with assign: @escaping (FilteredBridge<V>.OutData) -> Void, source: @escaping () -> FilteredBridge<V>.Data) -> () -> Void {
+        return { self.bridge(source(), assign) }
+    }
+    func filtered(_ predicate: @escaping (V) -> Bool) -> FilteredBridge<V> {
+        return .init(bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
+    }
+    func transformed<U>(_ transform: @escaping (V) -> U) -> TransformedFilteredBridgeMaker<V, U> {
+        return .init(bridge: AnyModificator.make(modificator: transform, with: bridge))
+    }
+}
+public struct FilteredPreprocessor<V>: FilteringEntity, _ListeningMaker, PublicPreprocessor {
+    public typealias OutData = V
+    typealias Data = V
+    fileprivate let dataSource: () -> V
+    fileprivate let bridgeMaker: FilteredBridge<V>
     
-    func filter(_ predicate: @escaping (V) -> Bool) -> FilteredPreprocessor<V> {
-        return FilteredPreprocessor(dataSource: dataSource, bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
+    public func filter(_ predicate: @escaping (V) -> Bool) -> FilteredPreprocessor<V> {
+        return FilteredPreprocessor(dataSource: dataSource, bridgeMaker: bridgeMaker.filtered(predicate))
     }
     
-    func map<U>(_ transform: @escaping (V) -> U) -> TransformedFilteredPreprocessor<V, U> {
-        let bridge = AnyModificator.make(modificator: transform, with: self.bridge)
-        return TransformedFilteredPreprocessor(dataSource: dataSource, bridge: bridge)
+    public func map<U>(_ transform: @escaping (V) -> U) -> TransformedFilteredPreprocessor<V, U> {
+        return TransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: bridgeMaker.transformed(transform))
     }
 
     func onReceive(_ event: @escaping (V, Promise) -> Void) -> OnReceivePreprocessor<V, V> {
-        return OnReceivePreprocessor(dataSource: dataSource, event: event, bridge: bridge)
+        return OnReceivePreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveBridge(event: event, bridge: bridgeMaker.bridge))
     }
 
     func onReceiveMap<Result>(_ event: @escaping (V, ResultPromise<Result>) -> Void) -> OnReceiveMapPreprocessor<Result, V, V> {
-        return OnReceiveMapPreprocessor(dataSource: dataSource, event: event, bridge: { i, assign in assign(i) })
+        return OnReceiveMapPreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: { i, assign in assign(i) }))
     }
 
-    internal func makeBridge(with assign: @escaping (V) -> Void, source: @escaping () -> V) -> () -> Void {
-        return { self.bridge(source(), assign) }
-    }
-    
-    internal func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (V, Owner?) -> Void, source: @escaping () -> V) -> () -> Void {
-        return makeBridge(with: owner.wrap(assign: assign), source: source)
+    public func wrap(_ assign: @escaping (V) -> Void) -> AnyListening {
+        return makeListening(assign)
     }
 }
-struct OwnedFilteredPreprocessor<Owner: InsiderOwner, V>: InsiderAccessor, FilteringEntity, _ListeningMaker {
+public struct OwnedFilteredPreprocessor<Owner: InsiderOwner, V>: InsiderAccessor, FilteringEntity, _ListeningMaker, Listenable {
+    typealias Data = V
+    public typealias OutData = V
     weak var insiderOwner: Owner!
     fileprivate let dataSource: () -> V
-    fileprivate let bridge: (_ value: V, _ assign: (V) -> Void) -> Void
+    fileprivate let bridgeMaker: FilteredBridge<V>
     
-    func filter(_ predicate: @escaping (V) -> Bool) -> OwnedFilteredPreprocessor<Owner, V> {
-        return OwnedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
+    public func filter(_ predicate: @escaping (V) -> Bool) -> OwnedFilteredPreprocessor<Owner, V> {
+        return OwnedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: bridgeMaker.filtered(predicate))
     }
     
-    func map<U>(_ transform: @escaping (V) -> U) -> OwnedTransformedFilteredPreprocessor<Owner, V, U> {
-        let bridge = AnyModificator.make(modificator: transform, with: self.bridge)
-        return OwnedTransformedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridge: bridge)
+    public func map<U>(_ transform: @escaping (V) -> U) -> OwnedTransformedFilteredPreprocessor<Owner, V, U> {
+        return OwnedTransformedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: bridgeMaker.transformed(transform))
     }
 
-    func onReceive(_ event: @escaping (V, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, V, V> {
-        return OwnedOnReceivePreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, event: event, bridge: bridge)
+    public func onReceive(_ event: @escaping (V, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, V, V> {
+        return OwnedOnReceivePreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveBridge(event: event, bridge: bridgeMaker.bridge))
     }
-    func onReceiveMap<Result>(_ event: @escaping (V, ResultPromise<Result>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, Result, V, V> {
-        return OwnedOnReceiveMapPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, event: event, bridge: bridge)
+    public func onReceiveMap<Result>(_ event: @escaping (V, ResultPromise<Result>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, Result, V, V> {
+        return OwnedOnReceiveMapPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: bridgeMaker.bridge))
     }
-    
-    internal func makeBridge(with assign: @escaping (V) -> Void, source: @escaping () -> V) -> () -> Void {
-        return { self.bridge(source(), assign) }
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<V>) -> Disposable {
+        return _listening(as: config, assign)
     }
-    
-    internal func makeBridge<Owner>(owner: ListeningOwner<Owner>, with assign: @escaping (V, Owner?) -> Void, source: @escaping () -> V) -> () -> Void {
-        return makeBridge(with: owner.wrap(assign: assign), source: source)
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<V>) -> ListeningItem {
+        return _listeningItem(as: config, assign)
     }
 }
 
-extension InsiderOwner {
+public extension InsiderOwner {
     func filter(_ predicate: @escaping (T) -> Bool) -> OwnedFilteredPreprocessor<Self, T> {
         let out = OwnedPreprocessor(insiderOwner: self)
         return out.filter(predicate)
@@ -805,22 +803,30 @@ extension InsiderOwner {
     }
 }
 
-extension Insider {
-    mutating func listen<Maker: ListeningMaker>(
-        as config: (AnyListening) -> AnyListening = { $0 },
-        preprocessor: (Preprocessor<Data>) -> Maker,
-        _ assign: @escaping (Maker.OutData) -> Void
-    ) -> ListeningToken {
-        return addListening(config(preprocessor(Preprocessor(dataSource: dataSource)).makeListening(assign)))
-    }
+//protocol _Preprocessor: PublicPreprocessor {
+//    associatedtype Input
+//    associatedtype Output
+//    associatedtype Filtered: PublicPreprocessor
+//    func filter(_ predicate: @escaping (Input) -> Bool) -> Filtered
+//    associatedtype Transformed: PublicPreprocessor
+//    func map<U>(_ transform: @escaping (Input) -> U) -> Transformed
+//    associatedtype OnReceive: PublicPreprocessor
+//    func onReceive(_ event: @escaping (Input, Promise) -> Void) -> OnReceive
+//    associatedtype OnReceiveMap: PublicPreprocessor
+//    func onReceiveMap<Result>(_ event: @escaping (Input, ResultPromise<Result>) -> Void) -> OnReceiveMap
+//}
+public protocol PublicPreprocessor {
+    associatedtype OutData
+    func wrap(_ assign: @escaping (OutData) -> Void) -> AnyListening
+}
 
-    mutating func listen<O, Maker: ListeningMaker>(
-        owner: ListeningOwner<O>,
+public extension Insider {
+    mutating func listen<Maker: PublicPreprocessor>(
         as config: (AnyListening) -> AnyListening = { $0 },
         preprocessor: (Preprocessor<Data>) -> Maker,
-        _ assign: @escaping (Maker.OutData, O?) -> Void
+        _ assign: Assign<Maker.OutData>
     ) -> ListeningToken {
-        return addListening(config(preprocessor(Preprocessor(dataSource: dataSource)).makeListening(owner: owner, assign: assign)))
+        return addListening(config(preprocessor(Preprocessor(dataSource: dataSource)).wrap(assign.assign)))
     }
 }
 
@@ -828,12 +834,12 @@ extension Insider {
 // MARK: Listenings
 
 // TODO: sendData, onStop should be private
-protocol AnyListening {
+public protocol AnyListening {
     var isInvalidated: Bool { get }
     func sendData()
     func onStop() // TODO: is not used now
 }
-extension AnyListening {
+public extension AnyListening {
     func onFire(_ todo: @escaping () -> Void) -> AnyListening {
         return OnFireListening(base: self, onFire: todo)
     }
@@ -966,13 +972,13 @@ struct LivetimeListening: AnyListening {
     }
 }
 
-public struct Insider<Data> {
-    typealias Token = Int
-    fileprivate let dataSource: () -> Data
+public struct Insider<D> {
+    public typealias Token = Int
+    fileprivate let dataSource: () -> D
     private var listeners = [Token: AnyListening]()
     private var nextToken: Token = Token.min
     
-    init(source: @escaping () -> Data) {
+    public init(source: @escaping () -> D) {
         dataSource = source
     }
 
@@ -1009,15 +1015,15 @@ public struct Insider<Data> {
     }
 }
 
-extension Insider {
-    func mapped<Other>(_ map: @escaping (Data) -> Other) -> Insider<Other> {
+public extension Insider {
+    func mapped<Other>(_ map: @escaping (D) -> Other) -> Insider<Other> {
         let source = dataSource
         return Insider<Other>(source: { map(source()) })
     }
 }
 
-struct ReadonlyProperty<Value> {
-    lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
+public struct ReadonlyProperty<Value> {
+    public lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
     fileprivate let concreteValue: PropertyValue<Value>
     fileprivate(set) var value: Value {
         get { return concreteValue.get() }
@@ -1030,7 +1036,7 @@ struct ReadonlyProperty<Value> {
         concreteValue = PropertyValue(value)
     }
     
-    init(getter: @escaping () -> Value) {
+    public init(getter: @escaping () -> Value) {
         self.init(value: getter(), getter: getter)
     }
     
@@ -1039,8 +1045,8 @@ struct ReadonlyProperty<Value> {
     }
 }
 
-struct AsyncReadonlyProperty<Value> {
-    var insider: Insider<Value> {
+public struct AsyncReadonlyProperty<Value> {
+    public var insider: Insider<Value> {
         get { return concreteValue.getInsider() }
         set { concreteValue.setInsider(newValue) }
     }
@@ -1051,7 +1057,7 @@ struct AsyncReadonlyProperty<Value> {
     }
     private let getter: (@escaping (Value) -> Void) -> Void
     
-    init(value: Value, getter: @escaping (@escaping (Value) -> Void) -> Void) {
+    public init(value: Value, getter: @escaping (@escaping (Value) -> Void) -> Void) {
         self.getter = getter
         concreteValue = ListenableValue(value)
     }
@@ -1061,7 +1067,7 @@ struct AsyncReadonlyProperty<Value> {
     }
 }
 
-extension AsyncReadonlyProperty {
+public extension AsyncReadonlyProperty {
     @discardableResult
     mutating func fetch(`if` itRight: (Value) -> Bool) -> AsyncReadonlyProperty {
         guard itRight(value) else { return self }
@@ -1180,7 +1186,7 @@ public protocol ValueWrapper {
 }
 
 postfix operator ~
-extension ValueWrapper {
+public extension ValueWrapper {
     static func <=(_ prop: inout Self, _ value: T) {
         prop.value = value
     }
@@ -1192,15 +1198,15 @@ extension ValueWrapper {
     }
 }
 
-struct Property<Value>: ValueWrapper {
-    lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
+public struct Property<Value>: ValueWrapper {
+    lazy public var insider: Insider<Value> = Insider(source: self.concreteValue.get)
     fileprivate let concreteValue: PropertyValue<Value>
-    var value: Value {
+    public var value: Value {
         get { return concreteValue.get() }
         set { concreteValue.set(newValue); insider.dataDidChange() }
     }
     
-    init(value: Value) {
+    public init(value: Value) {
         self.init(PropertyValue(value))
     }
 
@@ -1210,32 +1216,32 @@ struct Property<Value>: ValueWrapper {
 }
 
 // TODO: Create common protocol for Properties
-extension Property {
+public extension Property {
     /// Subscribing to values from other property
     ///
     /// - Parameter other: Property as source values
     /// - Returns: Listening token
     func bind(to other: inout Property<Value>) -> Insider<Value>.ListeningToken { // TODO: Not notify subscribers about receiving new value.
-        return other.insider.listen(concreteValue.set)
+        return other.insider.listen(.just(concreteValue.set))
     }
 }
 
-extension ReadonlyProperty {
+public extension ReadonlyProperty {
     mutating func setter(_ value: Value) -> Void { self.value = value }
 
     mutating func bind(to other: inout Property<Value>) -> Insider<Value>.ListeningToken { // TODO: Not notify subscribers about receiving new value.
-        return other.insider.listen(concreteValue.set)
+        return other.insider.listen(.just(concreteValue.set))
     }
 }
 
-extension InsiderOwner {
+public extension InsiderOwner {
     /// Makes notification depending
     ///
     /// - Parameter other: Insider owner that will be invoke notifications himself listenings
     /// - Returns: Listening token
     @discardableResult
-    func depends<Other: InsiderOwner>(on other: Other) -> ListeningDispose {
-        return other.listening(as: { $0.livetime(self) }, owner: .weak(self), { _, owner in owner?.insider.dataDidChange() })
+    func depends<Other: InsiderOwner>(on other: Other) -> Disposable {
+        return other.listening(as: { $0.livetime(self) }, .weak(self) { _, owner in owner?.insider.dataDidChange() })
     }
 
     /// Binds values new values to value wrapper
@@ -1243,8 +1249,8 @@ extension InsiderOwner {
     /// - Parameter other: Insider owner that will be invoke notifications himself listenings
     /// - Returns: Listening token
     @discardableResult
-    func bind<Other: ValueWrapper & AnyObject>(to other: Other) -> ListeningDispose where Other.T == T {
-        return listening(as: { $0.livetime(other) }, { [weak other] newValue in other?.value = newValue })
+    func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.T == Self.T {
+        return listening(as: { $0.livetime(other) }, .just { [weak other] v in other?.value = v })
     }
 }
 

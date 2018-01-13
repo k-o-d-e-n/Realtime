@@ -64,9 +64,9 @@ class ReuseViewReference {
     }
 
     init(data: @escaping (IndexPath) -> ListeningItem?) {
-        _ = self.indexPath.insider.listen { [unowned self] (path) in
+        _ = self.indexPath.insider.listen(.just { [unowned self] (path) in
             data(path).map { self.listeningItem = $0 }
-        }
+        })
     }
 }
 
@@ -75,9 +75,9 @@ class ReuseReference<View, Data> {
 
     private var token: Int
     init(_ assign: @escaping (View, Data?) -> Void) {
-        self.token = self.binder.insider.listen { view, data in
+        self.token = self.binder.insider.listen(.just { view, data in
             view.map { assign($0, data) }
-        }.token
+        }).token
     }
 }
 
