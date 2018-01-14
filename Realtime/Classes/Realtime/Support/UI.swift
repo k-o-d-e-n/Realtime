@@ -48,7 +48,7 @@ class ReuseViewPrototype<View: AnyObject> {
         disposeStore.dispose()
     }
 
-    func assign<Data>(with binder: @escaping (View, Data) -> Void) -> (Data) -> Void {
+    public func assign<Data>(with binder: @escaping (View, Data) -> Void) -> (Data) -> Void {
         return { data in
             guard let view = self.weakView.get() else { return }
 
@@ -99,9 +99,9 @@ extension UITableViewCell {
     }
 }
 
-final class RealtimeTableAdapter<RC: RealtimeCollection>: _RealtimeTableAdapter<RCBasedDataSource<RC>> {
-    convenience init(tableView: UITableView, collection: RC) {
-        self.init(tableView: tableView, models: RCBasedDataSource(collection), onChanges: { collection.changesListening(completion: $0) })
+public final class RealtimeTableAdapter<RC: RealtimeCollection>: _RealtimeTableAdapter<RCBasedDataSource<RC>> {
+    public convenience init(tableView: UITableView, collection: RC) {
+        self.init(tableView: tableView, models: RCBasedDataSource(collection), onChanges: { collection.listening(changes: $0) })
     }
 }
 extension RCBasedDataSource {
@@ -127,7 +127,7 @@ extension SignedInteger {
     }
 }
 
-protocol ModelDataSource {
+public protocol ModelDataSource {
     associatedtype Model
     func numberOfRowsInSection(_ section: Int) -> Int
     func model(by indexPath: IndexPath) -> Model
@@ -158,11 +158,11 @@ class _RealtimeTableAdapter<Models: ModelDataSource>: _TableViewSectionedAdapter
     private var _isNeedReload: Bool = false // TODO: Not reset, need reset after reload
     private var _listening: Disposable!
 
-    var cellForIndexPath: ((IndexPath) -> UITableViewCell.Type)!
-    var didSelect: ((Models.Model) -> Void)?
+    public var cellForIndexPath: ((IndexPath) -> UITableViewCell.Type)!
+    public var didSelect: ((Models.Model) -> Void)?
     let models: Models
 
-    required init(tableView: UITableView, models: Models, onChanges: (@escaping () -> Void) -> ListeningItem) {
+    public required init(tableView: UITableView, models: Models, onChanges: (@escaping () -> Void) -> ListeningItem) {
         self.tableView = tableView
         self.models = models
         super.init()
@@ -179,7 +179,7 @@ class _RealtimeTableAdapter<Models: ModelDataSource>: _TableViewSectionedAdapter
         _listening.dispose()
     }
 
-    func register<Cell: UITableViewCell>(_ cell: Cell.Type, builder: @escaping CellFactory<Cell>) {
+    public func register<Cell: UITableViewCell>(_ cell: Cell.Type, builder: @escaping CellFactory<Cell>) {
         _cellProtos[cell.typeKey] = unsafeBitCast(builder, to: CellFactory<UITableViewCell>.self)
         tableView.register(cell, forCellReuseIdentifier: NSStringFromClass(cell))
     }
@@ -226,10 +226,10 @@ class _RealtimeTableAdapter<Models: ModelDataSource>: _TableViewSectionedAdapter
         didSelect?(models.model(by: indexPath))
     }
 
-    func setNeedsReload() {
+    public func setNeedsReload() {
         _isNeedReload = true
     }
-    func reloadTable() {
+    public func reloadTable() {
         _isNeedReload = true
         tableView.reloadData()
     }

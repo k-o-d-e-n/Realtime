@@ -3,6 +3,8 @@ use_frameworks!
 target 'Realtime_Example' do
   pod 'Realtime', :path => '../'
 
+  pod 'Firebase/Auth'
+
   target 'Realtime_Tests' do
     inherit! :search_paths
 
