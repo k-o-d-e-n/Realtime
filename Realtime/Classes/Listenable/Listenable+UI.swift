@@ -8,7 +8,7 @@
 
 import UIKit
 
-extension Listenable where Self.OutData == String? {
+public extension Listenable where Self.OutData == String? {
     func bind(to label: UILabel) -> ListeningItem {
         return listeningItem(.weak(label) { data, l in l?.text = data })
     }
@@ -21,12 +21,12 @@ extension Listenable where Self.OutData == String? {
         return bind(to: label, didSet: { v, _ in v.superview?.setNeedsLayout() })
     }
 }
-extension Listenable where Self.OutData == String {
+public extension Listenable where Self.OutData == String {
     func bind(to label: UILabel) -> ListeningItem {
         return listeningItem(.weak(label) { data, l in l?.text = data })
     }
 }
-extension Listenable where Self.OutData == UIImage? {
+public extension Listenable where Self.OutData == UIImage? {
     func bind(to imageView: UIImageView) -> ListeningItem {
         return listeningItem(.weak(imageView) { data, iv in iv?.image = data })
     }

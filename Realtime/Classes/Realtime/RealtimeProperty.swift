@@ -18,13 +18,13 @@ public extension RTNode where Self.RawValue == String {
 extension RealtimeProperty: FilteringEntity {}
 
 // TODO: Rewrite
-fileprivate class _Linked<Linked: KeyedRealtimeValue & Linkable & ChangeableRealtimeEntity>: _RealtimeValue, ValueWrapper, InsiderOwner {
+public class _Linked<Linked: KeyedRealtimeValue & Linkable & ChangeableRealtimeEntity>: _RealtimeValue, ValueWrapper, InsiderOwner {
     fileprivate lazy var _link: RealtimeLink.OptionalProperty = RealtimeLink.OptionalProperty(dbRef: self.dbRef)
     //    var insider: Insider<RealtimeLink?> { set { _link.insider = newValue } get { return _link.insider } }
-    lazy var insider: Insider<Linked?> = self._link.insider.mapped { [unowned self] _ in self.linked }
-    override var hasChanges: Bool { return _link.hasChanges }
-    override var localValue: Any? { return _link.localValue }
-    var value: Linked? {
+    public lazy var insider: Insider<Linked?> = self._link.insider.mapped { [unowned self] _ in self.linked }
+    public override var hasChanges: Bool { return _link.hasChanges }
+    public override var localValue: Any? { return _link.localValue }
+    public var value: Linked? {
         set {
             let oldValue = _link.value
             _link.value = newValue.map { dbRef.link(to: $0.dbRef) }
@@ -37,7 +37,7 @@ fileprivate class _Linked<Linked: KeyedRealtimeValue & Linkable & ChangeableReal
 
     fileprivate var linked: Linked?
 
-    required init(dbRef: DatabaseReference) {
+    public required init(dbRef: DatabaseReference) {
         super.init(dbRef: dbRef)
 //        self.depends(on: self._link)
         _ = self._link.distinctUntilChanged(comparer: { $0 == $1 }).listening(.guarded(self) { _, _self in
@@ -46,20 +46,20 @@ fileprivate class _Linked<Linked: KeyedRealtimeValue & Linkable & ChangeableReal
         })
     }
 
-    override func didRemove() {
+    override public func didRemove() {
         _link.didRemove()
     }
 
-    override func didSave() {
+    override public func didSave() {
         _link.didSave()
     }
 
-    convenience required init(snapshot: DataSnapshot) {
+    public convenience required init(snapshot: DataSnapshot) {
         self.init(dbRef: snapshot.ref)
         apply(snapshot: snapshot)
     }
 
-    override func apply(snapshot: DataSnapshot, strongly: Bool) {
+    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
         _link.apply(snapshot: snapshot, strongly: strongly)
     }
 
@@ -137,7 +137,7 @@ public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue,
     
     // MARK: Initializers, deinitializer
     
-    init<Prop: RealtimeProperty>(dbRef: DatabaseReference, value: T, onFetch: ((Prop, Error?) -> ())? = nil) {
+    public init<Prop: RealtimeProperty>(dbRef: DatabaseReference, value: T, onFetch: ((Prop, Error?) -> ())? = nil) {
         self.localPropertyValue = PropertyValue(value)
         self.insider = Insider(source: localPropertyValue.get)
         self.lastError = Property<Error?>(value: nil)

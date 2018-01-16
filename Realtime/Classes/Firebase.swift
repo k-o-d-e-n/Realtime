@@ -8,6 +8,9 @@
 
 import FirebaseDatabase
 
+public typealias DataSnapshot = FirebaseDatabase.DataSnapshot
+public typealias DatabaseReference = FirebaseDatabase.DatabaseReference
+
 public extension DatabaseReference {
     static func root() -> DatabaseReference { return Database.database().reference() }
     static func fromRoot(_ path: String) -> DatabaseReference { return Database.database().reference(withPath: path) }
@@ -45,12 +48,6 @@ public extension Database {
         root.update(use: childValues, completion: completion)
     }
 }
-
-//extension DatabaseReference {
-//    var storageRef: StorageReference {
-//        return Storage.storage().reference(withPath: pathFromRoot)
-//    }
-//}
 
 public extension DataSnapshot {
     func map<Mapped>(child: String, map: (DataSnapshot) -> Mapped) -> Mapped? {

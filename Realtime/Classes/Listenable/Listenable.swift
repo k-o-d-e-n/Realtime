@@ -15,14 +15,14 @@ import Foundation
 public struct Promise {
     fileprivate let action: () -> Void
 
-    func fulfill() {
+    public func fulfill() {
         action()
     }
 }
 public struct ResultPromise<T> {
     fileprivate let receiver: (T) -> Void
 
-    func fulfill(_ result: T) {
+    public func fulfill(_ result: T) {
         receiver(result)
     }
 }
@@ -33,26 +33,26 @@ public struct ListeningDisposeStore {
 
     public init() {}
 
-    mutating func add(_ stop: Disposable) {
+    public mutating func add(_ stop: Disposable) {
         disposes.append(stop)
     }
     
-    mutating func add(_ item: ListeningItem) {
+    public mutating func add(_ item: ListeningItem) {
         listeningItems.append(item)
     }
     
-    mutating func dispose() {
+    public mutating func dispose() {
         disposes.forEach { $0.dispose() }
         disposes.removeAll()
         listeningItems.forEach { $0.stop() }
         listeningItems.removeAll()
     }
     
-    func pause() {
+    public func pause() {
         listeningItems.forEach { $0.stop() }
     }
     
-    func resume(_ needNotify: Bool = true) {
+    public func resume(_ needNotify: Bool = true) {
         listeningItems.forEach { $0.start(needNotify) }
     }
 
@@ -75,7 +75,7 @@ struct ListeningDispose: Disposable {
 
 public struct ListeningItem {
     private let start: () -> Void
-    let stop: () -> Void
+    public let stop: () -> Void
     let notify: () -> Void
     let isListen: () -> Bool
     
@@ -94,7 +94,7 @@ public struct ListeningItem {
         }
     }
     
-    func start(_ needNotify: Bool = true) {
+    public func start(_ needNotify: Bool = true) {
         start()
         if needNotify { notify() }
     }
@@ -102,7 +102,7 @@ public struct ListeningItem {
 extension ListeningItem: Disposable {
     public var dispose: () -> Void { return stop }
 }
-extension ListeningItem {
+public extension ListeningItem {
     init<Token>(start: @escaping (AnyListening) -> Token?, stop: @escaping (Token) -> Void, listeningToken: (Token, AnyListening)) {
         self.init(start: { return start(listeningToken.1) },
                   stop: stop,
@@ -204,6 +204,12 @@ public extension Listenable {
     }
     func listeningItem(_ assign: Assign<OutData>) -> ListeningItem {
         return listeningItem(as: { $0 }, assign)
+    }
+    func listening(_ assign: @escaping (OutData) -> Void) -> Disposable {
+        return listening(.just(assign))
+    }
+    func listeningItem(_ assign: @escaping (OutData) -> Void) -> ListeningItem {
+        return listeningItem(.just(assign))
     }
 }
 
@@ -992,11 +998,11 @@ public struct Insider<D> {
         }
     }
     
-    mutating func connect<L: AnyListening>(with listening: L) -> Token {
+    public mutating func connect<L: AnyListening>(with listening: L) -> Token {
         return connect(with: listening)
     }
     
-    mutating func connect(with listening: AnyListening) -> Token {
+    public mutating func connect(with listening: AnyListening) -> Token {
         defer { nextToken += 1 }
         
         listeners[nextToken] = listening
@@ -1004,11 +1010,11 @@ public struct Insider<D> {
         return nextToken
     }
     
-    func has(token: Token) -> Bool {
+    public func has(token: Token) -> Bool {
         return listeners.contains { $0.key == token }
     }
     
-    mutating func disconnect(with token: Token, callOnStop call: Bool = true) {
+    public mutating func disconnect(with token: Token, callOnStop call: Bool = true) {
         if let listener = listeners.removeValue(forKey: token), call {
             listener.onStop()
         }
@@ -1062,7 +1068,7 @@ public struct AsyncReadonlyProperty<Value> {
         concreteValue = ListenableValue(value)
     }
     
-    mutating func fetch() {
+    public mutating func fetch() {
         getter(concreteValue.set)
     }
 }

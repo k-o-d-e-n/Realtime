@@ -209,7 +209,7 @@ struct RemoteManager {
 
 // TODO: Create reset local changes method. Need save old value ??
 open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedRealtimeValue {
-    public var uniqueKey: String { return dbKey }
+    open var uniqueKey: String { return dbKey }
     public let dbRef: DatabaseReference
     private var observingToken: UInt?
     public var localValue: Any? { return nil }
@@ -291,7 +291,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedR
         apply(snapshot: snapshot)
     }
     
-    public func apply(snapshot: DataSnapshot, strongly: Bool) {}
+    open func apply(snapshot: DataSnapshot, strongly: Bool) {}
     
     public var debugDescription: String { return "\n{\n\tref: \(dbRef.pathFromRoot);\n\tvalue: \(String(describing: localValue));\n}" }
 }
@@ -347,8 +347,8 @@ open class RealtimeObject: _RealtimeEntity {
     override public var localValue: Any? { return keyedValues { return $0.localValue } }
 
     private lazy var modelVersion: StandartProperty<Int?> = self.register(prop: Nodes.modelVersion.property(from: self.dbRef))
-    typealias Links = RealtimeProperty<[RealtimeLink], RealtimeLinkArraySerializer>
-    lazy var links: Links = self.register(prop: Links(dbRef: Nodes.links.reference(from: self.dbRef))) // TODO: Requires downloading before using
+    public typealias Links = RealtimeProperty<[RealtimeLink], RealtimeLinkArraySerializer>
+    public lazy var links: Links = self.register(prop: Links(dbRef: Nodes.links.reference(from: self.dbRef))) // TODO: Requires downloading before using
 
 //    lazy var parent: RealtimeObject? = self.dbRef.parent.map(RealtimeObject.init) // should be typed
 
@@ -400,7 +400,7 @@ open class RealtimeObject: _RealtimeEntity {
         return self
     }
     
-    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
+    override open func apply(snapshot: DataSnapshot, strongly: Bool) {
         /// properties is lazy loaded because apply snapshot processed directly
 //        properties.forEach { prop in
 //            if snapshot.hasChild(prop.dbKey) { prop.apply(snapshot: snapshot.childSnapshot(forPath: prop.dbKey)) }

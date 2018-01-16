@@ -51,7 +51,7 @@ public extension RTNode where Self.RawValue == String {
         return entity.dbRef.child(rawValue)
     }
 }
-extension AssociatedRTNode where Self.RawValue == String {
+public extension AssociatedRTNode where Self.RawValue == String {
     func entity(in parent: DatabaseReference) -> ConcreteType {
         return ConcreteType(dbRef: reference(from: parent))
     }
@@ -93,10 +93,10 @@ extension String {
     var realtimeNode: RealtimeNode { return .init(rawValue: self) }
 }
 
-struct AssociatedRealtimeNode<Concrete: RealtimeValue>: AssociatedRTNode, ExpressibleByStringLiteral, CustomStringConvertible {
-    typealias ConcreteType = Concrete
-    let rawValue: String
-    init(rawValue: String) { self.rawValue = rawValue }
+public struct AssociatedRealtimeNode<Concrete: RealtimeValue>: AssociatedRTNode, ExpressibleByStringLiteral, CustomStringConvertible {
+    public typealias ConcreteType = Concrete
+    public let rawValue: String
+    public init(rawValue: String) { self.rawValue = rawValue }
 }
 
 // TODO: Add possible to save relative link by parent level or root level
@@ -147,6 +147,8 @@ public class RealtimeTransaction {
     private var updates: [Database.UpdateItem] = []
     private var completions: [(Error?) -> Void] = []
     public internal(set) var isCompleted: Bool = false
+
+    public init() {}
 
     public func perform(with completion: ((Error?) -> Void)? = nil) {
         Database.database().update(use: updates) { (err, _) in

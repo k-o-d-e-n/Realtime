@@ -718,14 +718,16 @@ extension Tests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let one = SharedCollection([1])
+        let source = RealtimeProperty<[Int], Serializer<[Int]>>(dbRef: .root(), value: [0])
+        let one = AnyRealtimeCollectionView(source)//SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)
         _ = lazyOne.first
         XCTAssertTrue(calculator == 1)
-        let anyLazyOne = AnyCollection(lazyOne)
+        let anyLazyOne = AnySharedCollection(lazyOne)
         XCTAssertTrue(calculator == 1)
-        one.append(0)
+        source.changeLocalValue(use: { $0.append(0) })
+        XCTAssertTrue(one.count == 2)
         XCTAssertTrue(lazyOne.count == 2)
         XCTAssertTrue(anyLazyOne.count == 2)
     }

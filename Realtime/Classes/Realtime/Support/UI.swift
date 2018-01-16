@@ -36,7 +36,7 @@ open class _TableViewSectionedAdapter: NSObject, UITableViewDataSource, UITableV
     open func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
 }
 
-class ReuseViewPrototype<View: AnyObject> {
+public class ReuseViewPrototype<View: AnyObject> {
     fileprivate let weakView = WeakPropertyValue<View>(nil)
     weak var view: View? {
         set { weakView.set(newValue) }
@@ -70,17 +70,6 @@ class ReuseViewReference {
     }
 }
 
-class ReuseReference<View, Data> {
-    var binder = Property<(view: View?, data: Data?)>(value: (nil, nil))
-
-    private var token: Int
-    init(_ assign: @escaping (View, Data?) -> Void) {
-        self.token = self.binder.insider.listen(.just { view, data in
-            view.map { assign($0, data) }
-        }).token
-    }
-}
-
 struct TypeKey<T>: Hashable {
     let type: T.Type
 
@@ -104,9 +93,9 @@ public final class RealtimeTableAdapter<RC: RealtimeCollection>: _RealtimeTableA
         self.init(tableView: tableView, models: RCBasedDataSource(collection), onChanges: { collection.listening(changes: $0) })
     }
 }
-extension RCBasedDataSource {
+public extension RCBasedDataSource {
     func reloadData(completion: ((Error?) -> Void)? = nil) {
-        collection.prepare(forUse: { _, err in completion?(err) })
+        collection.prepare(forUse: { err in completion?(err) })
     }
 }
 
@@ -132,25 +121,25 @@ public protocol ModelDataSource {
     func numberOfRowsInSection(_ section: Int) -> Int
     func model(by indexPath: IndexPath) -> Model
 }
-struct RCBasedDataSource<RC: RealtimeCollection>: ModelDataSource {
+public struct RCBasedDataSource<RC: RealtimeCollection>: ModelDataSource {
     let collection: RC
 
     init(_ collection: RC) {
         self.collection = collection
     }
 
-    func numberOfRowsInSection(_ section: Int) -> Int {
+    public func numberOfRowsInSection(_ section: Int) -> Int {
         return collection.count.toOther()
     }
-    func model(by indexPath: IndexPath) -> RC.Iterator.Element {
+    public func model(by indexPath: IndexPath) -> RC.Iterator.Element {
         return collection.element(by: indexPath.row.toOther())
     }
 }
 
 // TODO: Add registration section model
 // TODO: Overhead with recompilation listenings; DECISION: Save listening items by indexPath
-class _RealtimeTableAdapter<Models: ModelDataSource>: _TableViewSectionedAdapter {
-    typealias CellFactory<Cell: UITableViewCell> = (ReuseViewPrototype<Cell>, Models.Model) -> [ListeningItem]
+public class _RealtimeTableAdapter<Models: ModelDataSource> {
+    public typealias CellFactory<Cell: UITableViewCell> = (ReuseViewPrototype<Cell>, Models.Model) -> [ListeningItem]
     weak var tableView: UITableView!
     private var _freePrototypes: [ReuseViewPrototype<UITableViewCell>] = []
     private var _prototypeCache = Dictionary<IndexPath, ReuseViewPrototype<UITableViewCell>>()
@@ -160,14 +149,14 @@ class _RealtimeTableAdapter<Models: ModelDataSource>: _TableViewSectionedAdapter
 
     public var cellForIndexPath: ((IndexPath) -> UITableViewCell.Type)!
     public var didSelect: ((Models.Model) -> Void)?
-    let models: Models
+    public let models: Models
+    lazy var ddsAdapter: DDSAdapter = DDSAdapter(self)
 
     public required init(tableView: UITableView, models: Models, onChanges: (@escaping () -> Void) -> ListeningItem) {
         self.tableView = tableView
         self.models = models
-        super.init()
-        tableView.delegate = self
-        tableView.dataSource = self
+        tableView.delegate = ddsAdapter
+        tableView.dataSource = ddsAdapter
         self._listening = onChanges({ [weak self] in
             guard let owner = self else { return }
             owner.reloadTable()
@@ -184,46 +173,53 @@ class _RealtimeTableAdapter<Models: ModelDataSource>: _TableViewSectionedAdapter
         tableView.register(cell, forCellReuseIdentifier: NSStringFromClass(cell))
     }
 
-    override func numberOfSections(in tableView: UITableView) -> Int {
-        return 1
-    }
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return models.numberOfRowsInSection(section)
-    }
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let key = cellForIndexPath(indexPath).typeKey
-        let cell = tableView.dequeueReusableCell(withIdentifier: NSStringFromClass(key.type), for: indexPath)
-        guard let proto = _prototypeCache[indexPath] else {
-            let proto = _freePrototypes.popLast() ?? ReuseViewPrototype<UITableViewCell>()
-            _prototypeCache[indexPath] = proto
-            _cellProtos[key]!(proto, models.model(by: indexPath)).forEach { $0.add(to: &proto.disposeStore) }
+    class DDSAdapter: _TableViewSectionedAdapter {
+        weak var parent: _RealtimeTableAdapter<Models>!
+        init(_ parent: _RealtimeTableAdapter<Models>) {
+            self.parent = parent
+        }
+
+        override func numberOfSections(in tableView: UITableView) -> Int {
+            return 1
+        }
+        override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+            return parent.models.numberOfRowsInSection(section)
+        }
+        override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+            let key = parent.cellForIndexPath(indexPath).typeKey
+            let cell = tableView.dequeueReusableCell(withIdentifier: NSStringFromClass(key.type), for: indexPath)
+            guard let proto = parent._prototypeCache[indexPath] else {
+                let proto = parent._freePrototypes.popLast() ?? ReuseViewPrototype<UITableViewCell>()
+                parent._prototypeCache[indexPath] = proto
+                parent._cellProtos[key]!(proto, parent.models.model(by: indexPath)).forEach { $0.add(to: &proto.disposeStore) }
+                return cell
+            }
+            if parent._isNeedReload {
+                proto.disposeStore.dispose()
+                parent._cellProtos[key]!(proto, parent.models.model(by: indexPath)).forEach { $0.add(to: &proto.disposeStore) }
+            }
             return cell
         }
-        if _isNeedReload {
-            proto.disposeStore.dispose()
-            _cellProtos[key]!(proto, models.model(by: indexPath)).forEach { $0.add(to: &proto.disposeStore) }
+
+        override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+            guard let proto = parent._prototypeCache[indexPath] else { return }
+
+            proto.view = cell
+            proto.disposeStore.resume(true)
         }
-        return cell
-    }
 
-    override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-        guard let proto = _prototypeCache[indexPath] else { return }
+        override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+            guard let proto = parent._prototypeCache[indexPath] else { return }
 
-        proto.view = cell
-        proto.disposeStore.resume(true)
-    }
+            proto.disposeStore.dispose()
+            proto.view = nil
+            parent._prototypeCache[indexPath] = nil
+            parent._freePrototypes.append(proto)
+        }
 
-    override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-        guard let proto = _prototypeCache[indexPath] else { return }
-
-        proto.disposeStore.dispose()
-        proto.view = nil
-        _prototypeCache[indexPath] = nil
-        _freePrototypes.append(proto)
-    }
-
-    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        didSelect?(models.model(by: indexPath))
+        override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+            parent.didSelect?(parent.models.model(by: indexPath))
+        }
     }
 
     public func setNeedsReload() {

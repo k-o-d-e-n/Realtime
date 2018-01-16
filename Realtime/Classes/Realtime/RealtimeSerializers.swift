@@ -21,6 +21,10 @@ extension Bool: Initializable {
     public static var defValue: Bool { return false }
 }
 
+extension Int: Initializable {
+    public static var defValue: Int { return 0 }
+}
+
 extension Optional: Initializable {
     public static var defValue: Optional { return Optional<Wrapped>(nilLiteral:()) }
 }
@@ -111,14 +115,14 @@ public class EnumSerializer<EnumType: RawRepresentable>: _Serializer {
 
 // MARK: Containers
 
-class RealtimeLinkArraySerializer: _Serializer {
-    class func deserialize(entity: DataSnapshot) -> [RealtimeLink] {
+public class RealtimeLinkArraySerializer: _Serializer {
+    public class func deserialize(entity: DataSnapshot) -> [RealtimeLink] {
         guard entity.exists() else { return Entity.defValue }
         
         return entity.children.map { RealtimeLink(snapshot: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }.flatMap { $0 }
     }
     
-    class func serialize(entity: [RealtimeLink]) -> Any? {
+    public class func serialize(entity: [RealtimeLink]) -> Any? {
         return entity.reduce([:], { (res, link) -> [String: Any] in
             var res = res
             res[link.id] = link.dbValue
