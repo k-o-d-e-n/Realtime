@@ -8,6 +8,59 @@
 
 import UIKit
 
+public protocol _Optional {
+    associatedtype Wrapped
+    func map<U>(_ f: (Wrapped) throws -> U) rethrows -> U?
+    func flatMap<U>(_ f: (Wrapped) throws -> U?) rethrows -> U?
+    var isNone: Bool { get }
+    var isSome: Bool { get }
+    var unsafelyUnwrapped: Wrapped { get }
+}
+extension Optional: _Optional {
+    public var isNone: Bool {
+        if case .none = self { return true }
+        return false
+    }
+    public var isSome: Bool {
+        if case .some = self { return true }
+        return false
+    }
+}
+
+public extension InsiderOwner where T: RealtimeValueActions {
+    func loadOnReceive() -> OwnedOnReceivePreprocessor<Self, T, T> {
+        return onReceive({ (v, p) in
+            v.load(completion: { (_, _) in p.fulfill() })
+        })
+    }
+}
+
+public extension InsiderOwner {
+    func asyncMap<U: RealtimeValueActions>(_ transform: @escaping (T) -> U) -> OwnedOnReceivePreprocessor<Self, U, U> {
+        return map(transform).onReceive({ (v, p) in
+            v.load(completion: { (_, _) in p.fulfill() })
+        })
+    }
+    func loadRelated<Loaded: RealtimeValueActions>(_ transform: @escaping (T) -> Loaded?) -> OwnedOnReceivePreprocessor<Self, T, T> {
+        return onReceive({ (v, p) in
+            transform(v)?.load(completion: { (_, _) in p.fulfill() })
+        })
+    }
+}
+
+public extension InsiderOwner where T: _Optional {
+    func flatMap<U>(_ transform: @escaping (T.Wrapped) -> U) -> OwnedTransformedFilteredPreprocessor<Self, T, U> {
+        return filter { $0.isSome }.map { $0.unsafelyUnwrapped }.map(transform)
+    }
+    func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (T.Wrapped) -> U) -> OwnedOnReceivePreprocessor<Self, T, U> {
+        return flatMap(transform).onReceive({ (v, p) in
+            v.load(completion: { (_, _) in p.fulfill() })
+        })
+    }
+}
+
+// MARK: - UI
+
 public extension Listenable where Self.OutData == String? {
     func bind(to label: UILabel) -> ListeningItem {
         return listeningItem(.weak(label) { data, l in l?.text = data })

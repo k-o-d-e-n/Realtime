@@ -18,7 +18,7 @@ public extension DatabaseReference {
     var pathFromRoot: String { return path(from: root) }
     
     func path(from ref: DatabaseReference) -> String {
-        return String(url[..<ref.url.endIndex])
+        return String(url[ref.url.endIndex...])
     }
     
     func isChild(for ref: DatabaseReference) -> Bool {

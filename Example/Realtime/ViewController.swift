@@ -12,6 +12,8 @@ import Realtime
 class Object: RealtimeObject {
     lazy var id: StandartProperty<String?> = self.register(prop: "id".property(from: self.dbRef))
     lazy var array: RealtimeArray<Object> = self.register(prop: "array".array(from: self.dbRef))
+
+    lazy var name: StandartProperty<String?> = self.register(prop: "human/name/firstname".property(from: self.dbRef))
 }
 
 class ViewController: UIViewController {
@@ -41,7 +43,49 @@ class ViewController: UIViewController {
 
         }).add(to: &disposeBag)
 
-        object.array.contains(object)
+        _ = object.array.contains(object)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesEnded(touches, with: event)
+
+        /// for testing implement your auth function in Auth.swift
+        auth {
+            let users: RealtimeArray<Object> = "users".array(from: .root())
+            let usersController = TableViewController(list: users) { (adapter) in
+                adapter.register(UITableViewCell.self) { (proto, entity) -> [ListeningItem] in
+                    entity.name.runObserving()
+                    let assign: (String?) -> Void = proto.assign { cell, data in
+                        cell.textLabel?.text = data ?? "No name"
+                    }
+                    
+                    return [entity.name.listeningItem(.just(assign))]
+                }
+                adapter.cellForIndexPath = { _ in UITableViewCell.self }
+            }
+            self.navigationController?.pushViewController(usersController, animated: true)
+        }
     }
 }
 
+class TableViewController<Collection: RealtimeCollection>: UITableViewController where Collection.Index == Int, Collection.IndexDistance == Int {
+    let list: Collection
+    var realtimeAdapter: RealtimeTableAdapter<Collection>!
+
+    required init(list: Collection, configure: (RealtimeTableAdapter<Collection>) -> Void) {
+        self.list = list
+        super.init(style: .plain)
+        self.realtimeAdapter = RealtimeTableAdapter<Collection>(tableView: self.tableView, collection: list)
+        configure(self.realtimeAdapter)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        list.prepare(forUse: { _ in })
+    }
+}

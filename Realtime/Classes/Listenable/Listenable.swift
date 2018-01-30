@@ -62,6 +62,7 @@ public struct ListeningDisposeStore {
     }
 }
 
+// TODO: Disposable and ListeningItem does not have information about real active state listening (lifetime, delay listenings with autostop)
 public protocol Disposable {
     var dispose: () -> Void { get }
 }
@@ -112,9 +113,8 @@ public extension ListeningItem {
 }
 
 public extension ListeningItem {
-    @discardableResult
-    func add(to store: inout ListeningDisposeStore) -> ListeningItem {
-        store.add(self); return self
+    func add(to store: inout ListeningDisposeStore) {
+        store.add(self)
     }
 }
 

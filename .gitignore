@@ -34,3 +34,5 @@ Carthage
 Example/Pods
 Podfile.lock
 Example/Realtime.xcworkspace
+GoogleService-Info.plist
+Auth.swift
