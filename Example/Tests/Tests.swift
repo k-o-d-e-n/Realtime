@@ -112,22 +112,6 @@ class Tests: XCTestCase {
         XCTAssertTrue(valueWrapper.get() == 20)
     }
 
-    func testNativeListenableValue() {
-        var counter = 0
-        let valueWrapper = NativeListenableValue<Int>(0) {
-            if counter == 0 {
-                XCTAssertTrue($0 == 0 && $1 == 1)
-            } else if counter == 1 {
-                XCTAssertTrue($0 == 1 && $1 == 20)
-            }
-            counter += 1
-        }
-        valueWrapper.set(1)
-        XCTAssertTrue(valueWrapper.get() == 1)
-        valueWrapper.set(20)
-        XCTAssertTrue(valueWrapper.get() == 20)
-    }
-
     func testProperty() {
         let view = UIView()
         var backgroundProperty = Property<UIColor>(value: .white)
@@ -373,7 +357,8 @@ class Tests: XCTestCase {
         propertyDouble.value = .infinity
         XCTAssertTrue(doubleValue == 10.0)
 
-        let item = propertyDouble.listeningItem(.just { doubleValue = $0 }).add(to: &store)
+        let item = propertyDouble.listeningItem(.just { doubleValue = $0 })
+            item.add(to: &store)
 
         propertyDouble.value = .pi
         XCTAssertTrue(doubleValue == .pi)

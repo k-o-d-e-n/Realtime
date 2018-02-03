@@ -230,7 +230,7 @@ public protocol RealtimeCollection: Collection, RealtimeValue, RequiresPreparati
     func runObserving() -> Void
     func stopObserving() -> Void
 }
-protocol RC: RealtimeCollection {
+protocol RC: RealtimeCollection, RealtimeValueEvents {
     associatedtype View: RCView
     var _view: View { get }
 }
@@ -518,7 +518,8 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
     public func didSave() {
         _view.source.didSave()
     }
-    
+
+    public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) { _view.source.willRemove(completion: completion) }
     public func didRemove() {
         _view.source.didRemove()
     }
@@ -697,7 +698,8 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
     public func didSave() {
         _view.source.didSave()
     }
-    
+
+    public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) { _view.source.willRemove(completion: completion) }
     public func didRemove() {
         _view.source.didRemove()
     }
@@ -794,6 +796,7 @@ where Element: KeyedRealtimeValue, Element.UniqueKey: StringRepresentableRealtim
         _view.source.didSave()
     }
 
+    public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) { _view.source.willRemove(completion: completion) }
     public func didRemove() {
         _view.source.didRemove()
     }
@@ -932,8 +935,6 @@ private class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(after i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
     func apply(snapshot: DataSnapshot, strongly: Bool) { fatalError() }
-    func didSave() { fatalError() }
-    func didRemove() { fatalError() }
     func runObserving() { fatalError() }
     func stopObserving() { fatalError() }
     func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
@@ -972,8 +973,6 @@ where C.Index == Int {
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
     override func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
-    override func didSave() { base.didSave() }
-    override func didRemove() { base.didRemove() }
     override func prepare(forUse completion: @escaping (Error?) -> Void) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving() { base.runObserving() }
@@ -1105,14 +1104,6 @@ where Element: KeyedRealtimeValue, Element.UniqueKey: StringRepresentableRealtim
 
     public func apply(snapshot: DataSnapshot, strongly: Bool) {
         base.apply(snapshot: snapshot, strongly: strongly)
-    }
-
-    public func didSave() {
-        base.didSave()
-    }
-
-    public func didRemove() {
-        base.didRemove()
     }
 }
 

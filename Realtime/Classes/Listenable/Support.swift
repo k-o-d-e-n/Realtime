@@ -8,6 +8,13 @@
 
 import UIKit
 
+// MARK: System type extensions
+
+// TODO: Add extension for all types with var asProperty, asRealtimeProperty
+extension String {
+    var asProperty: Property<String> { return Property(value: self) }
+}
+
 public protocol _Optional {
     associatedtype Wrapped
     func map<U>(_ f: (Wrapped) throws -> U) rethrows -> U?

@@ -130,7 +130,7 @@ public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue,
     }
     public var value: T {
         get { return localProperty }
-        set { localProperty = newValue; save(completion: { err, _ in if err != nil { self.lastError.value = err } }) }
+        set { localProperty = newValue; save(completion: { err, _ in if err != nil { self.lastError.value = err } }) } // TODO: Remove auto update value
     }
     public var insider: Insider<T>
     public var lastError: Property<Error?>
@@ -158,7 +158,8 @@ public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue,
     }
     
     // MARK: Setters
-    
+
+    // TODO: Replace with setValue(_ value: T, completion: .. )
     public func setLocalValue(_ value: T) {
         localProperty = value
         if !hasChanges { hasChanges = true }

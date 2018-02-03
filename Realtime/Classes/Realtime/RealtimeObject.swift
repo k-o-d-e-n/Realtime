@@ -11,202 +11,6 @@ import FirebaseDatabase
 
 // TODO: Add caching mechanism, for reuse entities
 
-public protocol DataSnapshotRepresented {
-    init?(snapshot: DataSnapshot)
-    func apply(snapshot: DataSnapshot, strongly: Bool)
-}
-public extension DataSnapshotRepresented {
-    func apply(snapshot: DataSnapshot) {
-        apply(snapshot: snapshot, strongly: true)
-    }
-}
-
-// MARK: RealtimeValue
-
-public protocol KeyedRealtimeValue: RealtimeValue, Hashable {
-    associatedtype UniqueKey: Hashable, LosslessStringConvertible
-    var uniqueKey: UniqueKey { get }
-}
-extension KeyedRealtimeValue {
-    var uniqueKey: String { return dbKey }
-}
-
-public protocol RealtimeValue: RealtimeValueEvents, DataSnapshotRepresented, CustomDebugStringConvertible {
-    var dbRef: DatabaseReference { get } // TODO: Use abstract protocol which has methods for observing and reference. Need for use DatabaseQuery
-    var localValue: Any? { get }
-    
-    init(dbRef: DatabaseReference)
-}
-public extension RealtimeValue {
-    var dbKey: String { return dbRef.key }
-    //    var prototype: [AnyHashable : Any]? { return !localValue == nil ? [dbKey: localValue!] : nil }
-
-    init?(snapshot: DataSnapshot, strongly: Bool) {
-        if strongly { self.init(snapshot: snapshot) }
-        else {
-            self.init(dbRef: snapshot.ref)
-            apply(snapshot: snapshot, strongly: false)
-        }
-    }
-}
-public extension Hashable where Self: RealtimeValue {
-    var hashValue: Int { return dbKey.count }
-    static func ==(lhs: Self, rhs: Self) -> Bool {
-        return lhs.dbRef.url == rhs.dbRef.url
-    }
-}
-public protocol RealtimeValueEvents {
-    func didSave()
-    func didRemove()
-}
-
-// MARK: Extended Realtime Value
-
-public protocol ChangeableRealtimeValue: RealtimeValue {
-    var hasChanges: Bool { get }
-}
-
-public protocol ChangeableRealtimeEntity: ChangeableRealtimeValue {
-    func insertChanges(to values: inout [String: Any?], keyed from: DatabaseReference)
-    func insertChanges(to values: inout [Database.UpdateItem])
-    func insertChanges(to transaction: RealtimeTransaction)
-}
-public extension ChangeableRealtimeEntity {
-    func insertChanges(to values: inout [String: Any?]) { insertChanges(to: &values, keyed: dbRef) }
-}
-fileprivate extension ChangeableRealtimeEntity {
-    var localChanges: [String: Any?] { var changes: [String: Any?] = [:]; insertChanges(to: &changes); return changes }
-}
-
-//protocol RealtimeEntityStates {
-//    var isInserted: Bool { get }
-//    var isDeleted: Bool { get }
-//    var isFault: Bool { get }
-//}
-
-public protocol RealtimeEntityActions: RealtimeValueActions {
-    @discardableResult func update(completion: ((Error?, DatabaseReference) -> ())?) -> Self
-    /// Updated only values, which changed on any level down in hierarchy.
-    @discardableResult func updateThoroughly(completion: Database.TransactionCompletion?) -> Self
-    @discardableResult func update(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) -> Self
-    @discardableResult func update(with values: [String: Any?], completion: ((Error?, DatabaseReference) -> ())?) -> Self
-//    @discardableResult func fetch(completion: ((Self) -> ())?) -> Self // ? completion ?
-//    @discardableResult func unlink(_ link: RealtimeLink, completion: ((Error?, DatabaseReference) -> Void)?) -> Self
-//    @discardableResult func link(_ link: RealtimeLink, completion: ((Error?, DatabaseReference) -> Void)?) -> Self
-}
-
-public protocol RealtimeValueActions {
-    @discardableResult func save(completion: ((Error?, DatabaseReference) -> ())?) -> Self
-    @discardableResult func save(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) -> Self
-    @discardableResult func remove(completion: ((Error?, DatabaseReference) -> ())?) -> Self
-    @discardableResult func remove(with linkedRefs: [DatabaseReference], completion: Database.TransactionCompletion?) -> Self
-    @discardableResult func load(completion: Database.TransactionCompletion?) -> Self
-    @discardableResult func runObserving() -> Self
-    @discardableResult func stopObserving() -> Self
-}
-
-public protocol Linkable {
-    @discardableResult func add(link: RealtimeLink) -> Self
-    @discardableResult func remove(linkBy id: String) -> Self
-    var linksRef: DatabaseReference { get }
-}
-
-struct RemoteManager {
-    static func save<T: RealtimeValue>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
-        guard let value = entity.localValue else {
-            completion?(RealtimeEntityError(type: .valueDoesNotExists), entity.dbRef)
-            return
-        }
-
-        entity.dbRef.setValue(value) { (error, ref) in
-            if error == nil { entity.didSave() }
-            
-            completion?(error, ref)
-        }
-    }
-    
-    /// Warning! Values should be only on first level in hierarchy, else other data is lost.
-    static func update<T: ChangeableRealtimeEntity>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
-        var changes: [String: Any?] = [:]
-        entity.insertChanges(to: &changes)
-        entity.dbRef.update(use: changes) { (error, ref) in
-            if error == nil { entity.didSave() }
-            
-            completion?(error, ref)
-        }
-    }
-    
-    static func update<T: ChangeableRealtimeEntity>(entity: T, with values: [String: Any?], completion: ((Error?, DatabaseReference) -> ())?) {
-        let root = entity.dbRef.root
-        var keyValuePairs = values
-        entity.insertChanges(to: &keyValuePairs, keyed: root)
-        root.update(use: keyValuePairs) { (err, ref) in
-            if err == nil { entity.didSave() }
-            
-            completion?(err, ref)
-        }
-    }
-
-    static func update<T: ChangeableRealtimeEntity>(entity: T, with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) {
-        var refValuePairs = values
-        entity.insertChanges(to: &refValuePairs)
-        Database.database().update(use: refValuePairs) { (err, ref) in
-            if err == nil { entity.didSave() }
-
-            completion?(err, ref)
-        }
-    }
-
-    static func updateThoroughly<T: ChangeableRealtimeEntity>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
-        var changes = [String: Any?]()
-        entity.insertChanges(to: &changes, keyed: entity.dbRef)
-        if changes.count > 0 {
-            entity.dbRef.updateChildValues(changes as Any as! [String: Any]) { (error, ref) in
-                if error == nil { entity.didSave() }
-                
-                completion?(error, ref)
-            }
-        } else {
-            completion?(RemoteManager.RealtimeEntityError(type: .hasNotChanges), entity.dbRef)
-        }
-    }
-
-    static func remove<T: RealtimeValue>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
-        entity.dbRef.removeValue { (error, ref) in
-            if error == nil { entity.didRemove() }
-            
-            completion?(error, ref)
-        }
-    }
-    
-    static func remove<T: RealtimeValue>(entity: T, with linkedRefs: [DatabaseReference], completion: Database.TransactionCompletion? = nil) {
-        let references = linkedRefs + [entity.dbRef]
-        Database.database().update(use: references.map { ($0, nil) }) { (err, ref) in
-            if err == nil { entity.didRemove() }
-            
-            completion?(err, ref)
-        }
-    }
-    
-    static func loadData<Entity: RealtimeValue>(to entity: Entity, completion: Database.TransactionCompletion? = nil) {
-        entity.dbRef.observeSingleEvent(of: .value, with: { entity.apply(snapshot: $0); completion?(nil, entity.dbRef) }, withCancel: { completion?($0, entity.dbRef) })
-    }
-    
-    static func observe<T: RealtimeValue>(type: DataEventType = .value, entity: T, onUpdate: Database.TransactionCompletion? = nil) -> UInt {
-        return entity.dbRef.observe(type, with: { entity.apply(snapshot: $0); onUpdate?(nil, $0.ref) }, withCancel: { onUpdate?($0, entity.dbRef) })
-    }
-    
-    // TODO: Create warning type together with error.
-    /// Warning like as signal about specials events happened on execute operation, but it is not failed.
-    struct RealtimeEntityError: Error {
-        enum ErrorKind {
-            case hasNotChanges
-            case valueDoesNotExists
-        }
-        let type: ErrorKind
-    }
-}
-
 // TODO: Create reset local changes method. Need save old value ??
 open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedRealtimeValue {
     open var uniqueKey: String { return dbKey }
@@ -237,17 +41,33 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedR
         })
         return self
     }
+
+    public func _remove(completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
+        RemoteManager.remove(entity: self, completion: completion)
+
+        return self
+    }
     
     @discardableResult
     public func remove(completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
-        RemoteManager.remove(entity: self, completion: completion)
+        willRemove { (err, linked) in
+            guard err == nil else { completion?(err, self.dbRef); return }
+            if let links = linked {
+                RemoteManager.remove(entity: self, with: links, completion: completion)
+            } else {
+                RemoteManager.remove(entity: self, completion: completion)
+            }
+        }
         
         return self
     }
     
     @discardableResult
     public func remove(with linkedRefs: [DatabaseReference], completion: Database.TransactionCompletion? = nil) -> Self {
-        RemoteManager.remove(entity: self, with: linkedRefs, completion: completion)
+        willRemove { (err, linked) in
+            guard err == nil else { completion?(err, self.dbRef); return }
+            RemoteManager.remove(entity: self, with: linked.map { $0 + linkedRefs } ?? linkedRefs, completion: completion)
+        }
         
         return self
     }
@@ -277,6 +97,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedR
         dbRef.removeObserver(withHandle: token);
     }
 
+    public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) { completion(nil, nil) }
     public func didRemove() { }
     public func didSave() { }
     
@@ -337,11 +158,16 @@ open class _RealtimeEntity: _RealtimeValue, ChangeableRealtimeEntity, RealtimeEn
 // TODO: Try to create `parent` typed property.
 // TODO: Make RealtimeObject (RealtimeValue) conformed Listenable for listening
 open class RealtimeObject: _RealtimeEntity {
-    public typealias ChangeableProperty = ChangeableRealtimeEntity
-    public typealias Property = RealtimeValue
+    public typealias ChangeableEntity = ChangeableRealtimeEntity & RealtimeValueEvents
+    public typealias ChangeableProperty = ChangeableRealtimeValue & RealtimeValueEvents
+    public typealias Property = RealtimeValue & RealtimeValueEvents
     fileprivate var _props = [Property]() // TODO: May be use Dictionary with RealtimeNode as key. `allKeys` -> childNodes
     fileprivate var _changeProps = [ChangeableProperty]()
-    fileprivate var _allProps: [Property] { return _props + _changeProps }
+    fileprivate var _changeEntities = [ChangeableEntity]()
+    fileprivate var _allProps: [Property] {
+        let props: [Property] = _props + _changeProps
+        return props + _changeEntities
+    }
     override public var hasChanges: Bool { return _changeProps.first { $0.hasChanges } != nil }
 //    var localChanges: Any? { return keyedValues { return $0.localChanges } }
     override public var localValue: Any? { return keyedValues { return $0.localValue } }
@@ -371,33 +197,17 @@ open class RealtimeObject: _RealtimeEntity {
     
     override public func didSave() {
         super.didSave()
-        _props.forEach { $0.didSave() }
-        _changeProps.forEach { $0.didSave() }
+        _allProps.forEach { $0.didSave() }
     }
     
-    func willRemove(completion: @escaping (Error?, DatabaseReference) -> Void) {
-        links.load(completion: completion)
+    override public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) {
+        links.load(completion: { err, _ in completion(err, err.map { _ in self.links.value.map { $0.dbRef } }) })
     }
     
     override public func didRemove() {
         super.didRemove()
         _props.forEach { $0.didRemove() }
         _changeProps.forEach { $0.didRemove() }
-    }
-    
-    @discardableResult
-    override public func remove(completion: ((Error?, DatabaseReference) -> ())?) -> Self {
-        willRemove { (error, ref) in
-            guard error == nil else { completion?(error, ref); return }
-            
-            if self.links.value.isEmpty {
-                super.remove(completion: completion)
-            } else {
-                self.remove(with: self.links.value.map { $0.dbRef }, completion: completion)
-            }
-        }
-        
-        return self
     }
     
     override open func apply(snapshot: DataSnapshot, strongly: Bool) {
@@ -413,12 +223,17 @@ open class RealtimeObject: _RealtimeEntity {
         _changeProps.forEach { prop in
             prop.insertChanges(to: &values, keyed: from)
         }
+        _changeEntities.forEach { prop in
+            prop.insertChanges(to: &values, keyed: from)
+        }
     }
     override public func insertChanges(to values: inout [Database.UpdateItem]) {
         _changeProps.forEach { $0.insertChanges(to: &values) }
+        _changeEntities.forEach { $0.insertChanges(to: &values) }
     }
     override public func insertChanges(to transaction: RealtimeTransaction) {
         _changeProps.forEach { $0.insertChanges(to: transaction) }
+        _changeEntities.forEach { $0.insertChanges(to: transaction) }
     }
 
     // MARK: RealtimeObject
@@ -427,7 +242,13 @@ open class RealtimeObject: _RealtimeEntity {
     open func performMigration(from version: Int?) {
         // implement migration
     }
-    
+
+    public func register<T: ChangeableEntity>(prop: T, completion: ((T) -> Void)? = nil) -> T {
+        _changeEntities.append(prop)
+        completion?(prop)
+
+        return prop
+    }
     public func register<T: ChangeableProperty>(prop: T, completion: ((T) -> Void)? = nil) -> T {
         _changeProps.append(prop)
         completion?(prop)
@@ -486,22 +307,5 @@ public extension Linkable {
     func removeLink(by id: String, in transaction: RealtimeTransaction) {
         remove(linkBy: id)
         transaction.addUpdate(item: (linksRef.child(id), nil))
-    }
-}
-
-protocol RealtimeEntityClass: class, RealtimeValue {}
-protocol ChangeableRealtimeEntityClass: RealtimeEntityClass, ChangeableRealtimeEntity {}
-
-// TODO: Use Unmanaged wrapper instead
-enum RealtimeRetainer {
-    static fileprivate var retainer: [RealtimeEntityClass] = []
-}
-extension RealtimeEntityClass {
-    func retain() {
-        RealtimeRetainer.retainer.append(self)
-    }
-    
-    func release() {
-        RealtimeRetainer.retainer.remove(at: RealtimeRetainer.retainer.index { self === $0 }!)
     }
 }
