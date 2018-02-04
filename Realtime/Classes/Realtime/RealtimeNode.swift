@@ -9,8 +9,8 @@
 import Foundation
 import FirebaseDatabase
 
-public protocol RTNode: RawRepresentable {
-    associatedtype RawValue = String
+public protocol RTNode: RawRepresentable, Equatable {
+    associatedtype RawValue: Equatable = String
 }
 public protocol AssociatedRTNode: RTNode {
     associatedtype ConcreteType: RealtimeValue
@@ -56,6 +56,12 @@ public extension AssociatedRTNode where Self.RawValue == String {
         return ConcreteType(dbRef: reference(from: parent))
     }
 }
+extension AssociatedRTNode {
+    private var type: ConcreteType.Type { return ConcreteType.self }
+    public static func ==(lhs: Self, rhs: Self) -> Bool {
+        return lhs.rawValue == rhs.rawValue && lhs.type == rhs.type
+    }
+}
 
 public extension RTNode where Self.RawValue == String, Self: ExpressibleByStringLiteral {
     typealias UnicodeScalarLiteralType = String
@@ -83,6 +89,19 @@ public struct RealtimeNode: RTNode, ExpressibleByStringLiteral, CustomStringConv
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 }
+extension RTNode {
+    public static func ==(lhs: Self, rhs: Self) -> Bool {
+        return lhs.rawValue == rhs.rawValue
+    }
+    public static func ==<Other: RTNode>(lhs: Self, rhs: Other) -> Bool where Other.RawValue == RawValue {
+        return lhs.rawValue == rhs.rawValue
+    }
+}
+extension RealtimeNode {
+    func associated<T: RealtimeValue>() -> AssociatedRealtimeNode<T> {
+        return AssociatedRealtimeNode(rawValue: rawValue)
+    }
+}
 extension String: RTNode {
     public var rawValue: String { return self }
     public init(rawValue: String) {
@@ -97,6 +116,11 @@ public struct AssociatedRealtimeNode<Concrete: RealtimeValue>: AssociatedRTNode,
     public typealias ConcreteType = Concrete
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
+}
+extension AssociatedRealtimeNode {
+    public static func ==(lhs: AssociatedRealtimeNode, rhs: RealtimeNode) -> Bool {
+        return lhs.rawValue == rhs.rawValue
+    }
 }
 
 // TODO: Add possible to save relative link by parent level or root level

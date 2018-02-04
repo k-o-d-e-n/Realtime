@@ -433,7 +433,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         guard containsValue(byKey: key) else {
             let link = key.generate(linkTo: _view.source.dbRef)
             let prototypeValue = PrototypeKey(entityId: key.uniqueKey, linkId: link.link.id, index: count)
-            _view.source.changeLocalValue { $0.append(prototypeValue) }
+            _view.source.value.append(prototypeValue)
             storage.store(value: element, by: key)
             let update = shouldLinking ? [(link.sourceRef, link.link.dbValue), (element.dbRef, element.localValue)] : [(element.dbRef, element.localValue)]
             _view.source.save(with: update) { (error, ref) in
@@ -452,8 +452,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
     public func remove(for key: Key, completion: ((Error?, DatabaseReference) -> ())? = nil) {
         guard let index = _view.source.value.index(where: { $0.key == key.key }) else { return }
 
-        var p_value: PrototypeKey!
-        _view.source.changeLocalValue { p_value = $0.remove(at: index) }
+        var p_value: PrototypeKey = _view.source.value.remove(at: index)
         _view.source.save(with: [(storage.valueRefBy(key: key.dbKey), nil),
                                  (key.dbRef.child(Nodes.links.subpath(with: p_value.linkId)), nil)]) { (err, ref) in
                                     if err == nil {
@@ -587,7 +586,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
 
             let link = element.generate(linkTo: self._view.source.dbRef)
             let key = PrototypeKey(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? self.count)
-            self._view.source.changeLocalValue { $0.insert(key, at: key.index) }
+            self._view.source.value.insert(key, at: key.index)
             element.add(link: link.link)
             transaction.addUpdate(item: (element.dbRef, element.localValue))
 
@@ -600,7 +599,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
         }
         var removedKeys: [PrototypeKey] = []
         let remove: (Int) -> Void = { index in
-            self._view.source.changeLocalValue { removedKeys.append($0.remove(at: index)) }
+            removedKeys.append(self._view.source.value.remove(at: index))
             transaction.addCompletion { (err) in
                 if err == nil {
                     removedKeys.forEach { key in
@@ -622,7 +621,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
 
         let link = element.generate(linkTo: _view.source.dbRef)
         let key = PrototypeKey(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? count)
-        _view.source.changeLocalValue { $0.insert(key, at: key.index) }
+        _view.source.value.insert(key, at: key.index)
         element.add(link: link.link)
         storage.store(value: element, by: key)
         element.save(with: [(_view.source.dbRef, _view.source.localValue)]) { (error, ref) in
@@ -642,8 +641,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
     public func remove(at index: Int, completion: ((Error?, DatabaseReference) -> ())? = nil) {
         _view.checkPreparation()
         
-        var key: PrototypeKey!
-        _view.source.changeLocalValue { key = $0.remove(at: index) }
+        var key: PrototypeKey = _view.source.value.remove(at: index)
         _view.source.save(with: [(storage.valueRefBy(key: key.dbKey), nil)]) { (err, ref) in
             if err == nil {
                 self._view.source.didSave()
@@ -816,7 +814,7 @@ public extension LinkedRealtimeArray {
         let byPath = LinkedRealtimeArray<KeyPathModel>(dbRef: dbRef, elementsRef: storage.elementsRef, keyPath: keyPath, elementBuilder: nil)
         if _view.isPrepared {
             byPath._view.isPrepared = true
-            byPath._view.source.setLocalValue(_view.source.value)
+            byPath._view.source.value = _view.source.value
             byPath._view.source.didSave() // reset `hasChanges` to false
         }
         return byPath
@@ -826,7 +824,7 @@ public extension LinkedRealtimeArray {
             let byPath = LinkedRealtimeArray<KeyPathModel>(dbRef: dbRef, elementsRef: elements, keyPath: keyPath, elementBuilder: elementBuilder)
             if _view.isPrepared {
                 byPath._view.isPrepared = true
-                byPath._view.source.setLocalValue(_view.source.value)
+                byPath._view.source.value = _view.source.value
                 byPath._view.source.didSave() // reset `hasChanges` to false
             }
             return byPath
@@ -843,7 +841,7 @@ public extension LinkedRealtimeArray where Element: Linkable {
 
             let link = element.generate(linkTo: self._view.source.dbRef)
             let key = Key(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? self.count)
-            self._view.source.changeLocalValue { $0.insert(key, at: key.index) }
+            self._view.source.value.insert(key, at: key.index)
             element.add(link: link.link)
             transaction.addUpdate(item: (link.sourceRef, link.link.dbValue))
 
@@ -856,7 +854,7 @@ public extension LinkedRealtimeArray where Element: Linkable {
         }
         var removedKeys: [Key] = []
         let remove: (Int) -> Void = { index in
-            self._view.source.changeLocalValue { removedKeys.append($0.remove(at: index)) }
+            removedKeys.append(self._view.source.value.remove(at: index))
             transaction.addCompletion { (err) in
                 if err == nil {
                     removedKeys.forEach { key in
@@ -877,7 +875,7 @@ public extension LinkedRealtimeArray where Element: Linkable {
 
         let link = element.generate(linkTo: _view.source.dbRef)
         let key = Key(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? count)
-        _view.source.changeLocalValue { $0.insert(key, at: key.index) }
+        _view.source.value.insert(key, at: key.index)
         _view.source.save(with: [(link.sourceRef, link.link.dbValue)]) { (err, ref) in
             if err == nil {
                 element.add(link: link.link)
@@ -897,8 +895,7 @@ public extension LinkedRealtimeArray where Element: Linkable {
     func remove(at index: Int, completion: Database.TransactionCompletion?) {
         _view.checkPreparation()
 
-        var key: Key!
-        _view.source.changeLocalValue { key = $0.remove(at: index) }
+        var key: Key = _view.source.value.remove(at: index)
         _view.source.save(with: [(storage.valueRefBy(key: key.dbKey).child(Nodes.links.subpath(with: key.linkId)), nil)]) { (err, ref) in
             if err == nil {
                 self._view.source.didSave()

@@ -42,31 +42,20 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedR
         return self
     }
 
-    public func _remove(completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
-        RemoteManager.remove(entity: self, completion: completion)
-
-        return self
-    }
-    
-    @discardableResult
-    public func remove(completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
-        willRemove { (err, linked) in
-            guard err == nil else { completion?(err, self.dbRef); return }
-            if let links = linked {
-                RemoteManager.remove(entity: self, with: links, completion: completion)
-            } else {
-                RemoteManager.remove(entity: self, completion: completion)
-            }
-        }
-        
-        return self
+    public func remove(completion: ((Error?, DatabaseReference) -> ())?) -> Self {
+        return remove(with: [], completion: completion)
     }
     
     @discardableResult
     public func remove(with linkedRefs: [DatabaseReference], completion: Database.TransactionCompletion? = nil) -> Self {
-        willRemove { (err, linked) in
+        willRemove { (err, removeRefs) in
             guard err == nil else { completion?(err, self.dbRef); return }
-            RemoteManager.remove(entity: self, with: linked.map { $0 + linkedRefs } ?? linkedRefs, completion: completion)
+            let removes = removeRefs.map { $0 + linkedRefs } ?? linkedRefs
+            if !removes.isEmpty {
+                RemoteManager.remove(entity: self, with: removes, completion: completion)
+            } else {
+                RemoteManager.remove(entity: self, completion: completion)
+            }
         }
         
         return self
@@ -98,7 +87,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedR
     }
 
     public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) { completion(nil, nil) }
-    public func didRemove() { }
+    public func didRemove() { dbRef.removeAllObservers() }
     public func didSave() { }
     
     // MARK: Changeable
@@ -128,8 +117,8 @@ open class _RealtimeEntity: _RealtimeValue, ChangeableRealtimeEntity, RealtimeEn
     }
 
     @discardableResult
-    public func updateThoroughly(completion: Database.TransactionCompletion?) -> Self {
-        RemoteManager.updateThoroughly(entity: self, completion: completion)
+    public func merge(completion: Database.TransactionCompletion?) -> Self {
+        RemoteManager.merge(entity: self, completion: completion)
 
         return self
     }
@@ -172,9 +161,9 @@ open class RealtimeObject: _RealtimeEntity {
 //    var localChanges: Any? { return keyedValues { return $0.localChanges } }
     override public var localValue: Any? { return keyedValues { return $0.localValue } }
 
-    private lazy var modelVersion: StandartProperty<Int?> = self.register(prop: Nodes.modelVersion.property(from: self.dbRef))
+    private lazy var __mv: StandartProperty<Int?> = self.register(prop: Nodes.modelVersion.property(from: self.dbRef))
     public typealias Links = RealtimeProperty<[RealtimeLink], RealtimeLinkArraySerializer>
-    public lazy var links: Links = self.register(prop: Links(dbRef: Nodes.links.reference(from: self.dbRef))) // TODO: Requires downloading before using
+    public lazy var __links: Links = self.register(prop: Links(dbRef: Nodes.links.reference(from: self.dbRef))) // TODO: Requires downloading before using
 
 //    lazy var parent: RealtimeObject? = self.dbRef.parent.map(RealtimeObject.init) // should be typed
 
@@ -279,23 +268,19 @@ open class RealtimeObject: _RealtimeEntity {
 }
 
 extension RealtimeObject: Linkable {
-    public var linksRef: DatabaseReference { return links.dbRef }
+    public var linksRef: DatabaseReference { return __links.dbRef }
     @discardableResult
     public func add(link: RealtimeLink) -> Self {
-        links.changeLocalValue { (values) in
-            guard !values.contains(where: { $0 == link }) else { return }
+        guard !__links.value.contains(where: { $0 == link }) else { return self }
             
-            values.append(link)
-        }
+        __links.value.append(link)
         return self
     }
     @discardableResult
     public func remove(linkBy id: String) -> Self {
-        links.changeLocalValue { (values) in
-            guard let index = values.index(where: { $0.id == id }) else { return }
-            
-            values.remove(at: index)
-        }
+        guard let index = __links.value.index(where: { $0.id == id }) else { return self }
+
+        __links.value.remove(at: index)
         return self
     }
 }

@@ -22,6 +22,13 @@ public extension DataSnapshotRepresented {
         apply(snapshot: snapshot, strongly: true)
     }
 }
+public extension DataSnapshotRepresented where Self: RealtimeValue {
+    func apply(parentSnapshotIfNeeded parent: DataSnapshot, strongly: Bool) {
+        guard dbKey.has(in: parent) else { return }
+
+        apply(snapshot: dbKey.snapshot(from: parent), strongly: strongly)
+    }
+}
 
 // MARK: RealtimeValue
 
@@ -109,7 +116,7 @@ extension ChangeableRealtimeValue {
 public protocol RealtimeEntityActions: RealtimeValueActions {
     @discardableResult func update(completion: ((Error?, DatabaseReference) -> ())?) -> Self
     /// Updated only values, which changed on any level down in hierarchy.
-    @discardableResult func updateThoroughly(completion: Database.TransactionCompletion?) -> Self
+    @discardableResult func merge(completion: Database.TransactionCompletion?) -> Self
     @discardableResult func update(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) -> Self
     @discardableResult func update(with values: [String: Any?], completion: ((Error?, DatabaseReference) -> ())?) -> Self
     //    @discardableResult func fetch(completion: ((Self) -> ())?) -> Self // ? completion ?
@@ -181,7 +188,7 @@ struct RemoteManager {
         }
     }
 
-    static func updateThoroughly<T: ChangeableRealtimeEntity & RealtimeValueEvents>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
+    static func merge<T: ChangeableRealtimeEntity & RealtimeValueEvents>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
         var changes = [String: Any?]()
         entity.insertChanges(to: &changes, keyed: entity.dbRef)
         if changes.count > 0 {

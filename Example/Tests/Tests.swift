@@ -711,7 +711,7 @@ extension Tests {
         XCTAssertTrue(calculator == 1)
         let anyLazyOne = AnySharedCollection(lazyOne)
         XCTAssertTrue(calculator == 1)
-        source.changeLocalValue(use: { $0.append(0) })
+        source.value.append(0)
         XCTAssertTrue(one.count == 2)
         XCTAssertTrue(lazyOne.count == 2)
         XCTAssertTrue(anyLazyOne.count == 2)
@@ -721,6 +721,21 @@ extension Tests {
         let string = "\(node)"
 
         XCTAssert(string == "closed")
+    }
+    func testMirror() {
+        let object = RealtimeObject(dbRef: .root())
+        let mirror = Mirror(reflecting: object)
+
+        XCTAssert(mirror.children.count > 0)
+        mirror.children.forEach { (child) in
+            print(child.label, child.value)
+        }
+
+        _ = object.__links
+
+        mirror.children.forEach { (child) in
+            print(child.label, child.value)
+        }
     }
 }
 

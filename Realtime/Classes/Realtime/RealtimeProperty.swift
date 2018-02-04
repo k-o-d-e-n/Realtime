@@ -66,10 +66,11 @@ public class _Linked<Linked: KeyedRealtimeValue & Linkable & ChangeableRealtimeE
     fileprivate func reloadLinked() { linked = self._link.value?.entity(Linked.self) }
 }
 
+// TODO: Use simple RealtimeProperty with value typed by Reference (like as DocumentReference in Firestore)
 public final class LinkedRealtimeProperty<Linked: KeyedRealtimeValue & Linkable & ChangeableRealtimeEntity>: _Linked<Linked> {
 //    var link: RealtimeLink.OptionalProperty { return _link }
     public func link(withoutUpdate value: Linked) {
-        self._link.setLocalValue(dbRef.link(to: value.dbRef))
+        self._link.value = dbRef.link(to: value.dbRef)
     }
     public func link(_ entity: Linked, to transaction: RealtimeTransaction) {
         link(withoutUpdate: entity)
@@ -81,13 +82,13 @@ public final class LinkedRealtimeProperty<Linked: KeyedRealtimeValue & Linkable 
 public final class RealtimeRelation<Linked: KeyedRealtimeValue & Linkable & ChangeableRealtimeEntity>: _Linked<Linked> {
     public func link(withoutUpdate value: Linked) {
         if let oldLink = self._link.value { linked?.remove(linkBy: oldLink.id) }
-        self._link.setLocalValue(dbRef.link(to: value.dbRef))
+        self._link.value = dbRef.link(to: value.dbRef)
         value.add(link: value.generate(linkTo: dbRef).link)
     }
     public func link(_ entity: Linked, to transaction: RealtimeTransaction) {
         if let oldLink = self._link.value, let linked = self.linked {
             linked.removeLink(by: oldLink.id, in: transaction)
-            _link.setLocalValue(nil)
+            _link.value = nil
         }
         link(withoutUpdate: entity)
         if self.value != nil { linked?.insertChanges(to: transaction) }
@@ -124,13 +125,13 @@ public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue,
     override public var localValue: Any? { return Serializer.serialize(entity: localPropertyValue.get()) }
     
     private var localPropertyValue: PropertyValue<T>
-    private var localProperty: T {
-        get { return localPropertyValue.get() }
-        set { localPropertyValue.set(newValue); insider.dataDidChange() }
-    }
     public var value: T {
-        get { return localProperty }
-        set { localProperty = newValue; save(completion: { err, _ in if err != nil { self.lastError.value = err } }) } // TODO: Remove auto update value
+        get { return localPropertyValue.get() }
+        set {
+            localPropertyValue.set(newValue)
+            registerHasChanges()
+            insider.dataDidChange()
+        }
     }
     public var insider: Insider<T>
     public var lastError: Property<Error?>
@@ -153,32 +154,10 @@ public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue,
     public convenience required init(dbRef: DatabaseReference) {
         self.init(dbRef: dbRef, value: T.defValue)
     }
-    
-    deinit {
-    }
-    
-    // MARK: Setters
 
-    // TODO: Replace with setValue(_ value: T, completion: .. )
-    public func setLocalValue(_ value: T) {
-        localProperty = value
-        if !hasChanges { hasChanges = true }
+    }
     }
     
-    public func changeLocalValue(use: (inout T) -> ()) {
-        use(&localProperty)
-        if !hasChanges { hasChanges = true }
-    }
-    
-    public func setValue(_ value: T, completion: @escaping (Error?, DatabaseReference) -> ()) {
-        setLocalValue(value)
-        save(completion: completion)
-    }
-    
-    public func changeValue(use changing: (inout T) -> (), completion: ((Error?, DatabaseReference) -> ())?) {
-        changeLocalValue(use: changing)
-        save(completion: completion)
-    }
     
     @discardableResult
     override public func load(completion: Database.TransactionCompletion? = nil) -> Self {
@@ -199,31 +178,17 @@ public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue,
         return self
     }
     
-//    func runObserving() {
-//        guard observingToken == nil else { return }
-//        
-//        observingToken = super.observe() { (err, ref) in
-//            err.map { self.lastError.value = $0 }
-//        }
-//    }
-//
-//    func stopObserving() {
-//        guard let token = observingToken else { return }
-//
-//        endObserve(for: token)
-//    }
-    
     // MARK: Events
     
     override public func didSave() {
         super.didSave()
-        if hasChanges { hasChanges = false }
+        resetHasChanges()
     }
     
     override public func didRemove() {
         super.didRemove()
-        if hasChanges { hasChanges = false }
-        localProperty = T.defValue
+        resetHasChanges()
+        value = T.defValue
     }
     
     // MARK: Changeable
@@ -235,8 +200,28 @@ public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue,
     
     override public func apply(snapshot: DataSnapshot, strongly: Bool) {
         super.apply(snapshot: snapshot, strongly: strongly)
+        resetHasChanges()
+        value = Serializer.deserialize(entity: snapshot)
+    }
+
+    private func registerHasChanges() {
+        if !hasChanges { hasChanges = true }
+    }
+    private func resetHasChanges() {
         if hasChanges { hasChanges = false }
-        localProperty = Serializer.deserialize(entity: snapshot)
+    }
+}
+extension RealtimeProperty {
+    // MARK: Setters
+
+    public func setValue(_ value: T, completion: @escaping (Error?, DatabaseReference) -> ()) {
+        self.value = value
+        save(completion: completion)
+    }
+
+    public func changeValue(use changing: (inout T) -> (), completion: ((Error?, DatabaseReference) -> ())?) {
+        changing(&value)
+        save(completion: completion)
     }
 }
 
