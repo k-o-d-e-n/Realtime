@@ -116,7 +116,7 @@ public extension RawRepresentable where Self: Initializable {
 // TODO: Add possible update value at subpath
 // TODO: Create property for storage data
 // TODO: Research how can use ExpressibleByNilLiteral pattern in RP
-public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner where T == Serializer.Entity {
+public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner, Codable where T == Serializer.Entity {
     private var _hasChanges = false
     override public private(set) var hasChanges: Bool {
         set { _hasChanges = newValue }
@@ -138,7 +138,7 @@ public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue,
     
     // MARK: Initializers, deinitializer
     
-    public init<Prop: RealtimeProperty>(dbRef: DatabaseReference, value: T, onFetch: ((Prop, Error?) -> ())? = nil) {
+    public required init<Prop: RealtimeProperty>(dbRef: DatabaseReference, value: T, onFetch: ((Prop, Error?) -> ())? = nil) {
         self.localPropertyValue = PropertyValue(value)
         self.insider = Insider(source: localPropertyValue.get)
         self.lastError = Property<Error?>(value: nil)
@@ -150,14 +150,22 @@ public final class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue,
             }
         }
     }
-    
+
     public convenience required init(dbRef: DatabaseReference) {
         self.init(dbRef: dbRef, value: T.defValue)
     }
 
+    public convenience init(from decoder: Decoder) throws {
+        self.init(snapshot: decoder as! DataSnapshot)
     }
+
+    public func encode(to encoder: Encoder) throws {
+//        var container = encoder.singleValueContainer()
+//        try container.encode(value)
     }
     
+//    deinit {
+//    }
     
     @discardableResult
     override public func load(completion: Database.TransactionCompletion? = nil) -> Self {
