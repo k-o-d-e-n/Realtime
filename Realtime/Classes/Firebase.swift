@@ -22,7 +22,7 @@ public extension DatabaseReference {
     }
     
     func isChild(for ref: DatabaseReference) -> Bool {
-        return url.hasPrefix(ref.url)
+        return !isEqual(for: ref) && url.hasPrefix(ref.url)
     }
     func isEqual(for ref: DatabaseReference) -> Bool {
         return self === ref || url == ref.url

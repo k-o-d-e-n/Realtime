@@ -165,43 +165,326 @@ extension RealtimeLink: Equatable {
     }
 }
 
-// TODO: For cancellation transaction need remove all changes from related objects
-// TODO: All local changes should make using RealtimeTransaction
+public protocol Reverting: class {
+    func revert()
+    func currentReversion() -> () -> Void
+}
+extension Reverting where Self: ChangeableRealtimeValue {
+    func revertIfChanged() {
+        if hasChanges {
+            revert()
+        }
+    }
+}
+
 public class RealtimeTransaction {
-    private var updates: [Database.UpdateItem] = []
-    private var completions: [(Error?) -> Void] = []
-    public internal(set) var isCompleted: Bool = false
+    fileprivate var updates: [Database.UpdateItem] = []
+    fileprivate var completions: [(Error?) -> Void] = []
+    fileprivate var cancelations: [() -> Void] = []
+    fileprivate var state: State = .waiting
+    public var isCompleted: Bool { return state == .completed }
+    public var isReverted: Bool { return state == .reverted }
+    public var isFailed: Bool { return state == .failed }
+    public var isPerforming: Bool { return state == .performing }
+    public var isMerged: Bool { return state == .merged }
+    public var isInvalidated: Bool { return isCompleted || isMerged || isFailed || isReverted }
+
+    fileprivate var update: Node!
+
+    enum State {
+        case waiting, performing
+        case completed, failed, reverted, merged
+    }
 
     public init() {}
 
-    public func perform(with completion: ((Error?) -> Void)? = nil) {
-        Database.database().update(use: updates) { (err, _) in
-            self.isCompleted = true
+    // TODO: Add configuration commit as single value or update value
+    public func commit(with completion: ((Error?) -> Void)? = nil) {
+        state = .performing
+        update.commit({ (err, _) in
             self.completions.forEach { $0(err) }
+            self.state = err == nil ? .completed : .failed
             completion?(err)
+        })
+    }
+
+    public func addNode(ref: DatabaseReference, value: Any?) {
+        addNode(item: (ref, .value(value)))
+    }
+    // TODO: Improve interface
+    public func addNode(item updateItem: (ref: DatabaseReference, value: Node.Value)) {
+        guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
+
+        guard update != nil else { update = Node(ref: updateItem.ref.parent!, value: .nodes([Node(updateItem)])); return }
+
+        if update.ref.isEqual(for: updateItem.ref) {
+            update.merge(updateItem.value)
+        } else if update.ref.isChild(for: updateItem.ref) {
+            while let parent = update.parent() {
+                update = parent
+                if parent.ref.isEqual(for: updateItem.ref) {
+                    update.merge(updateItem.value)
+                    break
+                }
+            }
+        } else if updateItem.ref.isChild(for: update.ref) {
+            if let node = update.search(updateItem.ref) {
+                node.merge(updateItem.value)
+            } else {
+                var updateNode: Node = Node(updateItem)
+                while let parentRef = updateNode.ref.parent {
+                    if let parent = update.search(parentRef) {
+                        parent.merge(.nodes([updateNode]))
+                        break
+                    } else {
+                        updateNode = updateNode.parent()!
+                    }
+                }
+            }
+        } else {
+            while let parent = update.parent() {
+                update = parent
+                if updateItem.ref.isChild(for: parent.ref) {
+                    break
+                }
+            }
+            var updateNode = Node(updateItem)
+            while let parentUpdate = updateNode.parent() {
+                if parentUpdate.ref.isEqual(for: update.ref) {
+                    update.merge(.nodes([updateNode]))
+                    break
+                } else {
+                    updateNode = parentUpdate
+                }
+            }
         }
     }
 
-    public func addUpdate(item updateItem: Database.UpdateItem) {
-        var index = 0
-        let indexes = updates.reduce([Int]()) { (indexes, item) -> [Int] in
-            defer {
-                if updateItem.ref.isChild(for: item.ref) { fatalError("Invalid update item, reason: item is child for other update item") }
-                index += 1
-            }
-            return indexes + (item.ref.isChild(for: updateItem.ref) || item.ref.isEqual(for: updateItem.ref) ? [index] : [])
-        }
+    public func addReversion(_ reversion: @escaping () -> Void) {
+        guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
-        indexes.forEach { updates.remove(at: $0) }
-        updates.append(updateItem)
+        cancelations.insert(reversion, at: 0)
     }
 
     public func addCompletion(_ completion: @escaping (Error?) -> Void) {
+        guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
+
         completions.append(completion)
     }
 
     deinit {
-        if !isCompleted { fatalError("RealtimeTransaction requires for performing") }
+        if !isReverted && !isCompleted && !isMerged { fatalError("RealtimeTransaction requires performing, reversion or merging") }
+    }
+}
+extension RealtimeTransaction: Reverting {
+    public func revert() {
+        guard state == .waiting || isFailed else { fatalError("Reversion cannot be made") }
+
+        cancelations.forEach { $0() }
+        state = .reverted
+    }
+
+    public func currentReversion() -> () -> Void {
+        guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
+
+        let cancels = cancelations
+        return { cancels.forEach { $0() } }
+    }
+}
+extension RealtimeTransaction: CustomStringConvertible {
+    public var description: String { return update?.description ?? "Transaction is empty" }
+}
+public extension RealtimeTransaction {
+    func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
+        addNode(item: (value.dbRef, .value(value.localValue)))
+        addCompletion { (err) in
+            guard err == nil else { return }
+            value.didSave()
+        }
+    }
+    func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
+        addNode(item: (value.dbRef, .value(nil)))
+        addCompletion { (err) in
+            guard err == nil else { return }
+            value.didRemove()
+        }
+    }
+    func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) {
+        value.insertChanges(to: self)
+        addCompletion { (err) in
+            guard err == nil else { return }
+            value.didSave()
+        }
+        revertion(for: value)
+    }
+    public func revertion<T: Reverting>(for cancelable: T) {
+        addReversion(cancelable.currentReversion())
+    }
+    func merge(_ other: RealtimeTransaction) {
+        addNode(item: (other.update.ref, other.update.value!))
+        other.completions.forEach(addCompletion)
+        addReversion(other.currentReversion())
+        other.state = .merged
+    }
+}
+
+// TODO: Improve performance
+extension RealtimeTransaction {
+    public class Node: Equatable, CustomStringConvertible {
+        public var description: String {
+            guard let thisValue = value else { return "Not active node by ref: \(ref)" }
+            return """
+            node: {
+                ref: \(ref)
+                value: \(thisValue)
+            }
+            """
+        }
+        let ref: DatabaseReference
+//        var parent: Node?
+        var value: Value?
+
+        var singleValue: Any? {
+            guard let thisValue = value else { fatalError("Value is not defined") }
+            switch thisValue {
+            case .value(let v): return v
+            case .nodes(let nodes):
+                let value: [String: Any] = nodes.reduce(into: [:], { (res, node) in
+                    res[node.ref.key] = node.singleValue
+                })
+                return value
+            }
+        }
+
+        func commit(_ completion: @escaping (Error?, DatabaseReference) -> Void) {
+            guard let thisValue = value else { fatalError("Value is not defined") }
+
+            switch thisValue {
+            case .value(let v):
+                ref.setValue(v, withCompletionBlock: completion)
+            case .nodes(_):
+                ref.update(use: updateValue, completion: completion)
+            }
+        }
+
+        var updateValue: [String: Any] {
+            guard value != nil else { fatalError("Value is not defined") }
+
+            var allValues: [Node] = []
+            retrieveValueNodes(to: &allValues)
+            return allValues.reduce(into: [:], { (res, node) in
+                res[node.ref.path(from: ref)] = node.singleValue
+            })
+        }
+
+        private func retrieveValueNodes(to array: inout [Node]) {
+            guard let thisValue = value else { fatalError("Value is not defined") }
+
+            switch thisValue {
+            case .value(_): array.append(self)
+            case .nodes(let nodes): nodes.forEach { $0.retrieveValueNodes(to: &array) }
+            }
+        }
+
+        public enum Value {
+            case value(Any?)
+            case nodes([Node])
+        }
+
+        init(ref: DatabaseReference, value: Value) {
+            self.ref = ref
+            self.value = value
+        }
+
+        convenience init(_ update: (ref: DatabaseReference, value: Value)) {
+            self.init(ref: update.ref, value: update.value)
+        }
+
+        func parent() -> Node? {
+//            guard parent == nil else { fatalError("Node already has parent") }
+            guard let parentRef = ref.parent else { return nil }
+
+            let parent = Node(ref: parentRef, value: .nodes([self]))
+//            self.parent = parent
+            return parent
+        }
+        func child(_ ref: DatabaseReference) -> Node {
+            let child = Node(ref: ref, value: .nodes([]))
+//            child.parent = self
+            merge(.nodes([child]))
+            return child
+        }
+        func search(_ ref: DatabaseReference) -> Node? {
+            guard !ref.isEqual(for: self.ref) else { return self }
+
+            guard let thisValue = value else { return nil }
+            switch thisValue {
+            case .value(_): return nil
+            case .nodes(let nodes):
+                for node in nodes {
+                    if node.ref.isEqual(for: ref) {
+                        return node
+                    } else if ref.isChild(for: node.ref), let refNode = node.search(ref) {
+                        return refNode
+                    }
+                }
+            }
+            return nil
+        }
+        func searchNearestParent(_ ref: DatabaseReference) -> Node? {
+            guard let thisValue = value else { return nil }
+
+            switch thisValue {
+            case .value(_): return self
+            case .nodes(let nodes):
+                for node in nodes {
+                    if node.ref.isEqual(for: ref) {
+                        return node
+                    } else if ref.isChild(for: node.ref) {
+                        if let refNode = node.searchNearestParent(ref) {
+                            return refNode
+                        } else {
+                            return node
+                        }
+                    }
+                }
+                return self
+            }
+        }
+        func merge(_ value: Node.Value) {
+            guard let thisValue = self.value else { self.value = value; return }
+
+            switch value {
+            case .value(_):
+                self.value = value
+            case .nodes(let nodes):
+                switch thisValue {
+                case .value(_):
+                    self.value = value
+                case .nodes(let thisNodes):
+                    let separatedNodes = nodes.reduce(into: (same: ([(new: Node, old: Node)]()), some: [Node]()), { (res, node) in
+                        if let index = thisNodes.index(of: node) {
+                            res.same.append((node, thisNodes[index]))
+                        } else {
+                            res.some.append(node)
+                        }
+                    })
+                    let merged: [Node] = separatedNodes.same.map {
+                        if let newValue = $0.new.value {
+                            $0.old.merge(newValue)
+                        }
+                        return $0.old
+                    }
+                    let some = thisNodes.filter { !nodes.contains($0) } + separatedNodes.some
+
+                    self.value = .nodes(some + merged)
+                }
+            }
+        }
+
+        public static func ==(lhs: Node, rhs: Node) -> Bool {
+            return lhs.ref.isEqual(for: rhs.ref)
+        }
     }
 }
 

@@ -113,6 +113,17 @@ public class EnumSerializer<EnumType: RawRepresentable>: _Serializer {
     }
 }
 
+public class CodableSerializer<T: Codable & Initializable>: _Serializer {
+    public class func serialize(entity: T) -> Any? {
+        let data = try! JSONEncoder().encode(entity)
+        return try! JSONDecoder().decode([String: Any?].self, from: data)
+    }
+
+    public class func deserialize(entity: DataSnapshot) -> T {
+        return (try? T(from: entity)) ?? T.defValue
+    }
+}
+
 // MARK: Containers
 
 public class RealtimeLinkArraySerializer: _Serializer {

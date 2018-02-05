@@ -24,7 +24,7 @@ public extension DataSnapshotRepresented {
 }
 public extension DataSnapshotRepresented where Self: RealtimeValue {
     func apply(parentSnapshotIfNeeded parent: DataSnapshot, strongly: Bool) {
-        guard dbKey.has(in: parent) else { return }
+        guard strongly || dbKey.has(in: parent) else { return }
 
         apply(snapshot: dbKey.snapshot(from: parent), strongly: strongly)
     }
@@ -76,35 +76,16 @@ public protocol RealtimeValueEvents: class {
 
 public protocol ChangeableRealtimeValue: RealtimeValue {
     var hasChanges: Bool { get }
-}
 
-public protocol ChangeableRealtimeEntity: ChangeableRealtimeValue {
     func insertChanges(to values: inout [String: Any?], keyed from: DatabaseReference)
     func insertChanges(to values: inout [Database.UpdateItem])
     func insertChanges(to transaction: RealtimeTransaction)
 }
-public extension ChangeableRealtimeEntity {
+public extension ChangeableRealtimeValue {
     func insertChanges(to values: inout [String: Any?]) { insertChanges(to: &values, keyed: dbRef) }
 }
-extension ChangeableRealtimeEntity {
-    var localChanges: [String: Any?] { var changes: [String: Any?] = [:]; insertChanges(to: &changes); return changes }
-}
 extension ChangeableRealtimeValue {
-    func insertChanges(to values: inout [String: Any?], keyed from: DatabaseReference) {
-        if hasChanges {
-            values[dbRef.path(from: from)] = localValue
-        }
-    }
-    func insertChanges(to values: inout [Database.UpdateItem]) {
-        if hasChanges {
-            values.append((dbRef, localValue))
-        }
-    }
-    func insertChanges(to transaction: RealtimeTransaction) {
-        if hasChanges {
-            transaction.addUpdate(item: (dbRef, localValue))
-        }
-    }
+    var localChanges: [String: Any?] { var changes: [String: Any?] = [:]; insertChanges(to: &changes); return changes }
 }
 
 //protocol RealtimeEntityStates {
@@ -157,7 +138,7 @@ struct RemoteManager {
     }
 
     /// Warning! Values should be only on first level in hierarchy, else other data is lost.
-    static func update<T: ChangeableRealtimeEntity & RealtimeValueEvents>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
+    static func update<T: ChangeableRealtimeValue & RealtimeValueEvents>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
         var changes: [String: Any?] = [:]
         entity.insertChanges(to: &changes)
         entity.dbRef.update(use: changes) { (error, ref) in
@@ -167,7 +148,7 @@ struct RemoteManager {
         }
     }
 
-    static func update<T: ChangeableRealtimeEntity & RealtimeValueEvents>(entity: T, with values: [String: Any?], completion: ((Error?, DatabaseReference) -> ())?) {
+    static func update<T: ChangeableRealtimeValue & RealtimeValueEvents>(entity: T, with values: [String: Any?], completion: ((Error?, DatabaseReference) -> ())?) {
         let root = entity.dbRef.root
         var keyValuePairs = values
         entity.insertChanges(to: &keyValuePairs, keyed: root)
@@ -178,7 +159,7 @@ struct RemoteManager {
         }
     }
 
-    static func update<T: ChangeableRealtimeEntity & RealtimeValueEvents>(entity: T, with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) {
+    static func update<T: ChangeableRealtimeValue & RealtimeValueEvents>(entity: T, with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) {
         var refValuePairs = values
         entity.insertChanges(to: &refValuePairs)
         Database.database().update(use: refValuePairs) { (err, ref) in
@@ -188,7 +169,7 @@ struct RemoteManager {
         }
     }
 
-    static func merge<T: ChangeableRealtimeEntity & RealtimeValueEvents>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
+    static func merge<T: ChangeableRealtimeValue & RealtimeValueEvents>(entity: T, completion: ((Error?, DatabaseReference) -> ())? = nil) {
         var changes = [String: Any?]()
         entity.insertChanges(to: &changes, keyed: entity.dbRef)
         if changes.count > 0 {

@@ -10,6 +10,11 @@ import UIKit
 
 // MARK: System type extensions
 
+public func didLoad<V>(_ value: V, _ completion: (V) -> Void) -> V {
+    defer { completion(value) }
+    return value
+}
+
 // TODO: Add extension for all types with var asProperty, asRealtimeProperty
 extension String {
     var asProperty: Property<String> { return Property(value: self) }

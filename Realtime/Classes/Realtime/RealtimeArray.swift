@@ -426,41 +426,79 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
     
     // MARK: Mutating
 
-    // TODO: Element must be referenced by key. Avoid this unnecessary pre-action
-    // TODO: Use methods from store for save/retrieve
-    public func set(element: Value, for key: Key, completion: ((Error?, DatabaseReference) -> ())? = nil) {
+    // TODO: element.dbRef should be equal key.dbRef. Avoid this misleading predicate
+    public func set(element: Value, for key: Key, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         guard element.dbRef.isChild(for: dbRef) else { fatalError("Element has reference to location not inside that dictionary") }
+        guard element.dbKey == key.dbKey else { fatalError("Element should have reference equal to key reference") }
+
+        let transaction = transaction ?? RealtimeTransaction()
+        let oldElement = storage.storedValue(by: key)
         guard containsValue(byKey: key) else {
             let link = key.generate(linkTo: _view.source.dbRef)
             let prototypeValue = PrototypeKey(entityId: key.uniqueKey, linkId: link.link.id, index: count)
+            let oldValue = _view.source.value
             _view.source.value.append(prototypeValue)
             storage.store(value: element, by: key)
-            let update = shouldLinking ? [(link.sourceRef, link.link.dbValue), (element.dbRef, element.localValue)] : [(element.dbRef, element.localValue)]
-            _view.source.save(with: update) { (error, ref) in
+            transaction.addReversion { [weak self] in
+                self?._view.source.value = oldValue
+                if let old = oldElement {
+                    self?.storage.store(value: old, by: key)
+                } else {
+                    self?.storage.elements.removeValue(forKey: key)
+                }
+            }
+            if shouldLinking {
+                transaction.addNode(item: (link.sourceRef, .value(link.link.dbValue)))
+            }
+            transaction.set(element)
+            transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
+            transaction.addCompletion { [weak self] error in
                 if error == nil {
                     key.add(link: link.link)
+                    self?.didSave()
                 }
-                completion?(error, ref)
             }
-            return
+            return transaction
         }
 
         storage.store(value: element, by: key)
-        element.save(completion: completion)
+        transaction.addReversion { [weak self] in
+            if let old = oldElement {
+                self?.storage.store(value: old, by: key)
+            } else {
+                self?.storage.elements.removeValue(forKey: key)
+            }
+        }
+
+        transaction.set(element)
+        transaction.addCompletion { [weak self] error in
+            if error == nil {
+                self?.didSave()
+            }
+        }
+        return transaction
     }
 
-    public func remove(for key: Key, completion: ((Error?, DatabaseReference) -> ())? = nil) {
-        guard let index = _view.source.value.index(where: { $0.key == key.key }) else { return }
+    public func remove(for key: Key, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
+        guard let index = _view.source.value.index(where: { $0.key == key.key }) else { return transaction }
 
-        var p_value: PrototypeKey = _view.source.value.remove(at: index)
-        _view.source.save(with: [(storage.valueRefBy(key: key.dbKey), nil),
-                                 (key.dbRef.child(Nodes.links.subpath(with: p_value.linkId)), nil)]) { (err, ref) in
-                                    if err == nil {
-                                        key.remove(linkBy: p_value.linkId)
-                                        self.storage.elements.removeValue(forKey: key)
-                                    }
-                                    completion?(err, ref)
+        let transaction = transaction ?? RealtimeTransaction()
+        let oldValue = _view.source.value
+        let p_value: PrototypeKey = _view.source.value.remove(at: index)
+        transaction.addReversion { [weak _view] in
+            _view?.source.value = oldValue
         }
+        transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
+        transaction.addNode(item: (storage.valueRefBy(key: key.dbKey), .value(nil)))
+        transaction.addNode(item: (key.dbRef.child(Nodes.links.subpath(with: p_value.linkId)), .value(nil)))
+        transaction.addCompletion { [weak self] err in
+            if err == nil {
+                key.remove(linkBy: p_value.linkId)
+                self?.storage.elements.removeValue(forKey: key)
+                self?.didSave()
+            }
+        }
+        return transaction
     }
     
     // MARK: Realtime
@@ -578,77 +616,66 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
     
     // MARK: Mutating
 
-    public func write(to transaction: RealtimeTransaction, actions: ((Element, Int?) throws -> Void, (Int) -> Void) -> Void) {
+    @discardableResult
+    public func insert(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         _view.checkPreparation()
+        guard element.dbRef.isChild(for: dbRef) else { fatalError("Element has reference to location not inside that dictionary") }
+        guard !contains(element) else { throw RealtimeArrayError(type: .alreadyInserted) }
 
-        let insert: (Element, Int?) throws -> Void = { element, index in
-            guard !self.contains(element) else { throw RealtimeArrayError(type: .alreadyInserted) }
-
-            let link = element.generate(linkTo: self._view.source.dbRef)
-            let key = PrototypeKey(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? self.count)
-            self._view.source.value.insert(key, at: key.index)
-            element.add(link: link.link)
-            transaction.addUpdate(item: (element.dbRef, element.localValue))
-
-            transaction.addCompletion { (err) in
-                if err == nil {
-                    self.storage.store(value: element, by: key)
-                    self._view.source.didSave()
-                }
-            }
-        }
-        var removedKeys: [PrototypeKey] = []
-        let remove: (Int) -> Void = { index in
-            removedKeys.append(self._view.source.value.remove(at: index))
-            transaction.addCompletion { (err) in
-                if err == nil {
-                    removedKeys.forEach { key in
-                        self.storage.elements.removeValue(forKey: key.key)
-                    }
-                    self._view.source.didSave()
-                }
-            }
-        }
-
-        actions(insert, remove)
-        removedKeys.forEach { transaction.addUpdate(item: (storage.valueRefBy(key: $0.dbKey), nil)) }
-        transaction.addUpdate(item: (_view.source.dbRef, _view.source.localValue))
-    }
-
-    public func insert(element: Element, at index: Int? = nil, completion: ((Error?, DatabaseReference) -> ())? = nil) {
-        _view.checkPreparation()
-        guard !contains(element) else { completion?(RealtimeArrayError(type: .alreadyInserted), storage.elementsRef); return }
-
+        let transaction = transaction ?? RealtimeTransaction()
         let link = element.generate(linkTo: _view.source.dbRef)
         let key = PrototypeKey(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? count)
+
+        let oldValue = _view.source.value
         _view.source.value.insert(key, at: key.index)
         element.add(link: link.link)
         storage.store(value: element, by: key)
-        element.save(with: [(_view.source.dbRef, _view.source.localValue)]) { (error, ref) in
+        transaction.addReversion { [weak self] in
+            self?._view.source.value = oldValue
+            self?.storage.elements.removeValue(forKey: key.key)
+            element.remove(linkBy: link.link.id)
+        }
+        transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
+        if let elem = element as? RealtimeObject { // TODO: Fix it
+            transaction.update(elem)
+        } else {
+            transaction.set(element)
+        }
+        transaction.addCompletion { [weak self] (error) in
             if error == nil {
-                self._view.source.didSave()
+                self?.didSave()
             }
-            completion?(error, ref)
         }
+        return transaction
     }
-    
-    public func remove(element: Element, completion: Database.TransactionCompletion?) {
+
+    @discardableResult
+    func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
         if let index = _view.source.value.index(where: { $0.entityId == element.uniqueKey }) {
-            remove(at: index, completion: completion)
+            return remove(at: index, in: transaction)
         }
+        return transaction
     }
-    
-    public func remove(at index: Int, completion: ((Error?, DatabaseReference) -> ())? = nil) {
+
+    @discardableResult
+    public func remove(at index: Int, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         _view.checkPreparation()
-        
-        var key: PrototypeKey = _view.source.value.remove(at: index)
-        _view.source.save(with: [(storage.valueRefBy(key: key.dbKey), nil)]) { (err, ref) in
-            if err == nil {
-                self._view.source.didSave()
-                self.storage.elements.removeValue(forKey: key.key)
-            }
-            completion?(err, ref)
+
+        let transaction = transaction ?? RealtimeTransaction()
+        let oldValue = _view.source.value
+        let key: PrototypeKey = _view.source.value.remove(at: index)
+        transaction.addReversion { [weak _view] in
+            _view?.source.value = oldValue
         }
+        transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
+        transaction.addNode(item: (storage.valueRefBy(key: key.dbKey), .value(nil)))
+        transaction.addCompletion { [weak self] err in
+            if err == nil {
+                self?.storage.elements.removeValue(forKey: key.key)
+                self?.didSave()
+            }
+        }
+        return transaction
     }
     
     // MARK: Realtime
@@ -738,7 +765,7 @@ final class _PrototypeValueSerializer<Key: Hashable & LosslessStringConvertible>
 // TODO: Listen prototype changes for remove deleted elements in other operations.
 // TODO: Add method for activate realtime mode (observing changes).
 public final class LinkedRealtimeArray<Element>: RC
-where Element: KeyedRealtimeValue, Element.UniqueKey: StringRepresentableRealtimeArrayKey {
+where Element: KeyedRealtimeValue & Linkable, Element.UniqueKey: StringRepresentableRealtimeArrayKey {
     public let dbRef: DatabaseReference
     public var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
@@ -830,80 +857,61 @@ public extension LinkedRealtimeArray {
             return byPath
     }
 }
-public extension LinkedRealtimeArray where Element: Linkable {
+public extension LinkedRealtimeArray {
     // MARK: Mutating
 
-    func write(to transaction: RealtimeTransaction, actions: ((Element, Int?) throws -> Void, (Int) -> Void) -> Void) {
+    @discardableResult
+    func insert(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         _view.checkPreparation()
+        guard !contains(element) else { throw RealtimeArrayError(type: .alreadyInserted) }
 
-        let insert: (Element, Int?) throws -> Void = { element, index in
-            guard !self.contains(element) else { throw RealtimeArrayError(type: .alreadyInserted) }
+        let transaction = transaction ?? RealtimeTransaction()
+        let link = element.generate(linkTo: self._view.source.dbRef)
+        let key = Key(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? self.count)
 
-            let link = element.generate(linkTo: self._view.source.dbRef)
-            let key = Key(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? self.count)
-            self._view.source.value.insert(key, at: key.index)
-            element.add(link: link.link)
-            transaction.addUpdate(item: (link.sourceRef, link.link.dbValue))
-
-            transaction.addCompletion { (err) in
-                if err == nil {
-                    self.storage.elements[key.key] = element
-                    self._view.source.didSave()
-                }
-            }
-        }
-        var removedKeys: [Key] = []
-        let remove: (Int) -> Void = { index in
-            removedKeys.append(self._view.source.value.remove(at: index))
-            transaction.addCompletion { (err) in
-                if err == nil {
-                    removedKeys.forEach { key in
-                        self.storage.elements.removeValue(forKey: key.key)?.remove(linkBy: key.linkId)
-                    }
-                }
-            }
-        }
-
-        actions(insert, remove)
-        removedKeys.forEach { transaction.addUpdate(item: (storage.valueRefBy(key: $0.dbKey).child(Nodes.links.subpath(with: $0.linkId)), nil)) }
-        transaction.addUpdate(item: (_view.source.dbRef, _view.source.localValue))
-    }
-
-    func insert(element: Element, at index: Int? = nil, completion: Database.TransactionCompletion?) {
-        _view.checkPreparation()
-        guard !contains(element) else { completion?(RealtimeArrayError(type: .alreadyInserted), storage.elementsRef); return }
-
-        let link = element.generate(linkTo: _view.source.dbRef)
-        let key = Key(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? count)
+        let oldValue = _view.source.value
         _view.source.value.insert(key, at: key.index)
-        _view.source.save(with: [(link.sourceRef, link.link.dbValue)]) { (err, ref) in
+        transaction.addReversion { [weak _view] in
+            _view?.source.value = oldValue
+        }
+        transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
+        transaction.addNode(item: (link.sourceRef, .value(link.link.dbValue)))
+        transaction.addCompletion { [weak self] (err) in
             if err == nil {
-                element.add(link: link.link)
-                self.storage.elements[key.key] = element
-                self._view.source.didSave()
+                self?.storage.elements[key.key] = element
+                self?.didSave()
             }
-            completion?(err, ref)
         }
+        return transaction
     }
-    
-    func remove(element: Element, completion: Database.TransactionCompletion?) {
+
+    @discardableResult
+    func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
         if let index = _view.source.value.index(where: { $0.entityId == element.uniqueKey }) {
-            remove(at: index, completion: completion)
+            return remove(at: index, in: transaction)
         }
+        return transaction
     }
-    
-    func remove(at index: Int, completion: Database.TransactionCompletion?) {
+
+    @discardableResult
+    func remove(at index: Int, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         _view.checkPreparation()
 
-        var key: Key = _view.source.value.remove(at: index)
-        _view.source.save(with: [(storage.valueRefBy(key: key.dbKey).child(Nodes.links.subpath(with: key.linkId)), nil)]) { (err, ref) in
-            if err == nil {
-                self._view.source.didSave()
-                self.storage.elements.removeValue(forKey: key.key)?.remove(linkBy: key.linkId)
-            }
-            
-            completion?(err, ref)
+        let transaction = transaction ?? RealtimeTransaction()
+        let oldValue = _view.source.value
+        let key: Key = _view.source.value.remove(at: index)
+        transaction.addReversion { [weak _view] in
+            _view?.source.value = oldValue
         }
+        transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
+        transaction.addNode(item: (storage.valueRefBy(key: key.dbKey).child(Nodes.links.subpath(with: key.linkId)), .value(nil)))
+        transaction.addCompletion { [weak self] (err) in
+            if err == nil {
+                self?.storage.elements.removeValue(forKey: key.key)?.remove(linkBy: key.linkId)
+                self?.didSave()
+            }
+        }
+        return transaction
     }
 }
 
