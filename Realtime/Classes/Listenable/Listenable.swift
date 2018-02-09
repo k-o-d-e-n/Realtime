@@ -114,10 +114,10 @@ public extension Listenable {
     }
 }
 
-extension Insider: _ListeningMaker {
+extension Insider: _ListeningMaker, BridgeMaker {
     typealias OutData = D
     public typealias Data = D
-    var bridgeMaker: SimpleBridgeMaker<D> { return SimpleBridgeMaker<D>() } // TODO: Avoid permanent reallocation
+    var bridgeMaker: Insider<D> { return self }
     public typealias ListeningToken = (token: Token, listening: AnyListening)
     mutating func addListening(_ listening: AnyListening) -> ListeningToken {
         return (connect(with: listening), listening)

@@ -10,10 +10,10 @@ import UIKit
 import Realtime
 
 class Object: RealtimeObject {
-    lazy var id: StandartProperty<String?> = self.register(prop: "id".property(from: self.dbRef))
-    lazy var array: RealtimeArray<Object> = self.register(prop: "array".array(from: self.dbRef))
+    lazy var id: StandartProperty<String?> = "id".property(from: self.dbRef)
+    lazy var array: RealtimeArray<Object> = "array".array(from: self.dbRef)
 
-    lazy var name: StandartProperty<String?> = self.register(prop: "human/name/firstname".property(from: self.dbRef))
+    lazy var name: StandartProperty<String?> = "human/name/firstname".property(from: self.dbRef)
 }
 
 class ViewController: UIViewController {

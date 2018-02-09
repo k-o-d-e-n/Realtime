@@ -11,7 +11,6 @@ import FirebaseDatabase
 
 // TODO: Add caching mechanism, for reuse entities
 
-// TODO: Create reset local changes method. Need save old value ??
 open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedRealtimeValue {
     open var uniqueKey: String { return dbKey }
     public let dbRef: DatabaseReference
@@ -155,57 +154,17 @@ open class _RealtimeEntity: _RealtimeValue, RealtimeEntityActions {
     override public var debugDescription: String { return "\n{\n\tref: \(dbRef.pathFromRoot);\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: localChanges));\n}" }
 }
 
-// TODO: https://github.com/firebase/FirebaseUI-iOS
-// TODO: Need learning NSManagedObject as example, and apply him patterns
 // TODO: Try to create `parent` typed property.
 // TODO: Make RealtimeObject (RealtimeValue) conformed Listenable for listening
-open class RealtimeObject: _RealtimeEntity {//, Codable {
+open class RealtimeObject: _RealtimeEntity {
     override public var hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val.hasChanges }) }
-//    var localChanges: Any? { return keyedValues { return $0.localChanges } }
     override public var localValue: Any? { return keyedValues { return $0.localValue } }
 
     private lazy var __mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.dbRef)
     public typealias Links = RealtimeProperty<[RealtimeLink], RealtimeLinkArraySerializer>
-    public lazy var __links: Links = Nodes.links.property(from: self.dbRef) // TODO: Requires downloading before using
+    public lazy var __links: Links = Nodes.links.property(from: self.dbRef)
 
 //    lazy var parent: RealtimeObject? = self.dbRef.parent.map(RealtimeObject.init) // should be typed
-
-//    enum CodingKeys: String, CodingKey {
-//        case __mv, __links
-//    }
-//
-//    public required init(from decoder: Decoder) throws {
-//        super.init(dbRef: decoder.userInfo[CodingUserInfoKey(rawValue: "ref")!] as! DatabaseReference)
-//        let container = try decoder.container(keyedBy: CodingKeys.self)
-//        if let mv = try container.decodeIfPresent(Int?.self, forKey: .__mv) {
-//            __mv <= mv
-//        }
-//        if let links = try container.decodeIfPresent([RealtimeLink].self, forKey: .__links) {
-//            __links <= links
-//        }
-//    }
-//
-//    required public init(snapshot: DataSnapshot) {
-////        try! self.init(from: snapshot)
-//        super.init(snapshot: snapshot)
-////        let container = try! snapshot.container(keyedBy: CodingKeys.self)
-////        if let mv = try? container.decode(Int?.self, forKey: .__mv) {
-////            __mv <= mv
-////        }
-////        if let links = try? container.decode([RealtimeLink].self, forKey: .__links) {
-////            __links <= links
-////        }
-//    }
-//
-//    required public init(dbRef: DatabaseReference) {
-//        super.init(dbRef: dbRef)
-//    }
-//
-//    public func encode(to encoder: Encoder) throws {
-//        var container = encoder.container(keyedBy: CodingKeys.self)
-//        try container.encode(__mv.value, forKey: .__mv)
-//        try container.encode(__links.value, forKey: .__links)
-//    }
 
     override public func didSave() {
         super.didSave()
@@ -251,7 +210,7 @@ open class RealtimeObject: _RealtimeEntity {//, Codable {
     }
 
     open class func keyPath(for label: String) -> AnyKeyPath? {
-        fatalError("You should implement class func keyPath(for:)")//("Not found keyPath for label: \(label). Add to 'exclusiveLabels' to skip this label.")
+        fatalError("You should implement class func keyPath(for:)")
     }
 
     override public func insertChanges(to values: inout [String : Any?], keyed from: DatabaseReference) {

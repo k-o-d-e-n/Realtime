@@ -9,24 +9,6 @@
 import Foundation
 import FirebaseDatabase
 
-// TODO: Need implement Swift standart sequence protocol such as LazySequenceProtocol and others
-
-//struct LazyScanIterator<Base : IteratorProtocol, ResultElement>
-//: IteratorProtocol {
-//    mutating func next() -> ResultElement? {
-//        return nextElement.map { result in
-//            nextElement = base.next().map { nextPartialResult(result, $0) }
-//            return result
-//        }
-//    }
-//    private var nextElement: ResultElement? // The next result of next().
-//    private var base: Base                  // The underlying iterator.
-//    private let nextPartialResult: (ResultElement, Base.Element) -> ResultElement
-//}
-
-//internal protocol MutableRealtimeCollection: RealtimeCollection
-//protocol RealtimeAssociatedCollection: MutableRealtimeCollection
-
 // TODO: Add RealtimeValueActions implementation
 
 public extension RTNode where RawValue == String {
@@ -227,7 +209,7 @@ public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, Requ
 //    associatedtype View: RealtimeCollectionView
     var view: RealtimeCollectionView { get }
 
-    func listening(changes handler: @escaping () -> Void) -> ListeningItem
+    func listening(changes handler: @escaping () -> Void) -> ListeningItem // TODO: Add current changes as parameter to handler
     func runObserving() -> Void
     func stopObserving() -> Void
 }
@@ -789,8 +771,6 @@ final class _PrototypeValueSerializer<Key: Hashable & LosslessStringConvertible>
     }
 }
 
-// TODO: Listen prototype changes for remove deleted elements in other operations.
-// TODO: Add method for activate realtime mode (observing changes).
 public final class LinkedRealtimeArray<Element>: RC
 where Element: KeyedRealtimeValue & Linkable, Element.UniqueKey: StringRepresentableRealtimeArrayKey {
     public let dbRef: DatabaseReference
@@ -856,34 +836,6 @@ where Element: KeyedRealtimeValue & Linkable, Element.UniqueKey: StringRepresent
 }
 extension LinkedRealtimeArray: KeyedRealtimeValue {
     public var uniqueKey: String { return dbKey }
-}
-public extension LinkedRealtimeArray {
-    convenience init(dbRef: DatabaseReference, elementsRef: DatabaseReference, keyPath: String, elementBuilder: ((DatabaseReference) -> Element)?) {
-        self.init(dbRef: dbRef, elementsRef: elementsRef)
-        if let builder = elementBuilder {
-            self.storage.elementBuilder = { ref in builder(ref.child(keyPath)) }
-        }
-    }
-    func by<KeyPathModel>(keyPath: String) -> LinkedRealtimeArray<KeyPathModel>
-        where KeyPathModel: KeyedRealtimeValue, KeyPathModel.UniqueKey: StringRepresentableRealtimeArrayKey, KeyPathModel.UniqueKey == Element.UniqueKey {
-        let byPath = LinkedRealtimeArray<KeyPathModel>(dbRef: dbRef, elementsRef: storage.elementsRef, keyPath: keyPath, elementBuilder: nil)
-        if _view.isPrepared {
-            byPath._view.isPrepared = true
-            byPath._view.source.value = _view.source.value
-            byPath._view.source.didSave() // reset `hasChanges` to false
-        }
-        return byPath
-    }
-    func by<KeyPathModel>(keyPath: String, elements: DatabaseReference, elementBuilder: ((DatabaseReference) -> KeyPathModel)?) -> LinkedRealtimeArray<KeyPathModel>
-        where KeyPathModel: KeyedRealtimeValue, KeyPathModel.UniqueKey: StringRepresentableRealtimeArrayKey, KeyPathModel.UniqueKey == Element.UniqueKey {
-            let byPath = LinkedRealtimeArray<KeyPathModel>(dbRef: dbRef, elementsRef: elements, keyPath: keyPath, elementBuilder: elementBuilder)
-            if _view.isPrepared {
-                byPath._view.isPrepared = true
-                byPath._view.source.value = _view.source.value
-                byPath._view.source.didSave() // reset `hasChanges` to false
-            }
-            return byPath
-    }
 }
 public extension LinkedRealtimeArray {
     // MARK: Mutating
@@ -1102,7 +1054,6 @@ struct AnySharedCollection<Element>: Collection {
     public subscript(position: Int) -> Element { return _subscript(position) }
 }
 
-// TODO: Must be easier
 // TODO: Need update keyed storage when to parent view changed to operate actual data
 public final class KeyedRealtimeArray<Element, BaseElement>: RealtimeCollection
 where Element: KeyedRealtimeValue, Element.UniqueKey: StringRepresentableRealtimeArrayKey {

@@ -15,7 +15,7 @@ public protocol DataSnapshotRepresented {
     /// - Parameters:
     ///   - snapshot: Snapshot value
     ///   - strongly: Indicates that snapshot should be applied as is
-    func apply(snapshot: DataSnapshot, strongly: Bool) // TODO: `strongly` has bad defined target
+    func apply(snapshot: DataSnapshot, strongly: Bool) // TODO: `strongly` has undefined target
 }
 public extension DataSnapshotRepresented {
     func apply(snapshot: DataSnapshot) {

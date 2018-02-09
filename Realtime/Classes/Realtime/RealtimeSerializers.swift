@@ -9,8 +9,6 @@
 import Foundation
 import FirebaseDatabase
 
-// TODO: Try move to Codable
-
 // TODO: View transformers in ObjectMapper as example implementation serializers
 
 public protocol Initializable {

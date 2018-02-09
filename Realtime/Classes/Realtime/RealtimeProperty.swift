@@ -21,7 +21,7 @@ extension RealtimeProperty: FilteringEntity {}
 public class _Linked<Linked: KeyedRealtimeValue & Linkable>: _RealtimeValue, ValueWrapper, InsiderOwner {
     fileprivate lazy var _link: RealtimeLink.OptionalProperty = RealtimeLink.OptionalProperty(dbRef: self.dbRef)
     //    var insider: Insider<RealtimeLink?> { set { _link.insider = newValue } get { return _link.insider } }
-    public lazy var insider: Insider<Linked?> = self._link.insider.mapped { [unowned self] _ in self.linked }
+    public lazy var insider: Insider<Linked?> = self._link.insider.mapped { [weak self] _ in self?.linked }
     public override var hasChanges: Bool { return _link.hasChanges }
     public override var localValue: Any? { return _link.localValue }
     public var value: Linked? {
