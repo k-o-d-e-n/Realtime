@@ -8,6 +8,27 @@
 
 import UIKit
 
+internal func debugAction(_ action: () -> Void) {
+    #if DEBUG
+        action()
+    #endif
+}
+
+public func debugLog(_ message: String, _ file: String = #file, _ line: Int = #line) {
+    debugAction {
+        debugPrint("File: \(file)")
+        debugPrint("Line: \(line)")
+        debugPrint("Message: \(message)")
+    }
+}
+
+public func debugFatalError(_ message: String = "", _ file: String = #file, _ line: Int = #line) {
+    debugAction {
+        debugLog(message, file, line)
+        fatalError(message)
+    }
+}
+
 // MARK: System type extensions
 
 public func didLoad<V>(_ value: V, _ completion: (V) -> Void) -> V {
@@ -62,7 +83,7 @@ public extension InsiderOwner {
 
 public extension InsiderOwner where T: _Optional {
     func flatMap<U>(_ transform: @escaping (T.Wrapped) -> U) -> OwnedTransformedFilteredPreprocessor<Self, T, U> {
-        return filter { $0.isSome }.map { $0.unsafelyUnwrapped }.map(transform)
+        return filter { $0.isSome }.map { transform($0.unsafelyUnwrapped) }
     }
     func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (T.Wrapped) -> U) -> OwnedOnReceivePreprocessor<Self, T, U> {
         return flatMap(transform).onReceive({ (v, p) in

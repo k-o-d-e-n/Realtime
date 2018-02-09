@@ -178,18 +178,18 @@ extension Reverting where Self: ChangeableRealtimeValue {
 }
 
 public class RealtimeTransaction {
-    fileprivate var updates: [Database.UpdateItem] = []
-    fileprivate var completions: [(Error?) -> Void] = []
+    fileprivate var update: Node!
+    fileprivate var preconditions: [(ResultPromise<Error?>) -> Void] = []
+    fileprivate var completions: [(Bool) -> Void] = []
     fileprivate var cancelations: [() -> Void] = []
     fileprivate var state: State = .waiting
+    
     public var isCompleted: Bool { return state == .completed }
     public var isReverted: Bool { return state == .reverted }
     public var isFailed: Bool { return state == .failed }
     public var isPerforming: Bool { return state == .performing }
     public var isMerged: Bool { return state == .merged }
     public var isInvalidated: Bool { return isCompleted || isMerged || isFailed || isReverted }
-
-    fileprivate var update: Node!
 
     enum State {
         case waiting, performing
@@ -198,20 +198,86 @@ public class RealtimeTransaction {
 
     public init() {}
 
+    fileprivate func runPreconditions(_ completion: @escaping ([Error]) -> Void) {
+        guard !preconditions.isEmpty else { completion([]); return }
+
+        let group = DispatchGroup()
+        (0..<preconditions.count).forEach { _ in group.enter() }
+
+        let lock = NSRecursiveLock()
+        var errors: [Error] = []
+        let addError: (Error) -> Void = { err in
+            lock.lock()
+            errors.append(err)
+            lock.unlock()
+        }
+
+        preconditions.forEach { precondition in
+            let failPromise = ResultPromise<Error?> { err in
+                if let e = err {
+                    addError(e)
+                }
+                group.leave()
+            }
+            precondition(failPromise)
+        }
+
+        group.notify(queue: .main) {
+            completion(errors)
+        }
+    }
+
+    private func clear() {
+        update = nil
+        cancelations.removeAll()
+        completions.removeAll()
+        preconditions.removeAll()
+    }
+
+    fileprivate func invalidate(_ success: Bool) {
+        completions.forEach { $0(success) }
+        state = success ? .completed : .failed
+        clear()
+    }
+
+    deinit {
+        if !isReverted && !isCompleted && !isMerged { fatalError("RealtimeTransaction requires performing, reversion or merging") }
+    }
+}
+
+extension RealtimeTransaction {
     // TODO: Add configuration commit as single value or update value
-    public func commit(with completion: ((Error?) -> Void)? = nil) {
+    public func commit(revertOnError: Bool = true, with completion: (([Error]?) -> Void)? = nil) {
         state = .performing
-        update.commit({ (err, _) in
-            self.completions.forEach { $0(err) }
-            self.state = err == nil ? .completed : .failed
-            completion?(err)
-        })
+        runPreconditions { (errors) in
+            guard errors.isEmpty else {
+                if revertOnError {
+                    self.revert()
+                }
+                debugFatalError(errors.description);
+                self.invalidate(false)
+                completion?(errors);
+                return
+            }
+
+            self.update.commit({ (err, _) in
+                let result = err == nil
+                if !result {
+                    debugFatalError(String(describing: err))
+                    if revertOnError {
+                        self.revert()
+                    }
+                }
+                self.invalidate(result)
+                completion?(err.map { errors + [$0] })
+            })
+        }
     }
 
     public func addNode(ref: DatabaseReference, value: Any?) {
         addNode(item: (ref, .value(value)))
     }
-    // TODO: Improve interface
+    // TODO: Improve performance and interface
     public func addNode(item updateItem: (ref: DatabaseReference, value: Node.Value)) {
         guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
@@ -266,16 +332,19 @@ public class RealtimeTransaction {
         cancelations.insert(reversion, at: 0)
     }
 
-    public func addCompletion(_ completion: @escaping (Error?) -> Void) {
+    public func addCompletion(_ completion: @escaping (Bool) -> Void) {
         guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
         completions.append(completion)
     }
 
-    deinit {
-        if !isReverted && !isCompleted && !isMerged { fatalError("RealtimeTransaction requires performing, reversion or merging") }
+    public func addPrecondition(_ precondition: @escaping (ResultPromise<Error?>) -> Void) {
+        guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
+
+        preconditions.append(precondition)
     }
 }
+
 extension RealtimeTransaction: Reverting {
     public func revert() {
         guard state == .waiting || isFailed else { fatalError("Reversion cannot be made") }
@@ -297,23 +366,28 @@ extension RealtimeTransaction: CustomStringConvertible {
 public extension RealtimeTransaction {
     func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         addNode(item: (value.dbRef, .value(value.localValue)))
-        addCompletion { (err) in
-            guard err == nil else { return }
-            value.didSave()
+        addCompletion { (result) in
+            if result {
+                value.didSave()
+            }
         }
     }
     func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         addNode(item: (value.dbRef, .value(nil)))
-        addCompletion { (err) in
-            guard err == nil else { return }
-            value.didRemove()
+        addCompletion { (result) in
+            if result {
+                value.didRemove()
+            }
         }
     }
     func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) {
+        guard value.hasChanges else { debugFatalError("Value has not changes"); return }
+
         value.insertChanges(to: self)
-        addCompletion { (err) in
-            guard err == nil else { return }
-            value.didSave()
+        addCompletion { (result) in
+            if result {
+                value.didSave()
+            }
         }
         revertion(for: value)
     }
@@ -321,6 +395,8 @@ public extension RealtimeTransaction {
         addReversion(cancelable.currentReversion())
     }
     func merge(_ other: RealtimeTransaction) {
+        guard other !== self else { debugFatalError("Attemption merge the same transaction"); return }
+
         addNode(item: (other.update.ref, other.update.value!))
         other.completions.forEach(addCompletion)
         addReversion(other.currentReversion())

@@ -61,6 +61,7 @@ public class _Linked<Linked: KeyedRealtimeValue & Linkable>: _RealtimeValue, Val
 
     override public func apply(snapshot: DataSnapshot, strongly: Bool) {
         _link.apply(snapshot: snapshot, strongly: strongly)
+        reloadLinked()
     }
 
     fileprivate func reloadLinked() { linked = self._link.value?.entity(Linked.self) }
@@ -148,10 +149,9 @@ public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _Realt
     public var value: T {
         get { return localPropertyValue.get() }
         set {
-            self.oldValue = localPropertyValue.get()
-            localPropertyValue.set(newValue)
+            oldValue = localPropertyValue.get()
             registerHasChanges()
-            insider.dataDidChange()
+            setValue(newValue)
         }
     }
     public var insider: Insider<T>
@@ -220,7 +220,7 @@ public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _Realt
     override public func didRemove() {
         super.didRemove()
         resetHasChanges()
-        value = T.defValue
+        setValue(T.defValue)
     }
     
     // MARK: Changeable
@@ -233,7 +233,7 @@ public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _Realt
     override public func apply(snapshot: DataSnapshot, strongly: Bool) {
         super.apply(snapshot: snapshot, strongly: strongly)
         resetHasChanges()
-        value = Serializer.deserialize(entity: snapshot)
+        setValue(Serializer.deserialize(entity: snapshot))
     }
 
     private func registerHasChanges() {
@@ -242,6 +242,10 @@ public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _Realt
     private func resetHasChanges() {
         oldValue = nil
         if hasChanges { hasChanges = false }
+    }
+    private func setValue(_ value: T) {
+        localPropertyValue.set(value)
+        insider.dataDidChange()
     }
 }
 extension RealtimeProperty {

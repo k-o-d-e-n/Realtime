@@ -180,7 +180,7 @@ final class AnyCollectionStorage<K, V>: RCStorage where K: StringRepresentableRe
 }
 
 public protocol RealtimeCollectionView {}
-protocol RCView: RealtimeCollectionView, Collection, RequiresPreparation {}
+protocol RCView: RealtimeCollectionView, BidirectionalCollection, RequiresPreparation {}
 
 struct AnyCollectionKey: RealtimeCollectionContainerKey {
     let key: String
@@ -193,7 +193,7 @@ struct AnyCollectionKey: RealtimeCollectionContainerKey {
 //    }
 }
 
-public final class AnyRealtimeCollectionView<Source>: RCView where Source: ValueWrapper & RealtimeValueActions, Source.T: Collection {
+public final class AnyRealtimeCollectionView<Source>: RCView where Source: ValueWrapper & RealtimeValueActions, Source.T: BidirectionalCollection {
     let source: Source
     public internal(set) var isPrepared: Bool = false
 
@@ -217,10 +217,11 @@ public final class AnyRealtimeCollectionView<Source>: RCView where Source: Value
     public var startIndex: Source.T.Index { return source.value.startIndex }
     public var endIndex: Source.T.Index { return source.value.endIndex }
     public func index(after i: Source.T.Index) -> Source.T.Index { return source.value.index(after: i) }
+    public func index(before i: Source.T.Index) -> Source.T.Index { return source.value.index(before: i) }
     public subscript(position: Source.T.Index) -> Source.T.Element { return source.value[position] }
 }
 
-public protocol RealtimeCollection: Collection, RealtimeValue, RequiresPreparation {
+public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RequiresPreparation {
     associatedtype Storage: RealtimeCollectionStorage
     var storage: Storage { get }
 //    associatedtype View: RealtimeCollectionView
@@ -384,6 +385,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
     public var startIndex: Int { return _view.startIndex }
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
+    public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
     public func runObserving() {
         //        var oldValue: Prototype.T? = nil
@@ -432,6 +434,12 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         guard element.dbKey == key.dbKey else { fatalError("Element should have reference equal to key reference") }
 
         let transaction = transaction ?? RealtimeTransaction()
+        if !isPrepared {
+            transaction.addPrecondition { promise in
+                self.prepare(forUse: promise.fulfill)
+            }
+        }
+        
         let oldElement = storage.storedValue(by: key)
         guard containsValue(byKey: key) else {
             let link = key.generate(linkTo: _view.source.dbRef)
@@ -452,8 +460,8 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
             }
             transaction.set(element)
             transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
-            transaction.addCompletion { [weak self] error in
-                if error == nil {
+            transaction.addCompletion { [weak self] result in
+                if result {
                     key.add(link: link.link)
                     self?.didSave()
                 }
@@ -471,8 +479,8 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         }
 
         transaction.set(element)
-        transaction.addCompletion { [weak self] error in
-            if error == nil {
+        transaction.addCompletion { [weak self] result in
+            if result {
                 self?.didSave()
             }
         }
@@ -483,6 +491,12 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         guard let index = _view.source.value.index(where: { $0.key == key.key }) else { return transaction }
 
         let transaction = transaction ?? RealtimeTransaction()
+        if !isPrepared {
+            transaction.addPrecondition { promise in
+                self.prepare(forUse: promise.fulfill)
+            }
+        }
+
         let oldValue = _view.source.value
         let p_value: PrototypeKey = _view.source.value.remove(at: index)
         transaction.addReversion { [weak _view] in
@@ -491,8 +505,8 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
         transaction.addNode(item: (storage.valueRefBy(key: key.dbKey), .value(nil)))
         transaction.addNode(item: (key.dbRef.child(Nodes.links.subpath(with: p_value.linkId)), .value(nil)))
-        transaction.addCompletion { [weak self] err in
-            if err == nil {
+        transaction.addCompletion { [weak self] result in
+            if result {
                 key.remove(linkBy: p_value.linkId)
                 self?.storage.elements.removeValue(forKey: key)
                 self?.didSave()
@@ -589,6 +603,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
     public var startIndex: Int { return _view.startIndex }
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
+    public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
     public func runObserving() { _view.source.runObserving() }
     public func stopObserving() { _view.source.stopObserving() }
@@ -618,11 +633,17 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
 
     @discardableResult
     public func insert(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        _view.checkPreparation()
+//        _view.checkPreparation()
         guard element.dbRef.isChild(for: dbRef) else { fatalError("Element has reference to location not inside that dictionary") }
         guard !contains(element) else { throw RealtimeArrayError(type: .alreadyInserted) }
 
         let transaction = transaction ?? RealtimeTransaction()
+        if !isPrepared {
+            transaction.addPrecondition { promise in
+                self.prepare(forUse: promise.fulfill)
+            }
+        }
+
         let link = element.generate(linkTo: _view.source.dbRef)
         let key = PrototypeKey(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? count)
 
@@ -641,8 +662,8 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
         } else {
             transaction.set(element)
         }
-        transaction.addCompletion { [weak self] (error) in
-            if error == nil {
+        transaction.addCompletion { [weak self] (result) in
+            if result {
                 self?.didSave()
             }
         }
@@ -659,9 +680,15 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
 
     @discardableResult
     public func remove(at index: Int, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        _view.checkPreparation()
+//        _view.checkPreparation()
 
         let transaction = transaction ?? RealtimeTransaction()
+        if !isPrepared {
+            transaction.addPrecondition { promise in
+                self.prepare(forUse: promise.fulfill)
+            }
+        }
+
         let oldValue = _view.source.value
         let key: PrototypeKey = _view.source.value.remove(at: index)
         transaction.addReversion { [weak _view] in
@@ -669,8 +696,8 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
         transaction.addNode(item: (storage.valueRefBy(key: key.dbKey), .value(nil)))
-        transaction.addCompletion { [weak self] err in
-            if err == nil {
+        transaction.addCompletion { [weak self] result in
+            if result {
                 self?.storage.elements.removeValue(forKey: key.key)
                 self?.didSave()
             }
@@ -803,6 +830,7 @@ where Element: KeyedRealtimeValue & Linkable, Element.UniqueKey: StringRepresent
     public var startIndex: Int { return _view.startIndex }
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
+    public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
     public func runObserving() { _view.source.runObserving() }
     public func stopObserving() { _view.source.stopObserving() }
@@ -862,10 +890,16 @@ public extension LinkedRealtimeArray {
 
     @discardableResult
     func insert(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        _view.checkPreparation()
+//        _view.checkPreparation()
         guard !contains(element) else { throw RealtimeArrayError(type: .alreadyInserted) }
 
         let transaction = transaction ?? RealtimeTransaction()
+        if !isPrepared {
+            transaction.addPrecondition { promise in
+                self.prepare(forUse: promise.fulfill)
+            }
+        }
+
         let link = element.generate(linkTo: self._view.source.dbRef)
         let key = Key(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? self.count)
 
@@ -876,8 +910,8 @@ public extension LinkedRealtimeArray {
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
         transaction.addNode(item: (link.sourceRef, .value(link.link.dbValue)))
-        transaction.addCompletion { [weak self] (err) in
-            if err == nil {
+        transaction.addCompletion { [weak self] (result) in
+            if result {
                 self?.storage.elements[key.key] = element
                 self?.didSave()
             }
@@ -895,9 +929,15 @@ public extension LinkedRealtimeArray {
 
     @discardableResult
     func remove(at index: Int, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        _view.checkPreparation()
+//        _view.checkPreparation()
 
         let transaction = transaction ?? RealtimeTransaction()
+        if !isPrepared {
+            transaction.addPrecondition { promise in
+                self.prepare(forUse: promise.fulfill)
+            }
+        }
+        
         let oldValue = _view.source.value
         let key: Key = _view.source.value.remove(at: index)
         transaction.addReversion { [weak _view] in
@@ -905,8 +945,8 @@ public extension LinkedRealtimeArray {
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
         transaction.addNode(item: (storage.valueRefBy(key: key.dbKey).child(Nodes.links.subpath(with: key.linkId)), .value(nil)))
-        transaction.addCompletion { [weak self] (err) in
-            if err == nil {
+        transaction.addCompletion { [weak self] (result) in
+            if result {
                 self?.storage.elements.removeValue(forKey: key.key)?.remove(linkBy: key.linkId)
                 self?.didSave()
             }
@@ -938,6 +978,7 @@ private class _AnyRealtimeCollectionBase<Element>: Collection {
     var startIndex: Int { fatalError() }
     var endIndex: Int { fatalError() }
     func index(after i: Int) -> Int { fatalError() }
+    func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
     func apply(snapshot: DataSnapshot, strongly: Bool) { fatalError() }
     func runObserving() { fatalError() }
@@ -975,6 +1016,7 @@ where C.Index == Int {
     override var startIndex: Int { return base.startIndex }
     override var endIndex: Int { return base.endIndex }
     override func index(after i: Int) -> Int { return base.index(after: i) }
+    override func index(before i: Int) -> Int { return base.index(before: i) }
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
     override func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
@@ -1085,6 +1127,7 @@ where Element: KeyedRealtimeValue, Element.UniqueKey: StringRepresentableRealtim
     public var startIndex: Index { return base.startIndex }
     public var endIndex: Index { return base.endIndex }
     public func index(after i: Index) -> Index { return base.index(after: i) }
+    public func index(before i: Int) -> Int { return base.index(before: i) }
     public subscript(position: Int) -> Element { return storage.object(for: baseView[position].key) }
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: @escaping (Error?) -> Void) { base.prepare(forUse: completion) }

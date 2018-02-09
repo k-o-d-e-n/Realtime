@@ -159,6 +159,7 @@ class RealtimeLinkSerializer: _Serializer {
 
 /// ---------------------------
 
+// TODO: Avoid as!
 extension DataSnapshot: Decoder {
     public var codingPath: [CodingKey] {
         return children.map { ($0 as! DataSnapshot).key }

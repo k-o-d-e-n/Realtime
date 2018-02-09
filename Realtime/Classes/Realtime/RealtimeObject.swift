@@ -160,7 +160,7 @@ open class _RealtimeEntity: _RealtimeValue, RealtimeEntityActions {
 // TODO: Try to create `parent` typed property.
 // TODO: Make RealtimeObject (RealtimeValue) conformed Listenable for listening
 open class RealtimeObject: _RealtimeEntity {//, Codable {
-    override public var hasChanges: Bool { return containChild(where: { (_, val: ChangeableRealtimeValue) in return val.hasChanges }) }
+    override public var hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val.hasChanges }) }
 //    var localChanges: Any? { return keyedValues { return $0.localChanges } }
     override public var localValue: Any? { return keyedValues { return $0.localValue } }
 
