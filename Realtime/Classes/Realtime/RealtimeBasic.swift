@@ -50,7 +50,6 @@ public protocol RealtimeValue: DataSnapshotRepresented, CustomDebugStringConvert
 }
 public extension RealtimeValue {
     var dbKey: String { return dbRef.key }
-    //    var prototype: [AnyHashable : Any]? { return !localValue == nil ? [dbKey: localValue!] : nil }
 
     init?(snapshot: DataSnapshot, strongly: Bool) {
         if strongly { self.init(snapshot: snapshot) }
@@ -94,17 +93,6 @@ extension ChangeableRealtimeValue {
 //    var isFault: Bool { get }
 //}
 
-public protocol RealtimeEntityActions: RealtimeValueActions {
-    @discardableResult func update(completion: ((Error?, DatabaseReference) -> ())?) -> Self
-    /// Updated only values, which changed on any level down in hierarchy.
-    @discardableResult func merge(completion: Database.TransactionCompletion?) -> Self
-    @discardableResult func update(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) -> Self
-    @discardableResult func update(with values: [String: Any?], completion: ((Error?, DatabaseReference) -> ())?) -> Self
-    //    @discardableResult func fetch(completion: ((Self) -> ())?) -> Self // ? completion ?
-    //    @discardableResult func unlink(_ link: RealtimeLink, completion: ((Error?, DatabaseReference) -> Void)?) -> Self
-    //    @discardableResult func link(_ link: RealtimeLink, completion: ((Error?, DatabaseReference) -> Void)?) -> Self
-}
-
 public protocol RealtimeValueActions: RealtimeValueEvents {
     @discardableResult func save(completion: ((Error?, DatabaseReference) -> ())?) -> Self
     @discardableResult func save(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) -> Self
@@ -113,6 +101,14 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     @discardableResult func load(completion: Database.TransactionCompletion?) -> Self
     @discardableResult func runObserving() -> Self
     @discardableResult func stopObserving() -> Self
+}
+
+public protocol RealtimeEntityActions: RealtimeValueActions {
+    @discardableResult func update(completion: ((Error?, DatabaseReference) -> ())?) -> Self
+    /// Updated only values, which changed on any level down in hierarchy.
+    @discardableResult func merge(completion: Database.TransactionCompletion?) -> Self
+    @discardableResult func update(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) -> Self
+    @discardableResult func update(with values: [String: Any?], completion: ((Error?, DatabaseReference) -> ())?) -> Self
 }
 
 public protocol Linkable {

@@ -117,6 +117,7 @@ fileprivate struct AnyOnReceive<I, O> {
     }
 }
 
+/// Data source that can be applied filter
 public protocol FilteringEntity {
     associatedtype Value
     associatedtype Filtered
@@ -130,17 +131,24 @@ public extension FilteringEntity {
             return oldValue.map { comparer($0, newValue) } ?? true
         }
     }
+
+    /// blocks updates with the same values, using specific comparer. Defines initial value.
     func distinctUntilChanged(_ def: Value, comparer: @escaping (Value, Value) -> Bool) -> Filtered {
         return _distinctUntilChanged(def, comparer: comparer)
     }
+
+    /// blocks updates with the same values, using specific comparer
     func distinctUntilChanged(comparer: @escaping (Value, Value) -> Bool) -> Filtered {
         return _distinctUntilChanged(nil, comparer: comparer)
     }
 }
 public extension FilteringEntity where Value: Equatable {
+	/// blocks updates with the same values with defined initial value.
     func distinctUntilChanged(_ def: Value) -> Filtered {
         return distinctUntilChanged(def, comparer: { $0 != $1 })
     }
+
+    /// blocks updates with the same values
     func distinctUntilChanged() -> Filtered {
         return distinctUntilChanged(comparer: { $0 != $1 })
     }
@@ -559,6 +567,7 @@ public protocol PublicPreprocessor {
 }
 
 public extension Insider {
+	/// connects to insider of data source using specific connection
     mutating func listen<Maker: PublicPreprocessor>(
         as config: (AnyListening) -> AnyListening = { $0 },
         preprocessor: (Preprocessor<Data>) -> Maker,

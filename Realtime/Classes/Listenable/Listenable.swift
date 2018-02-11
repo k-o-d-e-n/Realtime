@@ -25,24 +25,36 @@ public struct ResultPromise<T> {
     }
 }
 
+/// Configurable wrapper for closure that receive listening value.
 public struct Assign<A> {
     internal let assign: (A) -> Void
+
+    /// simple closure without side effects
     static public func just(_ assign: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: assign)
     }
+
+    /// closure associated with object using weak reference
     static public func weak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
         return Assign(assign: { [weak owner] v in assign(v, owner) })
     }
+
+    /// closure associated with object using unowned reference
     static public func unowned<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
         return Assign(assign: { [unowned owner] v in assign(v, owner) })
     }
+
+    /// closure associated with object using weak reference, that called only when object alive
     static public func guarded<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
         return weak(owner) { if let o = $1 { assign($0, o) } }
     }
+
+    /// closure that called on specified dispatch queue
     static public func on(_ queue: DispatchQueue, assign: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: { v in queue.async { assign(v) } })
     }
 
+    /// returns new closure wrapped using queue behavior
     public func on(queue: DispatchQueue) -> Assign<A> {
         return Assign.on(queue, assign: assign)
     }
@@ -94,9 +106,14 @@ extension _ListeningMaker where Bridge.Data == Self.Data, Bridge.OutData == Self
     }
 }
 
+/// Common protocol for all objects that ensures listening value. 
 public protocol Listenable {
     associatedtype OutData
+
+    /// Disposable listening of value
     func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> Disposable
+
+    /// Listening with possibility to control active state
     func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem
 }
 public extension Listenable {
@@ -123,14 +140,18 @@ extension Insider: _ListeningMaker, BridgeMaker {
         return (connect(with: listening), listening)
     }
 
-    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, onReceive: @escaping (D, Promise) -> Void, _ assign: Assign<D>) -> ListeningToken {
-        return addListening(config(makeListening(on: onReceive, assign.assign)))
-    }
+    /// connects to insider to receive value changes
     mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: Assign<D>) -> ListeningToken {
         return addListening(config(makeListening(assign.assign)))
     }
+
+    /// connects to insider to receive value changes with preaction on receive update
+    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, onReceive: @escaping (D, Promise) -> Void, _ assign: Assign<D>) -> ListeningToken {
+        return addListening(config(makeListening(on: onReceive, assign.assign)))
+    }
 }
 
+/// Object that provides listenable data
 public protocol InsiderOwner: class, Listenable {
     associatedtype T
     var insider: Insider<T> { get set }
@@ -227,6 +248,7 @@ public extension Insider {
     }
 }
 
+/// Provides calculated listening value
 public struct ReadonlyProperty<Value> {
     public lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
     fileprivate let concreteValue: PropertyValue<Value>
@@ -250,6 +272,7 @@ public struct ReadonlyProperty<Value> {
     }
 }
 
+/// Provides listening value based on async action
 public struct AsyncReadonlyProperty<Value> {
     public var insider: Insider<Value> {
         get { return concreteValue.getInsider() }
@@ -319,6 +342,7 @@ struct WeakPropertyValue<T> where T: AnyObject {
     }
 }
 
+/// Common protocol for entities that represents some data
 public protocol ValueWrapper {
     associatedtype T
     var value: T { get set }
@@ -337,6 +361,7 @@ public extension ValueWrapper {
     }
 }
 
+/// Simple stored property with listening possibility
 public struct Property<Value>: ValueWrapper {
     lazy public var insider: Insider<Value> = Insider(source: self.concreteValue.get)
     fileprivate let concreteValue: PropertyValue<Value>

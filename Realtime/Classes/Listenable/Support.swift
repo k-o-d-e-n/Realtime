@@ -31,6 +31,11 @@ public func debugFatalError(_ message: String = "", _ file: String = #file, _ li
 
 // MARK: System type extensions
 
+/// Function for any lazy properties with completion handler calling on load.
+/// Using: lazy var someProp: Type = didLoad(Type()) { loadedLazyProp in
+///		/// action on loadedLazyProp
+/// }
+///
 public func didLoad<V>(_ value: V, _ completion: (V) -> Void) -> V {
     defer { completion(value) }
     return value
@@ -61,6 +66,7 @@ extension Optional: _Optional {
 }
 
 public extension InsiderOwner where T: RealtimeValueActions {
+	/// adds loading action on receive new value
     func loadOnReceive() -> OwnedOnReceivePreprocessor<Self, T, T> {
         return onReceive({ (v, p) in
             v.load(completion: { (_, _) in p.fulfill() })
@@ -82,6 +88,7 @@ public extension InsiderOwner {
 }
 
 public extension InsiderOwner where T: _Optional {
+	/// skips nil values
     func flatMap<U>(_ transform: @escaping (T.Wrapped) -> U) -> OwnedTransformedFilteredPreprocessor<Self, T, U> {
         return filter { $0.isSome }.map { transform($0.unsafelyUnwrapped) }
     }
@@ -196,5 +203,4 @@ extension UITextField {
         set { }
         get { return Insider(source: { [weak self] in self?.text }) }
     }
-    
 }

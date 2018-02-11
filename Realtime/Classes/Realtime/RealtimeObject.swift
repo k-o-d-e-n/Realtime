@@ -1,5 +1,5 @@
 //
-//  RealTimeObject.swift
+//  RealtimeObject.swift
 //  LinkInTeam
 //
 //  Created by Denis Koryttsev on 14/01/17.
@@ -11,6 +11,7 @@ import FirebaseDatabase
 
 // TODO: Add caching mechanism, for reuse entities
 
+/// Base class for any database value
 open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedRealtimeValue {
     open var uniqueKey: String { return dbKey }
     public let dbRef: DatabaseReference
@@ -121,6 +122,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedR
     public var debugDescription: String { return "\n{\n\tref: \(dbRef.pathFromRoot);\n\tvalue: \(String(describing: localValue));\n}" }
 }
 
+/// Base class for any database values that has child values
 open class _RealtimeEntity: _RealtimeValue, RealtimeEntityActions {
     /// Warning! Values should be only on first level in hierarchy, else other data is lost.
     @discardableResult
@@ -156,6 +158,25 @@ open class _RealtimeEntity: _RealtimeValue, RealtimeEntityActions {
 
 // TODO: Try to create `parent` typed property.
 // TODO: Make RealtimeObject (RealtimeValue) conformed Listenable for listening
+/// Main class to define Realtime models objects.
+/// You can define child properties using classes: 
+/// - RealtimeObject subclasses;
+/// - RealtimeProperty;
+/// - LinkedRealtimeArray, RealtimeArray, RealtimeDictionary;
+/// Also for auto decoding you need implement class function 'keyPath(for:)'.
+/// This function called for each subclass, therefore you don`t need call super implementation. 
+/// Example:
+/// class User: RealtimeObject {
+///     lazy var name: StandartProperty<String?> = "user_name".property(from: self.dbRef)
+///     
+///     open class func keyPath(for label: String) -> AnyKeyPath? {
+///         switch label {
+///             case "name": return \User.name
+///             default: return nil
+///         }
+///     }
+/// }
+///
 open class RealtimeObject: _RealtimeEntity {
     override public var hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val.hasChanges }) }
     override public var localValue: Any? { return keyedValues { return $0.localValue } }
@@ -316,18 +337,26 @@ extension RealtimeObject: Reverting {
 }
 
 extension RealtimeObject {
+    /// writes RealtimeObject in transaction like as single value
     public func save(in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
         transaction.set(self)
         return transaction
     }
+
+    /// writes changes of RealtimeObject in transaction as independed values
     public func update(in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
         transaction.update(self)
         return transaction
     }
+
+    /// writes empty value by RealtimeObject reference in transaction 
     public func delete(in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
+        transaction.addPrecondition { promise in
+            self.willRemove { err, _ in promise.fulfill(err) }
+        }
         transaction.delete(self)
         return transaction
     }

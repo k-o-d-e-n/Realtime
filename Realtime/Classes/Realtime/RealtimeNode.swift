@@ -9,17 +9,22 @@
 import Foundation
 import FirebaseDatabase
 
+/// Describes node of database
 public protocol RTNode: RawRepresentable, Equatable {
     associatedtype RawValue: Equatable = String
 }
+
+/// Typed node of database
 public protocol AssociatedRTNode: RTNode {
     associatedtype ConcreteType: RealtimeValue
 }
 public extension RTNode where Self.RawValue == String {
+    /// checks availability child in snapshot with node name   
     func has(in snapshot: DataSnapshot) -> Bool {
         return snapshot.hasChild(rawValue)
     }
 
+    /// gets child snapshot by node name
     func snapshot(from parent: DataSnapshot) -> DataSnapshot {
         return parent.childSnapshot(forPath: rawValue)
     }
@@ -52,6 +57,7 @@ public extension RTNode where Self.RawValue == String {
     }
 }
 public extension AssociatedRTNode where Self.RawValue == String {
+    /// returns object referenced by node name in specific reference.
     func entity(in parent: DatabaseReference) -> ConcreteType {
         return ConcreteType(dbRef: reference(from: parent))
     }
@@ -125,6 +131,7 @@ extension AssociatedRealtimeNode {
 
 // TODO: Add possible to save relative link by parent level or root level
 
+/// Link value describing reference to some location of database.
 public struct RealtimeLink: DataSnapshotRepresented {
     typealias OptionalSourceProperty = RealtimeProperty<RealtimeLink?, RealtimeLinkSourceSerializer>
     typealias OptionalProperty = RealtimeProperty<RealtimeLink?, RealtimeLinkSerializer>
@@ -166,7 +173,10 @@ extension RealtimeLink: Equatable {
 }
 
 public protocol Reverting: class {
+    /// reverts last change
     func revert()
+
+    /// returns closure to revert last change
     func currentReversion() -> () -> Void
 }
 extension Reverting where Self: ChangeableRealtimeValue {
@@ -177,6 +187,8 @@ extension Reverting where Self: ChangeableRealtimeValue {
     }
 }
 
+/// Helps to make complex write transactions.
+/// Provides addition of operations with completion handler, cancelation, and async preconditions. 
 public class RealtimeTransaction {
     fileprivate var update: Node!
     fileprivate var preconditions: [(ResultPromise<Error?>) -> Void] = []
@@ -274,10 +286,13 @@ extension RealtimeTransaction {
         }
     }
 
+    /// registers new single value for specified reference
     public func addNode(ref: DatabaseReference, value: Any?) {
         addNode(item: (ref, .value(value)))
     }
+    
     // TODO: Improve performance and interface
+    /// registers new update value for specified reference 
     public func addNode(item updateItem: (ref: DatabaseReference, value: Node.Value)) {
         guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
@@ -326,18 +341,21 @@ extension RealtimeTransaction {
         }
     }
 
+    /// registers new cancelation of made changes
     public func addReversion(_ reversion: @escaping () -> Void) {
         guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
         cancelations.insert(reversion, at: 0)
     }
 
+    /// registers new completion handler for transaction
     public func addCompletion(_ completion: @escaping (Bool) -> Void) {
         guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
         completions.append(completion)
     }
 
+    /// registers new precondition action
     public func addPrecondition(_ precondition: @escaping (ResultPromise<Error?>) -> Void) {
         guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
@@ -346,6 +364,7 @@ extension RealtimeTransaction {
 }
 
 extension RealtimeTransaction: Reverting {
+    /// reverts all changes for which cancellations have been added
     public func revert() {
         guard state == .waiting || isFailed else { fatalError("Reversion cannot be made") }
 
@@ -353,6 +372,7 @@ extension RealtimeTransaction: Reverting {
         state = .reverted
     }
 
+    /// returns closure to revert last change
     public func currentReversion() -> () -> Void {
         guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
@@ -364,6 +384,7 @@ extension RealtimeTransaction: CustomStringConvertible {
     public var description: String { return update?.description ?? "Transaction is empty" }
 }
 public extension RealtimeTransaction {
+    /// adds operation of save RealtimeValue as single value
     func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         addNode(item: (value.dbRef, .value(value.localValue)))
         addCompletion { (result) in
@@ -372,6 +393,8 @@ public extension RealtimeTransaction {
             }
         }
     }
+
+    /// adds operation of delete RealtimeValue
     func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         addNode(item: (value.dbRef, .value(nil)))
         addCompletion { (result) in
@@ -380,6 +403,8 @@ public extension RealtimeTransaction {
             }
         }
     }
+
+    /// adds operation of update RealtimeValue
     func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) {
         guard value.hasChanges else { debugFatalError("Value has not changes"); return }
 
@@ -391,9 +416,13 @@ public extension RealtimeTransaction {
         }
         revertion(for: value)
     }
+
+    /// adds current revertion action for reverting entity 
     public func revertion<T: Reverting>(for cancelable: T) {
         addReversion(cancelable.currentReversion())
     }
+
+    /// method to merge actions of other transaction
     func merge(_ other: RealtimeTransaction) {
         guard other !== self else { debugFatalError("Attemption merge the same transaction"); return }
 
@@ -406,6 +435,7 @@ public extension RealtimeTransaction {
 
 // TODO: Improve performance
 extension RealtimeTransaction {
+    /// Class describing updates in specific reference
     public class Node: Equatable, CustomStringConvertible {
         public var description: String {
             guard let thisValue = value else { return "Not active node by ref: \(ref)" }
@@ -432,6 +462,16 @@ extension RealtimeTransaction {
             }
         }
 
+        var updateValue: [String: Any] {
+            guard value != nil else { fatalError("Value is not defined") }
+
+            var allValues: [Node] = []
+            retrieveValueNodes(to: &allValues)
+            return allValues.reduce(into: [:], { (res, node) in
+                res[node.ref.path(from: ref)] = node.singleValue
+            })
+        }
+
         func commit(_ completion: @escaping (Error?, DatabaseReference) -> Void) {
             guard let thisValue = value else { fatalError("Value is not defined") }
 
@@ -443,16 +483,6 @@ extension RealtimeTransaction {
             }
         }
 
-        var updateValue: [String: Any] {
-            guard value != nil else { fatalError("Value is not defined") }
-
-            var allValues: [Node] = []
-            retrieveValueNodes(to: &allValues)
-            return allValues.reduce(into: [:], { (res, node) in
-                res[node.ref.path(from: ref)] = node.singleValue
-            })
-        }
-
         private func retrieveValueNodes(to array: inout [Node]) {
             guard let thisValue = value else { fatalError("Value is not defined") }
 
@@ -462,6 +492,7 @@ extension RealtimeTransaction {
             }
         }
 
+        /// Enum describing value of node (as single value or set of subnodes)
         public enum Value {
             case value(Any?)
             case nodes([Node])
