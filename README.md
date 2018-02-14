@@ -30,12 +30,14 @@ You can define child properties using classes:
 + `RealtimeObject` subclasses;
 + `RealtimeProperty` (typealias `StandartProperty`);
 + `LinkedRealtimeArray`, `RealtimeArray`, `RealtimeDictionary`;
-Also for auto decoding you need implement class function `keyPath(for:)`.
+Also for auto decoding you need implement class function `keyPath(for:)`. (Please tell me if you know how avoid it, without inheriting NSObject).
 This function called for each subclass, therefore you don't need call super implementation. 
 Example:
 ```swift
 class User: RealtimeObject {
-    lazy var name: StandartProperty<String?> = "user_name".property(from: self.dbRef)
+    lazy var name: StandartProperty<String?> = "name".property(from: self.dbRef)
+    lazy var birthdate: Date.OptionalProperty = "birthdate".property(from: self.dbRef)
+    lazy var groups: LinkedRealtimeArray<Group> = "groups".linkedArray(from: self.dbRef, elements: .fromRoot("groups")
 
     open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -43,6 +45,15 @@ class User: RealtimeObject {
             default: return nil
         }
     }
+}
+
+let user = User(dbRef: parentRef)
+user.name <= "User name"
+user.birthdate <= Date()
+
+let transaction = user.save()
+transaction.commit { err in
+    /// process error
 }
 ```
 
@@ -60,19 +71,6 @@ For system types (such as Bool, Int, String, Array, Dictionary) you can use `typ
 ***RealtimeRelation*** - stores reference on any database value. It creates link on side related object. On deletion related object will be deleted reference.
 
 ### Collections
-All collections conform to protocol `RealtimeCollection`.
-
-***LinkedRealtimeArray*** is array that stores objects as references.
-Source elements must located in the same reference. On insertion of object to this array creates link on side object.
-
-***RealtimeArray*** is array that stores objects by value in itself location.
-
-***RealtimeDictionary*** is dictionary where keys are references, but values are objects. On save value creates link on side key object.
-
-***LinkedRealtimeDictionary*** is collection like as `RealtimeDictionary`, but values store by reference. :exclamation: Not implemented yet.
-
-***KeyedRealtimeArray*** is collection that gets elements from elements of base collection by specific key path. This is the result of x.keyed(by:elementBuilder:) method where x is any RealtimeCollection.
-
 ```swift
 class Object: RealtimeObject {
     lazy var array: RealtimeArray<Object> = "some_array".array(from: self.dbRef)
@@ -81,11 +79,76 @@ class Object: RealtimeObject {
     lazy var linkedDictionary: RealtimeDictionary<Object> = "some_linked_dictionary".linkedDictionary(from: self.dbRef, keys: .fromRoot("key_objects"), values: .fromRoot("value_objects"))
 }
 ```
+All collections conform to protocol `RealtimeCollection`.
+Collections are entities that require preparation before using. In common case you should write such code:
+```swift
+let users = RealtimeArray<User>(dbRef: .fromRoot("users"))
+users.prepare { (users, err) in
+    /// working with collection
+}
+```
+But in mutable operations include auto preparation, therefore if you need to make operation without applying information about collection (count, contains), you can don`t write it. (In my plans avoid explicity preparation).
+
+***LinkedRealtimeArray*** is array that stores objects as references.
+Source elements must locate in the same reference. On insertion of object to this array creates link on side object.
+
+***RealtimeArray*** is array that stores objects by value in itself location.
+
+`LinkedRealtimeArray`, `RealtimeArray` mutating:
+```swift
+let transaction = RealtimeTransaction()
+...
+let element = array.storage.placeholder() // you should take new element from target collection location
+try! array.insert(element: element, in: transaction)
+try! otherArray.remove(at: 1, in: trasaction)
+
+transaction.commit { (err) in
+    // process error
+
+    self.tableView.reloadData()
+}
+```
+
+***RealtimeDictionary*** is dictionary where keys are references, but values are objects. On save value creates link on side key object.
+
+***LinkedRealtimeDictionary*** is collection like as `RealtimeDictionary`, but values store by reference. :exclamation: Not implemented yet.
+
+`LinkedRealtimeDictionary`, `RealtimeDictionary` mutating:
+```swift
+let transaction = RealtimeTransaction()
+...
+let element = dictionary.storage.placeholder(with: key.dbKey) // you should take new element from target collection location
+try! dictionary.set(element: element, key: key, in: transaction)
+try! otherDictionary.remove(by: key, in: transaction)
+
+transaction.commit { (err) in
+    // process error
+}
+```
+
+***KeyedRealtimeArray*** is immutable collection that gets elements from elements of base collection by specific key path. This is the result of x.keyed(by:elementBuilder:) method where x is any RealtimeCollection.
+```swift
+let userNames = RealtimeArray<User>(dbRef: usersRef).keyed(by: Nodes.name)
+```
 
 ### Transactions
 
 ***RealtimeTransaction*** - object that contains all information about write transactions.
 Almost all data changes perform using this object.
+The most mutable operations just take transaction as parameter, but to create custom complex operations you can use this methods:
+```swift
+/// adds operation of save RealtimeValue as single value
+func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T)
+/// adds operation of delete RealtimeValue
+func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T)
+/// adds operation of update RealtimeValue
+func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T)
+/// adds current revertion action for reverting entity 
+public func revertion<T: Reverting>(for cancelable: T)
+/// method to merge actions of other transaction
+func merge(_ other: RealtimeTransaction)
+```
+For more details see API documentation.
 
 ### UI
 
@@ -107,8 +170,8 @@ public protocol Listenable {
 ```
 
 ## Limitions
-
-
+Implementation didn't test on multithread, and doesn't guarantee stable working on non main thread.
+Framework is in alpha state, and doesn't guarantee correct working in all use cases.
 
 ## Example
 
@@ -129,7 +192,7 @@ pod 'Realtime'
 
 ## Author
 
-k-o-d-e-n, koden.u8800@gmail.com
+Koryttsev Denis, koden.u8800@gmail.com
 
 ## License
 
