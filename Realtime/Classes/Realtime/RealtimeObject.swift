@@ -12,8 +12,7 @@ import FirebaseDatabase
 // TODO: Add caching mechanism, for reuse entities
 
 /// Base class for any database value
-open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, KeyedRealtimeValue {
-    open var uniqueKey: String { return dbKey }
+open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, RealtimeValue {
     public let dbRef: DatabaseReference
     private var observingToken: UInt?
     public var localValue: Any? { return nil }
@@ -355,7 +354,10 @@ extension RealtimeObject {
     public func delete(in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
         transaction.addPrecondition { promise in
-            self.willRemove { err, _ in promise.fulfill(err) }
+            self.willRemove { [unowned transaction] err, refs in
+                refs?.forEach { transaction.addNode(ref: $0, value: nil) }
+                promise.fulfill(err)
+            }
         }
         transaction.delete(self)
         return transaction

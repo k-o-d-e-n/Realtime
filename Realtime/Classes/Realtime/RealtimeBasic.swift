@@ -32,17 +32,12 @@ public extension DataSnapshotRepresented where Self: RealtimeValue {
 
 // MARK: RealtimeValue
 
-/// Database value that has unique key in itself space
-public protocol KeyedRealtimeValue: RealtimeValue, Hashable {
-    associatedtype UniqueKey: Hashable, LosslessStringConvertible
-    var uniqueKey: UniqueKey { get }
-}
-extension KeyedRealtimeValue {
-    var uniqueKey: String { return dbKey }
+public protocol DatabaseKeyRepresentable {
+    var dbKey: String { get }
 }
 
 /// Base protocol for all database entities
-public protocol RealtimeValue: DataSnapshotRepresented, CustomDebugStringConvertible {
+public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented, CustomDebugStringConvertible {
     var dbRef: DatabaseReference { get } // TODO: Use abstract protocol which has methods for observing and reference. Need for use DatabaseQuery
     var localValue: Any? { get }
 

@@ -11,47 +11,38 @@ import FirebaseDatabase
 
 // TODO: View transformers in ObjectMapper as example implementation serializers
 
-public protocol Initializable {
-    static var defValue: Self { get }
+public protocol HasDefaultLiteral {
+    init()
 }
 
-extension Bool: Initializable {
-    public static var defValue: Bool { return false }
-}
-
-extension Int: Initializable {
-    public static var defValue: Int { return 0 }
-}
-
-extension Optional: Initializable {
-    public static var defValue: Optional { return Optional<Wrapped>(nilLiteral:()) }
-}
-
-extension Array: Initializable {
-    public static var defValue: [Element] { return [Element]() }
-}
-
-extension Dictionary: Initializable {
-    public static var defValue: [Key: Value] { return [Key: Value]() }
-}
-
-extension String: Initializable {
-    public static var defValue: String { return "" }
-}
-
-extension Data: Initializable {
-    public static var defValue: Data { return Data() }
-}
+extension Optional  : HasDefaultLiteral { public init() { self = .none } }
+extension Bool      : HasDefaultLiteral {}
+extension Int       : HasDefaultLiteral {}
+extension Double    : HasDefaultLiteral {}
+extension Float     : HasDefaultLiteral {}
+extension Int8      : HasDefaultLiteral {}
+extension Int16     : HasDefaultLiteral {}
+extension Int32     : HasDefaultLiteral {}
+extension Int64     : HasDefaultLiteral {}
+extension UInt      : HasDefaultLiteral {}
+extension UInt8     : HasDefaultLiteral {}
+extension UInt16    : HasDefaultLiteral {}
+extension UInt32    : HasDefaultLiteral {}
+extension UInt64    : HasDefaultLiteral {}
+extension String    : HasDefaultLiteral {}
+extension Data      : HasDefaultLiteral {}
+extension Array     : HasDefaultLiteral {}
+extension Dictionary: HasDefaultLiteral {}
 
 public protocol _Serializer {
-    associatedtype Entity: Initializable
+    associatedtype Entity: HasDefaultLiteral
     static func deserialize(entity: DataSnapshot) -> Entity
     static func serialize(entity: Entity) -> Any?
 }
 
-public class Serializer<Entity: Initializable>: _Serializer {
+public class Serializer<Entity: HasDefaultLiteral>: _Serializer {
     public class func deserialize(entity: DataSnapshot) -> Entity {
-        guard entity.exists() else { return Entity.defValue }
+        guard entity.exists() else { return Entity() }
         
         return entity.value as! Entity
     }
@@ -63,7 +54,7 @@ public class Serializer<Entity: Initializable>: _Serializer {
 
 public class ArraySerializer<Base: _Serializer>: _Serializer {
     public class func deserialize(entity: DataSnapshot) -> [Base.Entity] {
-        guard entity.hasChildren() else { return Entity.defValue }
+        guard entity.hasChildren() else { return Entity() }
         
         return entity.children.map { Base.deserialize(entity: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }
     }
@@ -111,14 +102,14 @@ public class EnumSerializer<EnumType: RawRepresentable>: _Serializer {
     }
 }
 
-public class CodableSerializer<T: Codable & Initializable>: _Serializer {
+public class CodableSerializer<T: Codable & HasDefaultLiteral>: _Serializer {
     public class func serialize(entity: T) -> Any? {
         let data = try! JSONEncoder().encode(entity)
         return try! JSONDecoder().decode([String: Any?].self, from: data)
     }
 
     public class func deserialize(entity: DataSnapshot) -> T {
-        return (try? T(from: entity)) ?? T.defValue
+        return (try? T(from: entity)) ?? T()
     }
 }
 
@@ -126,7 +117,7 @@ public class CodableSerializer<T: Codable & Initializable>: _Serializer {
 
 public class RealtimeLinkArraySerializer: _Serializer {
     public class func deserialize(entity: DataSnapshot) -> [RealtimeLink] {
-        guard entity.exists() else { return Entity.defValue }
+        guard entity.exists() else { return Entity() }
         
         return entity.children.map { RealtimeLink(snapshot: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }.flatMap { $0 }
     }

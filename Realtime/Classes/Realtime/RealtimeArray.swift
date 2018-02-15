@@ -32,12 +32,43 @@ struct RealtimeArrayError: Error {
 
 /// -----------------------------------------
 
+struct _PrototypeValue: Hashable, DatabaseKeyRepresentable {
+    let dbKey: String
+    let linkId: String
+    let index: Int
+
+    var hashValue: Int {
+        return dbKey.hashValue &- linkId.hashValue
+    }
+
+    static func ==(lhs: _PrototypeValue, rhs: _PrototypeValue) -> Bool {
+        return lhs.dbKey == rhs.dbKey
+    }
+}
+final class _PrototypeValueSerializer: _Serializer {
+    class func deserialize(entity: DataSnapshot) -> [_PrototypeValue] {
+        guard let keyes = entity.value as? [String: [String: Int]] else { return Entity() }
+
+        return keyes
+            .map { _PrototypeValue(dbKey: $0.key, linkId: $0.value.first!.key, index: $0.value.first!.value) }
+            .sorted(by: { $0.index < $1.index })
+    }
+
+    class func serialize(entity: [_PrototypeValue]) -> Any? {
+        return entity.reduce(Dictionary<String, Any>(), { (result, key) -> [String: Any] in
+            var result = result
+            result[key.dbKey] = [key.linkId: result.count]
+            return result
+        })
+    }
+}
+
 public protocol RealtimeCollectionStorage {
     associatedtype Value
     func placeholder(with key: String?) -> Value
 }
 protocol RCStorage: RealtimeCollectionStorage {
-    associatedtype Key: StringRepresentableRealtimeArrayKey
+    associatedtype Key: Hashable, DatabaseKeyRepresentable
     func storedValue(by key: Key) -> Value?
     func valueBy(ref reference: DatabaseReference) -> Value
     func valueRefBy(key: String) -> DatabaseReference
@@ -63,7 +94,7 @@ extension MutableRCStorage {
         return element
     }
 }
-public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDictionaryKey, K.UniqueKey == K.Key {
+public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDictionaryKey {
     public typealias Value = V
     let elementsRef: DatabaseReference
     let keysRef: DatabaseReference
@@ -76,11 +107,10 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
     func valueBy(ref reference: DatabaseReference) -> Value { return elementBuilder(reference) }
     func valueRefBy(key: String) -> DatabaseReference { return elementsRef.child(key) }
     func newValueRef() -> DatabaseReference { return elementsRef.childByAutoId() }
-    internal mutating func element(by key: Key.Key) -> (Key, Value) {
+    internal mutating func element(by key: String) -> (Key, Value) {
         guard let element = storedElement(by: key) else {
-            let keyString = String(describing: key)
-            let value = placeholder(with: keyString)
-            let storeKey = Key(dbRef: keysRef.child(keyString))
+            let value = placeholder(with: key)
+            let storeKey = Key(dbRef: keysRef.child(key))
             store(value: value, by: storeKey)
 
             return (storeKey, value)
@@ -88,18 +118,18 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
 
         return element
     }
-    fileprivate func storedElement(by key: Key.Key) -> (Key, Value)? {
-        return elements.first(where: { $0.key.key == key })
+    fileprivate func storedElement(by key: String) -> (Key, Value)? {
+        return elements.first(where: { $0.key.dbKey == key })
     }
 }
-public struct RCArrayStorage<V>: MutableRCStorage where V: KeyedRealtimeValue {
+public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     public typealias Value = V
     let elementsRef: DatabaseReference
     var elementBuilder: (DatabaseReference) -> Value // TODO: let
-    var elements: [_PrototypeValue<V.UniqueKey>.Key: Value] = [:]
+    var elements: [_PrototypeValue: Value] = [:]
 
-    mutating func store(value: Value, by key: _PrototypeValue<V.UniqueKey>) { elements[for: key.key] = value }
-    func storedValue(by key: _PrototypeValue<V.UniqueKey>) -> Value? { return elements[for: key.key] }
+    mutating func store(value: Value, by key: _PrototypeValue) { elements[for: key] = value }
+    func storedValue(by key: _PrototypeValue) -> Value? { return elements[for: key] }
 
     func valueBy(ref reference: DatabaseReference) -> Value { return elementBuilder(reference) }
     func valueRefBy(key: String) -> DatabaseReference { return elementsRef.child(key) }
@@ -109,7 +139,7 @@ public struct KeyedCollectionStorage<V>: MutableRCStorage {
     public typealias Value = V
     let key: String
     let elementBuilder: (DatabaseReference) -> Value
-    var elements: [String: Value] = [:]
+    var elements: [AnyCollectionKey: Value] = [:]
 
     let valueRefByKey: (String) -> DatabaseReference
     let newValueReference: () -> DatabaseReference
@@ -121,14 +151,14 @@ public struct KeyedCollectionStorage<V>: MutableRCStorage {
         self.elementBuilder = builder
     }
 
-    mutating func store(value: Value, by key: String) { elements[for: key] = value }
-    func storedValue(by key: String) -> Value? { return elements[for: key] }
+    mutating func store(value: Value, by key: AnyCollectionKey) { elements[for: key] = value }
+    func storedValue(by key: AnyCollectionKey) -> Value? { return elements[for: key] }
 
     func valueBy(ref reference: DatabaseReference) -> Value { return elementBuilder(reference) }
     func valueRefBy(key: String) -> DatabaseReference { return valueRefByKey(key).child(self.key) }
     func newValueRef() -> DatabaseReference { return newValueReference().child(key) }
 }
-final class AnyCollectionStorage<K, V>: RCStorage where K: StringRepresentableRealtimeArrayKey {
+final class AnyCollectionStorage<K, V>: RCStorage where K: Hashable & DatabaseKeyRepresentable {
     func storedValue(by key: K) -> V? {
         return _storedValue(key)
     }
@@ -164,15 +194,19 @@ final class AnyCollectionStorage<K, V>: RCStorage where K: StringRepresentableRe
 public protocol RealtimeCollectionView {}
 protocol RCView: RealtimeCollectionView, BidirectionalCollection, RequiresPreparation {}
 
-struct AnyCollectionKey: RealtimeCollectionContainerKey {
-    let key: String
+struct AnyCollectionKey: Hashable, DatabaseKeyRepresentable {
+    let dbKey: String
+    var hashValue: Int { return dbKey.hashValue }
 
-    init<Base: RealtimeCollectionContainerKey>(_ key: Base) where Base.Key: CustomStringConvertible {
-        self.key = key.key.description
+    init<Base: DatabaseKeyRepresentable>(_ key: Base) {
+        self.dbKey = key.dbKey
     }
 //    init<Base: RealtimeCollectionContainerKey>(_ key: Base) where Base.Key == String {
 //        self.key = key.key
 //    }
+    static func ==(lhs: AnyCollectionKey, rhs: AnyCollectionKey) -> Bool {
+        return lhs.dbKey == rhs.dbKey
+    }
 }
 
 public final class AnyRealtimeCollectionView<Source>: RCView where Source: ValueWrapper & RealtimeValueActions, Source.T: BidirectionalCollection {
@@ -220,38 +254,6 @@ protocol RC: RealtimeCollection, RealtimeValueEvents {
 
 /// MARK: RealtimeArray separated, new version
 
-public protocol StringRepresentableRealtimeArrayKey { // TODO: See LosslessStringConvertible, ExpressibleByStringLiteral
-    var dbKey: String { get }
-}
-extension String: StringRepresentableRealtimeArrayKey {
-    public var dbKey: String { return self }
-}
-extension Int: StringRepresentableRealtimeArrayKey {
-    public var dbKey: String { return String(self) }
-}
-extension Double: StringRepresentableRealtimeArrayKey {
-    public var dbKey: String { return String(Int(self)) }
-}
-extension StringRepresentableRealtimeArrayKey where Self: CustomStringConvertible {
-    public var dbKey: String { return String(describing: self) }
-}
-
-public protocol RealtimeCollectionKey: Hashable, StringRepresentableRealtimeArrayKey {
-    associatedtype EntityId: Hashable, LosslessStringConvertible
-    associatedtype LinkId: Hashable
-    var entityId: EntityId { get }
-    var linkId: LinkId { get }
-}
-
-public protocol RealtimeCollectionContainerKey {
-    associatedtype Key: Equatable
-    var key: Key { get }
-}
-
-extension RealtimeCollectionContainerKey where Self: RealtimeCollectionKey {
-    public var key: EntityId { return entityId }
-}
-
 protocol KeyValueAccessableCollection {
     associatedtype Key
     associatedtype Value
@@ -295,13 +297,6 @@ extension RequiresPreparation {
         guard isPrepared else { fatalError("Instance should be activated before performing this action.") }
     }
 }
-
-//extension _RCArrayContainer {
-//    var countAvailable: Container.IndexDistance { return elements.count }
-//    func forEachAvailable(_ body: (Container.Iterator.Element) throws -> Void) rethrows {
-//        try elements.forEach(body)
-//    }
-//}
 public extension RealtimeCollection {
     /// RealtimeCollection actions
 
@@ -343,9 +338,9 @@ public extension RealtimeCollection {
 
 // MARK: Implementation RealtimeCollection`s
 
-public typealias RealtimeDictionaryKey = StringRepresentableRealtimeArrayKey & RealtimeCollectionContainerKey & KeyedRealtimeValue & Linkable
+public typealias RealtimeDictionaryKey = Hashable & RealtimeValue & Linkable
 public final class RealtimeDictionary<Key, Value>: RC
-where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey, Key.UniqueKey == Key.Key {
+where Value: ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
     public let dbRef: DatabaseReference
     public var view: RealtimeCollectionView { return _view }
     public var storage: RCDictionaryStorage<Key, Value>
@@ -369,15 +364,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
-    public func runObserving() {
-        //        var oldValue: Prototype.T? = nil
-        //        _ = prototype.listening { (newValue) in
-        //            if newValue != oldValue {
-        // make changes
-        //            }
-        //        }
-        _view.source.runObserving()
-    }
+    public func runObserving() { _view.source.runObserving() }
     public func stopObserving() { _view.source.stopObserving() }
     public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: @escaping (Error?) -> Void) { _view.prepare(forUse: completion) }
@@ -386,13 +373,13 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
     public typealias Element = (key: Key, value: Value)
 
     public func makeIterator() -> IndexingIterator<RealtimeDictionary> { return IndexingIterator(_elements: self) }
-    public subscript(position: Int) -> Element { return storage.element(by: _view[position].key) }
+    public subscript(position: Int) -> Element { return storage.element(by: _view[position].dbKey) }
     public subscript(key: Key) -> Value? { return storage.object(for: key) }
 
-    public func containsValue(byKey key: Key) -> Bool { _view.checkPreparation(); return _view.source.value.contains(where: { $0.key == key.key }) }
+    public func containsValue(byKey key: Key) -> Bool { _view.checkPreparation(); return _view.source.value.contains(where: { $0.dbKey == key.dbKey }) }
 
-    typealias PrototypeKey = _PrototypeValue<Key.Key>
-    typealias PrototypeValueSerializer = _PrototypeValueSerializer<Key.Key>
+    typealias PrototypeKey = _PrototypeValue
+    typealias PrototypeValueSerializer = _PrototypeValueSerializer
 
     public func filtered(by value: Any, for node: RealtimeNode, completion: @escaping ([Element], Error?) -> ()) {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
@@ -425,7 +412,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         let oldElement = storage.storedValue(by: key)
         guard containsValue(byKey: key) else {
             let link = key.generate(linkTo: _view.source.dbRef)
-            let prototypeValue = PrototypeKey(entityId: key.uniqueKey, linkId: link.link.id, index: count)
+            let prototypeValue = PrototypeKey(dbKey: key.dbKey, linkId: link.link.id, index: count)
             let oldValue = _view.source.value
             _view.source.value.append(prototypeValue)
             storage.store(value: element, by: key)
@@ -470,7 +457,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
     }
 
     public func remove(for key: Key, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
-        guard let index = _view.source.value.index(where: { $0.key == key.key }) else { return transaction }
+        guard let index = _view.source.value.index(where: { $0.dbKey == key.dbKey }) else { return transaction }
 
         let transaction = transaction ?? RealtimeTransaction()
         if !isPrepared {
@@ -500,17 +487,16 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
     // MARK: Realtime
     
     public var localValue: Any? {
-        let keys = _view.source.value.map { $0.key }
         let split = storage.elements.reduce((exists: [], removed: [])) { (res, keyValue) -> (exists: [(Key, Value)], removed: [(Key, Value)]) in
-            guard keys.contains(keyValue.key.key) else {
+            guard _view.contains(where: { $0.dbKey == keyValue.key.dbKey }) else {
                 return (res.exists, res.removed + [keyValue])
             }
             
             return (res.exists + [keyValue], res.removed)
         }
-        var value = Dictionary<String, Any?>(keys: keys.map { String($0) }, values: split.exists.map { $0.1.localValue })
+        var value = Dictionary<String, Any?>(keyValues: split.exists, mapKey: { $0.dbKey }, mapValue: { $0.localValue })
         value[_view.source.dbKey] = _view.source.localValue
-        split.removed.forEach { value[String($0.0.key)] = nil }
+        split.removed.forEach { value[$0.0.dbKey] = nil }
         
         return value
     }
@@ -535,11 +521,11 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
         }
         _view.source.value.forEach { key in
             guard snapshot.hasChild(key.dbKey) else {
-                if strongly, let contained = storage.elements.first(where: { $0.0.key == key.key }) { storage.elements.removeValue(forKey: contained.key) }
+                if strongly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }
                 return
             }
             let childSnapshot = snapshot.childSnapshot(forPath: key.dbKey)
-            if let element = storage.elements.first(where: { $0.0.key == key.key })?.value {
+            if let element = storage.elements.first(where: { $0.0.dbKey == key.dbKey })?.value {
                 element.apply(snapshot: childSnapshot, strongly: strongly)
             } else {
                 let keyEntity = Key(dbRef: storage.keysRef.child(key.dbKey))
@@ -561,8 +547,7 @@ where Value: KeyedRealtimeValue & ChangeableRealtimeValue & RealtimeValueActions
 /// # Realtime Array
 /// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
 /// Comment writing guide
-public final class RealtimeArray<Element>: RC
-where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.UniqueKey: StringRepresentableRealtimeArrayKey {
+public final class RealtimeArray<Element>: RC where Element: RealtimeValue & RealtimeEntityActions & Linkable {
     public let dbRef: DatabaseReference
     public var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
@@ -579,7 +564,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
     // Implementation
 
     public func contains(_ element: Element) -> Bool {
-        return _view.source.value.contains { $0.entityId == element.uniqueKey }
+        return _view.source.value.contains { $0.dbKey == element.dbKey }
     }
     public subscript(position: Int) -> Element { return storage.object(for: _view.source.value[position]) }
     public var startIndex: Int { return _view.startIndex }
@@ -592,8 +577,8 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
     public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: @escaping (Error?) -> Void) { _view.prepare(forUse: completion) }
 
-    typealias PrototypeKey = _PrototypeValue<Element.UniqueKey>
-    typealias KeySerializer = _PrototypeValueSerializer<Element.UniqueKey>
+    typealias PrototypeKey = _PrototypeValue
+    typealias KeySerializer = _PrototypeValueSerializer
     
     // TODO: Create Realtime wrapper for DatabaseQuery
     // TODO: Check filter with difficult values aka dictionary
@@ -627,7 +612,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
         }
 
         let link = element.generate(linkTo: _view.source.dbRef)
-        let key = PrototypeKey(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? count)
+        let key = PrototypeKey(dbKey: element.dbKey, linkId: link.link.id, index: index ?? count)
 
         let oldValue = _view.source.value
         _view.source.value.insert(key, at: key.index)
@@ -635,7 +620,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
         storage.store(value: element, by: key)
         transaction.addReversion { [weak self] in
             self?._view.source.value = oldValue
-            self?.storage.elements.removeValue(forKey: key.key)
+            self?.storage.elements.removeValue(forKey: key)
             element.remove(linkBy: link.link.id)
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
@@ -654,7 +639,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
 
     @discardableResult
     func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
-        if let index = _view.source.value.index(where: { $0.entityId == element.uniqueKey }) {
+        if let index = _view.source.value.index(where: { $0.dbKey == element.dbKey }) {
             return remove(at: index, in: transaction)
         }
         return transaction
@@ -680,7 +665,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
         transaction.addNode(item: (storage.valueRefBy(key: key.dbKey), .value(nil)))
         transaction.addCompletion { [weak self] result in
             if result {
-                self?.storage.elements.removeValue(forKey: key.key)
+                self?.storage.elements.removeValue(forKey: key)
                 self?.didSave()
             }
         }
@@ -690,15 +675,14 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
     // MARK: Realtime
     
     public var localValue: Any? {
-        let keys = _view.source.value.map { $0.key }
-        let split = storage.elements.reduce((exists: [], removed: [])) { (res, keyValue) -> (exists: [(_PrototypeValue<Element.UniqueKey>.Key, Element)], removed: [(_PrototypeValue<Element.UniqueKey>.Key, Element)]) in
-            guard keys.contains(keyValue.key) else {
+        let split = storage.elements.reduce((exists: [], removed: [])) { (res, keyValue) -> (exists: [(_PrototypeValue, Element)], removed: [(_PrototypeValue, Element)]) in
+            guard _view.source.value.contains(keyValue.key) else {
                 return (res.exists, res.removed + [keyValue])
             }
             
             return (res.exists + [keyValue], res.removed)
         }
-        var value = Dictionary<String, Any?>(keys: keys.map { String($0) }, values: split.exists.map { $0.1.localValue })
+        var value = Dictionary<String, Any?>(keyValues: split.exists, mapKey: { $0.dbKey }, mapValue: { $0.localValue })
         value[_view.source.dbKey] = _view.source.localValue
         split.removed.forEach { value[$0.0.dbKey] = nil }
         
@@ -717,14 +701,14 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
         }
         _view.source.value.forEach { key in
             guard snapshot.hasChild(key.dbKey) else {
-                if strongly { storage.elements.removeValue(forKey: key.key) }
+                if strongly { storage.elements.removeValue(forKey: key) }
                 return
             }
             let childSnapshot = snapshot.childSnapshot(forPath: key.dbKey)
-            if let element = storage.elements[key.key] {
+            if let element = storage.elements[key] {
                 element.apply(snapshot: childSnapshot, strongly: strongly)
             } else {
-                storage.elements[key.key] = Element(snapshot: childSnapshot, strongly: strongly)
+                storage.elements[key] = Element(snapshot: childSnapshot, strongly: strongly)
             }
         }
     }
@@ -739,40 +723,7 @@ where Element: KeyedRealtimeValue & Linkable & RealtimeEntityActions, Element.Un
     }
 }
 
-struct _PrototypeValue<Key: Hashable & LosslessStringConvertible>: RealtimeCollectionKey, RealtimeCollectionContainerKey, CustomStringConvertible {
-    let entityId: Key
-    let linkId: String
-    let index: Int
-    var description: String { return String(entityId) }
-    
-    var hashValue: Int {
-        return entityId.hashValue &- linkId.hashValue
-    }
-    
-    static func ==(lhs: _PrototypeValue, rhs: _PrototypeValue) -> Bool {
-        return lhs.entityId == rhs.entityId
-    }
-}
-final class _PrototypeValueSerializer<Key: Hashable & LosslessStringConvertible>: _Serializer {
-    class func deserialize(entity: DataSnapshot) -> [_PrototypeValue<Key>] {
-        guard let keyes = entity.value as? [Key: [String: Int]] else { return Entity.defValue }
-        
-        return keyes
-            .map { _PrototypeValue(entityId: $0.key, linkId: $0.value.first!.key, index: $0.value.first!.value) }
-            .sorted(by: { $0.index < $1.index })
-    }
-    
-    class func serialize(entity: [_PrototypeValue<Key>]) -> Any? {
-        return entity.reduce(Dictionary<Key, Any>(), { (result, key) -> [Key: Any] in
-            var result = result
-            result[key.entityId] = [key.linkId: result.count]
-            return result
-        })
-    }
-}
-
-public final class LinkedRealtimeArray<Element>: RC
-where Element: KeyedRealtimeValue & Linkable, Element.UniqueKey: StringRepresentableRealtimeArrayKey {
+public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue & Linkable {
     public let dbRef: DatabaseReference
     public var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
@@ -804,7 +755,7 @@ where Element: KeyedRealtimeValue & Linkable, Element.UniqueKey: StringRepresent
 
     // Implementation
 
-    public func contains(_ element: Element) -> Bool { return _view.source.value.contains { $0.entityId == element.uniqueKey } }
+    public func contains(_ element: Element) -> Bool { return _view.source.value.contains { $0.dbKey == element.dbKey } }
 
     public subscript(position: Int) -> Element { return storage.object(for: _view.source.value[position]) }
     public var startIndex: Int { return _view.startIndex }
@@ -817,8 +768,8 @@ where Element: KeyedRealtimeValue & Linkable, Element.UniqueKey: StringRepresent
     public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: @escaping (Error?) -> Void) { _view.prepare(forUse: completion) }
 
-    typealias Key = _PrototypeValue<Element.UniqueKey>
-    typealias KeySerializer = _PrototypeValueSerializer<Element.UniqueKey>
+    typealias Key = _PrototypeValue
+    typealias KeySerializer = _PrototypeValueSerializer
 
     public func apply(snapshot: DataSnapshot, strongly: Bool) {
         _view.source.apply(snapshot: snapshot, strongly: strongly)
@@ -833,9 +784,6 @@ where Element: KeyedRealtimeValue & Linkable, Element.UniqueKey: StringRepresent
     public func didRemove() {
         _view.source.didRemove()
     }
-}
-extension LinkedRealtimeArray: KeyedRealtimeValue {
-    public var uniqueKey: String { return dbKey }
 }
 public extension LinkedRealtimeArray {
     // MARK: Mutating
@@ -853,7 +801,7 @@ public extension LinkedRealtimeArray {
         }
 
         let link = element.generate(linkTo: self._view.source.dbRef)
-        let key = Key(entityId: element.uniqueKey, linkId: link.link.id, index: index ?? self.count)
+        let key = Key(dbKey: element.dbKey, linkId: link.link.id, index: index ?? self.count)
 
         let oldValue = _view.source.value
         _view.source.value.insert(key, at: key.index)
@@ -864,7 +812,7 @@ public extension LinkedRealtimeArray {
         transaction.addNode(item: (link.sourceRef, .value(link.link.dbValue)))
         transaction.addCompletion { [weak self] (result) in
             if result {
-                self?.storage.elements[key.key] = element
+                self?.storage.elements[key] = element
                 self?.didSave()
             }
         }
@@ -873,7 +821,7 @@ public extension LinkedRealtimeArray {
 
     @discardableResult
     func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
-        if let index = _view.source.value.index(where: { $0.entityId == element.uniqueKey }) {
+        if let index = _view.source.value.index(where: { $0.dbKey == element.dbKey }) {
             return remove(at: index, in: transaction)
         }
         return transaction
@@ -899,7 +847,7 @@ public extension LinkedRealtimeArray {
         transaction.addNode(item: (storage.valueRefBy(key: key.dbKey).child(Nodes.links.subpath(with: key.linkId)), .value(nil)))
         transaction.addCompletion { [weak self] (result) in
             if result {
-                self?.storage.elements.removeValue(forKey: key.key)?.remove(linkBy: key.linkId)
+                self?.storage.elements.removeValue(forKey: key)?.remove(linkBy: key.linkId)
                 self?.didSave()
             }
         }
@@ -912,7 +860,7 @@ extension DatabaseReference {
         return RealtimeLink(id: key, path: targetRef.pathFromRoot)
     }
 }
-extension KeyedRealtimeValue {
+extension RealtimeValue {
     func generate(linkTo targetRef: DatabaseReference) -> (sourceRef: DatabaseReference, link: RealtimeLink) {
         let linkRef = Nodes.links.reference(from: dbRef).childByAutoId()
         return (linkRef, RealtimeLink(id: linkRef.key, path: targetRef.pathFromRoot))
@@ -1007,28 +955,28 @@ where C.Index == Int {
 // 1) Sorting performs before save prototype (storing sorted array)
 // 2) Sorting performs after load prototype (runtime sorting)
 
-extension RealtimeArray: KeyedRealtimeValue {
-    public var uniqueKey: String { return dbKey }
-}
-extension KeyedRealtimeArray: KeyedRealtimeValue {
-    public var uniqueKey: String { return dbKey }
-}
+//extension RealtimeArray: KeyedRealtimeValue {
+//    public var uniqueKey: String { return dbKey }
+//}
+//extension KeyedRealtimeArray: KeyedRealtimeValue {
+//    public var uniqueKey: String { return dbKey }
+//}
 
 public extension RealtimeArray {
-    func keyed<Keyed: KeyedRealtimeValue, Node: RTNode>(by node: Node, elementBuilder: @escaping (DatabaseReference) -> Keyed = { .init(dbRef: $0) })
-        -> KeyedRealtimeArray<Keyed, Element> where Keyed.UniqueKey: StringRepresentableRealtimeArrayKey, Node.RawValue == String {
+    func keyed<Keyed: RealtimeValue, Node: RTNode>(by node: Node, elementBuilder: @escaping (DatabaseReference) -> Keyed = { .init(dbRef: $0) })
+        -> KeyedRealtimeArray<Keyed, Element> where Node.RawValue == String {
         return KeyedRealtimeArray(base: self, key: node, elementBuilder: elementBuilder)
     }
 }
 public extension LinkedRealtimeArray {
-    func keyed<Keyed: KeyedRealtimeValue, Node: RTNode>(by node: Node, elementBuilder: @escaping (DatabaseReference) -> Keyed = { .init(dbRef: $0) })
-        -> KeyedRealtimeArray<Keyed, Element> where Keyed.UniqueKey: StringRepresentableRealtimeArrayKey, Node.RawValue == String {
+    func keyed<Keyed: RealtimeValue, Node: RTNode>(by node: Node, elementBuilder: @escaping (DatabaseReference) -> Keyed = { .init(dbRef: $0) })
+        -> KeyedRealtimeArray<Keyed, Element> where Node.RawValue == String {
             return KeyedRealtimeArray(base: self, key: node, elementBuilder: elementBuilder)
     }
 }
 public extension RealtimeDictionary {
-    func keyed<Keyed: KeyedRealtimeValue, Node: RTNode>(by node: Node, elementBuilder: @escaping (DatabaseReference) -> Keyed = { .init(dbRef: $0) })
-        -> KeyedRealtimeArray<Keyed, Element> where Keyed.UniqueKey: StringRepresentableRealtimeArrayKey, Node.RawValue == String {
+    func keyed<Keyed: RealtimeValue, Node: RTNode>(by node: Node, elementBuilder: @escaping (DatabaseReference) -> Keyed = { .init(dbRef: $0) })
+        -> KeyedRealtimeArray<Keyed, Element> where Node.RawValue == String {
             return KeyedRealtimeArray(base: self, key: node, elementBuilder: elementBuilder)
     }
 }
@@ -1056,13 +1004,13 @@ struct AnySharedCollection<Element>: Collection {
 
 // TODO: Need update keyed storage when to parent view changed to operate actual data
 public final class KeyedRealtimeArray<Element, BaseElement>: RealtimeCollection
-where Element: KeyedRealtimeValue, Element.UniqueKey: StringRepresentableRealtimeArrayKey {
+where Element: RealtimeValue {
     public typealias Index = Int
     private let base: _AnyRealtimeCollectionBase<BaseElement>
     private let baseView: AnySharedCollection<AnyCollectionKey>
 
     init<B: RC, Node: RTNode>(base: B, key: Node, elementBuilder: @escaping (DatabaseReference) -> Element = { .init(dbRef: $0) })
-    where B.Storage: RCStorage, B.View.Iterator.Element: RealtimeCollectionContainerKey, B.View.Iterator.Element.Key: CustomStringConvertible,
+    where B.Storage: RCStorage, B.View.Iterator.Element: DatabaseKeyRepresentable,
         B.View.Index: SignedInteger, B.Iterator.Element == BaseElement, B.Index == Int, Node.RawValue == String {
         self.base = __AnyRealtimeCollection(base: base)
         self.storage = KeyedCollectionStorage(base.storage, key: key.rawValue, builder: elementBuilder)
@@ -1079,7 +1027,7 @@ where Element: KeyedRealtimeValue, Element.UniqueKey: StringRepresentableRealtim
     public var endIndex: Index { return base.endIndex }
     public func index(after i: Index) -> Index { return base.index(after: i) }
     public func index(before i: Int) -> Int { return base.index(before: i) }
-    public subscript(position: Int) -> Element { return storage.object(for: baseView[position].key) }
+    public subscript(position: Int) -> Element { return storage.object(for: baseView[position]) }
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: @escaping (Error?) -> Void) { base.prepare(forUse: completion) }
 

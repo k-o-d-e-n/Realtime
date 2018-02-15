@@ -18,7 +18,7 @@ public extension RTNode where Self.RawValue == String {
 extension RealtimeProperty: FilteringEntity {}
 
 // TODO: Rewrite
-public class _Linked<Linked: KeyedRealtimeValue & Linkable>: _RealtimeValue, ValueWrapper, InsiderOwner {
+public class _Linked<Linked: RealtimeValue & Linkable>: _RealtimeValue, ValueWrapper, InsiderOwner {
     fileprivate lazy var _link: RealtimeLink.OptionalProperty = RealtimeLink.OptionalProperty(dbRef: self.dbRef)
     //    var insider: Insider<RealtimeLink?> { set { _link.insider = newValue } get { return _link.insider } }
     public lazy var insider: Insider<Linked?> = self._link.insider.mapped { [weak self] _ in self?.linked }
@@ -68,7 +68,7 @@ public class _Linked<Linked: KeyedRealtimeValue & Linkable>: _RealtimeValue, Val
 }
 
 // TODO: Use simple RealtimeProperty with value typed by Reference (like as DocumentReference in Firestore)
-public final class LinkedRealtimeProperty<Linked: KeyedRealtimeValue & Linkable>: _Linked<Linked> {
+public final class LinkedRealtimeProperty<Linked: RealtimeValue & Linkable>: _Linked<Linked> {
 //    var link: RealtimeLink.OptionalProperty { return _link }
     public func link(withoutUpdate value: Linked) {
         self._link.value = dbRef.link(to: value.dbRef)
@@ -80,7 +80,7 @@ public final class LinkedRealtimeProperty<Linked: KeyedRealtimeValue & Linkable>
 }
 
 // TODO: May be need create real relation to property in linked entity, but not simple register external link
-public final class RealtimeRelation<Linked: KeyedRealtimeValue & Linkable & ChangeableRealtimeValue>: _Linked<Linked> {
+public final class RealtimeRelation<Linked: RealtimeValue & Linkable & ChangeableRealtimeValue>: _Linked<Linked> {
     public func link(withoutUpdate value: Linked) {
         if let oldLink = self._link.value { linked?.remove(linkBy: oldLink.id) }
         self._link.value = dbRef.link(to: value.dbRef)
@@ -100,7 +100,7 @@ public final class RealtimeRelation<Linked: KeyedRealtimeValue & Linkable & Chan
 
 // MARK: Listenable realtime property
 
-public typealias StandartProperty<StandartType: Initializable & Codable> = RealtimeProperty<StandartType, Serializer<StandartType>>
+public typealias StandartProperty<StandartType: HasDefaultLiteral & Codable> = RealtimeProperty<StandartType, Serializer<StandartType>>
 public typealias OptionalEnumProperty<EnumType: RawRepresentable> = RealtimeProperty<EnumType?, EnumSerializer<EnumType>>
 public extension URL {
     typealias OptionalProperty = RealtimeProperty<URL?, URLSerializer>
@@ -110,7 +110,7 @@ public extension Date {
     typealias OptionalProperty = RealtimeProperty<Date?, DateSerializer>
 }
 
-public extension RawRepresentable where Self: Initializable {
+public extension RawRepresentable where Self: HasDefaultLiteral {
     typealias OptionalProperty = RealtimeProperty<Self?, EnumSerializer<Self>>
 }
 
@@ -173,7 +173,7 @@ public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _Realt
     }
 
     public convenience required init(dbRef: DatabaseReference) {
-        self.init(dbRef: dbRef, value: T.defValue)
+        self.init(dbRef: dbRef, value: T())
     }
 
     public convenience init(from decoder: Decoder) throws {
@@ -220,7 +220,7 @@ public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _Realt
     override public func didRemove() {
         super.didRemove()
         resetHasChanges()
-        setValue(T.defValue)
+        setValue(T())
     }
     
     // MARK: Changeable
