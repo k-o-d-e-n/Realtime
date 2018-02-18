@@ -340,13 +340,13 @@ public extension RealtimeCollection {
 
 public typealias RealtimeDictionaryKey = Hashable & RealtimeValue & Linkable
 public final class RealtimeDictionary<Key, Value>: RC
-where Value: ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
+where Value: RealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
     public let dbRef: DatabaseReference
     public var view: RealtimeCollectionView { return _view }
     public var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[PrototypeKey], PrototypeValueSerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>>
 
     public required init(dbRef: DatabaseReference, keysRef: DatabaseReference) {
         self.dbRef = dbRef
@@ -369,7 +369,6 @@ where Value: ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictio
     public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: @escaping (Error?) -> Void) { _view.prepare(forUse: completion) }
 
-
     public typealias Element = (key: Key, value: Value)
 
     public func makeIterator() -> IndexingIterator<RealtimeDictionary> { return IndexingIterator(_elements: self) }
@@ -377,9 +376,6 @@ where Value: ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictio
     public subscript(key: Key) -> Value? { return storage.object(for: key) }
 
     public func containsValue(byKey key: Key) -> Bool { _view.checkPreparation(); return _view.source.value.contains(where: { $0.dbKey == key.dbKey }) }
-
-    typealias PrototypeKey = _PrototypeValue
-    typealias PrototypeValueSerializer = _PrototypeValueSerializer
 
     public func filtered(by value: Any, for node: RealtimeNode, completion: @escaping ([Element], Error?) -> ()) {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
@@ -398,21 +394,26 @@ where Value: ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictio
     // MARK: Mutating
 
     // TODO: element.dbRef should be equal key.dbRef. Avoid this misleading predicate
+    @discardableResult
     public func set(element: Value, for key: Key, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         guard element.dbRef.isChild(for: dbRef) else { fatalError("Element has reference to location not inside that dictionary") }
         guard element.dbKey == key.dbKey else { fatalError("Element should have reference equal to key reference") }
 
         let transaction = transaction ?? RealtimeTransaction()
-        if !isPrepared {
-            transaction.addPrecondition { promise in
-                self.prepare(forUse: promise.fulfill)
+        guard isPrepared else {
+            transaction.addPrecondition { [unowned transaction] promise in
+                self.prepare(forUse: { collection, err in
+                    collection.set(element: element, for: key, in: transaction)
+                    promise.fulfill(err)
+                })
             }
+            return transaction
         }
         
         let oldElement = storage.storedValue(by: key)
         guard containsValue(byKey: key) else {
-            let link = key.generate(linkTo: _view.source.dbRef)
-            let prototypeValue = PrototypeKey(dbKey: key.dbKey, linkId: link.link.id, index: count)
+            let link = key.generate(linkTo: [_view.source.dbRef.child(key.dbKey), dbRef.child(key.dbKey)])
+            let prototypeValue = _PrototypeValue(dbKey: key.dbKey, linkId: link.link.id, index: count)
             let oldValue = _view.source.value
             _view.source.value.append(prototypeValue)
             storage.store(value: element, by: key)
@@ -426,8 +427,14 @@ where Value: ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictio
             }
             if shouldLinking {
                 transaction.addNode(item: (link.sourceRef, .value(link.link.dbValue)))
+                let valueLink = element.generate(linkTo: [_view.source.dbRef.child(key.dbKey), link.sourceRef])
+                transaction.addNode(ref: valueLink.sourceRef, value: valueLink.link.dbValue)
             }
-            transaction.set(element)
+            if let e = element as? RealtimeObject {
+                transaction.update(e)
+            } else {
+                transaction.set(element)
+            }
             transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
             transaction.addCompletion { [weak self] result in
                 if result {
@@ -447,7 +454,7 @@ where Value: ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictio
             }
         }
 
-        transaction.set(element)
+        transaction.set(element) // TODO: should update
         transaction.addCompletion { [weak self] result in
             if result {
                 self?.didSave()
@@ -456,24 +463,40 @@ where Value: ChangeableRealtimeValue & RealtimeValueActions, Key: RealtimeDictio
         return transaction
     }
 
+    @discardableResult
     public func remove(for key: Key, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
+        guard isPrepared else {
+            let transaction = transaction ?? RealtimeTransaction()
+            transaction.addPrecondition { [unowned transaction] promise in
+                self.prepare(forUse: { collection, err in
+                    collection.remove(for: key, in: transaction)
+                    promise.fulfill(err)
+                })
+            }
+            return transaction
+        }
+
         guard let index = _view.source.value.index(where: { $0.dbKey == key.dbKey }) else { return transaction }
 
         let transaction = transaction ?? RealtimeTransaction()
-        if !isPrepared {
-            transaction.addPrecondition { promise in
-                self.prepare(forUse: promise.fulfill)
+
+        let element = self[key]!
+        transaction.addPrecondition { [unowned transaction] (promise) in
+            element.willRemove { err, refs in
+                refs?.forEach { transaction.addNode(ref: $0, value: nil) }
+                transaction.addNode(ref: element.linksNode.reference(), value: nil)
+                promise.fulfill(err)
             }
         }
 
         let oldValue = _view.source.value
-        let p_value: PrototypeKey = _view.source.value.remove(at: index)
+        let p_value = _view.source.value.remove(at: index)
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
         transaction.addNode(item: (storage.valueRefBy(key: key.dbKey), .value(nil)))
-        transaction.addNode(item: (key.dbRef.child(Nodes.links.subpath(with: p_value.linkId)), .value(nil)))
+        transaction.addNode(item: (Nodes.links.rawValue.appending(key.dbRef.pathFromRoot.subpath(with: p_value.linkId)).reference(), .value(nil)))
         transaction.addCompletion { [weak self] result in
             if result {
                 key.remove(linkBy: p_value.linkId)
@@ -553,7 +576,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[PrototypeKey], KeySerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>>
 
     public required init(dbRef: DatabaseReference) {
         self.dbRef = dbRef
@@ -576,9 +599,6 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     public func stopObserving() { _view.source.stopObserving() }
     public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: @escaping (Error?) -> Void) { _view.prepare(forUse: completion) }
-
-    typealias PrototypeKey = _PrototypeValue
-    typealias KeySerializer = _PrototypeValueSerializer
     
     // TODO: Create Realtime wrapper for DatabaseQuery
     // TODO: Check filter with difficult values aka dictionary
@@ -602,21 +622,24 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     public func insert(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
 //        _view.checkPreparation()
         guard element.dbRef.isChild(for: dbRef) else { fatalError("Element has reference to location not inside that dictionary") }
+        guard isPrepared else {
+            let transaction = transaction ?? RealtimeTransaction()
+            transaction.addPrecondition { [unowned transaction] promise in
+                self.prepare(forUse: { collection, err in
+                    try! collection.insert(element: element, at: index, in: transaction)
+                    promise.fulfill(err)
+                })
+            }
+            return transaction
+        }
         guard !contains(element) else { throw RealtimeArrayError(type: .alreadyInserted) }
 
         let transaction = transaction ?? RealtimeTransaction()
-        if !isPrepared {
-            transaction.addPrecondition { promise in
-                self.prepare(forUse: promise.fulfill)
-            }
-        }
-
-        let link = element.generate(linkTo: _view.source.dbRef)
-        let key = PrototypeKey(dbKey: element.dbKey, linkId: link.link.id, index: index ?? count)
+        let link = element.generate(linkTo: _view.source.dbRef.child(element.dbKey))
+        let key = _PrototypeValue(dbKey: element.dbKey, linkId: link.link.id, index: index ?? count)
 
         let oldValue = _view.source.value
         _view.source.value.insert(key, at: key.index)
-        element.add(link: link.link)
         storage.store(value: element, by: key)
         transaction.addReversion { [weak self] in
             self?._view.source.value = oldValue
@@ -625,8 +648,10 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
         if let elem = element as? RealtimeObject { // TODO: Fix it
+            transaction.addNode(ref: link.sourceRef, value: link.link.dbValue)
             transaction.update(elem)
         } else {
+            element.add(link: link.link)
             transaction.set(element)
         }
         transaction.addCompletion { [weak self] (result) in
@@ -638,7 +663,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     }
 
     @discardableResult
-    func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
+    public func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
         if let index = _view.source.value.index(where: { $0.dbKey == element.dbKey }) {
             return remove(at: index, in: transaction)
         }
@@ -648,16 +673,28 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     @discardableResult
     public func remove(at index: Int, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
 //        _view.checkPreparation()
-
         let transaction = transaction ?? RealtimeTransaction()
-        if !isPrepared {
-            transaction.addPrecondition { promise in
-                self.prepare(forUse: promise.fulfill)
+        guard isPrepared else {
+            transaction.addPrecondition { [unowned transaction] promise in
+                self.prepare(forUse: { collection, err in
+                    collection.remove(at: index, in: transaction)
+                    promise.fulfill(err)
+                })
+            }
+            return transaction
+        }
+
+        let element = self[index]
+        transaction.addPrecondition { [unowned transaction] (promise) in
+            element.willRemove { err, refs in
+                refs?.forEach { transaction.addNode(ref: $0, value: nil) }
+                transaction.addNode(ref: element.linksRef, value: nil)
+                promise.fulfill(err)
             }
         }
 
         let oldValue = _view.source.value
-        let key: PrototypeKey = _view.source.value.remove(at: index)
+        let key = _view.source.value.remove(at: index)
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
@@ -730,7 +767,7 @@ public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue
     public var localValue: Any? { return _view.source.localValue }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[Key], KeySerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>>
 
     public required init(dbRef: DatabaseReference, elementsRef: DatabaseReference) {
         self.dbRef = dbRef
@@ -768,9 +805,6 @@ public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue
     public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: @escaping (Error?) -> Void) { _view.prepare(forUse: completion) }
 
-    typealias Key = _PrototypeValue
-    typealias KeySerializer = _PrototypeValueSerializer
-
     public func apply(snapshot: DataSnapshot, strongly: Bool) {
         _view.source.apply(snapshot: snapshot, strongly: strongly)
         _view.isPrepared = true
@@ -791,17 +825,21 @@ public extension LinkedRealtimeArray {
     @discardableResult
     func insert(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
 //        _view.checkPreparation()
+        guard isPrepared else {
+            let transaction = transaction ?? RealtimeTransaction()
+            transaction.addPrecondition { [unowned transaction] promise in
+                self.prepare(forUse: { collection, err in
+                    try! collection.insert(element: element, at: index, in: transaction)
+                    promise.fulfill(err)
+                })
+            }
+            return transaction
+        }
         guard !contains(element) else { throw RealtimeArrayError(type: .alreadyInserted) }
 
         let transaction = transaction ?? RealtimeTransaction()
-        if !isPrepared {
-            transaction.addPrecondition { promise in
-                self.prepare(forUse: promise.fulfill)
-            }
-        }
-
-        let link = element.generate(linkTo: self._view.source.dbRef)
-        let key = Key(dbKey: element.dbKey, linkId: link.link.id, index: index ?? self.count)
+        let link = element.generate(linkTo: _view.source.dbRef)
+        let key = _PrototypeValue(dbKey: element.dbKey, linkId: link.link.id, index: index ?? self.count)
 
         let oldValue = _view.source.value
         _view.source.value.insert(key, at: key.index)
@@ -830,21 +868,25 @@ public extension LinkedRealtimeArray {
     @discardableResult
     func remove(at index: Int, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
 //        _view.checkPreparation()
-
         let transaction = transaction ?? RealtimeTransaction()
-        if !isPrepared {
-            transaction.addPrecondition { promise in
-                self.prepare(forUse: promise.fulfill)
+        guard isPrepared else {
+            transaction.addPrecondition { [unowned transaction] promise in
+                self.prepare(forUse: { collection, err in
+                    collection.remove(at: index, in: transaction)
+                    promise.fulfill(err)
+                })
             }
+            return transaction
         }
-        
+
         let oldValue = _view.source.value
-        let key: Key = _view.source.value.remove(at: index)
+        let key = _view.source.value.remove(at: index)
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
-        transaction.addNode(item: (storage.valueRefBy(key: key.dbKey).child(Nodes.links.subpath(with: key.linkId)), .value(nil)))
+        let linksRef = Nodes.links.rawValue.appending(storage.valueRefBy(key: key.dbKey.subpath(with: key.linkId)).pathFromRoot).reference()
+        transaction.addNode(item: (linksRef, .value(nil)))
         transaction.addCompletion { [weak self] (result) in
             if result {
                 self?.storage.elements.removeValue(forKey: key)?.remove(linkBy: key.linkId)
@@ -862,8 +904,12 @@ extension DatabaseReference {
 }
 extension RealtimeValue {
     func generate(linkTo targetRef: DatabaseReference) -> (sourceRef: DatabaseReference, link: RealtimeLink) {
-        let linkRef = Nodes.links.reference(from: dbRef).childByAutoId()
+        let linkRef = linksNode.reference().childByAutoId()
         return (linkRef, RealtimeLink(id: linkRef.key, path: targetRef.pathFromRoot))
+    }
+    func generate(linkTo targetRefs: [DatabaseReference]) -> (sourceRef: DatabaseReference, link: RealtimeLink) {
+        let linkRef = linksNode.reference().childByAutoId()
+        return (linkRef, RealtimeLink(id: linkRef.key, paths: targetRefs.map { $0.pathFromRoot }))
     }
 }
 
@@ -964,20 +1010,20 @@ where C.Index == Int {
 
 public extension RealtimeArray {
     func keyed<Keyed: RealtimeValue, Node: RTNode>(by node: Node, elementBuilder: @escaping (DatabaseReference) -> Keyed = { .init(dbRef: $0) })
-        -> KeyedRealtimeArray<Keyed, Element> where Node.RawValue == String {
-        return KeyedRealtimeArray(base: self, key: node, elementBuilder: elementBuilder)
+        -> KeyedRealtimeCollection<Keyed, Element> where Node.RawValue == String {
+        return KeyedRealtimeCollection(base: self, key: node, elementBuilder: elementBuilder)
     }
 }
 public extension LinkedRealtimeArray {
     func keyed<Keyed: RealtimeValue, Node: RTNode>(by node: Node, elementBuilder: @escaping (DatabaseReference) -> Keyed = { .init(dbRef: $0) })
-        -> KeyedRealtimeArray<Keyed, Element> where Node.RawValue == String {
-            return KeyedRealtimeArray(base: self, key: node, elementBuilder: elementBuilder)
+        -> KeyedRealtimeCollection<Keyed, Element> where Node.RawValue == String {
+            return KeyedRealtimeCollection(base: self, key: node, elementBuilder: elementBuilder)
     }
 }
 public extension RealtimeDictionary {
     func keyed<Keyed: RealtimeValue, Node: RTNode>(by node: Node, elementBuilder: @escaping (DatabaseReference) -> Keyed = { .init(dbRef: $0) })
-        -> KeyedRealtimeArray<Keyed, Element> where Node.RawValue == String {
-            return KeyedRealtimeArray(base: self, key: node, elementBuilder: elementBuilder)
+        -> KeyedRealtimeCollection<Keyed, Element> where Node.RawValue == String {
+            return KeyedRealtimeCollection(base: self, key: node, elementBuilder: elementBuilder)
     }
 }
 
@@ -1003,7 +1049,7 @@ struct AnySharedCollection<Element>: Collection {
 }
 
 // TODO: Need update keyed storage when to parent view changed to operate actual data
-public final class KeyedRealtimeArray<Element, BaseElement>: RealtimeCollection
+public final class KeyedRealtimeCollection<Element, BaseElement>: RealtimeCollection
 where Element: RealtimeValue {
     public typealias Index = Int
     private let base: _AnyRealtimeCollectionBase<BaseElement>

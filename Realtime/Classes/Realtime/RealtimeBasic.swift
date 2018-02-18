@@ -65,6 +65,9 @@ public protocol RealtimeValueEvents: class {
     func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void)
     func didRemove()
 }
+extension RealtimeValue {
+    var linksNode: String { return Nodes.links.subpath(with: dbRef.pathFromRoot) }
+}
 
 // MARK: Extended Realtime Value
 

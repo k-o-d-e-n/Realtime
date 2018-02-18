@@ -13,6 +13,9 @@ public extension RTNode where Self.RawValue == String {
     func property<Type: RealtimeValue>(from parent: DatabaseReference) -> Type {
         return Type(dbRef: reference(from: parent))
     }
+    func property<Type: RealtimeValue>() -> Type {
+        return Type(dbRef: reference())
+    }
 }
 
 extension RealtimeProperty: FilteringEntity {}

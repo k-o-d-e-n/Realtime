@@ -30,7 +30,7 @@ public extension RTNode where Self.RawValue == String {
     }
 
     func map<Returned>(from parent: DataSnapshot) -> Returned? {
-        return parent.map(child: rawValue) { $0.value as! Returned }
+        return parent.map(child: rawValue) { $0.value as? Returned }
     }
 
     func take(from parent: DataSnapshot, exactly: Bool, map: (DataSnapshot) -> Void) {
@@ -46,6 +46,10 @@ public extension RTNode where Self.RawValue == String {
     }
     func subpath(with path: String) -> String {
         return rawValue + "/" + path
+    }
+
+    func reference() -> DatabaseReference {
+        return .fromRoot(rawValue)
     }
 
     func reference(from ref: DatabaseReference) -> DatabaseReference {
@@ -140,19 +144,31 @@ public struct RealtimeLink: DataSnapshotRepresented {
     }
 
     let id: String
-    let path: String
+    let paths: [String]
 
-    var dbValue: [String: Any] { return [Nodes.path.rawValue: path] }
+    var dbValue: [String: Any] { return [Nodes.path.rawValue: paths] }
 
+    init(id: String, paths: [String]) {
+        precondition(paths.count > 0, "RealtimeLink path must be not empty")
+        self.id = id
+        self.paths = paths
+    }
     init(id: String, path: String) {
         precondition(path.count > 0, "RealtimeLink path must be not empty")
         self.id = id
-        self.path = path
+        self.paths = [path]
     }
 
     public init?(snapshot: DataSnapshot) {
-        guard let pth: String = Nodes.path.map(from: snapshot) else { return nil }
-        self.init(id: snapshot.key, path: pth)
+        if let pths: [String] = Nodes.path.map(from: snapshot) {
+            self.init(id: snapshot.key, paths: pths)
+        } else {
+            if let pth: String = Nodes.path.map(from: snapshot) {
+                self.init(id: snapshot.key, path: pth)
+            } else {
+                return nil
+            }
+        }
     }
     
     public func apply(snapshot: DataSnapshot, strongly: Bool) {
@@ -161,9 +177,9 @@ public struct RealtimeLink: DataSnapshotRepresented {
 }
 
 extension RealtimeLink {
-    var dbRef: DatabaseReference { return .fromRoot(path) }
+    var dbRefs: [DatabaseReference] { return paths.map { .fromRoot($0) } }
 
-    func entity<Entity: RealtimeValue>(_: Entity.Type) -> Entity { return Entity(dbRef: dbRef) }
+    func entity<Entity: RealtimeValue>(_: Entity.Type) -> Entity { return Entity(dbRef: dbRefs.first!) }
 }
 
 extension RealtimeLink: Equatable {
@@ -194,6 +210,7 @@ public class RealtimeTransaction {
     fileprivate var preconditions: [(ResultPromise<Error?>) -> Void] = []
     fileprivate var completions: [(Bool) -> Void] = []
     fileprivate var cancelations: [() -> Void] = []
+    fileprivate var scheduledMerges: [RealtimeTransaction]?
     fileprivate var state: State = .waiting
     
     public var isCompleted: Bool { return state == .completed }
@@ -224,18 +241,18 @@ public class RealtimeTransaction {
             lock.unlock()
         }
 
-        preconditions.forEach { precondition in
-            let failPromise = ResultPromise<Error?> { err in
-                if let e = err {
-                    addError(e)
-                }
-                group.leave()
+        let failPromise = ResultPromise<Error?> { err in
+            if let e = err {
+                addError(e)
             }
+            group.leave()
+        }
+        while let precondition = preconditions.popLast() {
             precondition(failPromise)
         }
 
         group.notify(queue: .main) {
-            completion(errors)
+            self.runPreconditions(completion)
         }
     }
 
@@ -260,7 +277,6 @@ public class RealtimeTransaction {
 extension RealtimeTransaction {
     // TODO: Add configuration commit as single value or update value
     public func commit(revertOnError: Bool = true, with completion: (([Error]?) -> Void)? = nil) {
-        state = .performing
         runPreconditions { (errors) in
             guard errors.isEmpty else {
                 if revertOnError {
@@ -271,6 +287,8 @@ extension RealtimeTransaction {
                 completion?(errors);
                 return
             }
+            self.scheduledMerges?.forEach(self.merge)
+            self.state = .performing
 
             self.update.commit({ (err, _) in
                 let result = err == nil
@@ -296,7 +314,12 @@ extension RealtimeTransaction {
     public func addNode(item updateItem: (ref: DatabaseReference, value: Node.Value)) {
         guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
-        guard update != nil else { update = Node(ref: updateItem.ref.parent!, value: .nodes([Node(updateItem)])); return }
+        guard update != nil else {
+            update = updateItem.ref.parent.map {
+                Node(ref: $0, value: .nodes([Node(updateItem)]))
+            } ?? Node(ref: updateItem.ref, value: updateItem.value)
+            return
+        }
 
         if update.ref.isEqual(for: updateItem.ref) {
             update.merge(updateItem.value)
@@ -425,8 +448,15 @@ public extension RealtimeTransaction {
     /// method to merge actions of other transaction
     func merge(_ other: RealtimeTransaction) {
         guard other !== self else { debugFatalError("Attemption merge the same transaction"); return }
-
-        addNode(item: (other.update.ref, other.update.value!))
+        guard other.preconditions.isEmpty else {
+            other.preconditions.forEach(addPrecondition)
+            other.preconditions.removeAll()
+            scheduledMerges = scheduledMerges.map { $0 + [other] } ?? [other]
+            return
+        }
+        if let value = other.update?.value {
+            addNode(item: (other.update.ref, value))
+        }
         other.completions.forEach(addCompletion)
         addReversion(other.currentReversion())
         other.state = .merged
@@ -462,7 +492,7 @@ extension RealtimeTransaction {
             }
         }
 
-        var updateValue: [String: Any] {
+        var updateValue: [String: Any?] {
             guard value != nil else { fatalError("Value is not defined") }
 
             var allValues: [Node] = []

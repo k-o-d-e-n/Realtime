@@ -50,7 +50,7 @@ public extension Database {
 }
 
 public extension DataSnapshot {
-    func map<Mapped>(child: String, map: (DataSnapshot) -> Mapped) -> Mapped? {
+    func map<Mapped>(child: String, map: (DataSnapshot) -> Mapped?) -> Mapped? {
         guard hasChild(child) else { return nil }
         return map(childSnapshot(forPath: child))
     }

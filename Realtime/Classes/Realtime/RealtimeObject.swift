@@ -12,7 +12,7 @@ import FirebaseDatabase
 // TODO: Add caching mechanism, for reuse entities
 
 /// Base class for any database value
-open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, RealtimeValue {
+open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, RealtimeValue, Hashable {
     public let dbRef: DatabaseReference
     private var observingToken: UInt?
     public var localValue: Any? { return nil }
@@ -182,7 +182,7 @@ open class RealtimeObject: _RealtimeEntity {
 
     private lazy var __mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.dbRef)
     public typealias Links = RealtimeProperty<[RealtimeLink], RealtimeLinkArraySerializer>
-    public lazy var __links: Links = Nodes.links.property(from: self.dbRef)
+    public lazy var __links: Links = self.linksNode.property()
 
 //    lazy var parent: RealtimeObject? = self.dbRef.parent.map(RealtimeObject.init) // should be typed
 
@@ -194,7 +194,7 @@ open class RealtimeObject: _RealtimeEntity {
     }
     
     override public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) {
-        __links.load(completion: { err, _ in completion(err, err.map { _ in self.__links.value.map { $0.dbRef } }) })
+        __links.load(completion: { err, _ in completion(err, self.__links.value.flatMap { $0.dbRefs }) })
     }
     
     override public func didRemove() {
@@ -353,9 +353,11 @@ extension RealtimeObject {
     /// writes empty value by RealtimeObject reference in transaction 
     public func delete(in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
-        transaction.addPrecondition { promise in
-            self.willRemove { [unowned transaction] err, refs in
+        let links = linksRef
+        transaction.addPrecondition { [unowned transaction] promise in
+            self.willRemove { err, refs in
                 refs?.forEach { transaction.addNode(ref: $0, value: nil) }
+                transaction.addNode(ref: links, value: nil)
                 promise.fulfill(err)
             }
         }
