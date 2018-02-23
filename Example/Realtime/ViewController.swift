@@ -51,19 +51,20 @@ class ViewController: UIViewController {
 
         /// for testing implement your auth function in Auth.swift
         auth {
-            let users: RealtimeArray<Object> = "users".array(from: .root())
-            let usersController = TableViewController(list: users) { (adapter) in
-                adapter.register(UITableViewCell.self) { (proto, entity) -> [ListeningItem] in
-                    entity.name.runObserving()
-                    let assign: (String?) -> Void = proto.assign { cell, data in
-                        cell.textLabel?.text = data ?? "No name"
-                    }
-                    
-                    return [entity.name.listeningItem(.just(assign))]
-                }
-                adapter.cellForIndexPath = { _ in UITableViewCell.self }
-            }
-            self.navigationController?.pushViewController(usersController, animated: true)
+//            let users: RealtimeArray<Object> = "users".array(from: .root())
+//            let usersController = TableViewController(list: users) { (adapter) in
+//                adapter.register(UITableViewCell.self) { (proto, entity) -> [ListeningItem] in
+//                    entity.name.runObserving()
+//                    let assign: (String?) -> Void = proto.assign { cell, data in
+//                        cell.textLabel?.text = data ?? "No name"
+//                    }
+//
+//                    return [entity.name.listeningItem(.just(assign))]
+//                }
+//                adapter.cellForIndexPath = { _ in UITableViewCell.self }
+//            }
+            let realtimeViewController = RealtimeViewController()
+            self.navigationController?.pushViewController(realtimeViewController, animated: true)
         }
     }
 }

@@ -14,8 +14,8 @@ public protocol DataSnapshotRepresented {
     ///
     /// - Parameters:
     ///   - snapshot: Snapshot value
-    ///   - strongly: Indicates that snapshot should be applied as is
-    func apply(snapshot: DataSnapshot, strongly: Bool) // TODO: `strongly` has undefined target
+    ///   - strongly: Indicates that snapshot should be applied as is. Pass `false` if snapshot represents part of data (for example filtered list).
+    func apply(snapshot: DataSnapshot, strongly: Bool)
 }
 public extension DataSnapshotRepresented {
     func apply(snapshot: DataSnapshot) {

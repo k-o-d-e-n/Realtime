@@ -8,12 +8,76 @@
 
 import UIKit
 import Firebase
+import Realtime
+
+enum Global {
+    static let rtUsers: RealtimeArray<RealtimeUser> = "_users".array(from: .root())
+    static let rtGroups: RealtimeArray<RealtimeGroup> = "_groups".array(from: .root())
+}
+
+class RealtimeGroup: RealtimeObject {
+    lazy var name: StandartProperty<String?> = "name".property(from: self.dbRef)
+    //    @objc dynamic var cover: File?
+    lazy var users: LinkedRealtimeArray<RealtimeUser> = "users".linkedArray(from: self.dbRef, elements: "_users".reference(from: .root()))
+    lazy var conversations: RealtimeDictionary<RealtimeUser, RealtimeUser> = "conversations".dictionary(from: self.dbRef, keys: Global.rtUsers.dbRef)
+
+    override open class func keyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "name": return \RealtimeGroup.name
+        case "users": return \RealtimeGroup.users
+        case "conversations": return \RealtimeGroup.conversations
+        default: return nil
+        }
+    }
+}
+
+class RealtimeUser: RealtimeObject {
+    lazy var name: StandartProperty<String?> = "name".property(from: self.dbRef)
+    lazy var age: StandartProperty<Int> = "age".property(from: self.dbRef)
+    //    lazy var gender: String?
+    lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.dbRef, elements: "_groups".reference(from: .root()))
+    //    @objc dynamic var items: [String] = []
+    //    @objc dynamic var location: CLLocation?
+    //    @objc dynamic var url: URL?
+    //    @objc dynamic var birth: Date?
+    //    @objc dynamic var thumbnail: File?
+    //    @objc dynamic var cover: File?
+    //    @objc dynamic var type: UserType = .first
+    //    @objc dynamic var testItems: Set<String> = []
+    lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.dbRef, elements: "_users".reference(from: .root()))
+
+
+    //    override class var keyPaths: [String: AnyKeyPath] {
+    //        return super.keyPaths.merging(["name": \RealtimeUser.name, "age": \RealtimeUser.age], uniquingKeysWith: { (_, new) -> AnyKeyPath in
+    //            return new
+    //        })
+    //    }
+
+    override class func keyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "name": return \RealtimeUser.name
+        case "age": return \RealtimeUser.age
+        case "groups": return \RealtimeUser.groups
+        case "followers": return \RealtimeUser.followers
+        default: return nil
+        }
+    }
+}
+
+class RealtimeUser2: RealtimeUser {
+    lazy var human: StandartProperty<[String: Any?]?> = "human".property(from: self.dbRef)
+
+    override class func keyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "human": return \RealtimeUser2.human
+        default: return nil
+        }
+    }
+}
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
-
     var window: UIWindow?
-
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
@@ -42,7 +106,5 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func applicationWillTerminate(_ application: UIApplication) {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
-
-
 }
 

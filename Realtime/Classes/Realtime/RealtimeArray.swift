@@ -382,10 +382,12 @@ where Value: RealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
     }
     
     public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+        checkPreparation()
+
         query(dbRef).observeSingleEvent(of: .value, with: { (snapshot) in
             self.apply(snapshot: snapshot, strongly: false)
             
-            completion(self.storage.elements.filter { snapshot.hasChild($0.key.dbKey) }, nil) // TODO: why such filter? to see snapshot result
+            completion(self.filter { snapshot.hasChild($0.key.dbKey) }, nil)
         }) { (error) in
             completion([], error)
         }
@@ -607,10 +609,12 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     }
     
     public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+        checkPreparation()
+
         query(dbRef).observeSingleEvent(of: .value, with: { (snapshot) in
             self.apply(snapshot: snapshot, strongly: false)
             
-            completion(self.storage.elements.filter { snapshot.hasChild($0.value.dbKey) }.map { $0.value }, nil)
+            completion(self.filter { snapshot.hasChild($0.dbKey) }, nil)
         }) { (error) in
             completion([], error)
         }
