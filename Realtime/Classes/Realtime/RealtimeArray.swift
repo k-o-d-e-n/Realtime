@@ -414,6 +414,7 @@ where Value: RealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
         
         let oldElement = storage.storedValue(by: key)
         guard containsValue(byKey: key) else {
+            let needLink = shouldLinking
             let link = key.generate(linkTo: [_view.source.dbRef.child(key.dbKey), dbRef.child(key.dbKey)])
             let prototypeValue = _PrototypeValue(dbKey: key.dbKey, linkId: link.link.id, index: count)
             let oldValue = _view.source.value
@@ -427,7 +428,7 @@ where Value: RealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
                     self?.storage.elements.removeValue(forKey: key)
                 }
             }
-            if shouldLinking {
+            if needLink {
                 transaction.addNode(item: (link.sourceRef, .value(link.link.dbValue)))
                 let valueLink = element.generate(linkTo: [_view.source.dbRef.child(key.dbKey), link.sourceRef])
                 transaction.addNode(ref: valueLink.sourceRef, value: valueLink.link.dbValue)
@@ -440,7 +441,9 @@ where Value: RealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
             transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
             transaction.addCompletion { [weak self] result in
                 if result {
-                    key.add(link: link.link)
+                    if needLink {
+                        key.add(link: link.link)
+                    }
                     self?.didSave()
                 }
             }
@@ -498,7 +501,7 @@ where Value: RealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
         transaction.addNode(item: (storage.valueRefBy(key: key.dbKey), .value(nil)))
-        transaction.addNode(item: (Nodes.links.rawValue.appending(key.dbRef.pathFromRoot.subpath(with: p_value.linkId)).reference(), .value(nil)))
+        transaction.addNode(item: (Nodes.links.rawValue.appending(key.dbRef.rootPath.subpath(with: p_value.linkId)).reference(), .value(nil)))
         transaction.addCompletion { [weak self] result in
             if result {
                 key.remove(linkBy: p_value.linkId)
@@ -889,7 +892,7 @@ public extension LinkedRealtimeArray {
             _view?.source.value = oldValue
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
-        let linksRef = Nodes.links.rawValue.appending(storage.valueRefBy(key: key.dbKey.subpath(with: key.linkId)).pathFromRoot).reference()
+        let linksRef = Nodes.links.rawValue.appending(storage.valueRefBy(key: key.dbKey.subpath(with: key.linkId)).rootPath).reference()
         transaction.addNode(item: (linksRef, .value(nil)))
         transaction.addCompletion { [weak self] (result) in
             if result {
@@ -903,17 +906,17 @@ public extension LinkedRealtimeArray {
 
 extension DatabaseReference {
     func link(to targetRef: DatabaseReference) -> RealtimeLink {
-        return RealtimeLink(id: key, path: targetRef.pathFromRoot)
+        return RealtimeLink(id: key, path: targetRef.rootPath)
     }
 }
 extension RealtimeValue {
     func generate(linkTo targetRef: DatabaseReference) -> (sourceRef: DatabaseReference, link: RealtimeLink) {
         let linkRef = linksNode.reference().childByAutoId()
-        return (linkRef, RealtimeLink(id: linkRef.key, path: targetRef.pathFromRoot))
+        return (linkRef, RealtimeLink(id: linkRef.key, path: targetRef.rootPath))
     }
     func generate(linkTo targetRefs: [DatabaseReference]) -> (sourceRef: DatabaseReference, link: RealtimeLink) {
         let linkRef = linksNode.reference().childByAutoId()
-        return (linkRef, RealtimeLink(id: linkRef.key, paths: targetRefs.map { $0.pathFromRoot }))
+        return (linkRef, RealtimeLink(id: linkRef.key, paths: targetRefs.map { $0.rootPath }))
     }
 }
 

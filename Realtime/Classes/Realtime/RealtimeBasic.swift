@@ -66,7 +66,7 @@ public protocol RealtimeValueEvents: class {
     func didRemove()
 }
 extension RealtimeValue {
-    var linksNode: String { return Nodes.links.subpath(with: dbRef.pathFromRoot) }
+    var linksNode: String { return Nodes.links.subpath(with: dbRef.rootPath) }
 }
 
 // MARK: Extended Realtime Value

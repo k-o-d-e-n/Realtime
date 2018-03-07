@@ -41,6 +41,11 @@ public extension AnyListening {
     func livetime(_ byItem: AnyObject) -> AnyListening {
         return LivetimeListening(base: self, living: byItem)
     }
+
+    /// TODO:
+    func debounce(_ time: DispatchTimeInterval) -> AnyListening {
+        return DebounceListening(base: self, time: time)
+    }
 }
 
 // TODO: Add possible to make depended listenings
@@ -157,6 +162,38 @@ struct LivetimeListening: AnyListening {
     }
 }
 
+class DebounceListening: AnyListening {
+    private let listening: AnyListening
+    private let repeatTime: DispatchTimeInterval
+    private var isNeedSend: Bool = true
+    private var fireDate: DispatchTime
+    var isInvalidated: Bool { return listening.isInvalidated }
+
+    init(base: AnyListening, time: DispatchTimeInterval) { // TODO: runLoop: RunLoop
+        self.listening = base
+        self.repeatTime = time
+        self.fireDate = .now()
+    }
+
+    func sendData() {
+        guard !isInvalidated else { return }
+
+        guard fireDate <= .now() else { isNeedSend = true; return }
+
+        isNeedSend = false
+        listening.sendData()
+        fireDate = .now() + repeatTime
+        DispatchQueue.main.asyncAfter(deadline: fireDate, execute: {
+            if self.isNeedSend {
+                self.sendData()
+            }
+        })
+    }
+
+    func onStop() {
+        listening.onStop()
+    }
+}
 // MARK: Cancellable listenings
 
 // TODO: Disposable and ListeningItem does not have information about real active state listening (lifetime, delay listenings with autostop)

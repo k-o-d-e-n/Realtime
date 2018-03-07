@@ -118,7 +118,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
         }
     }
     
-    public var debugDescription: String { return "\n{\n\tref: \(dbRef.pathFromRoot);\n\tvalue: \(String(describing: localValue));\n}" }
+    public var debugDescription: String { return "\n{\n\tref: \(dbRef.rootPath);\n\tvalue: \(String(describing: localValue));\n}" }
 }
 
 /// Base class for any database values that has child values
@@ -152,7 +152,7 @@ open class _RealtimeEntity: _RealtimeValue, RealtimeEntityActions {
 
         return self
     }
-    override public var debugDescription: String { return "\n{\n\tref: \(dbRef.pathFromRoot);\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: localChanges));\n}" }
+    override public var debugDescription: String { return "\n{\n\tref: \(dbRef.rootPath);\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: localChanges));\n}" }
 }
 
 // TODO: Try to create `parent` typed property.

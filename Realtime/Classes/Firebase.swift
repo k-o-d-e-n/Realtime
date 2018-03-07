@@ -15,7 +15,7 @@ public extension DatabaseReference {
     static func root() -> DatabaseReference { return Database.database().reference() }
     static func fromRoot(_ path: String) -> DatabaseReference { return Database.database().reference(withPath: path) }
 
-    var pathFromRoot: String { return path(from: root) }
+    var rootPath: String { return path(from: root) }
     
     func path(from ref: DatabaseReference) -> String {
         return String(url[ref.url.endIndex...])

@@ -208,7 +208,7 @@ public struct Insider<D> {
         dataSource = source
     }
 
-    mutating func dataDidChange() {
+    public mutating func dataDidChange() {
         let lstnrs = listeners
         lstnrs.forEach { (key: Token, value: AnyListening) in
             value.sendData()
