@@ -41,6 +41,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
         return self
     }
 
+    @discardableResult
     public func remove(completion: ((Error?, DatabaseReference) -> ())?) -> Self {
         return remove(with: [], completion: completion)
     }
@@ -181,8 +182,8 @@ open class RealtimeObject: _RealtimeEntity {
     override public var localValue: Any? { return keyedValues { return $0.localValue } }
 
     private lazy var __mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.dbRef)
-    public typealias Links = RealtimeProperty<[RealtimeLink], RealtimeLinkArraySerializer>
-    public lazy var __links: Links = self.linksNode.property()
+    typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
+    lazy var __links: Links = self.linksNode.property()
 
 //    lazy var parent: RealtimeObject? = self.dbRef.parent.map(RealtimeObject.init) // should be typed
 
@@ -194,7 +195,7 @@ open class RealtimeObject: _RealtimeEntity {
     }
     
     override public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) {
-        __links.load(completion: { err, _ in completion(err, self.__links.value.flatMap { $0.dbRefs }) })
+        __links.load(completion: { err, _ in completion(err, self.__links.value.flatMap { $0.links.map { .fromRoot($0) } }) })
     }
     
     override public func didRemove() {
@@ -369,8 +370,8 @@ extension RealtimeObject {
 extension RealtimeObject: Linkable {
     public var linksRef: DatabaseReference { return __links.dbRef }
     @discardableResult
-    public func add(link: RealtimeLink) -> Self {
-        guard !__links.value.contains(where: { $0 == link }) else { return self }
+    public func add(link: SourceLink) -> Self {
+        guard !__links.value.contains(where: { $0.id == link.id }) else { return self }
             
         __links.value.append(link)
         return self
@@ -384,9 +385,9 @@ extension RealtimeObject: Linkable {
     }
 }
 public extension Linkable {
-    func addLink(_ link: RealtimeLink, in transaction: RealtimeTransaction) {
+    func addLink(_ link: SourceLink, in transaction: RealtimeTransaction) {
         add(link: link)
-        transaction.addNode(ref: linksRef.child(link.id), value: link.dbValue)
+        transaction.addNode(ref: linksRef.child(link.id), value: link.localValue)
     }
     func removeLink(by id: String, in transaction: RealtimeTransaction) {
         remove(linkBy: id)

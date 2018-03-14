@@ -9,25 +9,8 @@ import Foundation
 import FirebaseDatabase
 
 public protocol DataSnapshotRepresented {
+    var localValue: Any? { get }
     init?(snapshot: DataSnapshot)
-    /// Applies value of data snapshot
-    ///
-    /// - Parameters:
-    ///   - snapshot: Snapshot value
-    ///   - strongly: Indicates that snapshot should be applied as is. Pass `false` if snapshot represents part of data (for example filtered list).
-    func apply(snapshot: DataSnapshot, strongly: Bool)
-}
-public extension DataSnapshotRepresented {
-    func apply(snapshot: DataSnapshot) {
-        apply(snapshot: snapshot, strongly: true)
-    }
-}
-public extension DataSnapshotRepresented where Self: RealtimeValue {
-    func apply(parentSnapshotIfNeeded parent: DataSnapshot, strongly: Bool) {
-        guard strongly || dbKey.has(in: parent) else { return }
-
-        apply(snapshot: dbKey.snapshot(from: parent), strongly: strongly)
-    }
 }
 
 // MARK: RealtimeValue
@@ -39,9 +22,25 @@ public protocol DatabaseKeyRepresentable {
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented, CustomDebugStringConvertible {
     var dbRef: DatabaseReference { get } // TODO: Use abstract protocol which has methods for observing and reference. Need for use DatabaseQuery
-    var localValue: Any? { get }
 
     init(dbRef: DatabaseReference)
+    /// Applies value of data snapshot
+    ///
+    /// - Parameters:
+    ///   - snapshot: Snapshot value
+    ///   - strongly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
+    ///               Pass `false` if snapshot represents part of data (for example filtered list).
+    func apply(snapshot: DataSnapshot, strongly: Bool)
+}
+public extension RealtimeValue {
+    func apply(snapshot: DataSnapshot) {
+        apply(snapshot: snapshot, strongly: true)
+    }
+    func apply(parentSnapshotIfNeeded parent: DataSnapshot, strongly: Bool) {
+        guard strongly || dbKey.has(in: parent) else { return }
+
+        apply(snapshot: dbKey.snapshot(from: parent), strongly: strongly)
+    }
 }
 public extension RealtimeValue {
     var dbKey: String { return dbRef.key }
@@ -60,7 +59,7 @@ public extension Hashable where Self: RealtimeValue {
         return lhs.dbRef.url == rhs.dbRef.url
     }
 }
-public protocol RealtimeValueEvents: class {
+public protocol RealtimeValueEvents {
     func didSave()
     func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void)
     func didRemove()
@@ -110,7 +109,7 @@ public protocol RealtimeEntityActions: RealtimeValueActions {
 }
 
 public protocol Linkable {
-    @discardableResult func add(link: RealtimeLink) -> Self
+    @discardableResult func add(link: SourceLink) -> Self
     @discardableResult func remove(linkBy id: String) -> Self
     var linksRef: DatabaseReference { get }
 }

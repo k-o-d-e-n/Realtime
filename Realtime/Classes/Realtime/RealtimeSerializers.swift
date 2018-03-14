@@ -115,36 +115,45 @@ public class CodableSerializer<T: Codable & HasDefaultLiteral>: _Serializer {
 
 // MARK: Containers
 
-public class RealtimeLinkArraySerializer: _Serializer {
-    public class func deserialize(entity: DataSnapshot) -> [RealtimeLink] {
+class SourceLinkArraySerializer: _Serializer {
+    class func deserialize(entity: DataSnapshot) -> [SourceLink] {
         guard entity.exists() else { return Entity() }
         
-        return entity.children.map { RealtimeLink(snapshot: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }.flatMap { $0 }
+        return entity.children.map { SourceLink(snapshot: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }.flatMap { $0 }
     }
     
-    public class func serialize(entity: [RealtimeLink]) -> Any? {
+    class func serialize(entity: [SourceLink]) -> Any? {
         return entity.reduce([:], { (res, link) -> [String: Any] in
             var res = res
-            res[link.id] = link.dbValue
+            res[link.id] = link.localValue
             return res
         })
     }
 }
 
-class RealtimeLinkSourceSerializer: _Serializer {
-    class func deserialize(entity: DataSnapshot) -> RealtimeLink? { return RealtimeLink(snapshot: entity) }
-    class func serialize(entity: RealtimeLink?) -> Any? { return entity.map { [$0.id: $0.dbValue] } }
-}
-class RealtimeLinkSerializer: _Serializer {
-    class func deserialize(entity: DataSnapshot) -> RealtimeLink? { return RealtimeLink(snapshot: entity) }
-    class func serialize(entity: RealtimeLink?) -> Any? { return entity.map { $0.dbValue } }
+class DataSnapshotRepresentedSerializer<L: DataSnapshotRepresented>: _Serializer {
+    class func deserialize(entity: DataSnapshot) -> L? { return L(snapshot: entity) }
+    class func serialize(entity: L?) -> Any? { return entity.flatMap { $0.localValue } }
 }
 
-//class RealtimeLinkTargetSerializer: _Serializer {
-//    class func deserialize(entity: DataSnapshot) -> RealtimeLink? { return RealtimeLink(snapshot: entity) }
-//    class func serialize(entity: RealtimeLink?) -> Any? { return entity.map { [$0.id: $0.targetValue] } }
-//}
+public class LinkableValueSerializer<V: RealtimeValue>: _Serializer {
+    public static func deserialize(entity: DataSnapshot) -> V? {
+        return DataSnapshotRepresentedSerializer<Reference>.deserialize(entity: entity)?.make()
+    }
+    public static func serialize(entity: V?) -> Any? {
+        return entity?.makeReference().localValue
+    }
+}
 
+public class RelationableValueSerializer<V: RealtimeValue>: _Serializer {
+    public static func deserialize(entity: DataSnapshot) -> (String, V)? {
+        guard let relation = DataSnapshotRepresentedSerializer<Relation>.deserialize(entity: entity) else { return nil }
+        return (relation.sourceID, relation.ref.make())
+    }
+    public static func serialize(entity: (String, V)?) -> Any? {
+        return entity.flatMap { $1.makeRelation(use: $0).localValue }
+    }
+}
 
 /// ---------------------------
 

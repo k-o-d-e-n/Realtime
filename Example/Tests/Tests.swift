@@ -298,6 +298,33 @@ class Tests: XCTestCase {
         }
     }
 
+    func testDebouncePropertyListen() {
+        var counter = Property<Int>(value: 0)
+        var receivedValues: [Int] = []
+
+        _ = counter.insider.listen(as: { $0.debounce(.seconds(1)) }, .just { (value) in
+            receivedValues.append(value)
+            print(value)
+        })
+
+        let timer: Timer
+        if #available(iOS 10.0, *) {
+            timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { (_) in
+                counter.value += 1
+            }
+        } else {
+            fatalError()
+        }
+
+        performWaitExpectation("async", timeout: 10) { (exp) in
+            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
+                timer.invalidate()
+                XCTAssertTrue(receivedValues == [1, 3, 6, 8])
+                exp.fulfill()
+            }
+        }
+    }
+
     func testListeningDisposable() {
         let propertyDouble = PropertyClass<Double>(.pi)
 
@@ -688,6 +715,12 @@ class Tests: XCTestCase {
 
         XCTAssertTrue(otherBackgroundProperty.value == .white)
     }
+}
+
+// MARK: RealtimeObject
+
+extension Tests {
+    // TODO: Mapping and etc.
 }
 
 // MARK: Other

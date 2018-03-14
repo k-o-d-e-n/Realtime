@@ -42,7 +42,7 @@ public extension AnyListening {
         return LivetimeListening(base: self, living: byItem)
     }
 
-    /// TODO:
+    /// each next event are calling not earlier a specified period
     func debounce(_ time: DispatchTimeInterval) -> AnyListening {
         return DebounceListening(base: self, time: time)
     }

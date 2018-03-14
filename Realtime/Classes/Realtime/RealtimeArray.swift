@@ -340,7 +340,7 @@ public extension RealtimeCollection {
 
 public typealias RealtimeDictionaryKey = Hashable & RealtimeValue & Linkable
 public final class RealtimeDictionary<Key, Value>: RC
-where Value: RealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
+where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public let dbRef: DatabaseReference
     public var view: RealtimeCollectionView { return _view }
     public var storage: RCDictionaryStorage<Key, Value>
@@ -429,9 +429,9 @@ where Value: RealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
                 }
             }
             if needLink {
-                transaction.addNode(item: (link.sourceRef, .value(link.link.dbValue)))
+                transaction.addNode(item: (link.sourceRef, .value(link.link.localValue)))
                 let valueLink = element.generate(linkTo: [_view.source.dbRef.child(key.dbKey), link.sourceRef])
-                transaction.addNode(ref: valueLink.sourceRef, value: valueLink.link.dbValue)
+                transaction.addNode(ref: valueLink.sourceRef, value: valueLink.link.localValue)
             }
             if let e = element as? RealtimeObject {
                 transaction.update(e)
@@ -575,7 +575,7 @@ where Value: RealtimeValue & RealtimeValueActions, Key: RealtimeDictionaryKey {
 /// # Realtime Array
 /// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
 /// Comment writing guide
-public final class RealtimeArray<Element>: RC where Element: RealtimeValue & RealtimeEntityActions & Linkable {
+public final class RealtimeArray<Element>: RC where Element: RealtimeValue & RealtimeValueEvents & Linkable {
     public let dbRef: DatabaseReference
     public var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
@@ -655,7 +655,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
         if let elem = element as? RealtimeObject { // TODO: Fix it
-            transaction.addNode(ref: link.sourceRef, value: link.link.dbValue)
+            transaction.addNode(ref: link.sourceRef, value: link.link.localValue)
             transaction.update(elem)
         } else {
             element.add(link: link.link)
@@ -854,7 +854,7 @@ public extension LinkedRealtimeArray {
             _view?.source.value = oldValue
         }
         transaction.addNode(item: (_view.source.dbRef, .value(_view.source.localValue)))
-        transaction.addNode(item: (link.sourceRef, .value(link.link.dbValue)))
+        transaction.addNode(item: (link.sourceRef, .value(link.link.localValue)))
         transaction.addCompletion { [weak self] (result) in
             if result {
                 self?.storage.elements[key] = element
@@ -905,18 +905,18 @@ public extension LinkedRealtimeArray {
 }
 
 extension DatabaseReference {
-    func link(to targetRef: DatabaseReference) -> RealtimeLink {
-        return RealtimeLink(id: key, path: targetRef.rootPath)
+    func link(to targetRef: DatabaseReference) -> Reference {
+        return Reference(ref: targetRef.rootPath)
     }
 }
 extension RealtimeValue {
-    func generate(linkTo targetRef: DatabaseReference) -> (sourceRef: DatabaseReference, link: RealtimeLink) {
+    func generate(linkTo targetRef: DatabaseReference) -> (sourceRef: DatabaseReference, link: SourceLink) {
         let linkRef = linksNode.reference().childByAutoId()
-        return (linkRef, RealtimeLink(id: linkRef.key, path: targetRef.rootPath))
+        return (linkRef, SourceLink(id: linkRef.key, links: [targetRef.rootPath]))
     }
-    func generate(linkTo targetRefs: [DatabaseReference]) -> (sourceRef: DatabaseReference, link: RealtimeLink) {
+    func generate(linkTo targetRefs: [DatabaseReference]) -> (sourceRef: DatabaseReference, link: SourceLink) {
         let linkRef = linksNode.reference().childByAutoId()
-        return (linkRef, RealtimeLink(id: linkRef.key, paths: targetRefs.map { $0.rootPath }))
+        return (linkRef, SourceLink(id: linkRef.key, links: targetRefs.map { $0.rootPath }))
     }
 }
 

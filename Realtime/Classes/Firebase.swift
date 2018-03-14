@@ -50,6 +50,8 @@ public extension Database {
 }
 
 public extension DataSnapshot {
+    func map<Mapped>(_ transform: (Any) -> Mapped = { $0 as! Mapped }) -> Mapped? { return value.map(transform) }
+    func flatMap<Mapped>(_ transform: (Any) -> Mapped? = { $0 as? Mapped }) -> Mapped? { return value.flatMap(transform) }
     func map<Mapped>(child: String, map: (DataSnapshot) -> Mapped?) -> Mapped? {
         guard hasChild(child) else { return nil }
         return map(childSnapshot(forPath: child))

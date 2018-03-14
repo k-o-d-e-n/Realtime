@@ -20,84 +20,46 @@ public extension RTNode where Self.RawValue == String {
 
 extension RealtimeProperty: FilteringEntity {}
 
-// TODO: Rewrite
-public class _Linked<Linked: RealtimeValue & Linkable>: _RealtimeValue, ValueWrapper, InsiderOwner {
-    fileprivate lazy var _link: RealtimeLink.OptionalProperty = RealtimeLink.OptionalProperty(dbRef: self.dbRef)
-    //    var insider: Insider<RealtimeLink?> { set { _link.insider = newValue } get { return _link.insider } }
-    public lazy var insider: Insider<Linked?> = self._link.insider.mapped { [weak self] _ in self?.linked }
-    public override var hasChanges: Bool { return _link.hasChanges }
-    public override var localValue: Any? { return _link.localValue }
-    public var value: Linked? {
+// TODO: May be need create real relation to property in linked entity, but not simple register external link
+// TODO: Remove id from value
+public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(String, Related)?, RelationableValueSerializer<Related>> {
+    public override func revert() {
+        if let old = oldValue.flatMap({ $0 }) { old.1.add(link: old.1.generate(linkTo: dbRef).link) }
+        if let new = value { new.1.remove(linkBy: new.0) }
+        super.revert()
+    }
+    public var related: Related? {
+        get { return value?.1 }
         set {
-            let oldValue = _link.value
-            _link.value = newValue.map { dbRef.link(to: $0.dbRef) }
-            if oldValue != _link.value {
-                reloadLinked()
+            if let oldValue = value { oldValue.1.remove(linkBy: oldValue.0) }
+            value = newValue.map {
+                let link = $0.generate(linkTo: dbRef).link
+                $0.add(link: link)
+                return (link.id, $0)
             }
         }
-        get { return linked }
     }
 
-    fileprivate var linked: Linked?
-
-    public required init(dbRef: DatabaseReference) {
-        super.init(dbRef: dbRef)
-//        self.depends(on: self._link)
-        _ = self._link.distinctUntilChanged(comparer: { $0 == $1 }).listening(.guarded(self) { _, _self in
-            _self.reloadLinked()
-            _self.insider.dataDidChange()
-        })
+    public required init(dbRef: DatabaseReference, value: T) {
+        super.init(dbRef: dbRef, value: value)
     }
 
-    override public func didRemove() {
-        _link.didRemove()
-    }
-
-    override public func didSave() {
-        _link.didSave()
-    }
-
-    public convenience required init(snapshot: DataSnapshot) {
-        self.init(dbRef: snapshot.ref)
-        apply(snapshot: snapshot)
-    }
-
-    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
-        _link.apply(snapshot: snapshot, strongly: strongly)
-        reloadLinked()
-    }
-
-    fileprivate func reloadLinked() { linked = self._link.value?.entity(Linked.self) }
-}
-
-// TODO: Use simple RealtimeProperty with value typed by Reference (like as DocumentReference in Firestore)
-public final class LinkedRealtimeProperty<Linked: RealtimeValue & Linkable>: _Linked<Linked> {
-//    var link: RealtimeLink.OptionalProperty { return _link }
-    public func link(withoutUpdate value: Linked) {
-        self._link.value = dbRef.link(to: value.dbRef)
-    }
-    public func link(_ entity: Linked, to transaction: RealtimeTransaction) {
-        link(withoutUpdate: entity)
-        transaction.set(self)
-    }
-}
-
-// TODO: May be need create real relation to property in linked entity, but not simple register external link
-public final class RealtimeRelation<Linked: RealtimeValue & Linkable & ChangeableRealtimeValue>: _Linked<Linked> {
-    public func link(withoutUpdate value: Linked) {
-        if let oldLink = self._link.value { linked?.remove(linkBy: oldLink.id) }
-        self._link.value = dbRef.link(to: value.dbRef)
-        value.add(link: value.generate(linkTo: dbRef).link)
-    }
-    public func link(_ entity: Linked, to transaction: RealtimeTransaction) {
-        if let oldLink = self._link.value, let linked = self.linked {
-            linked.removeLink(by: oldLink.id, in: transaction)
-            _link.value = nil
+    @discardableResult
+    public override func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        let transaction = transaction ?? RealtimeTransaction()
+        if let (id, related) = self.value {
+            related.removeLink(by: id, in: transaction)
         }
-        link(withoutUpdate: entity)
-        if self.value != nil { linked?.insertChanges(to: transaction) }
+        self.related = value?.1
         transaction.set(self)
-        entity.insertChanges(to: transaction)
+        value?.1.insertChanges(to: transaction)
+
+        return transaction
+    }
+
+    @discardableResult
+    public func setValue(_ value: Related?, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        return setValue(value.map { ("", $0) }, in: transaction)
     }
 }
 
@@ -117,10 +79,12 @@ public extension RawRepresentable where Self: HasDefaultLiteral {
     typealias OptionalProperty = RealtimeProperty<Self?, EnumSerializer<Self>>
 }
 
+public typealias LinkedRealtimeProperty<V: RealtimeValue> = RealtimeProperty<V?, LinkableValueSerializer<V>>
+
 // TODO: Add possible update value at subpath
 // TODO: Create property for storage data
 // TODO: Research how can use ExpressibleByNilLiteral pattern in RP
-public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner, Reverting, Codable where T == Serializer.Entity {
+public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner, Reverting where T == Serializer.Entity {
     public func revert() {
         oldValue.map {
             localPropertyValue.set($0)
@@ -148,7 +112,7 @@ public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _Realt
     override public var localValue: Any? { return Serializer.serialize(entity: localPropertyValue.get()) }
     
     private var localPropertyValue: PropertyValue<T>
-    private var oldValue: T?
+    fileprivate var oldValue: T?
     public var value: T {
         get { return localPropertyValue.get() }
         set {
@@ -162,37 +126,48 @@ public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _Realt
     
     // MARK: Initializers, deinitializer
     
-    public required init<Prop: RealtimeProperty>(dbRef: DatabaseReference, value: T, onFetch: ((Prop, Error?) -> ())? = nil) {
+    public required init(dbRef: DatabaseReference, value: T) {
         self.localPropertyValue = PropertyValue(value)
         self.insider = Insider(source: localPropertyValue.get)
         self.lastError = Property<Error?>(value: nil)
         super.init(dbRef: dbRef)
-        
-        _ = onFetch.map { on in
-            load { err, _ in
-                on(self as! Prop, err)
-            }
-        }
     }
 
     public convenience required init(dbRef: DatabaseReference) {
         self.init(dbRef: dbRef, value: T())
     }
 
-    public convenience init(from decoder: Decoder) throws {
-//        self.init(snapshot: decoder as! DataSnapshot)
-        let container = try decoder.singleValueContainer()
-        self.init(dbRef: decoder.userInfo[CodingUserInfoKey(rawValue: "ref")!] as! DatabaseReference,
-                  value: try container.decode(T.self))
-    }
+//    public convenience init(from decoder: Decoder) throws {
+////        self.init(snapshot: decoder as! DataSnapshot)
+//        let container = try decoder.singleValueContainer()
+//        self.init(dbRef: decoder.userInfo[CodingUserInfoKey(rawValue: "ref")!] as! DatabaseReference,
+//                  value: try container.decode(T.self))
+//    }
+//
+//    public func encode(to encoder: Encoder) throws {
+//        var container = encoder.singleValueContainer()
+//        try container.encode(value)
+//    }
 
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(value)
-    }
-    
 //    deinit {
 //    }
+
+
+    @discardableResult
+    public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        self.value = value
+        let transaction = transaction ?? RealtimeTransaction()
+        transaction.set(self)
+        return transaction
+    }
+
+    @discardableResult
+    public func changeValue(use changing: (inout T) -> (), in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        changing(&value)
+        let transaction = transaction ?? RealtimeTransaction()
+        transaction.set(self)
+        return transaction
+    }
     
     @discardableResult
     override public func load(completion: Database.TransactionCompletion? = nil) -> Self {
@@ -249,19 +224,6 @@ public final class RealtimeProperty<T: Codable, Serializer: _Serializer>: _Realt
     private func setValue(_ value: T) {
         localPropertyValue.set(value)
         insider.dataDidChange()
-    }
-}
-extension RealtimeProperty {
-    // MARK: Setters
-
-    public func setValue(_ value: T, completion: @escaping (Error?, DatabaseReference) -> ()) {
-        self.value = value
-        save(completion: completion)
-    }
-
-    public func changeValue(use changing: (inout T) -> (), completion: ((Error?, DatabaseReference) -> ())?) {
-        changing(&value)
-        save(completion: completion)
     }
 }
 

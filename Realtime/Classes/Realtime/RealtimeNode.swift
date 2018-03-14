@@ -136,55 +136,76 @@ extension AssociatedRealtimeNode {
 // TODO: Add possible to save relative link by parent level or root level
 
 /// Link value describing reference to some location of database.
-public struct RealtimeLink: DataSnapshotRepresented {
-    typealias OptionalSourceProperty = RealtimeProperty<RealtimeLink?, RealtimeLinkSourceSerializer>
-    typealias OptionalProperty = RealtimeProperty<RealtimeLink?, RealtimeLinkSerializer>
-    enum Nodes {
-        static let path = RealtimeNode(rawValue: "pth")
+
+private enum LinkNodes {
+    static let path = "pth"
+    static let sourceID = "s_id"
+}
+
+struct Reference: DataSnapshotRepresented {
+    let ref: String
+
+    init(ref: String) {
+        self.ref = ref
     }
 
-    let id: String
-    let paths: [String]
-
-    var dbValue: [String: Any] { return [Nodes.path.rawValue: paths] }
-
-    init(id: String, paths: [String]) {
-        precondition(paths.count > 0, "RealtimeLink path must be not empty")
-        self.id = id
-        self.paths = paths
+    var localValue: Any? { return ref }
+    init?(snapshot: DataSnapshot) {
+        guard let ref: String = snapshot.flatMap() ?? LinkNodes.path.map(from: snapshot) else { return nil } // TODO: Remove ?? ..., after move to new version data model
+        self.ref = ref
     }
-    init(id: String, path: String) {
-        precondition(path.count > 0, "RealtimeLink path must be not empty")
-        self.id = id
-        self.paths = [path]
+}
+extension Reference {
+    func make<V: RealtimeValue>(from source: DatabaseReference = .root()) -> V { return V(dbRef: ref.reference(from: source)) }
+}
+extension RealtimeValue {
+    func makeReference(from databaseRef: DatabaseReference = .root()) -> Reference { return Reference(ref: dbRef.path(from: databaseRef)) }
+    func makeRelation(from databaseRef: DatabaseReference = .root(), use sourceID: String? = nil) -> Relation {
+        return Relation(sourceID: sourceID ?? linksNode.reference().childByAutoId().key, ref: makeReference(from: databaseRef))
+    }
+}
+
+struct Relation: DataSnapshotRepresented {
+    let sourceID: String
+    let ref: Reference
+
+    init(sourceID: String, ref: Reference) {
+        self.sourceID = sourceID
+        self.ref = ref
     }
 
-    public init?(snapshot: DataSnapshot) {
-        if let pths: [String] = Nodes.path.map(from: snapshot) {
-            self.init(id: snapshot.key, paths: pths)
-        } else {
-            if let pth: String = Nodes.path.map(from: snapshot) {
-                self.init(id: snapshot.key, path: pth)
-            } else {
-                return nil
-            }
+    var localValue: Any? { return [LinkNodes.path: ref.ref, LinkNodes.sourceID: sourceID] }
+    init?(snapshot: DataSnapshot) {
+        guard
+            let sourceID: String = LinkNodes.sourceID.map(from: snapshot),
+            let ref = Reference(snapshot: snapshot)
+        else {
+            // TODO: Remove after move to new version data model
+            guard let ref = Reference(snapshot: snapshot) else { return nil }
+            self.ref = ref
+            self.sourceID = snapshot.key
+            return
         }
-    }
-    
-    public func apply(snapshot: DataSnapshot, strongly: Bool) {
-        fatalError("RealtimeLink is not mutated") // TODO: ?
+
+        self.sourceID = sourceID
+        self.ref = ref
     }
 }
 
-extension RealtimeLink {
-    var dbRefs: [DatabaseReference] { return paths.map { .fromRoot($0) } }
+public struct SourceLink: DataSnapshotRepresented {
+    let links: [String]
+    let id: String
 
-    func entity<Entity: RealtimeValue>(_: Entity.Type) -> Entity { return Entity(dbRef: dbRefs.first!) }
-}
+    init(id: String, links: [String]) {
+        self.id = id
+        self.links = links
+    }
 
-extension RealtimeLink: Equatable {
-    public static func ==(lhs: RealtimeLink, rhs: RealtimeLink) -> Bool {
-        return lhs.id == rhs.id
+    public var localValue: Any? { return [id: links] }
+    public init?(snapshot: DataSnapshot) {
+        guard let links: [String] = snapshot.flatMap() else { return nil }
+        self.id = snapshot.key
+        self.links = links
     }
 }
 
