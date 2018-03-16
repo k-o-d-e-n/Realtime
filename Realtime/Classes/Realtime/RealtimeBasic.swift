@@ -24,7 +24,6 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented
 //    var dbRef: DatabaseReference { get } // TODO: Use abstract protocol which has methods for observing and reference. Need for use DatabaseQuery
     var node: Node? { get }
 
-//    init(dbRef: DatabaseReference)
     init(in node: Node?)
     /// Applies value of data snapshot
     ///
@@ -38,9 +37,7 @@ public extension RealtimeValue {
     var dbRef: DatabaseReference? {
         return node.flatMap { $0.isRooted ? $0.reference : nil }
     }
-    init() {
-        self.init(in: nil)
-    }
+    init() { self.init(in: nil) }
 }
 
 public extension RealtimeValue {

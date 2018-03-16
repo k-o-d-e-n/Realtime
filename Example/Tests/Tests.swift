@@ -749,6 +749,17 @@ extension Tests {
         let linksNode = fourth.linksNode
         XCTAssertEqual(linksNode!.rootPath, "/__links/first/second/third/fourth")
     }
+
+    func testRealtimeDictionaryReturnsNilOnDoesNotExistsKey() {
+        let exp = expectation(description: "")
+        let dict = RealtimeDictionary<RealtimeObject, RealtimeObject>(in: .root, keysNode: .root)
+        dict.prepare { (_) in
+            exp.fulfill()
+        }
+        waitForExpectations(timeout: 5) { (_) in
+            XCTAssertNil(dict[RealtimeObject(in: .root)])
+        }
+    }
 }
 
 // MARK: Other
