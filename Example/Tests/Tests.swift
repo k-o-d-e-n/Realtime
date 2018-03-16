@@ -717,10 +717,38 @@ class Tests: XCTestCase {
     }
 }
 
-// MARK: RealtimeObject
+// MARK: Realtime
 
 extension Tests {
     // TODO: Mapping and etc.
+
+    func testNode() {
+        let first = Node(key: "first")
+
+        let second = Node(key: "second", parent: first)
+        XCTAssertEqual(second.rootPath, "/first/second")
+        XCTAssertEqual(second.path(from: first), "/second")
+        XCTAssertTrue(second.hasParent(node: first))
+        XCTAssertTrue(second.isRooted)
+
+        let third = second.child(with: "third")
+        XCTAssertEqual(third.rootPath, "/first/second/third")
+        XCTAssertEqual(third.path(from: first), "/second/third")
+        XCTAssertTrue(third.hasParent(node: first))
+        XCTAssertTrue(third.isRooted)
+
+        let fourth = third.child(with: "fourth")
+        XCTAssertEqual(fourth.rootPath, "/first/second/third/fourth")
+        XCTAssertEqual(fourth.path(from: first), "/second/third/fourth")
+        XCTAssertTrue(fourth.hasParent(node: first))
+        XCTAssertTrue(fourth.isRooted)
+    }
+
+    func testLinksNode() {
+        let fourth = Node.root.child(with: "/first/second/third/fourth")
+        let linksNode = fourth.linksNode
+        XCTAssertEqual(linksNode!.rootPath, "/__links/first/second/third/fourth")
+    }
 }
 
 // MARK: Other
@@ -736,7 +764,7 @@ extension Tests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = RealtimeProperty<[Int], Serializer<[Int]>>(dbRef: .root(), value: [0])
+        let source = RealtimeProperty<[Int], Serializer<[Int]>>(in: .root, value: [0])
         let one = AnyRealtimeCollectionView(source)//SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)
@@ -756,7 +784,7 @@ extension Tests {
         XCTAssert(string == "closed")
     }
     func testMirror() {
-        let object = RealtimeObject(dbRef: .root())
+        let object = RealtimeObject(in: .root)
         let mirror = Mirror(reflecting: object)
 
         XCTAssert(mirror.children.count > 0)

@@ -143,10 +143,6 @@ class ControlEventsTarget<Value>: Disposable, InsiderOwner {
     }
 }
 
-struct Realtime<Base> {
-    //    let base: Base
-}
-
 import UIKit
 
 extension UITextField {

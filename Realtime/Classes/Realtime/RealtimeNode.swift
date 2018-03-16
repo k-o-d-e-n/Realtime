@@ -9,6 +9,105 @@
 import Foundation
 import FirebaseDatabase
 
+public class Node: Equatable {
+    public static let root: Node = Root(key: "", parent: nil)
+    class Root: Node {
+        override var isRoot: Bool { return true }
+        override var isRooted: Bool { return true }
+        override var root: Node? { return nil }
+        override var first: Node? { return nil }
+        override var rootPath: String { return "" }
+        override func path(from node: Node) -> String { fatalError("Root node cannot have parent nodes") }
+        override func hasParent(node: Node) -> Bool { return false }
+        override var reference: DatabaseReference { return .root() }
+        override var description: String { return "root" }
+    }
+
+    let key: String
+    var parent: Node?
+
+    init(key: String, parent: Node? = .root) {
+        self.key = key
+        self.parent = parent
+    }
+
+    var isRoot: Bool { return false }
+    var isRooted: Bool { return root === Node.root }
+    var root: Node? { return parent.map { $0.root ?? $0 } }
+    var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
+
+    var rootPath: String {
+        return parent.map { $0.rootPath + "/" + key } ?? key
+    }
+
+    func path(from node: Node) -> String {
+        guard node != self else { fatalError("Path does not exists for the same nodes") }
+
+        var path = key
+        var current: Node = self
+        while let next = current.parent {
+            if next != node {
+                path = next.key + "/" + path
+            } else {
+                return "/" + path
+            }
+            current = next
+        }
+
+        fatalError("Path cannot be get from non parent node")
+    }
+
+    func hasParent(node: Node) -> Bool {
+        var current: Node = self
+        while let parent = current.parent {
+            if node == parent {
+                return true
+            }
+            current = parent
+        }
+        return false
+    }
+
+    public static func ==(lhs: Node, rhs: Node) -> Bool {
+        guard lhs !== rhs else { return true }
+        guard lhs.key == rhs.key else { return false }
+
+        return lhs.rootPath == rhs.rootPath
+    }
+
+    public var description: String { return rootPath }
+    public var debugDescription: String { return description }
+    
+    var reference: DatabaseReference { return .fromRoot(rootPath) }
+}
+extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
+extension Node {
+    func child(with path: String) -> Node {
+        return path
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .reduce(self) { Node(key: String($1), parent: $0) }
+    }
+    func copy(to node: Node) -> Node {
+        var copying: Node = self
+        var current: Node = Node(key: copying.key, parent: nil)
+        let copied = current
+        while let next = copying.parent, !next.isRoot {
+            copying = next
+            current = current.moveTo(nodeKeyedBy: next.key)
+        }
+        current.moveTo(node)
+        return copied
+    }
+    func moveTo(nodeKeyedBy key: String) -> Node {
+        let parent = Node(key: key, parent: nil)
+        self.parent = parent
+        return parent
+    }
+    func moveTo(_ node: Node) {
+        self.parent = node
+    }
+}
+
 /// Describes node of database
 public protocol RTNode: RawRepresentable, Equatable {
     associatedtype RawValue: Equatable = String
@@ -56,14 +155,17 @@ public extension RTNode where Self.RawValue == String {
         return ref.child(rawValue)
     }
 
-    func reference(from entity: RealtimeValue) -> DatabaseReference {
-        return entity.dbRef.child(rawValue)
-    }
+//    func reference(from entity: RealtimeValue) -> DatabaseReference {
+//        return entity.dbRef.child(rawValue)
+//    }
 }
 public extension AssociatedRTNode where Self.RawValue == String {
     /// returns object referenced by node name in specific reference.
-    func entity(in parent: DatabaseReference) -> ConcreteType {
-        return ConcreteType(dbRef: reference(from: parent))
+//    func entity(in parent: DatabaseReference) -> ConcreteType {
+//        return ConcreteType(dbRef: reference(from: parent))
+//    }
+    func entity(in node: Node?) -> ConcreteType {
+        return ConcreteType(in: Node(key: rawValue, parent: node))
     }
 }
 extension AssociatedRTNode {
@@ -156,12 +258,12 @@ struct Reference: DataSnapshotRepresented {
     }
 }
 extension Reference {
-    func make<V: RealtimeValue>(from source: DatabaseReference = .root()) -> V { return V(dbRef: ref.reference(from: source)) }
+    func make<V: RealtimeValue>(in node: Node = .root) -> V { return V(in: node.child(with: ref)) }
 }
 extension RealtimeValue {
-    func makeReference(from databaseRef: DatabaseReference = .root()) -> Reference { return Reference(ref: dbRef.path(from: databaseRef)) }
-    func makeRelation(from databaseRef: DatabaseReference = .root(), use sourceID: String? = nil) -> Relation {
-        return Relation(sourceID: sourceID ?? linksNode.reference().childByAutoId().key, ref: makeReference(from: databaseRef))
+    func makeReference(from node: Node = .root) -> Reference! { return Reference(ref: self.node!.path(from: node)) }
+    func makeRelation(from node: Node = .root, use sourceID: String? = nil) -> Relation! {
+        return Relation(sourceID: sourceID ?? DatabaseReference.root().childByAutoId().key, ref: makeReference(from: node))
     }
 }
 
@@ -326,8 +428,8 @@ extension RealtimeTransaction {
     }
 
     /// registers new single value for specified reference
-    public func addNode(ref: DatabaseReference, value: Any?) {
-        addNode(item: (ref, .value(value)))
+    public func addNode(_ node: Realtime.Node, value: Any?) {
+        addNode(item: (node.reference, .value(value)))
     }
     
     // TODO: Improve performance and interface
@@ -429,33 +531,39 @@ extension RealtimeTransaction: CustomStringConvertible {
 }
 public extension RealtimeTransaction {
     /// adds operation of save RealtimeValue as single value
-    func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
-        addNode(item: (value.dbRef, .value(value.localValue)))
+    func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node? = nil) {
+        guard value.isRooted else { fatalError() }
+
+        let savedNode = value.node ?? node!
+        addNode(savedNode, value: value.localValue)
         addCompletion { (result) in
             if result {
-                value.didSave()
+                value.didSave(in: savedNode)
             }
         }
     }
 
     /// adds operation of delete RealtimeValue
     func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
-        addNode(item: (value.dbRef, .value(nil)))
+        guard value.isRooted else { fatalError() }
+        
+        addNode(item: (value.dbRef!, .value(nil)))
         addCompletion { (result) in
             if result {
-                value.didRemove()
+                value.didRemove(from: value.node!)
             }
         }
     }
 
     /// adds operation of update RealtimeValue
-    func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) {
+    func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by node: Realtime.Node? = nil) {
         guard value.hasChanges else { debugFatalError("Value has not changes"); return }
 
-        value.insertChanges(to: self)
+        let updatedNode = value.node ?? node!
+        value.insertChanges(to: self, to: updatedNode) // TODO:
         addCompletion { (result) in
             if result {
-                value.didSave()
+                value.didSave(in: updatedNode)
             }
         }
         revertion(for: value)

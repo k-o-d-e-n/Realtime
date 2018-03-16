@@ -10,11 +10,20 @@ import Foundation
 import FirebaseDatabase
 
 public extension RTNode where Self.RawValue == String {
-    func property<Type: RealtimeValue>(from parent: DatabaseReference) -> Type {
-        return Type(dbRef: reference(from: parent))
+//    func property<Type: RealtimeValue>(from parent: DatabaseReference) -> Type {
+//        return Type(in: Node.root.child(with: parent.rootPath))
+//    }
+    func property<Type: RealtimeValue>(from node: Node?) -> Type {
+        return Type(in: Node(key: rawValue, parent: node))
     }
     func property<Type: RealtimeValue>() -> Type {
-        return Type(dbRef: reference())
+        return Type(in: Node(key: rawValue))
+    }
+}
+
+public extension Node {
+    func property<Type: RealtimeValue>() -> Type! {
+        return Type(in: self)
     }
 }
 
@@ -24,7 +33,7 @@ extension RealtimeProperty: FilteringEntity {}
 // TODO: Remove id from value
 public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(String, Related)?, RelationableValueSerializer<Related>> {
     public override func revert() {
-        if let old = oldValue.flatMap({ $0 }) { old.1.add(link: old.1.generate(linkTo: dbRef).link) }
+        if let old = oldValue.flatMap({ $0 }) { old.1.add(link: old.1.node!.generate(linkTo: node!).link) }
         if let new = value { new.1.remove(linkBy: new.0) }
         super.revert()
     }
@@ -33,15 +42,18 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(
         set {
             if let oldValue = value { oldValue.1.remove(linkBy: oldValue.0) }
             value = newValue.map {
-                let link = $0.generate(linkTo: dbRef).link
+                let link = $0.node!.generate(linkTo: node!).link
                 $0.add(link: link)
                 return (link.id, $0)
             }
         }
     }
 
-    public required init(dbRef: DatabaseReference, value: T) {
-        super.init(dbRef: dbRef, value: value)
+    public required init(in node: Node?, value: T) {
+        if node?.isRooted ?? true {
+            debugFatalError("Relation should be initialized with rooted node")
+        }
+        super.init(in: node, value: value)
     }
 
     @discardableResult
@@ -52,7 +64,7 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(
         }
         self.related = value?.1
         transaction.set(self)
-        value?.1.insertChanges(to: transaction)
+        value?.1.insertChanges(to: transaction, to: nil)
 
         return transaction
     }
@@ -126,15 +138,15 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     
     // MARK: Initializers, deinitializer
     
-    public required init(dbRef: DatabaseReference, value: T) {
+    public required init(in node: Node?, value: T) {
         self.localPropertyValue = PropertyValue(value)
         self.insider = Insider(source: localPropertyValue.get)
         self.lastError = Property<Error?>(value: nil)
-        super.init(dbRef: dbRef)
+        super.init(in: node)
     }
 
-    public convenience required init(dbRef: DatabaseReference) {
-        self.init(dbRef: dbRef, value: T())
+    public convenience required init(in node: Node?) {
+        self.init(in: node, value: T())
     }
 
 //    public convenience init(from decoder: Decoder) throws {
@@ -151,7 +163,6 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
 
 //    deinit {
 //    }
-
 
     @discardableResult
     public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
@@ -190,13 +201,13 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     
     // MARK: Events
     
-    override public func didSave() {
-        super.didSave()
+    override public func didSave(in node: Node) {
+        super.didSave(in: node)
         resetHasChanges()
     }
     
-    override public func didRemove() {
-        super.didRemove()
+    override public func didRemove(from node: Node) {
+        super.didRemove(from: node)
         resetHasChanges()
         setValue(T())
     }
@@ -204,10 +215,10 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     // MARK: Changeable
     
     public convenience required init(snapshot: DataSnapshot) {
-        self.init(dbRef: snapshot.ref)
+        self.init(in: Node(key: snapshot.key, parent: nil))
         apply(snapshot: snapshot)
     }
-    
+
     override public func apply(snapshot: DataSnapshot, strongly: Bool) {
         super.apply(snapshot: snapshot, strongly: strongly)
         resetHasChanges()
