@@ -228,9 +228,8 @@ extension RealtimeTransaction: CustomStringConvertible {
 public extension RealtimeTransaction {
     /// adds operation of save RealtimeValue as single value
     func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node? = nil) {
-        guard value.isRooted else { fatalError() }
+        guard let savedNode = value.node ?? node, savedNode.isRooted else { fatalError() }
 
-        let savedNode = value.node ?? node!
         addNode(savedNode, value: value.localValue)
         addCompletion { (result) in
             if result {
@@ -243,7 +242,7 @@ public extension RealtimeTransaction {
     func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         guard value.isRooted else { fatalError() }
 
-        addNode(item: (value.dbRef!, .value(nil)))
+        addNode(item: (value.dbRef!, .value(nil))) // TODO: Add precondition with willRemove
         addCompletion { (result) in
             if result {
                 value.didRemove(from: value.node!)
@@ -254,8 +253,8 @@ public extension RealtimeTransaction {
     /// adds operation of update RealtimeValue
     func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by node: Realtime.Node? = nil) {
         guard value.hasChanges else { debugFatalError("Value has not changes"); return }
+        guard let updatedNode = value.node ?? node, updatedNode.isRooted else { fatalError() }
 
-        let updatedNode = value.node ?? node!
         value.insertChanges(to: self, to: updatedNode) // TODO:
         addCompletion { (result) in
             if result {

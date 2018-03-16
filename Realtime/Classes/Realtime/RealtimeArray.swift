@@ -16,6 +16,11 @@ public extension RTNode where RawValue == String {
         return RealtimeArray(in: Node(key: rawValue, parent: node))
     }
 }
+public extension Node {
+    func array<Element>() -> RealtimeArray<Element> {
+        return RealtimeArray(in: self)
+    }
+}
 
 // MARK: Implementation RealtimeCollection`s
 
@@ -74,10 +79,11 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     
     // MARK: Mutating
 
+    // TODO: Add parameter for sending local event (after write to db, or immediately)
     @discardableResult
     public func insert(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-//        _view.checkPreparation()
-        guard element.isStandalone else { fatalError("Element already saved to database") }
+        guard !element.isReferred else { fatalError("Element must not be referred in other location") }
+
         guard isPrepared else {
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
@@ -89,7 +95,8 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
             return transaction
         }
 
-        let elementNode = storage.sourceNode.child(with: DatabaseReference.root().childByAutoId().key)
+        let elementNode = element.node.map { $0.moveTo(storage.sourceNode); return $0 }
+            ?? storage.sourceNode.child(with: DatabaseReference.root().childByAutoId().key)
         let transaction = transaction ?? RealtimeTransaction()
         let link = elementNode.generate(linkTo: _view.source.node!.child(with: elementNode.key))
         let key = _PrototypeValue(dbKey: elementNode.key, linkId: link.link.id, index: index ?? count)
@@ -112,7 +119,6 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         }
         transaction.addCompletion { [weak self] (result) in
             if result {
-                element.didSave(in: elementNode)
                 self?.didSave()
             }
         }

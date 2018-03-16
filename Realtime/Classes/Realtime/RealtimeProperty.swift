@@ -50,8 +50,8 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(
     }
 
     public required init(in node: Node?, value: T) {
-        if node?.isRooted ?? true {
-            debugFatalError("Relation should be initialized with rooted node")
+        if node.map({ !$0.isRooted }) ?? true {
+            debugFatalError("Relation should be initialized with rooted node");
         }
         super.init(in: node, value: value)
     }

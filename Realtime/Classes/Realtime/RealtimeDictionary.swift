@@ -47,11 +47,12 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
 public typealias RealtimeDictionaryKey = Hashable & RealtimeValue & Linkable
 public final class RealtimeDictionary<Key, Value>: RC
 where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
-    //    public let dbRef: DatabaseReference?
     public var node: Node?
     public var view: RealtimeCollectionView { return _view }
     public var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
+
+//    public var isRequiredPreparation: Bool { return isInserted } // Alpha
 
     let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>>
 
@@ -107,6 +108,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         guard element.isStandalone else { fatalError("Element already saved to database") }
 
         let transaction = transaction ?? RealtimeTransaction()
+//        guard !isRequiredPreparation || isPrepared else {
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: { collection, err in
@@ -116,8 +118,6 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
             }
             return transaction
         }
-
-
 
         var oldElement: Value?
         if let p_value = _view.source.value.first(where: { $0.dbKey == key.dbKey }) {
@@ -163,7 +163,6 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
                 if needLink {
                     key.add(link: link.link)
                 }
-                element.didSave(in: elementNode)
                 self?.didSave()
             }
         }

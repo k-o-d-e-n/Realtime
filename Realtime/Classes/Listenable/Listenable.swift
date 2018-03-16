@@ -250,7 +250,7 @@ public extension Insider {
 
 /// Provides calculated listening value
 public struct ReadonlyProperty<Value> {
-    public lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
+    public lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get) // TODO: Remove public
     fileprivate let concreteValue: PropertyValue<Value>
     fileprivate(set) var value: Value {
         get { return concreteValue.get() }

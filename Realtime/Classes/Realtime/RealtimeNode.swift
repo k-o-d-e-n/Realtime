@@ -32,7 +32,7 @@ public class Node: Equatable {
     let key: String
     var parent: Node?
 
-    init(key: String, parent: Node? = .root) {
+    public init(key: String, parent: Node? = .root) { // TODO: Replace default value .root to nil
         self.key = key
         self.parent = parent
     }
@@ -87,7 +87,7 @@ public class Node: Equatable {
     var reference: DatabaseReference { return .fromRoot(rootPath) }
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
-extension Node {
+public extension Node {
     func child(with path: String) -> Node {
         return path
             .split(separator: "/", omittingEmptySubsequences: true)

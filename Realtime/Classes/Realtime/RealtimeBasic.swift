@@ -88,16 +88,8 @@ extension RealtimeValueEvents where Self: RealtimeValue {
 public protocol ChangeableRealtimeValue: RealtimeValue {
     var hasChanges: Bool { get }
 
-//    func insertChanges(to values: inout [String: Any?], keyed from: Node)
-//    func insertChanges(to values: inout [Database.UpdateItem])
     func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?)
 }
-//public extension ChangeableRealtimeValue {
-//    func insertChanges(to values: inout [String: Any?]) { insertChanges(to: &values, keyed: dbRef) }
-//}
-//extension ChangeableRealtimeValue {
-//    var localChanges: [String: Any?] { var changes: [String: Any?] = [:]; insertChanges(to: &changes); return changes }
-//}
 
 public protocol RealtimeValueActions: RealtimeValueEvents {
     @discardableResult func save(completion: ((Error?, DatabaseReference) -> ())?) -> Self
@@ -105,8 +97,8 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     @discardableResult func remove(completion: ((Error?, DatabaseReference) -> ())?) -> Self
     @discardableResult func remove(with linkedRefs: [DatabaseReference], completion: Database.TransactionCompletion?) -> Self
     @discardableResult func load(completion: Database.TransactionCompletion?) -> Self
-    @discardableResult func runObserving() -> Self
-    @discardableResult func stopObserving() -> Self
+    @discardableResult func runObserving() -> Bool
+    @discardableResult func stopObserving()
 }
 
 public protocol RealtimeEntityActions: RealtimeValueActions {

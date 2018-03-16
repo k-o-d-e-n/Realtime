@@ -69,15 +69,14 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
     }
 
     @discardableResult
-    public func runObserving() -> Self {
-        guard observingToken == nil else { return self }
-        observingToken = observe(type: .value, onUpdate: nil); return self
+    public func runObserving() -> Bool {
+        guard observingToken == nil, dbRef != nil else { return false }
+        observingToken = observe(type: .value, onUpdate: nil); return true
     }
 
-    @discardableResult
-    public func stopObserving() -> Self {
-        guard let token = observingToken else { return self }
-        endObserve(for: token); return self
+    public func stopObserving() {
+        guard let token = observingToken else { return }
+        endObserve(for: token)
     }
     
     func observe(type: DataEventType = .value, onUpdate: Database.TransactionCompletion? = nil) -> UInt {
@@ -113,22 +112,13 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
     // MARK: Realtime Value
 
     public required init(snapshot: DataSnapshot) {
-        dbRef = snapshot.ref
+        self.node = Node.root.child(with: snapshot.ref.rootPath)
+        self.dbRef = snapshot.ref
         apply(snapshot: snapshot)
     }
     
     open func apply(snapshot: DataSnapshot, strongly: Bool) {}
 
-//    public func insertChanges(to values: inout [String: Any?], keyed node: Node) {
-//        if hasChanges {
-//            values[dbRef.path(from: from)] = localValue
-//        }
-//    }
-//    public func insertChanges(to values: inout [Database.UpdateItem]) {
-//        if hasChanges {
-//            values.append((dbRef, localValue))
-//        }
-//    }
     public func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?) {
         if hasChanges {
             let node = parentNode.map { $0.child(with: self.node!.key) } ?? self.node
