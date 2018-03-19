@@ -8,6 +8,8 @@
 import Foundation
 import FirebaseDatabase
 
+internal let lazyStoragePath = ".storage"
+
 public protocol DataSnapshotRepresented {
     var localValue: Any? { get }
     init?(snapshot: DataSnapshot)
@@ -74,13 +76,34 @@ public extension Hashable where Self: RealtimeValue {
     }
 }
 public protocol RealtimeValueEvents {
-    func didSave(in node: Node)
-    func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void)
-    func didRemove(from node: Node)
+    /// Notifies object that it has been saved in specified parent node
+    ///
+    /// - Parameter parent: Parent node
+    func didSave(in parent: Node)
+    /// Must call always before removing action
+    ///
+    /// - Parameter transaction: Current transaction
+    func willRemove(in transaction: RealtimeTransaction)
+    /// Notifies object that it has been removed from specified ancestor node
+    ///
+    /// - Parameter ancestor: Ancestor node
+    func didRemove(from ancestor: Node)
 }
 extension RealtimeValueEvents where Self: RealtimeValue {
-    func didSave() { didSave(in: node!) }
-    func didRemove() { didRemove(from: node!) }
+    func didSave() {
+        if let parent = node?.parent {
+            didSave(in: parent)
+        } else {
+            debugFatalError("Rootless value has been saved to undefined location")
+        }
+    }
+    func didRemove() {
+        if let parent = node?.parent {
+            didRemove(from: parent)
+        } else {
+            debugFatalError("Rootless value has been removed from itself location")
+        }
+    }
 }
 
 // MARK: Extended Realtime Value
@@ -98,7 +121,7 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     @discardableResult func remove(with linkedRefs: [DatabaseReference], completion: Database.TransactionCompletion?) -> Self
     @discardableResult func load(completion: Database.TransactionCompletion?) -> Self
     @discardableResult func runObserving() -> Bool
-    @discardableResult func stopObserving()
+    func stopObserving()
 }
 
 public protocol RealtimeEntityActions: RealtimeValueActions {

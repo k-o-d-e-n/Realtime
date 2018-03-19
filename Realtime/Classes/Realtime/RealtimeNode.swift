@@ -88,6 +88,12 @@ public class Node: Equatable {
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
 public extension Node {
+    static func autoId(in parent: Node? = nil) -> Node {
+        return Node(key: DatabaseReference.root().childByAutoId().key, parent: parent)
+    }
+    func childByAutoId() -> Node {
+        return child(with: DatabaseReference.root().childByAutoId().key)
+    }
     func child(with path: String) -> Node {
         return path
             .split(separator: "/", omittingEmptySubsequences: true)

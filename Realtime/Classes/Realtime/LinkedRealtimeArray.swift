@@ -14,7 +14,6 @@ public extension RTNode where RawValue == String {
 }
 
 public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue & Linkable {
-    //    public let dbRef: DatabaseReference
     public var node: Node?
     public var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
@@ -72,14 +71,15 @@ public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue
         _view.source.didSave()
     }
 
-    public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) { _view.source.willRemove(completion: completion) }
+    public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }
     public func didRemove(from node: Node) {
         _view.source.didRemove()
     }
 }
-public extension LinkedRealtimeArray {
-    // MARK: Mutating
 
+// MARK: Mutating
+
+public extension LinkedRealtimeArray {
     @discardableResult
     func insert(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         //        _view.checkPreparation()

@@ -148,13 +148,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         }
 
         let element = self[index]
-        transaction.addPrecondition { [unowned transaction] (promise) in
-            element.willRemove { err, refs in
-                refs?.forEach { transaction.addNode(item: ($0, .value(nil))) }
-                transaction.addNode(element.node!.linksNode, value: nil)
-                promise.fulfill(err)
-            }
-        }
+        element.willRemove(in: transaction)
 
         let oldValue = _view.source.value
         let key = _view.source.value.remove(at: index)
@@ -218,7 +212,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         _view.source.didSave()
     }
 
-    public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) { _view.source.willRemove(completion: completion) }
+    public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }
     public func didRemove(from node: Node) {
         _view.source.didRemove()
     }

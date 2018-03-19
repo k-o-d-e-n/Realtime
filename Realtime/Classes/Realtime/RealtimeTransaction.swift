@@ -49,8 +49,11 @@ public class RealtimeTransaction {
     fileprivate func runPreconditions(_ completion: @escaping ([Error]) -> Void) {
         guard !preconditions.isEmpty else { completion([]); return }
 
+        let currentPreconditions = self.preconditions
+        self.preconditions.removeAll()
+
         let group = DispatchGroup()
-        (0..<preconditions.count).forEach { _ in group.enter() }
+        (0..<currentPreconditions.count).forEach { _ in group.enter() }
 
         let lock = NSRecursiveLock()
         var errors: [Error] = []
@@ -66,12 +69,12 @@ public class RealtimeTransaction {
             }
             group.leave()
         }
-        while let precondition = preconditions.popLast() {
-            precondition(failPromise)
-        }
+        currentPreconditions.forEach { $0(failPromise) }
 
         group.notify(queue: .main) {
-            self.runPreconditions(completion)
+            self.runPreconditions({ (errs) in
+                completion(errors + errs)
+            })
         }
     }
 
@@ -242,7 +245,8 @@ public extension RealtimeTransaction {
     func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         guard value.isRooted else { fatalError() }
 
-        addNode(item: (value.dbRef!, .value(nil))) // TODO: Add precondition with willRemove
+        value.willRemove(in: self)
+        addNode(item: (value.dbRef!, .value(nil)))
         addCompletion { (result) in
             if result {
                 value.didRemove(from: value.node!)

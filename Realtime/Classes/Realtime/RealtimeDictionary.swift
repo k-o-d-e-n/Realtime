@@ -81,9 +81,9 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
 
     public func makeIterator() -> IndexingIterator<RealtimeDictionary> { return IndexingIterator(_elements: self) }
     public subscript(position: Int) -> Element { return storage.element(by: _view[position].dbKey) }
-    public subscript(key: Key) -> Value? { return containsValue(byKey: key) ? storage.object(for: key) : nil }
+    public subscript(key: Key) -> Value? { return contains(valueBy: key) ? storage.object(for: key) : nil }
 
-    public func containsValue(byKey key: Key) -> Bool { _view.checkPreparation(); return _view.source.value.contains(where: { $0.dbKey == key.dbKey }) }
+    public func contains(valueBy key: Key) -> Bool { _view.checkPreparation(); return _view.source.value.contains(where: { $0.dbKey == key.dbKey }) }
 
     public func filtered(by value: Any, for node: RealtimeNode, completion: @escaping ([Element], Error?) -> ()) {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
@@ -119,16 +119,17 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
             return transaction
         }
 
-        var oldElement: Value?
-        if let p_value = _view.source.value.first(where: { $0.dbKey == key.dbKey }) {
-            oldElement = storage.object(for: key)
-            transaction.addPrecondition { [unowned transaction] (promise) in
-                oldElement!.willRemove { err, refs in
-                    refs?.filter { $0.key != key.dbKey }.forEach { transaction.addNode(item: ($0, .value(nil))) }
-                    transaction.addNode(oldElement!.node!.linksNode.child(with: p_value.linkId), value: nil)
-                    promise.fulfill(err)
-                }
-            }
+//        var oldElement: Value?
+        if contains(valueBy: key) {//let p_value = _view.source.value.first(where: { $0.dbKey == key.dbKey }) {
+            fatalError("Value by key \(key) already exists. Replacing is not supported yet.")
+//            oldElement = storage.object(for: key)
+//            transaction.addPrecondition { [unowned transaction] (promise) in
+//                oldElement!.willRemove { err, refs in
+//                    refs?.filter { $0.key != key.dbKey }.forEach { transaction.addNode(item: ($0, .value(nil))) }
+//                    transaction.addNode(oldElement!.node!.linksNode.child(with: p_value.linkId), value: nil)
+//                    promise.fulfill(err)
+//                }
+//            }
         }
 
         let needLink = shouldLinking
@@ -140,11 +141,11 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         storage.store(value: element, by: key)
         transaction.addReversion { [weak self] in
             self?._view.source.value = oldValue
-            if let old = oldElement {
-                self?.storage.store(value: old, by: key)
-            } else {
-                self?.storage.elements.removeValue(forKey: key)
-            }
+//            if let old = oldElement {
+//                self?.storage.store(value: old, by: key)
+//            } else {
+//                self?.storage.elements.removeValue(forKey: key)
+//            }
         }
 
         if needLink {
@@ -157,7 +158,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         } else {
             transaction.set(element, by: elementNode)
         }
-        transaction.addNode(_view.source.node!.child(with: prototypeValue.dbKey), value: [prototypeValue.linkId    : _view.count])
+        transaction.addNode(_view.source.node!.child(with: prototypeValue.dbKey), value: [prototypeValue.linkId: _view.count])
         transaction.addCompletion { [weak self] result in
             if result {
                 if needLink {
@@ -187,13 +188,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         let transaction = transaction ?? RealtimeTransaction()
 
         let element = self[key]!
-        transaction.addPrecondition { [unowned transaction] (promise) in
-            element.willRemove { err, refs in
-                refs?.forEach { transaction.addNode(item: ($0, .value(nil))) }
-                transaction.addNode(element.node!.linksNode, value: nil)
-                promise.fulfill(err)
-            }
-        }
+        element.willRemove(in: transaction)
 
         let oldValue = _view.source.value
         let p_value = _view.source.value.remove(at: index)
@@ -268,7 +263,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         _view.source.didSave()
     }
 
-    public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) { _view.source.willRemove(completion: completion) }
+    public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }
     public func didRemove(from node: Node) {
         _view.source.didRemove()
     }

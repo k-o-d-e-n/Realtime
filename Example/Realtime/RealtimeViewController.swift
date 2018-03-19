@@ -276,7 +276,7 @@ class RealtimeViewController: UIViewController {
             if let errors = errs {
                 print(errors)
             } else {
-                assert(g.conversations.containsValue(byKey: u))
+                assert(g.conversations.contains(valueBy: u))
             }
 
             self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -295,7 +295,7 @@ class RealtimeViewController: UIViewController {
                 if let errors = errs {
                     print(errors)
                 } else {
-                    assert(!g.conversations.containsValue(byKey: u))
+                    assert(!g.conversations.contains(valueBy: u))
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -316,7 +316,7 @@ class RealtimeViewController: UIViewController {
                     if let errors = errs {
                         print(errors)
                     } else {
-                        assert(!g.conversations.containsValue(byKey: u))
+                        assert(!g.conversations.contains(valueBy: u))
                     }
 
                     self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"

@@ -719,6 +719,23 @@ class Tests: XCTestCase {
 
 // MARK: Realtime
 
+class TestObject: RealtimeObject {
+    lazy var property: StandartProperty<String?> = "prop".property(from: self.node)
+    lazy var linkedArray: LinkedRealtimeArray<RealtimeObject> = "linked_array".linkedArray(from: self.node, elements: .root)
+    lazy var array: RealtimeArray<RealtimeObject> = "array".array(from: self.node)
+    lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
+
+    override open class func keyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "property": return \TestObject.property
+        case "linkedArray": return \TestObject.linkedArray
+        case "array": return \TestObject.array
+        case "dictionary": return \TestObject.dictionary
+        default: return nil
+        }
+    }
+}
+
 extension Tests {
     // TODO: Mapping and etc.
 
@@ -748,6 +765,44 @@ extension Tests {
         let fourth = Node.root.child(with: "/first/second/third/fourth")
         let linksNode = fourth.linksNode
         XCTAssertEqual(linksNode!.rootPath, "/__links/first/second/third/fourth")
+    }
+
+    func testConnectNode() {
+        let testObject = TestObject(in: .autoId())
+
+        XCTAssertTrue(testObject.isStandalone)
+        XCTAssertTrue(testObject.property.isStandalone)
+        XCTAssertTrue(testObject.linkedArray.isStandalone)
+        XCTAssertTrue(testObject.array.isStandalone)
+        XCTAssertTrue(testObject.dictionary.isStandalone)
+
+        let node = Node(key: "testObjects")
+        testObject.didSave(in: node)
+
+        XCTAssertTrue(testObject.isInserted)
+        XCTAssertTrue(testObject.property.isInserted)
+        XCTAssertTrue(testObject.linkedArray.isInserted)
+        XCTAssertTrue(testObject.array.isInserted)
+        XCTAssertTrue(testObject.dictionary.isInserted)
+    }
+
+    func testDisconnectNode() {
+        let node = Node(key: "testObjects").childByAutoId()
+        let testObject = TestObject(in: node)
+
+        XCTAssertTrue(testObject.isInserted)
+        XCTAssertTrue(testObject.property.isInserted)
+        XCTAssertTrue(testObject.linkedArray.isInserted)
+        XCTAssertTrue(testObject.array.isInserted)
+        XCTAssertTrue(testObject.dictionary.isInserted)
+
+        testObject.didRemove()
+
+        XCTAssertTrue(testObject.isStandalone)
+        XCTAssertTrue(testObject.property.isStandalone)
+        XCTAssertTrue(testObject.linkedArray.isStandalone)
+        XCTAssertTrue(testObject.array.isStandalone)
+        XCTAssertTrue(testObject.dictionary.isStandalone)
     }
 
     func testRealtimeDictionaryReturnsNilOnDoesNotExistsKey() {
@@ -803,11 +858,24 @@ extension Tests {
             print(child.label, child.value)
         }
 
-        _ = object.__links
+        _ = object.links
 
         mirror.children.forEach { (child) in
             print(child.label, child.value)
         }
+
+        let id = ObjectIdentifier.init(object)
+        print(id)
+    }
+    func testReflectEnum() {
+        enum Test {
+            case one(Any), two(Any)
+        }
+        let one = Test.one(false)
+        let oneMirror = Mirror(reflecting: one)
+        let testMirror = Mirror(reflecting: Test.self)
+
+        print(oneMirror, testMirror)
     }
 }
 
