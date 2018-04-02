@@ -1111,7 +1111,6 @@ public extension RealtimeCollection where Iterator.Element: RequiresPreparation 
     func prepareRecursive(_ completion: @escaping (Error?) -> Void) {
         let current = self
         current.prepare { (err) in
-            print(current.count, Iterator.Element.self)
             guard err == nil else { completion(err); return }
 
             var lastErr: Error?
@@ -1135,7 +1134,6 @@ public extension RealtimeCollection where Iterator.Element: RequiresPreparation 
 func prepareElementsRecursive<RC: Collection>(_ collection: RC, completion: @escaping (Error?) -> Void) {
     var lastErr: Error? = nil
     let group = DispatchGroup()
-    print(collection.count, RC.Iterator.Element.self)
 
     collection.indices.forEach { _ in group.enter() }
     collection.forEach { element in
