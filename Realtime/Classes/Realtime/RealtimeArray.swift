@@ -1111,44 +1111,45 @@ public extension RealtimeCollection where Iterator.Element: RequiresPreparation 
     func prepareRecursive(_ completion: @escaping (Error?) -> Void) {
         let current = self
         current.prepare { (err) in
-            let count = current.endIndex
-            let completeIfNeeded = { (releasedCount: Index) in
-                if count == releasedCount {
-                    completion(err)
+            print(current.count, Iterator.Element.self)
+            guard err == nil else { completion(err); return }
+
+            var lastErr: Error?
+            let group = DispatchGroup()
+
+            current.indices.forEach { _ in group.enter() }
+            current.forEach { element in
+                element.prepareRecursive { (e) in
+                    lastErr = e
+                    group.leave()
                 }
             }
 
-            var released = current.startIndex
-            current.forEach { element in
-                element.prepareRecursive { (_) in
-                    released = current.index(after: released)
-                    completeIfNeeded(released)
-                }
+            group.notify(queue: .main) {
+                completion(lastErr)
             }
         }
     }
 }
 
 func prepareElementsRecursive<RC: Collection>(_ collection: RC, completion: @escaping (Error?) -> Void) {
-    let count = collection.endIndex
     var lastErr: Error? = nil
-    let completeIfNeeded = { (releasedCount: RC.Index) in
-        if count == releasedCount {
-            completion(lastErr)
-        }
-    }
+    let group = DispatchGroup()
+    print(collection.count, RC.Iterator.Element.self)
 
-    var released = collection.startIndex
+    collection.indices.forEach { _ in group.enter() }
     collection.forEach { element in
         if let prepared = (element as? RequiresPreparation) {
             prepared.prepareRecursive { (err) in
                 lastErr = err
-                released = collection.index(after: released)
-                completeIfNeeded(released)
+                group.leave()
             }
         } else {
-            released = collection.index(after: released)
-            completeIfNeeded(released)
+            group.leave()
         }
+    }
+
+    group.notify(queue: .main) {
+        completion(lastErr)
     }
 }
