@@ -164,7 +164,7 @@ public protocol InsiderOwner: class, Listenable {
 
 protocol InsiderAccessor {
     associatedtype Owner: InsiderOwner
-    weak var insiderOwner: Owner! { get }
+    var insiderOwner: Owner! { get }
 }
 
 extension InsiderAccessor where Self: _ListeningMaker {

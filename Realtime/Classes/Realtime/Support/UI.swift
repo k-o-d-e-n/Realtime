@@ -100,7 +100,7 @@ public extension RCBasedDataSource {
 }
 
 extension Collection {
-    func element(by offset: IndexDistance) -> Iterator.Element {
+    func element(by offset: Int) -> Iterator.Element {
         return self[index(startIndex, offsetBy: offset)]
     }
 }

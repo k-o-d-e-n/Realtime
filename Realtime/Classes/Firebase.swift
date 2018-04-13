@@ -62,7 +62,7 @@ public extension DataSnapshot {
 /// TODO: Temporary
 
 extension Dictionary {
-    public init<Keys: Collection, Values: Collection>(keys: Keys, values: Values) where Keys.Iterator.Element: Hashable, Keys.IndexDistance == Values.IndexDistance, Values.Index == Int, Key == Keys.Iterator.Element, Value == Values.Iterator.Element {
+    public init<Keys: Collection, Values: Collection>(keys: Keys, values: Values) where Keys.Iterator.Element: Hashable, Values.Index == Int, Key == Keys.Iterator.Element, Value == Values.Iterator.Element {
         precondition(keys.count == values.count)
 
         self.init()

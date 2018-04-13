@@ -34,11 +34,16 @@ extension Data      : HasDefaultLiteral {}
 extension Array     : HasDefaultLiteral {}
 extension Dictionary: HasDefaultLiteral {}
 
-extension Dictionary: MutableDataRepresented {
+extension Dictionary: MutableDataRepresented {//} where Key: MutableDataRepresented, Value: MutableDataRepresented {
     private struct Error: Swift.Error {
         var localizedDescription: String { return "Data could not convert to dictionary" }
     }
-    public var localValue: Any? { return self }
+    public var localValue: Any? {
+        return self
+//        return reduce(into: [:], { (res, elem) in
+//            res[elem.key.localValue] = elem.value.localValue
+//        })
+    }
 
     public init(data: MutableData) throws {
         guard let v = data.value as? [Key: Value] else { throw Error() }
@@ -47,11 +52,11 @@ extension Dictionary: MutableDataRepresented {
     }
 }
 
-extension Array: MutableDataRepresented {
+extension Array: MutableDataRepresented where Element: DataSnapshotRepresented {
     private struct Error: Swift.Error {
         var localizedDescription: String { return "Data could not convert to array" }
     }
-    public var localValue: Any? { return CodableSerializer.serialize(entity: self) }
+    public var localValue: Any? { return map { $0.localValue } }
 
     public init(data: MutableData) throws {
         guard let v = data.value as? [Element] else { throw Error() }
