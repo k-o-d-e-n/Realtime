@@ -37,17 +37,7 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(
         if let new = value { new.1.remove(linkBy: new.0) }
         super.revert()
     }
-    public var related: Related? {
-        get { return value?.1 }
-        set {
-            if let oldValue = value { oldValue.1.remove(linkBy: oldValue.0) }
-            value = newValue.map {
-                let link = $0.node!.generate(linkTo: node!).link
-                $0.add(link: link)
-                return (link.id, $0)
-            }
-        }
-    }
+    public var related: Related? { return value?.1 }
 
     public required init(in node: Node?, value: T) {
         if node.map({ !$0.isRooted }) ?? true {
@@ -56,22 +46,26 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(
         super.init(in: node, value: value)
     }
 
-    @discardableResult
-    public override func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        let transaction = transaction ?? RealtimeTransaction()
-        if let (id, related) = self.value {
-            related.removeLink(by: id, in: transaction)
-        }
-        self.related = value?.1
-        transaction.set(self)
-        value?.1.insertChanges(to: transaction, to: nil)
-
-        return transaction
+    public override func setValue(_ value: (String, Related)?, in transaction: RealtimeTransaction?) -> RealtimeTransaction {
+        fatalError("Use setValue(_: Related?, in:) function instead")
     }
 
     @discardableResult
     public func setValue(_ value: Related?, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        return setValue(value.map { ("", $0) }, in: transaction)
+        let transaction = transaction ?? RealtimeTransaction()
+        if let (id, related) = self.value {
+            related.removeLink(by: id, in: transaction)
+        }
+        if let v = value {
+            let link = v.node!.generate(linkTo: node!).link
+            v.addLink(link, in: transaction)
+            self.value = (link.id, v)
+            transaction.set(self)
+        } else {
+            transaction.delete(self)
+        }
+
+        return transaction
     }
 }
 
@@ -238,4 +232,88 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     }
 }
 
-// TODO: Implement new SharedRealtimeProperty
+public class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner where T == Serializer.Entity, T: MutableDataRepresented {
+    override public var localValue: Any? { return Serializer.serialize(entity: localPropertyValue.get()) }
+
+    private var localPropertyValue: PropertyValue<T>
+    public var value: T {
+        get { return localPropertyValue.get() }
+        set { setValue(newValue) }
+    }
+    public var insider: Insider<T>
+
+    // MARK: Initializers, deinitializer
+
+    public required init(in node: Node?, value: T) {
+        self.localPropertyValue = PropertyValue(value)
+        self.insider = Insider(source: localPropertyValue.get)
+        super.init(in: node)
+    }
+
+    public convenience required init(in node: Node?) {
+        self.init(in: node, value: T())
+    }
+
+    // MARK: Events
+
+    override public func didSave(in node: Node) {
+        super.didSave(in: node)
+    }
+
+    override public func didRemove(from node: Node) {
+        super.didRemove(from: node)
+        setValue(T())
+    }
+
+    // MARK: Changeable
+
+    public convenience required init(snapshot: DataSnapshot) {
+        self.init(in: Node(key: snapshot.key, parent: nil))
+        apply(snapshot: snapshot)
+    }
+
+    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
+        super.apply(snapshot: snapshot, strongly: strongly)
+        setValue(Serializer.deserialize(entity: snapshot))
+    }
+
+    fileprivate func setValue(_ value: T) {
+        localPropertyValue.set(value)
+        insider.dataDidChange()
+    }
+}
+
+public extension SharedProperty {
+    public func changeValue(use changing: @escaping (T) throws -> T, completion: ((Bool, T) -> Void)? = nil) {
+        debugFatalError(condition: dbRef == nil, "")
+        
+        if let ref = dbRef {
+            ref.runTransactionBlock({ data in
+                do {
+                    let dataValue = data.exists() ? try T.init(data: data) : T()
+                    data.value = try changing(dataValue).localValue
+                } catch let e {
+                    debugFatalError(e.localizedDescription)
+
+                    return .abort()
+                }
+                return .success(withValue: data)
+            }, andCompletionBlock: { [unowned self] error, commited, snapshot in
+                guard error == nil else {
+                    completion?(false, self.value)
+                    return
+                }
+
+                if let s = snapshot {
+                    self.setValue(Serializer.deserialize(entity: s))
+                    completion?(true, self.value)
+                } else {
+                    debugFatalError("Transaction completed without error, but snapshot does not exist")
+
+                    completion?(false, self.value)
+                }
+            })
+        }
+    }
+}
+

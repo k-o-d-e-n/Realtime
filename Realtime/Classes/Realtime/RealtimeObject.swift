@@ -12,7 +12,7 @@ import FirebaseDatabase
 // TODO: Add caching mechanism, for reuse entities
 
 /// Base class for any database value
-open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, RealtimeValue, Hashable {
+open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, RealtimeValue, Hashable, CustomDebugStringConvertible {
     public var dbRef: DatabaseReference?
     public internal(set) var node: Node?
     private var observingToken: UInt?

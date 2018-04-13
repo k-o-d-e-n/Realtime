@@ -81,7 +81,6 @@ where C.Index == Int {
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving() { base.runObserving() }
     override func stopObserving() { base.stopObserving() }
-    override var debugDescription: String { return base.debugDescription }
 }
 
 //class AnyRealtimeCollection<Element>: RealtimeCollection {
@@ -181,7 +180,7 @@ where Element: RealtimeValue {
     private let baseView: AnySharedCollection<AnyCollectionKey>
 
     init<B: RC, Key: RTNode>(base: B, key: Key, elementBuilder: @escaping (Node) -> Element = Element.init)
-        where B.Storage: RCStorage, B.View.Iterator.Element: DatabaseKeyRepresentable,
+        where B.View.Iterator.Element: DatabaseKeyRepresentable,
         B.View.Index: SignedInteger, B.Iterator.Element == BaseElement, B.Index == Int, Key.RawValue == String {
             self.base = __AnyRealtimeCollection(base: base)
             self.storage = KeyedCollectionStorage(base.storage, key: key.rawValue, builder: elementBuilder)

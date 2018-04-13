@@ -22,6 +22,7 @@ class ViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        
         var logo = AsyncReadonlyProperty<String?>(value: nil) { (setter) in
         }
 

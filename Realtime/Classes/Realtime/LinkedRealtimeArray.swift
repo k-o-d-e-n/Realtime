@@ -72,9 +72,7 @@ public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue
     }
 
     public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }
-    public func didRemove(from node: Node) {
-        _view.source.didRemove()
-    }
+    public func didRemove(from node: Node) { _view.source.didRemove() }
 }
 
 // MARK: Mutating
@@ -154,3 +152,34 @@ public extension LinkedRealtimeArray {
         return transaction
     }
 }
+
+//public extension LinkedRealtimeArray where Element: MutableDataRepresented {
+//    public func changeValue(use changing: @escaping (T) throws -> T, completion: @escaping (Bool, T) -> Void) {
+//        debugFatalError(condition: dbRef != nil, "")
+//        if let ref = dbRef {
+//            ref.runTransactionBlock({ data in
+//                do {
+//                    let dataValue = try T.init(data: data)
+//                    data.value = try changing(dataValue).localValue
+//                } catch let e {
+//                    debugFatalError(e.localizedDescription)
+//                    return .abort()
+//                }
+//                return .success(withValue: data)
+//            }, andCompletionBlock: { [unowned self] error, commited, snapshot in
+//                guard error == nil else {
+//                    return completion(false, self.value)
+//                }
+//
+//                if let s = snapshot {
+//                    self.setValue(Serializer.deserialize(entity: s))
+//                    completion(true, self.value)
+//                } else {
+//                    debugFatalError("Transaction completed without error, but snapshot does not exist")
+//                    completion(false, self.value)
+//                }
+//            })
+//        }
+//    }
+//}
+

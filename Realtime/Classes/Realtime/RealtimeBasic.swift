@@ -10,9 +10,46 @@ import FirebaseDatabase
 
 internal let lazyStoragePath = ".storage"
 
+public protocol DataSnapshotProtocol {
+    var value: Any? { get }
+    var priority: Any? { get }
+    var children: NSEnumerator { get }
+//    var key: String? { get }
+//    var ref: DatabaseReference? { get }
+    var childrenCount: UInt { get }
+    func exists() -> Bool
+    func hasChildren() -> Bool
+    func hasChild(_ childPathString: String) -> Bool
+    func child(forPath path: String) -> DataSnapshotProtocol
+}
+
+extension DataSnapshot: DataSnapshotProtocol {
+    public func child(forPath path: String) -> DataSnapshotProtocol {
+        return childSnapshot(forPath: path)
+    }
+}
+extension MutableData: DataSnapshotProtocol {
+    public func exists() -> Bool {
+        return value != nil && !(value is NSNull)
+    }
+
+    public func child(forPath path: String) -> DataSnapshotProtocol {
+        return childData(byAppendingPath: path)
+    }
+    
+    public func hasChild(_ childPathString: String) -> Bool {
+        return hasChild(atPath: childPathString)
+    }
+}
+
 public protocol DataSnapshotRepresented {
     var localValue: Any? { get }
     init?(snapshot: DataSnapshot)
+}
+
+public protocol MutableDataRepresented {
+    var localValue: Any? { get }
+    init(data: MutableData) throws
 }
 
 // MARK: RealtimeValue
@@ -22,7 +59,7 @@ public protocol DatabaseKeyRepresentable {
 }
 
 /// Base protocol for all database entities
-public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented, CustomDebugStringConvertible {
+public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented {
 //    var dbRef: DatabaseReference { get } // TODO: Use abstract protocol which has methods for observing and reference. Need for use DatabaseQuery
     var node: Node? { get }
 

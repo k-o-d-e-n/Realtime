@@ -130,19 +130,73 @@ public extension Listenable where Self.OutData == UIImage? {
 
 //// MARK: Attempts
 
-class ControlEventsTarget<Value>: Disposable, InsiderOwner {
-    private var _dispose: (() -> Void)!
-    var dispose: () -> Void { return _dispose }
-    var insider: Insider<Value>
+extension UIControl: Listenable {
+    public typealias OutData = Void
 
-    init<Control: UIControl>(control: Control, events: UIControlEvents, getter: @escaping (Control?) -> Value) {
-        self.insider = Insider(source: { [weak control] in getter(control) })
-        self._dispose = { [weak self, weak control] in control?.removeTarget(self, action: nil, for: events) }
-        control.addTarget(self, action: #selector(didReceiveEvent(_:)), for: events)
+    private func makeDispose(for events: UIControlEvents, listening: AnyListening) -> Disposable {
+        return ControlListening(self, events: events, listening: listening)
+    }
+    private func makeListeningItem(for events: UIControlEvents, listening: AnyListening) -> ListeningItem {
+        let controlListening = ControlListening(self, events: events, listening: listening)
+        return ListeningItem(start: controlListening.onStart,
+                             stop: controlListening.onStop,
+                             notify: controlListening.sendData,
+                             token: ())
     }
 
-    @objc func didReceiveEvent(_ control: UIControl) {
-        insider.dataDidChange()
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<Void>) -> Disposable {
+        return makeDispose(for: .allEvents, listening: config(Listening(bridge: assign.assign)))
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<Void>) -> ListeningItem {
+        return makeListeningItem(for: .allEvents, listening: config(Listening(bridge: assign.assign)))
+    }
+
+    public func listening(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<Void>) -> Disposable {
+        return makeDispose(for: events, listening: config(Listening(bridge: assign.assign)))
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<Void>) -> ListeningItem {
+        return makeListeningItem(for: events, listening: config(Listening(bridge: assign.assign)))
+    }
+
+    private class ControlListening: AnyListening, Disposable, Hashable {
+        unowned let control: UIControl
+        let events: UIControlEvents
+        let base: AnyListening
+
+        var isInvalidated: Bool { return control.allTargets.contains(self) }
+        var dispose: () -> Void { return onStop }
+
+        init(_ control: UIControl, events: UIControlEvents, listening: AnyListening) {
+            self.control = control
+            self.events = events
+            self.base = listening
+
+            onStart()
+        }
+
+        @objc func onEvent(_ control: UIControl, _ event: UIEvent) { // TODO: UIEvent
+            sendData()
+        }
+
+        func sendData() {
+            base.sendData()
+        }
+
+        func onStart() {
+            control.addTarget(self, action: #selector(onEvent(_:_:)), for: events)
+        }
+
+        func onStop() {
+            control.removeTarget(self, action: #selector(onEvent(_:_:)), for: events)
+            base.onStop()
+        }
+
+        var hashValue: Int { return Int(events.rawValue) }
+        static func ==(lhs: ControlListening, rhs: ControlListening) -> Bool {
+            return lhs === rhs
+        }
     }
 }
 
@@ -193,10 +247,10 @@ extension UITextField {
         return .init(base: self)
     }
 
-    var realtime: ControlEventsTarget<String?> {
-        let target = Unmanaged.passRetained(ControlEventsTarget(control: self, events: .valueChanged, getter: { $0?.text }))
-        return target.takeUnretainedValue()
-    }
+//    var realtime: ControlEventsTarget<String?> {
+//        let target = Unmanaged.passRetained(ControlEventsTarget(control: self, events: .valueChanged, getter: { $0?.text }))
+//        return target.takeUnretainedValue()
+//    }
 
     var textInsider: Insider<String?> {
         set { }

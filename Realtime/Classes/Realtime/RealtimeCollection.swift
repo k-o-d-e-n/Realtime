@@ -85,7 +85,7 @@ public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, Requ
     func runObserving() -> Void
     func stopObserving() -> Void
 }
-protocol RC: RealtimeCollection, RealtimeValueEvents {
+protocol RC: RealtimeCollection, RealtimeValueEvents where Storage: RCStorage {
     associatedtype View: RCView
     var _view: View { get }
 }

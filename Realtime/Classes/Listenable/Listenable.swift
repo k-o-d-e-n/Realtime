@@ -49,6 +49,11 @@ public struct Assign<A> {
         return weak(owner) { if let o = $1 { assign($0, o) } }
     }
 
+//    /// closure associated with object using weak reference, that called only when object alive
+//    static public func guardedWeak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
+//        return weak(owner) { if let o = $1 { weak var o = o; assign($0, o) } }
+//    }
+
     /// closure that called on specified dispatch queue
     static public func on(_ queue: DispatchQueue, assign: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: { v in queue.async { assign(v) } })

@@ -817,6 +817,34 @@ extension Tests {
     }
 }
 
+// UIKit support
+
+extension Tests {
+    func testControlListening() {
+        var counter = 0
+        let control = UIControl()
+
+        let disposable = control.listening(events: .touchUpInside, .just {
+            counter += 1
+        })
+
+        control.sendActions(for: .touchUpInside)
+
+        XCTAssertTrue(counter == 1)
+
+        control.sendActions(for: .touchUpInside)
+        control.sendActions(for: .touchDown)
+
+        XCTAssertTrue(counter == 2)
+
+        disposable.dispose()
+
+        control.sendActions(for: .touchUpInside)
+
+        XCTAssertTrue(counter == 2)
+    }
+}
+
 // MARK: Other
 
 extension Tests {
@@ -876,6 +904,58 @@ extension Tests {
         let testMirror = Mirror(reflecting: Test.self)
 
         print(oneMirror, testMirror)
+    }
+
+    func testCodableEnum() {
+        struct Err: Error {
+            var localizedDescription: String { return "" }
+        }
+        struct News: Codable {
+            let date: TimeInterval
+        }
+        enum Feed: Codable {
+            case common(News)
+
+            enum Key: CodingKey {
+                case raw
+            }
+
+            init(from decoder: Decoder) throws {
+                let rawContainer = try decoder.container(keyedBy: Key.self)
+                let container = try decoder.singleValueContainer()
+                let rawValue = try rawContainer.decode(Int.self, forKey: .raw)
+                switch rawValue {
+                case 0:
+                    self = .common(try container.decode(News.self))
+                default:
+                    throw Err()
+                }
+            }
+
+            func encode(to encoder: Encoder) throws {
+                switch self {
+                case .common(let news):
+                    var container = encoder.singleValueContainer()
+                    try container.encode(news)
+                    var rawContainer = encoder.container(keyedBy: Key.self)
+                    try rawContainer.encode(0, forKey: .raw)
+                }
+            }
+        }
+
+        let news = News(date: 0.0)
+        let feed: Feed = .common(news)
+
+        let data = try! JSONEncoder().encode(feed)
+
+        let json = try! JSONSerialization.jsonObject(with: data, options: .allowFragments) as! NSDictionary
+        let decodedFeed = try! JSONDecoder().decode(Feed.self, from: data)
+
+        XCTAssertTrue(["raw": 0, "date": 0.0] as NSDictionary == json)
+        switch decodedFeed {
+        case .common(let n):
+            XCTAssertTrue(n.date == news.date)
+        }
     }
 }
 

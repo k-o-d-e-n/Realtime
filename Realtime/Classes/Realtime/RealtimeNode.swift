@@ -42,7 +42,7 @@ public class Node: Equatable {
     var root: Node? { return parent.map { $0.root ?? $0 } }
     var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
 
-    var rootPath: String {
+    public var rootPath: String {
         return parent.map { $0.rootPath + "/" + key } ?? key
     }
 

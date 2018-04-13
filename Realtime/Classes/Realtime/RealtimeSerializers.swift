@@ -34,6 +34,34 @@ extension Data      : HasDefaultLiteral {}
 extension Array     : HasDefaultLiteral {}
 extension Dictionary: HasDefaultLiteral {}
 
+extension Dictionary: MutableDataRepresented {
+    private struct Error: Swift.Error {
+        var localizedDescription: String { return "Data could not convert to dictionary" }
+    }
+    public var localValue: Any? { return self }
+
+    public init(data: MutableData) throws {
+        guard let v = data.value as? [Key: Value] else { throw Error() }
+
+        self = v
+    }
+}
+
+extension Array: MutableDataRepresented {
+    private struct Error: Swift.Error {
+        var localizedDescription: String { return "Data could not convert to array" }
+    }
+    public var localValue: Any? { return CodableSerializer.serialize(entity: self) }
+
+    public init(data: MutableData) throws {
+        guard let v = data.value as? [Element] else { throw Error() }
+
+        self = v
+    }
+}
+
+// MARK: Serializer
+
 public protocol _Serializer {
     associatedtype Entity: HasDefaultLiteral
     static func deserialize(entity: DataSnapshot) -> Entity
