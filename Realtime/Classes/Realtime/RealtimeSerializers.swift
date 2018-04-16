@@ -15,6 +15,18 @@ public protocol HasDefaultLiteral {
     init()
 }
 
+//protocol FireDataValue: FireDataRepresented {}
+//extension FireDataValue {
+//    var localValue: Any? { return self }
+//    init(firData: FireDataProtocol) throws {
+//        guard let v = firData.value as? Self else {
+//            throw RealtimeError("Failed data for type: \(Self.self)")
+//        }
+//
+//        self = v
+//    }
+//}
+
 extension Optional  : HasDefaultLiteral { public init() { self = .none } }
 extension Bool      : HasDefaultLiteral {}
 extension Int       : HasDefaultLiteral {}
@@ -52,16 +64,14 @@ extension Dictionary: MutableDataRepresented {//} where Key: MutableDataRepresen
     }
 }
 
-extension Array: MutableDataRepresented where Element: DataSnapshotRepresented {
+extension Array: MutableDataRepresented where Element: FireDataRepresented {
     private struct Error: Swift.Error {
         var localizedDescription: String { return "Data could not convert to array" }
     }
     public var localValue: Any? { return map { $0.localValue } }
 
     public init(data: MutableData) throws {
-        guard let v = data.value as? [Element] else { throw Error() }
-
-        self = v
+        self = try data.children.map { try Element(firData: unsafeBitCast($0 as AnyObject, to: MutableData.self)) }
     }
 }
 

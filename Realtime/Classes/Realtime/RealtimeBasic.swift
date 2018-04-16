@@ -8,32 +8,56 @@
 import Foundation
 import FirebaseDatabase
 
+struct RealtimeError: Error {
+    let localizedDescription: String
+
+    init(_ descr: String) {
+        self.localizedDescription = descr
+    }
+}
+
 internal let lazyStoragePath = ".storage"
 
-public protocol DataSnapshotProtocol {
+public protocol FireDataProtocol {
     var value: Any? { get }
     var priority: Any? { get }
     var children: NSEnumerator { get }
-//    var key: String? { get }
-//    var ref: DatabaseReference? { get }
+    var dataKey: String? { get }
+    var dataRef: DatabaseReference? { get }
     var childrenCount: UInt { get }
     func exists() -> Bool
     func hasChildren() -> Bool
     func hasChild(_ childPathString: String) -> Bool
-    func child(forPath path: String) -> DataSnapshotProtocol
+    func child(forPath path: String) -> FireDataProtocol
 }
 
-extension DataSnapshot: DataSnapshotProtocol {
-    public func child(forPath path: String) -> DataSnapshotProtocol {
+extension DataSnapshot: FireDataProtocol {
+    public var dataKey: String? {
+        return key
+    }
+
+    public var dataRef: DatabaseReference? {
+        return ref
+    }
+
+    public func child(forPath path: String) -> FireDataProtocol {
         return childSnapshot(forPath: path)
     }
 }
-extension MutableData: DataSnapshotProtocol {
+extension MutableData: FireDataProtocol {
+    public var dataKey: String? {
+        return key
+    }
+
+    public var dataRef: DatabaseReference? {
+        return nil
+    }
+
     public func exists() -> Bool {
         return value != nil && !(value is NSNull)
     }
 
-    public func child(forPath path: String) -> DataSnapshotProtocol {
+    public func child(forPath path: String) -> FireDataProtocol {
         return childData(byAppendingPath: path)
     }
     
@@ -41,6 +65,8 @@ extension MutableData: DataSnapshotProtocol {
         return hasChild(atPath: childPathString)
     }
 }
+
+// TODO: Avoid using three separated protocols
 
 public protocol DataSnapshotRepresented {
     var localValue: Any? { get }
@@ -50,6 +76,12 @@ public protocol DataSnapshotRepresented {
 public protocol MutableDataRepresented {
     var localValue: Any? { get }
     init(data: MutableData) throws
+}
+
+// TODO: I can make data wrapper struct, without create protocol or conformed protocol (avoid conformation DataSnapshot and MutableData)
+public protocol FireDataRepresented {
+    var localValue: Any? { get }
+    init(firData: FireDataProtocol) throws
 }
 
 // MARK: RealtimeValue

@@ -317,3 +317,24 @@ public extension SharedProperty {
     }
 }
 
+public class MutationPoint<T> where T: FireDataRepresented {
+    public let node: Node
+    public required init(in node: Node) throws {
+        guard node.isRooted else { throw RealtimeError("Node should be rooted") }
+        self.node = node
+    }
+}
+public extension MutationPoint {
+    func set(value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        let transaction = transaction ?? RealtimeTransaction()
+        transaction.addNode(item: (node.reference, .value(value.localValue)))
+
+        return transaction
+    }
+    func mutate(by key: String? = nil, use value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        let transaction = transaction ?? RealtimeTransaction()
+        transaction.addNode(item: (key.map { node.reference.child($0) } ?? node.reference.childByAutoId(), .value(value.localValue)))
+
+        return transaction
+    }
+}

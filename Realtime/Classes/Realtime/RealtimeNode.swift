@@ -132,6 +132,16 @@ extension Node {
     }
 }
 
+public extension FireDataProtocol {
+    func map<Mapped>(_ transform: (Any) -> Mapped = { $0 as! Mapped }) -> Mapped? { return value.map(transform) }
+    func flatMap<Mapped>(_ transform: (Any) -> Mapped? = { $0 as? Mapped }) -> Mapped? { return value.flatMap(transform) }
+    func map<Mapped>(child path: String, map: (FireDataProtocol) -> Mapped?) -> Mapped? {
+        guard hasChild(path) else { return nil }
+        return map(child(forPath: path))
+    }
+    func mapExactly(if truth: Bool, child path: String, map: (FireDataProtocol) -> Void) { if truth || hasChild(path) { map(child(forPath: path)) } }
+}
+
 /// Describes node of database
 public protocol RTNode: RawRepresentable, Equatable {
     associatedtype RawValue: Equatable = String
@@ -157,6 +167,24 @@ public extension RTNode where Self.RawValue == String {
     }
 
     func take(from parent: DataSnapshot, exactly: Bool, map: (DataSnapshot) -> Void) {
+        parent.mapExactly(if: exactly, child: rawValue, map: map)
+    }
+
+    /// checks availability child in snapshot with node name
+    func has(in snapshot: FireDataProtocol) -> Bool {
+        return snapshot.hasChild(rawValue)
+    }
+
+    /// gets child snapshot by node name
+    func child(from parent: FireDataProtocol) -> FireDataProtocol {
+        return parent.child(forPath: rawValue)
+    }
+
+    func map<Returned>(from parent: FireDataProtocol) -> Returned? {
+        return parent.map(child: rawValue) { $0.value as? Returned }
+    }
+
+    func take(from parent: FireDataProtocol, exactly: Bool, map: (FireDataProtocol) -> Void) {
         parent.mapExactly(if: exactly, child: rawValue, map: map)
     }
 
