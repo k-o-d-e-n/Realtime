@@ -155,7 +155,7 @@ class Tests: XCTestCase {
     func testReadonlyProperty() {
         var propertyIndexSet = Property<IndexSet>(value: IndexSet(integer: 0))
         var readonlySum = ReadonlyProperty<Int>() {
-            return propertyIndexSet.value.reduce(0, +)
+            return propertyIndexSet.value.reduce(0, +) // TODO: Bad access
         }
         _ = propertyIndexSet.insider.listen(.just { _ in
             readonlySum.fetch()
@@ -185,6 +185,22 @@ class Tests: XCTestCase {
 
         XCTAssertTrue(view.backgroundColor == .red)
         XCTAssertFalse(backgroundProperty.insider.has(token: bgToken.token))
+
+        backgroundProperty <= .green
+        XCTAssertTrue(view.backgroundColor == .red)
+    }
+
+    func testIfPropertyListen() {
+        let view = UIView()
+        var backgroundProperty = Property<UIColor>(value: .white)
+
+        let _ = backgroundProperty.insider.listen(as: { $0.if(!view.isHidden) }, .just {
+            view.backgroundColor = $0
+        })
+        backgroundProperty <= .red
+
+        XCTAssertTrue(view.backgroundColor == .red)
+        view.isHidden = true
 
         backgroundProperty <= .green
         XCTAssertTrue(view.backgroundColor == .red)
@@ -740,7 +756,7 @@ extension Tests {
     // TODO: Mapping and etc.
 
     func testNode() {
-        let first = Node(key: "first")
+        let first = Node(key: "first", parent: .root)
 
         let second = Node(key: "second", parent: first)
         XCTAssertEqual(second.rootPath, "/first/second")
@@ -768,7 +784,7 @@ extension Tests {
     }
 
     func testConnectNode() {
-        let testObject = TestObject(in: .autoId())
+        let testObject = TestObject(in: Node())
 
         XCTAssertTrue(testObject.isStandalone)
         XCTAssertTrue(testObject.property.isStandalone)
@@ -776,7 +792,7 @@ extension Tests {
         XCTAssertTrue(testObject.array.isStandalone)
         XCTAssertTrue(testObject.dictionary.isStandalone)
 
-        let node = Node(key: "testObjects")
+        let node = Node(key: "testObjects", parent: .root)
         testObject.didSave(in: node)
 
         XCTAssertTrue(testObject.isInserted)
@@ -787,7 +803,7 @@ extension Tests {
     }
 
     func testDisconnectNode() {
-        let node = Node(key: "testObjects").childByAutoId()
+        let node = Node(key: "testObjects", parent: .root).childByAutoId()
         let testObject = TestObject(in: node)
 
         XCTAssertTrue(testObject.isInserted)
@@ -805,16 +821,18 @@ extension Tests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
     }
 
-    func testRealtimeDictionaryReturnsNilOnDoesNotExistsKey() {
-        let exp = expectation(description: "")
-        let dict = RealtimeDictionary<RealtimeObject, RealtimeObject>(in: .root, keysNode: .root)
-        dict.prepare { (_) in
-            exp.fulfill()
-        }
-        waitForExpectations(timeout: 5) { (_) in
-            XCTAssertNil(dict[RealtimeObject(in: .root)])
-        }
-    }
+    // TODO: Permission denied
+//    func testRealtimeDictionaryReturnsNilOnDoesNotExistsKey() {
+//        let exp = expectation(description: "")
+//        let dict = RealtimeDictionary<RealtimeObject, RealtimeObject>(in: Node.root.linksNode, keysNode: .root)
+//        dict.prepare { (d, _) in
+//            XCTAssertTrue(d.isPrepared)
+//            exp.fulfill()
+//        }
+//        waitForExpectations(timeout: 5) { (_) in
+//            XCTAssertNil(dict[RealtimeObject(in: .root)])
+//        }
+//    }
 }
 
 // UIKit support
@@ -883,13 +901,13 @@ extension Tests {
 
         XCTAssert(mirror.children.count > 0)
         mirror.children.forEach { (child) in
-            print(child.label, child.value)
+            print(child.label as Any, child.value)
         }
 
         _ = object.links
 
         mirror.children.forEach { (child) in
-            print(child.label, child.value)
+            print(child.label as Any, child.value)
         }
 
         let id = ObjectIdentifier.init(object)

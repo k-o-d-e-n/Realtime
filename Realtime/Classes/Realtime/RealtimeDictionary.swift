@@ -47,12 +47,10 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
 public typealias RealtimeDictionaryKey = Hashable & RealtimeValue & Linkable
 public final class RealtimeDictionary<Key, Value>: RC
 where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
-    public var node: Node?
+    public internal(set) var node: Node?
     public var view: RealtimeCollectionView { return _view }
-    public var storage: RCDictionaryStorage<Key, Value>
+    public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
-
-//    public var isRequiredPreparation: Bool { return isInserted } // Alpha
 
     let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>>
 
@@ -154,7 +152,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
             transaction.addNode(valueLink.sourceNode, value: valueLink.link.localValue)
         }
         if let e = element as? RealtimeObject {
-            transaction.update(e, by: elementNode)
+            transaction._update(e, by: elementNode)
         } else {
             transaction.set(element, by: elementNode)
         }
@@ -259,8 +257,17 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         }
     }
 
-    public func didSave(in node: Node) {
-        _view.source.didSave()
+    public func didSave(in parent: Node, by key: String) {
+        debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node!.key).")
+        debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
+
+        if let node = self.node {
+            node.parent = parent
+        } else {
+            self.node = Node(key: key, parent: parent)
+        }
+
+        _view.source.didSave(in: self.node!)
     }
 
     public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }

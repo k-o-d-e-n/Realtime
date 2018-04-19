@@ -17,7 +17,7 @@ public extension RTNode where Self.RawValue == String {
         return Type(in: Node(key: rawValue, parent: node))
     }
     func property<Type: RealtimeValue>() -> Type {
-        return Type(in: Node(key: rawValue))
+        return Type(in: Node(key: rawValue, parent: .root))
     }
 }
 
@@ -71,7 +71,7 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(
 
 // MARK: Listenable realtime property
 
-public typealias StandartProperty<StandartType: HasDefaultLiteral & Codable> = RealtimeProperty<StandartType, Serializer<StandartType>>
+public typealias StandartProperty<StandartType: HasDefaultLiteral> = RealtimeProperty<StandartType, Serializer<StandartType>>
 public typealias OptionalEnumProperty<EnumType: RawRepresentable> = RealtimeProperty<EnumType?, EnumSerializer<EnumType>>
 public extension URL {
     typealias OptionalProperty = RealtimeProperty<URL?, URLSerializer>
@@ -195,8 +195,8 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     
     // MARK: Events
     
-    override public func didSave(in node: Node) {
-        super.didSave(in: node)
+    override public func didSave(in parent: Node, by key: String) {
+        super.didSave(in: parent, by: key)
         resetHasChanges()
     }
     
@@ -209,7 +209,7 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     // MARK: Changeable
     
     public convenience required init(snapshot: DataSnapshot) {
-        self.init(in: Node(key: snapshot.key, parent: nil))
+        self.init(in: .from(snapshot))
         apply(snapshot: snapshot)
     }
 
@@ -256,8 +256,8 @@ public class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWr
 
     // MARK: Events
 
-    override public func didSave(in node: Node) {
-        super.didSave(in: node)
+    override public func didSave(in parent: Node, by key: String) {
+        super.didSave(in: parent, by: key)
     }
 
     override public func didRemove(from node: Node) {
@@ -268,7 +268,7 @@ public class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWr
     // MARK: Changeable
 
     public convenience required init(snapshot: DataSnapshot) {
-        self.init(in: Node(key: snapshot.key, parent: nil))
+        self.init(in: .from(snapshot))
         apply(snapshot: snapshot)
     }
 

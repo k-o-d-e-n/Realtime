@@ -231,12 +231,12 @@ extension RealtimeTransaction: CustomStringConvertible {
 public extension RealtimeTransaction {
     /// adds operation of save RealtimeValue as single value
     func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node? = nil) {
-        guard let savedNode = value.node ?? node, savedNode.isRooted else { fatalError() }
+        guard let savedNode = node ?? value.node, savedNode.isRooted else { fatalError() }
 
         addNode(savedNode, value: value.localValue)
         addCompletion { (result) in
             if result {
-                value.didSave(in: savedNode)
+                value.didSave(in: savedNode.parent!, by: savedNode.key)
             }
         }
     }
@@ -249,20 +249,26 @@ public extension RealtimeTransaction {
         addNode(item: (value.dbRef!, .value(nil)))
         addCompletion { (result) in
             if result {
-                value.didRemove(from: value.node!)
+                value.didRemove()
             }
         }
     }
 
     /// adds operation of update RealtimeValue
-    func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by node: Realtime.Node? = nil) {
+    func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) {
+        guard let updatedNode = value.node else { fatalError() }
+
+        _update(value, by: updatedNode)
+    }
+
+    internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) {
         guard value.hasChanges else { debugFatalError("Value has not changes"); return }
-        guard let updatedNode = value.node ?? node, updatedNode.isRooted else { fatalError() }
+        guard updatedNode.isRooted else { fatalError() }
 
         value.insertChanges(to: self, to: updatedNode) // TODO:
         addCompletion { (result) in
             if result {
-                value.didSave(in: updatedNode)
+                value.didSave(in: updatedNode.parent!, by: updatedNode.key)
             }
         }
         revertion(for: value)

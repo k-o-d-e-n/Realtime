@@ -14,8 +14,8 @@ public extension RTNode where RawValue == String {
 }
 
 public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue & Linkable {
-    public var node: Node?
-    public var storage: RCArrayStorage<Element>
+    public internal(set) var node: Node?
+    public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
     public var localValue: Any? { return _view.source.localValue }
     public var isPrepared: Bool { return _view.isPrepared }
@@ -67,8 +67,17 @@ public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue
         _view.isPrepared = true
     }
 
-    public func didSave(in node: Node) {
-        _view.source.didSave()
+    public func didSave(in parent: Node, by key: String) {
+        debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node!.key).")
+        debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
+
+        if let node = self.node {
+            node.parent = parent
+        } else {
+            self.node = Node(key: key, parent: parent)
+        }
+
+        _view.source.didSave(in: parent)
     }
 
     public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }

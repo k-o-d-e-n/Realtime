@@ -12,7 +12,7 @@ import FirebaseDatabase
 // TODO: Add caching mechanism, for reuse entities
 
 /// Base class for any database value
-open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, RealtimeValue, Hashable, CustomDebugStringConvertible {
+open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
     public var dbRef: DatabaseReference?
     public internal(set) var node: Node?
     private var observingToken: UInt?
@@ -24,44 +24,6 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
 
     deinit {
         observingToken.map(endObserve)
-    }
-
-    /// Warning! Save only local value, which it may be empty, that to make removing object, or him parts.
-    @discardableResult
-    public func save(completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
-        RemoteManager.save(entity: self, completion: completion)
-        return self
-    }
-
-    @discardableResult
-    public func save(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
-        Database.database().update(use: values + [(dbRef!, localValue)], completion: { err, ref in
-            if err == nil { self.didSave(in: Node.root.child(with: ref.rootPath)) }
-
-            completion?(err, ref)
-        })
-        return self
-    }
-
-    @discardableResult
-    public func remove(completion: ((Error?, DatabaseReference) -> ())?) -> Self {
-        return remove(with: [], completion: completion)
-    }
-    
-    @discardableResult
-    public func remove(with linkedRefs: [DatabaseReference], completion: Database.TransactionCompletion? = nil) -> Self {
-        fatalError()
-//        willRemove { (err, removeRefs) in
-//            guard err == nil else { completion?(err, self.dbRef!); return }
-//            let removes = removeRefs.map { $0 + linkedRefs } ?? linkedRefs
-//            if !removes.isEmpty {
-//                RemoteManager.remove(entity: self, with: removes, completion: completion)
-//            } else {
-//                RemoteManager.remove(entity: self, completion: completion)
-//            }
-//        }
-
-        return self
     }
     
     @discardableResult
@@ -102,11 +64,16 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
             self.dbRef = nil
         }
     }
-    public func didSave(in parent: Node) {
-        debugFatalError(condition: self.node == nil, "Value has been saved to node: \(parent), but has not current node.")
+    public func didSave(in parent: Node, by key: String) {
+        debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
         debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
+
+        if let node = self.node {
+            node.parent = parent
+        } else {
+            self.node = Node(key: key, parent: parent)
+        }
         
-        self.node?.parent = parent
         self.dbRef = parent.isRooted ? self.node?.reference : nil
     }
     
@@ -131,41 +98,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
         }
     }
     
-    public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \(String(describing: localValue));\n}" }
-}
-
-/// Base class for any database values that has child values
-open class _RealtimeEntity: _RealtimeValue, RealtimeEntityActions {
-    /// Warning! Values should be only on first level in hierarchy, else other data is lost.
-    @discardableResult
-    public func update(completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
-        //        guard hasChanges else { completion?(RemoteManager.RealtimeEntityError(type: .hasNotChanges), dbRef); return self }
-
-        RemoteManager.update(entity: self, completion: completion)
-        return self
-    }
-
-    @discardableResult
-    public func merge(completion: Database.TransactionCompletion?) -> Self {
-        RemoteManager.merge(entity: self, completion: completion)
-
-        return self
-    }
-
-    @discardableResult
-    public func update(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) -> Self {
-        RemoteManager.update(entity: self, with: values, completion: completion)
-
-        return self
-    }
-
-    @discardableResult
-    public func update(with values: [String : Any?], completion: ((Error?, DatabaseReference) -> ())?) -> Self {
-        RemoteManager.update(entity: self, with: values, completion: completion)
-
-        return self
-    }
-    override public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
+    public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
 }
 
 // TODO: Try to create `parent` typed property.
@@ -189,9 +122,10 @@ open class _RealtimeEntity: _RealtimeValue, RealtimeEntityActions {
 ///     }
 /// }
 ///
-open class RealtimeObject: _RealtimeEntity {
+open class RealtimeObject: _RealtimeValue {
     override public var hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val.hasChanges }) }
-    override public var localValue: Any? { return keyedValues { return $0.localValue } }
+    override public var localValue: Any? { return typedLocalValue }
+    public var typedLocalValue: [String: Any]? { return keyedValues { return $0.localValue } }
 
     private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
     typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>!
@@ -199,8 +133,8 @@ open class RealtimeObject: _RealtimeEntity {
 
 //    lazy var parent: RealtimeObject? = self.dbRef.parent.map(RealtimeObject.init) // should be typed
 
-    override public func didSave(in parent: Node) {
-        super.didSave(in: parent)
+    override public func didSave(in parent: Node, by key: String) {
+        super.didSave(in: parent, by: key)
         if let node = self.node {
             mv.didSave(in: node)
             links.didSave(in: node)
@@ -259,11 +193,8 @@ open class RealtimeObject: _RealtimeEntity {
     }
 
     override public func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?) {
-        reflect(to: _RealtimeEntity.self) { (mirror) in
+        reflect(to: _RealtimeValue.self) { (mirror) in
             mirror.children.forEach({ (child) in
-                if let value = child.value as? _RealtimeEntity {
-                    value.insertChanges(to: transaction, to: parentNode)
-                }
                 if let value = child.value as? _RealtimeValue {
                     value.insertChanges(to: transaction, to: parentNode)
                 }
@@ -288,7 +219,7 @@ open class RealtimeObject: _RealtimeEntity {
         }
         return keyedValues
     }
-    fileprivate func enumerateKeyPathChilds<As>(from type: Any.Type = _RealtimeEntity.self, _ block: (String, As) -> Void) {
+    fileprivate func enumerateKeyPathChilds<As>(from type: Any.Type = _RealtimeValue.self, _ block: (String, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
                 guard var label = child.label else { return }
@@ -307,7 +238,7 @@ open class RealtimeObject: _RealtimeEntity {
             })
         }
     }
-    fileprivate func enumerateChilds<As>(from type: Any.Type = _RealtimeEntity.self, _ block: (String?, As) -> Void) {
+    fileprivate func enumerateChilds<As>(from type: Any.Type = _RealtimeValue.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
                 guard let value = child.value as? As else { return }
@@ -316,7 +247,7 @@ open class RealtimeObject: _RealtimeEntity {
             })
         }
     }
-    private func containChild<As>(from type: Any.Type = _RealtimeEntity.self, where block: (String?, As) -> Bool) -> Bool {
+    private func containChild<As>(from type: Any.Type = _RealtimeValue.self, where block: (String?, As) -> Bool) -> Bool {
         var contains = false
         reflect(to: type) { (mirror) in
             guard !contains else { return }

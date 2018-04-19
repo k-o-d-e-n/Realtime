@@ -70,7 +70,7 @@ class ViewController: UIViewController {
     }
 }
 
-class TableViewController<Collection: RealtimeCollection>: UITableViewController where Collection.Index == Int, Collection.IndexDistance == Int {
+class TableViewController<Collection: RealtimeCollection>: UITableViewController where Collection.Index == Int {
     let list: Collection
     var realtimeAdapter: RealtimeTableAdapter<Collection>!
 

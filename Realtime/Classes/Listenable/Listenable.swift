@@ -141,7 +141,7 @@ extension Insider: _ListeningMaker, BridgeMaker {
     public typealias Data = D
     var bridgeMaker: Insider<D> { return self }
     public typealias ListeningToken = (token: Token, listening: AnyListening)
-    mutating func addListening(_ listening: AnyListening) -> ListeningToken {
+    internal mutating func addListening(_ listening: AnyListening) -> ListeningToken {
         return (connect(with: listening), listening)
     }
 

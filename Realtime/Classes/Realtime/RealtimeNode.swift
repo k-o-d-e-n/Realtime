@@ -16,7 +16,7 @@ enum Nodes {
 }
 
 public class Node: Equatable {
-    public static let root: Node = Root(key: "", parent: nil)
+    public static let root: Node = Root(key: "")
     class Root: Node {
         override var isRoot: Bool { return true }
         override var isRooted: Bool { return true }
@@ -32,7 +32,7 @@ public class Node: Equatable {
     let key: String
     var parent: Node?
 
-    public init(key: String, parent: Node? = .root) { // TODO: Replace default value .root to nil
+    public init(key: String = DatabaseReference.root().childByAutoId().key, parent: Node? = nil) {
         self.key = key
         self.parent = parent
     }
@@ -88,11 +88,14 @@ public class Node: Equatable {
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
 public extension Node {
-    static func autoId(in parent: Node? = nil) -> Node {
-        return Node(key: DatabaseReference.root().childByAutoId().key, parent: parent)
+    static func from(_ snapshot: DataSnapshot) -> Node {
+        return from(snapshot.ref)
+    }
+    static func from(_ reference: DatabaseReference) -> Node {
+        return Node.root.child(with: reference.rootPath)
     }
     func childByAutoId() -> Node {
-        return child(with: DatabaseReference.root().childByAutoId().key)
+        return Node(parent: self)
     }
     func child(with path: String) -> Node {
         return path
@@ -101,7 +104,7 @@ public extension Node {
     }
     func copy(to node: Node) -> Node {
         var copying: Node = self
-        var current: Node = Node(key: copying.key, parent: nil)
+        var current: Node = Node(key: copying.key)
         let copied = current
         while let next = copying.parent, !next.isRoot {
             copying = next
@@ -111,7 +114,7 @@ public extension Node {
         return copied
     }
     func moveTo(nodeKeyedBy key: String) -> Node {
-        let parent = Node(key: key, parent: nil)
+        let parent = Node(key: key)
         self.parent = parent
         return parent
     }

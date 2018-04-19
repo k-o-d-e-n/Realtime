@@ -28,9 +28,8 @@ public extension Node {
 /// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
 /// Comment writing guide
 public final class RealtimeArray<Element>: RC where Element: RealtimeValue & RealtimeValueEvents & Linkable {
-//    public let dbRef: DatabaseReference
-    public var node: Node?
-    public var storage: RCArrayStorage<Element>
+    public internal(set) var node: Node?
+    public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
@@ -95,8 +94,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
             return transaction
         }
 
-        let elementNode = element.node.map { $0.moveTo(storage.sourceNode); return $0 }
-            ?? storage.sourceNode.child(with: DatabaseReference.root().childByAutoId().key)
+        let elementNode = element.node.map { $0.moveTo(storage.sourceNode); return $0 } ?? storage.sourceNode.childByAutoId()
         let transaction = transaction ?? RealtimeTransaction()
         let link = elementNode.generate(linkTo: _view.source.node!.child(with: elementNode.key))
         let key = _PrototypeValue(dbKey: elementNode.key, linkId: link.link.id, index: index ?? count)
@@ -112,7 +110,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         transaction.addNode(_view.source.node!, value: _view.source.localValue)
         if let elem = element as? RealtimeObject { // TODO: Fix it
             transaction.addNode(link.sourceNode, value: link.link.localValue)
-            transaction.update(elem, by: elementNode) // TODO:
+            transaction._update(elem, by: elementNode)
         } else {
             element.add(link: link.link)
             transaction.set(element, by: elementNode)
@@ -208,8 +206,17 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         }
     }
     
-    public func didSave(in node: Node) {
-        _view.source.didSave()
+    public func didSave(in parent: Node, by key: String) {
+        debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node!.key).")
+        debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
+
+        if let node = self.node {
+            node.parent = parent
+        } else {
+            self.node = Node(key: key, parent: parent)
+        }
+
+        _view.source.didSave(in: self.node!)
     }
 
     public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }
