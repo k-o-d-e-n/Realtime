@@ -200,6 +200,13 @@ extension InsiderOwner {
         let item = insider.listen(as: config, assign)
         return makeListeningItem(token: item.token, listening: item.listening)
     }
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: @escaping (T) -> Void) -> Disposable {
+        return listening(as: config, .just(assign))
+    }
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: @escaping (T) -> Void) -> ListeningItem {
+        return listeningItem(as: config, .just(assign))
+    }
 }
 
 /// Entity, which is port to connect to data changes
