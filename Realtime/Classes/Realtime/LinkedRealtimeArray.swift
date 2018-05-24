@@ -25,7 +25,7 @@ public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue
     public required init(in node: Node, elementsNode: Node) {
         self.node = node
         self.storage = RCArrayStorage(sourceNode: elementsNode, elementBuilder: Element.init, elements: [:])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node))
+        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node.linksNode))
     }
 
     public init(in node: Node?) {
@@ -111,8 +111,8 @@ public extension LinkedRealtimeArray {
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
-        transaction.addNode(_view.source.node!, value: _view.source.localValue)
-        transaction.addNode(link.sourceNode, value: link.link.localValue)
+        transaction.addValue(_view.source)
+        transaction.addValue(link.link.localValue, by: link.sourceNode)
         transaction.addCompletion { [weak self] (result) in
             if result {
                 self?.storage.elements[key] = element
@@ -149,9 +149,9 @@ public extension LinkedRealtimeArray {
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
-        transaction.addNode(_view.source.node!, value: _view.source.localValue)
-        let linksRef = Nodes.links.rawValue.appending(storage.sourceNode.child(with: key.dbKey.subpath(with: key.linkId)).rootPath).reference()
-        transaction.addNode(item: (linksRef, .value(nil)))
+        transaction.addValue(_view.source)
+        let linksNode = storage.sourceNode.child(with: key.dbKey.subpath(with: key.linkId)).linksNode
+        transaction.addValue(nil, by: linksNode)
         transaction.addCompletion { [weak self] (result) in
             if result {
                 self?.storage.elements.removeValue(forKey: key)?.remove(linkBy: key.linkId)

@@ -57,7 +57,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public init(in node: Node, keysNode: Node) {
         self.node = node
         self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: Value.init, elements: [:])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node.child(with: Nodes.items.rawValue)))
+        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node.child(with: Nodes.items.rawValue).linksNode))
     }
 
     // MARK: Implementation
@@ -147,16 +147,16 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         }
 
         if needLink {
-            transaction.addNode(link.sourceNode, value: link.link.localValue)
+            transaction.addValue(link.link.localValue, by: link.sourceNode)
             let valueLink = elementNode.generate(linkKeyedBy: link.link.id, to: [_view.source.node!.child(with: key.dbKey), link.sourceNode])
-            transaction.addNode(valueLink.sourceNode, value: valueLink.link.localValue)
+            transaction.addValue(valueLink.link.localValue, by: valueLink.sourceNode)
         }
         if let e = element as? RealtimeObject {
             transaction._update(e, by: elementNode)
         } else {
             transaction.set(element, by: elementNode)
         }
-        transaction.addNode(_view.source.node!.child(with: prototypeValue.dbKey), value: [prototypeValue.linkId: _view.count])
+        transaction.addValue([prototypeValue.linkId: _view.count], by: _view.source.node!.child(with: prototypeValue.dbKey))
         transaction.addCompletion { [weak self] result in
             if result {
                 if needLink {
@@ -193,9 +193,9 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
-        transaction.addNode(_view.source.node!, value: _view.source.localValue)
-        transaction.addNode(storage.sourceNode.child(with: key.dbKey), value: nil)
-        transaction.addNode(key.node!.linksNode.child(with: p_value.linkId), value: nil)
+        transaction.addValue(_view.source)
+        transaction.addValue(nil, by: storage.sourceNode.child(with: key.dbKey))
+        transaction.addValue(nil, by: key.node!.linksNode.child(with: p_value.linkId))
         transaction.addCompletion { [weak self] result in
             if result {
                 key.remove(linkBy: p_value.linkId)

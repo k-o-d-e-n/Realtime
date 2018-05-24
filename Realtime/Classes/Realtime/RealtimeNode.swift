@@ -122,8 +122,9 @@ public extension Node {
         self.parent = node
     }
 }
-extension Node {
-    var linksNode: Node! { return copy(to: Node.root.child(with: Nodes.links.rawValue)) }
+public extension Node {
+    static var linksNode: Node { return Node.root.child(with: Nodes.links.rawValue) }
+    var linksNode: Node { return copy(to: Node.linksNode) }
     func generate(linkTo targetNode: Node) -> (sourceNode: Node, link: SourceLink) {
         return generate(linkTo: [targetNode])
     }
@@ -132,6 +133,16 @@ extension Node {
     }
     func generate(linkKeyedBy linkKey: String, to targetNodes: [Node]) -> (sourceNode: Node, link: SourceLink) {
         return (linksNode.child(with: linkKey), SourceLink(id: linkKey, links: targetNodes.map { $0.rootPath }))
+    }
+}
+
+extension Node: Sequence {
+    public func makeIterator() -> AnyIterator<Node> {
+        var current: Node? = self
+        return AnyIterator {
+            defer { current = current?.parent }
+            return current
+        }
     }
 }
 

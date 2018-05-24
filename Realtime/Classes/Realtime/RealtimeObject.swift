@@ -93,8 +93,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
 
     public func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?) {
         if hasChanges {
-            let node = parentNode.map { $0.child(with: self.node!.key) } ?? self.node
-            transaction.addNode(node!, value: localValue)
+            transaction.addValue(self)
         }
     }
     
@@ -148,7 +147,7 @@ open class RealtimeObject: _RealtimeValue {
         let links = self.links!
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue { err, refs in
-                refs.flatMap { $0.links.map(DatabaseReference.fromRoot) }.forEach { transaction.addNode(item: ($0, .value(nil))) }
+                refs.flatMap { $0.links.map(Node.linksNode.child) }.forEach { transaction.addValue(nil, by: $0) }
                 transaction.delete(links)
                 promise.fulfill(err)
             }
@@ -310,7 +309,7 @@ extension RealtimeObject {
 }
 
 extension RealtimeObject: Linkable {
-    public var linksRef: DatabaseReference! { return links.dbRef! }
+    public var linksNode: Node! { return links.node! }
     @discardableResult
     public func add(link: SourceLink) -> Self {
         guard !links.value.contains(where: { $0.id == link.id }) else { return self }
@@ -329,10 +328,10 @@ extension RealtimeObject: Linkable {
 public extension Linkable {
     func addLink(_ link: SourceLink, in transaction: RealtimeTransaction) {
         add(link: link)
-        transaction.addNode(item: (linksRef.child(link.id), .value(link.localValue)))
+        transaction.addValue(link.localValue, by: linksNode.child(with: link.id))
     }
     func removeLink(by id: String, in transaction: RealtimeTransaction) {
         remove(linkBy: id)
-        transaction.addNode(item: (linksRef.child(id), .value(nil)))
+        transaction.addValue(nil, by: linksNode.child(with: id))
     }
 }

@@ -39,7 +39,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         precondition(node != nil)
         self.node = node
         self.storage = RCArrayStorage(sourceNode: node!, elementBuilder: Element.init, elements: [:])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node?.child(with: Nodes.items.rawValue)))
+        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node?.child(with: Nodes.items.rawValue).linksNode))
     }
 
     // Implementation
@@ -107,9 +107,9 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
             self?.storage.elements.removeValue(forKey: key)
             element.remove(linkBy: link.link.id)
         }
-        transaction.addNode(_view.source.node!, value: _view.source.localValue)
+        transaction.addValue(_view.source)
         if let elem = element as? RealtimeObject { // TODO: Fix it
-            transaction.addNode(link.sourceNode, value: link.link.localValue)
+            transaction.addValue(link.link.localValue, by: link.sourceNode)
             transaction._update(elem, by: elementNode)
         } else {
             element.add(link: link.link)
@@ -153,8 +153,8 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
-        transaction.addNode(_view.source.node!, value: _view.source.localValue)
-        transaction.addNode(storage.sourceNode.child(with: key.dbKey), value: nil)
+        transaction.addValue(_view.source)
+        transaction.addValue(nil, by: storage.sourceNode.child(with: key.dbKey))
         transaction.addCompletion { [weak self] result in
             if result {
                 self?.storage.elements.removeValue(forKey: key)

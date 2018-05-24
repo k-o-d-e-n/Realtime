@@ -740,6 +740,7 @@ class TestObject: RealtimeObject {
     lazy var linkedArray: LinkedRealtimeArray<RealtimeObject> = "linked_array".linkedArray(from: self.node, elements: .root)
     lazy var array: RealtimeArray<RealtimeObject> = "array".array(from: self.node)
     lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
+    lazy var nestedObject: NestedObject = "nestedObject".property(from: self.node)
 
     override open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -747,13 +748,61 @@ class TestObject: RealtimeObject {
         case "linkedArray": return \TestObject.linkedArray
         case "array": return \TestObject.array
         case "dictionary": return \TestObject.dictionary
+        case "nestedObject": return \TestObject.nestedObject
         default: return nil
+        }
+    }
+
+    class NestedObject: RealtimeObject {
+        lazy var property: StandartProperty<String?> = "prop".property(from: self.node)
+
+        override open class func keyPath(for label: String) -> AnyKeyPath? {
+            switch label {
+            case "prop": return \NestedObject.property
+            default: return nil
+            }
         }
     }
 }
 
 extension Tests {
     // TODO: Mapping and etc.
+
+    func testNestedObjectChanges() {
+        let testObject = TestObject(in: .root)
+
+        testObject.property <= "string"
+        testObject.nestedObject.property <= "nested_string"
+
+        let trans = testObject.update()
+        let value = trans.updateNode.updateValue
+        let expectedValue = ["prop":"string", "nestedObject":["prop":"nested_string"]] as [String: Any?]
+
+        XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
+        trans.revert()
+    }
+
+    func testMergeTransactions() {
+        let testObject = TestObject(in: .root)
+
+        testObject.property <= "string"
+        testObject.nestedObject.property <= "nested_string"
+
+        let element = TestObject(in: Node.root.child(with: "element_1"))
+        element.property <= "element #1"
+        element.nestedObject.property <= "value"
+
+        let elementTransaction = element.update()
+        let objectTransaction = testObject.update()
+        elementTransaction.merge(objectTransaction)
+
+        let value = elementTransaction.updateNode.updateValue
+        let expectedValue = ["prop":"string", "nestedObject":["prop":"nested_string"],
+                             "element_1":["prop":"element #1", "nestedObject":["prop":"value"]]] as [String: Any?]
+
+        XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
+        elementTransaction.revert()
+    }
 
     func testNode() {
         let first = Node(key: "first", parent: .root)
@@ -780,7 +829,7 @@ extension Tests {
     func testLinksNode() {
         let fourth = Node.root.child(with: "/first/second/third/fourth")
         let linksNode = fourth.linksNode
-        XCTAssertEqual(linksNode!.rootPath, "/__links/first/second/third/fourth")
+        XCTAssertEqual(linksNode.rootPath, "/__links/first/second/third/fourth")
     }
 
     func testConnectNode() {

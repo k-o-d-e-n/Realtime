@@ -27,7 +27,9 @@ internal func debugFatalError(condition: @autoclosure () -> Bool = true,
     debugAction {
         if condition() {
             debugLog(message, file, line)
-            fatalError(message)
+            if ProcessInfo.processInfo.arguments.contains("LIT_CRASH_ON_ERROR") {
+                fatalError(message)
+            }
         }
     }
 }

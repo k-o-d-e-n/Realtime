@@ -200,7 +200,7 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
 public protocol Linkable {
     @discardableResult func add(link: SourceLink) -> Self
     @discardableResult func remove(linkBy id: String) -> Self
-    var linksRef: DatabaseReference! { get }
+    var linksNode: Node! { get }
 }
 
 // ------------------------------------------------------------------------
