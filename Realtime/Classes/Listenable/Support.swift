@@ -27,7 +27,7 @@ internal func debugFatalError(condition: @autoclosure () -> Bool = true,
     debugAction {
         if condition() {
             debugLog(message, file, line)
-            if ProcessInfo.processInfo.arguments.contains("LIT_CRASH_ON_ERROR") {
+            if ProcessInfo.processInfo.arguments.contains("REALTIME_CRASH_ON_ERROR") {
                 fatalError(message)
             }
         }
@@ -48,7 +48,7 @@ public func didLoad<V>(_ value: V, _ completion: (V) -> Void) -> V {
 
 // TODO: Add extension for all types with var asProperty, asRealtimeProperty
 extension String {
-    var asProperty: Property<String> { return Property(value: self) }
+    var asProperty: Property<String> { return Realtime.Property(value: self) }
 }
 
 public protocol _Optional {
@@ -130,8 +130,6 @@ public extension Listenable where Self.OutData == UIImage? {
     }
 }
 
-//// MARK: Attempts
-
 extension UIControl: Listenable {
     public typealias OutData = Void
 
@@ -201,6 +199,8 @@ extension UIControl: Listenable {
         }
     }
 }
+
+//// MARK: Attempts
 
 import UIKit
 

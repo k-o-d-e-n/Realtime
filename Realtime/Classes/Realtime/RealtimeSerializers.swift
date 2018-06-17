@@ -134,7 +134,7 @@ public class URLSerializer: _Serializer {
     }
 }
 
-public class EnumSerializer<EnumType: RawRepresentable>: _Serializer {
+public class OptionalEnumSerializer<EnumType: RawRepresentable>: _Serializer {
     public class func deserialize(entity: DataSnapshot) -> EnumType? {
         guard entity.exists(), let val = entity.value as? EnumType.RawValue else { return nil }
         
@@ -143,6 +143,18 @@ public class EnumSerializer<EnumType: RawRepresentable>: _Serializer {
     
     public class func serialize(entity: EnumType?) -> EnumType.RawValue? {
         return entity?.rawValue
+    }
+}
+
+public class EnumSerializer<EnumType: RawRepresentable & HasDefaultLiteral>: _Serializer {
+    public class func deserialize(entity: DataSnapshot) -> EnumType {
+        guard entity.exists(), let val = entity.value as? EnumType.RawValue else { return EnumType() }
+
+        return EnumType(rawValue: val) ?? EnumType()
+    }
+
+    public class func serialize(entity: EnumType) -> EnumType.RawValue? {
+        return entity.rawValue
     }
 }
 

@@ -72,7 +72,6 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(
 // MARK: Listenable realtime property
 
 public typealias StandartProperty<StandartType: HasDefaultLiteral> = RealtimeProperty<StandartType, Serializer<StandartType>>
-public typealias OptionalEnumProperty<EnumType: RawRepresentable> = RealtimeProperty<EnumType?, EnumSerializer<EnumType>>
 public extension URL {
     typealias OptionalProperty = RealtimeProperty<URL?, URLSerializer>
 }
@@ -81,8 +80,11 @@ public extension Date {
     typealias OptionalProperty = RealtimeProperty<Date?, DateSerializer>
 }
 
+public extension RawRepresentable {
+    typealias OptionalProperty = RealtimeProperty<Self?, OptionalEnumSerializer<Self>>
+}
 public extension RawRepresentable where Self: HasDefaultLiteral {
-    typealias OptionalProperty = RealtimeProperty<Self?, EnumSerializer<Self>>
+    typealias Property = RealtimeProperty<Self, EnumSerializer<Self>>
 }
 
 public typealias LinkedRealtimeProperty<V: RealtimeValue> = RealtimeProperty<V?, LinkableValueSerializer<V>>
