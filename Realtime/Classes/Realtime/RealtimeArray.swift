@@ -81,7 +81,8 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     // TODO: Add parameter for sending local event (after write to db, or immediately)
     @discardableResult
     public func insert(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        guard !element.isReferred else { fatalError("Element must not be referred in other location") }
+        guard !element.isReferred || element.node!.parent == storage.sourceNode
+            else { fatalError("Element must not be referred in other location") }
 
         guard isPrepared else {
             let transaction = transaction ?? RealtimeTransaction()
@@ -93,6 +94,9 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
             }
             return transaction
         }
+
+        guard element.node.map({ _ in !contains(element) }) ?? true
+            else { fatalError("Element with such key already exists") }
 
         let elementNode = element.node.map { $0.moveTo(storage.sourceNode); return $0 } ?? storage.sourceNode.childByAutoId()
         let transaction = transaction ?? RealtimeTransaction()

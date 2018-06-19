@@ -25,11 +25,16 @@ extension Reverting where Self: ChangeableRealtimeValue {
 public protocol UpdateNode {
     var node: Node { get }
     var value: Any? { get }
+    func fill(from ancestor: Node, into container: inout [String: Any?])
 }
 
 class ValueNode: UpdateNode {
     let node: Node
     var value: Any?
+
+    func fill(from ancestor: Node, into container: inout [String: Any?]) {
+        container[node.path(from: ancestor)] = value
+    }
 
     init(node: Node, value: Any?) {
         self.node = node
@@ -40,14 +45,20 @@ class ValueNode: UpdateNode {
 class ObjectNode: UpdateNode, CustomStringConvertible {
     let node: Node
     var childs: [UpdateNode] = []
+    var isCompound: Bool { return true }
     var value: Any? {
         return updateValue
     }
     var updateValue: [String: Any?] {
-        return childs.reduce(into: [:], { (result, update) in
-            result[update.node.key] = update.value
-        })
+        var val: [String: Any?] = [:]
+        fill(from: node, into: &val)
+        return val
     }
+
+    func fill(from ancestor: Node, into container: inout [String: Any?]) {
+        childs.forEach { $0.fill(from: ancestor, into: &container) }
+    }
+
     var description: String { return String(describing: updateValue) }
 
     init(node: Node) {
