@@ -12,53 +12,18 @@ import FirebaseDatabase
 // TODO: Add caching mechanism, for reuse entities
 
 /// Base class for any database value
-open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, RealtimeValue, Hashable {
-    public let dbRef: DatabaseReference
+open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
+    public var dbRef: DatabaseReference?
+    public internal(set) var node: Node?
     private var observingToken: UInt?
     public var localValue: Any? { return nil }
-    public required init(dbRef: DatabaseReference) {
-        self.dbRef = dbRef
+    public required init(in node: Node?) {
+        self.node = node
+        self.dbRef = node.flatMap { $0.isRooted ? $0.reference : nil }
     }
 
     deinit {
         observingToken.map(endObserve)
-    }
-
-    /// Warning! Save only local value, which it may be empty, that to make removing object, or him parts.
-    @discardableResult
-    public func save(completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
-        RemoteManager.save(entity: self, completion: completion)
-        return self
-    }
-
-    @discardableResult
-    public func save(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
-        Database.database().update(use: values + [(dbRef, localValue)], completion: { err, ref in
-            if err == nil { self.didSave() }
-
-            completion?(err, ref)
-        })
-        return self
-    }
-
-    @discardableResult
-    public func remove(completion: ((Error?, DatabaseReference) -> ())?) -> Self {
-        return remove(with: [], completion: completion)
-    }
-    
-    @discardableResult
-    public func remove(with linkedRefs: [DatabaseReference], completion: Database.TransactionCompletion? = nil) -> Self {
-        willRemove { (err, removeRefs) in
-            guard err == nil else { completion?(err, self.dbRef); return }
-            let removes = removeRefs.map { $0 + linkedRefs } ?? linkedRefs
-            if !removes.isEmpty {
-                RemoteManager.remove(entity: self, with: removes, completion: completion)
-            } else {
-                RemoteManager.remove(entity: self, completion: completion)
-            }
-        }
-        
-        return self
     }
     
     @discardableResult
@@ -67,15 +32,14 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
     }
 
     @discardableResult
-    public func runObserving() -> Self {
-        guard observingToken == nil else { return self }
-        observingToken = observe(type: .value, onUpdate: nil); return self
+    public func runObserving() -> Bool {
+        guard observingToken == nil, dbRef != nil else { return false }
+        observingToken = observe(type: .value, onUpdate: nil); return true
     }
 
-    @discardableResult
-    public func stopObserving() -> Self {
-        guard let token = observingToken else { return self }
-        endObserve(for: token); return self
+    public func stopObserving() {
+        guard let token = observingToken else { return }
+        endObserve(for: token)
     }
     
     func observe(type: DataEventType = .value, onUpdate: Database.TransactionCompletion? = nil) -> UInt {
@@ -83,12 +47,35 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
     }
 
     func endObserve(for token: UInt) {
-        dbRef.removeObserver(withHandle: token);
+        dbRef!.removeObserver(withHandle: token);
     }
 
-    public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) { completion(nil, nil) }
-    public func didRemove() { dbRef.removeAllObservers() }
-    public func didSave() { }
+    public func willRemove(in transaction: RealtimeTransaction) {}
+    public func didRemove(from ancestor: Node) {
+        debugFatalError(condition: self.node == nil || !self.node!.isRooted,
+                        "Value has been removed from node: \(ancestor), but has not been inserted before. Current: \(self.node?.description ?? "")")
+        debugFatalError(condition: !self.node!.hasParent(node: ancestor),
+                        "Value has been removed from node: \(ancestor), that is not ancestor for this location: \(self.node!.description)")
+        debugFatalError(condition: !ancestor.isRooted, "Value has been removed from non rooted node: \(ancestor)")
+
+        dbRef?.removeAllObservers()
+        if node?.parent == ancestor {
+            self.node?.parent = nil
+            self.dbRef = nil
+        }
+    }
+    public func didSave(in parent: Node, by key: String) {
+        debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
+        debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
+
+        if let node = self.node {
+            node.parent = parent
+        } else {
+            self.node = Node(key: key, parent: parent)
+        }
+        
+        self.dbRef = parent.isRooted ? self.node?.reference : nil
+    }
     
     // MARK: Changeable
     
@@ -97,63 +84,20 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Realti
     // MARK: Realtime Value
 
     public required init(snapshot: DataSnapshot) {
-        dbRef = snapshot.ref
+        self.node = Node.root.child(with: snapshot.ref.rootPath)
+        self.dbRef = snapshot.ref
         apply(snapshot: snapshot)
     }
     
     open func apply(snapshot: DataSnapshot, strongly: Bool) {}
 
-    public func insertChanges(to values: inout [String: Any?], keyed from: DatabaseReference) {
+    public func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?) {
         if hasChanges {
-            values[dbRef.path(from: from)] = localValue
-        }
-    }
-    public func insertChanges(to values: inout [Database.UpdateItem]) {
-        if hasChanges {
-            values.append((dbRef, localValue))
-        }
-    }
-    public func insertChanges(to transaction: RealtimeTransaction) {
-        if hasChanges {
-            transaction.addNode(item: (dbRef, .value(localValue)))
+            transaction.addValue(self)
         }
     }
     
-    public var debugDescription: String { return "\n{\n\tref: \(dbRef.rootPath);\n\tvalue: \(String(describing: localValue));\n}" }
-}
-
-/// Base class for any database values that has child values
-open class _RealtimeEntity: _RealtimeValue, RealtimeEntityActions {
-    /// Warning! Values should be only on first level in hierarchy, else other data is lost.
-    @discardableResult
-    public func update(completion: ((Error?, DatabaseReference) -> ())? = nil) -> Self {
-        //        guard hasChanges else { completion?(RemoteManager.RealtimeEntityError(type: .hasNotChanges), dbRef); return self }
-
-        RemoteManager.update(entity: self, completion: completion)
-        return self
-    }
-
-    @discardableResult
-    public func merge(completion: Database.TransactionCompletion?) -> Self {
-        RemoteManager.merge(entity: self, completion: completion)
-
-        return self
-    }
-
-    @discardableResult
-    public func update(with values: [Database.UpdateItem], completion: ((Error?, DatabaseReference) -> ())?) -> Self {
-        RemoteManager.update(entity: self, with: values, completion: completion)
-
-        return self
-    }
-
-    @discardableResult
-    public func update(with values: [String : Any?], completion: ((Error?, DatabaseReference) -> ())?) -> Self {
-        RemoteManager.update(entity: self, with: values, completion: completion)
-
-        return self
-    }
-    override public var debugDescription: String { return "\n{\n\tref: \(dbRef.rootPath);\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: localChanges));\n}" }
+    public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
 }
 
 // TODO: Try to create `parent` typed property.
@@ -177,49 +121,62 @@ open class _RealtimeEntity: _RealtimeValue, RealtimeEntityActions {
 ///     }
 /// }
 ///
-open class RealtimeObject: _RealtimeEntity {
+open class RealtimeObject: _RealtimeValue {
     override public var hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val.hasChanges }) }
-    override public var localValue: Any? { return keyedValues { return $0.localValue } }
+    override public var localValue: Any? { return typedLocalValue }
+    public var typedLocalValue: [String: Any]? { return keyedValues { return $0.localValue } }
 
-    private lazy var __mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.dbRef)
-    typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
-    lazy var __links: Links = self.linksNode.property()
+    private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
+    typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>!
+    lazy var links: Links = self.node!.linksNode.property()
 
 //    lazy var parent: RealtimeObject? = self.dbRef.parent.map(RealtimeObject.init) // should be typed
 
-    override public func didSave() {
-        super.didSave()
-        enumerateChilds { (_, value: RealtimeValueEvents) in
-            value.didSave()
+    override public func didSave(in parent: Node, by key: String) {
+        super.didSave(in: parent, by: key)
+        if let node = self.node {
+            mv.didSave(in: node)
+            links.didSave(in: node)
+            enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
+                value.didSave(in: node)
+            }
         }
     }
     
-    override public func willRemove(completion: @escaping (Error?, [DatabaseReference]?) -> Void) {
-        __links.load(completion: { err, _ in completion(err, self.__links.value.flatMap { $0.links.map { .fromRoot($0) } }) })
+    override public func willRemove(in transaction: RealtimeTransaction) {
+        let links = self.links!
+        transaction.addPrecondition { [unowned transaction] (promise) in
+            links.loadValue { err, refs in
+                refs.flatMap { $0.links.map(Node.linksNode.child) }.forEach { transaction.addValue(nil, by: $0) }
+                transaction.delete(links)
+                promise.fulfill(err)
+            }
+        }
     }
     
-    override public func didRemove() {
-        super.didRemove()
-        enumerateChilds { (_, value: RealtimeValueEvents) in
-            value.didRemove()
+    override public func didRemove(from node: Node) {
+        mv.didRemove(from: node)
+        links.didRemove()
+        enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
+            value.didRemove(from: node)
         }
+        super.didRemove(from: node)
     }
     
     override open func apply(snapshot: DataSnapshot, strongly: Bool) {
-        if strongly || Nodes.modelVersion.has(in: snapshot) { __mv.apply(snapshot: Nodes.modelVersion.snapshot(from: snapshot)) }
-        if strongly || Nodes.links.has(in: snapshot) { __links.apply(snapshot: Nodes.links.snapshot(from: snapshot)) }
+        if strongly || Nodes.modelVersion.has(in: snapshot) { mv.apply(snapshot: Nodes.modelVersion.snapshot(from: snapshot)) }
+        if strongly || Nodes.links.has(in: snapshot) { links.apply(snapshot: Nodes.links.snapshot(from: snapshot)) }
 
         reflect { (mirror) in
             apply(snapshot: snapshot, strongly: strongly, to: mirror)
         }
     }
     private func apply(snapshot: DataSnapshot, strongly: Bool, to mirror: Mirror) {
-        let lazyStorage = ".storage"
         mirror.children.forEach { (child) in
             guard var label = child.label else { return }
 
-            if label.hasSuffix(lazyStorage) {
-                label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStorage.count)))
+            if label.hasSuffix(lazyStoragePath) {
+                label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
             }
 
             if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
@@ -234,38 +191,11 @@ open class RealtimeObject: _RealtimeEntity {
         fatalError("You should implement class func keyPath(for:)")
     }
 
-    override public func insertChanges(to values: inout [String : Any?], keyed from: DatabaseReference) {
-        reflect(to: _RealtimeEntity.self) { (mirror) in
+    override public func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?) {
+        reflect(to: _RealtimeValue.self) { (mirror) in
             mirror.children.forEach({ (child) in
-                if let value = child.value as? _RealtimeEntity {
-                    value.insertChanges(to: &values, keyed: from)
-                }
                 if let value = child.value as? _RealtimeValue {
-                    value.insertChanges(to: &values, keyed: from)
-                }
-            })
-        }
-    }
-    override public func insertChanges(to values: inout [Database.UpdateItem]) {
-        reflect(to: _RealtimeEntity.self) { (mirror) in
-            mirror.children.forEach({ (child) in
-                if let value = child.value as? _RealtimeEntity {
-                    value.insertChanges(to: &values)
-                }
-                if let value = child.value as? _RealtimeValue {
-                    value.insertChanges(to: &values)
-                }
-            })
-        }
-    }
-    override public func insertChanges(to transaction: RealtimeTransaction) {
-        reflect(to: _RealtimeEntity.self) { (mirror) in
-            mirror.children.forEach({ (child) in
-                if let value = child.value as? _RealtimeEntity {
-                    value.insertChanges(to: transaction)
-                }
-                if let value = child.value as? _RealtimeValue {
-                    value.insertChanges(to: transaction)
+                    value.insertChanges(to: transaction, to: parentNode)
                 }
             })
         }
@@ -288,7 +218,26 @@ open class RealtimeObject: _RealtimeEntity {
         }
         return keyedValues
     }
-    fileprivate func enumerateChilds<As>(from type: Any.Type = _RealtimeEntity.self, _ block: (String?, As) -> Void) {
+    fileprivate func enumerateKeyPathChilds<As>(from type: Any.Type = _RealtimeValue.self, _ block: (String, As) -> Void) {
+        reflect(to: type) { (mirror) in
+            mirror.children.forEach({ (child) in
+                guard var label = child.label else { return }
+
+                if label.hasSuffix(lazyStoragePath) {
+                    label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
+                }
+
+                guard
+                    let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label),
+                    let value = self[keyPath: keyPath] as? As
+                else
+                    { return }
+
+                block(label, value)
+            })
+        }
+    }
+    fileprivate func enumerateChilds<As>(from type: Any.Type = _RealtimeValue.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
                 guard let value = child.value as? As else { return }
@@ -297,7 +246,7 @@ open class RealtimeObject: _RealtimeEntity {
             })
         }
     }
-    private func containChild<As>(from type: Any.Type = _RealtimeEntity.self, where block: (String?, As) -> Bool) -> Bool {
+    private func containChild<As>(from type: Any.Type = _RealtimeValue.self, where block: (String?, As) -> Bool) -> Bool {
         var contains = false
         reflect(to: type) { (mirror) in
             guard !contains else { return }
@@ -354,43 +303,35 @@ extension RealtimeObject {
     /// writes empty value by RealtimeObject reference in transaction 
     public func delete(in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
-        let links = linksRef
-        transaction.addPrecondition { [unowned transaction] promise in
-            self.willRemove { err, refs in
-                refs?.forEach { transaction.addNode(ref: $0, value: nil) }
-                transaction.addNode(ref: links, value: nil)
-                promise.fulfill(err)
-            }
-        }
         transaction.delete(self)
         return transaction
     }
 }
 
 extension RealtimeObject: Linkable {
-    public var linksRef: DatabaseReference { return __links.dbRef }
+    public var linksNode: Node! { return links.node! }
     @discardableResult
     public func add(link: SourceLink) -> Self {
-        guard !__links.value.contains(where: { $0.id == link.id }) else { return self }
+        guard !links.value.contains(where: { $0.id == link.id }) else { return self }
             
-        __links.value.append(link)
+        links.value.append(link)
         return self
     }
     @discardableResult
     public func remove(linkBy id: String) -> Self {
-        guard let index = __links.value.index(where: { $0.id == id }) else { return self }
+        guard let index = links.value.index(where: { $0.id == id }) else { return self }
 
-        __links.value.remove(at: index)
+        links.value.remove(at: index)
         return self
     }
 }
 public extension Linkable {
     func addLink(_ link: SourceLink, in transaction: RealtimeTransaction) {
         add(link: link)
-        transaction.addNode(ref: linksRef.child(link.id), value: link.localValue)
+        transaction.addValue(link.localValue, by: linksNode.child(with: link.id))
     }
     func removeLink(by id: String, in transaction: RealtimeTransaction) {
         remove(linkBy: id)
-        transaction.addNode(ref: linksRef.child(id), value: nil)
+        transaction.addValue(nil, by: linksNode.child(with: id))
     }
 }

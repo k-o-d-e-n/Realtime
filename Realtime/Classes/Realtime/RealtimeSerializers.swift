@@ -15,6 +15,18 @@ public protocol HasDefaultLiteral {
     init()
 }
 
+//protocol FireDataValue: FireDataRepresented {}
+//extension FireDataValue {
+//    var localValue: Any? { return self }
+//    init(firData: FireDataProtocol) throws {
+//        guard let v = firData.value as? Self else {
+//            throw RealtimeError("Failed data for type: \(Self.self)")
+//        }
+//
+//        self = v
+//    }
+//}
+
 extension Optional  : HasDefaultLiteral { public init() { self = .none } }
 extension Bool      : HasDefaultLiteral {}
 extension Int       : HasDefaultLiteral {}
@@ -34,10 +46,42 @@ extension Data      : HasDefaultLiteral {}
 extension Array     : HasDefaultLiteral {}
 extension Dictionary: HasDefaultLiteral {}
 
+extension Dictionary: MutableDataRepresented {//} where Key: MutableDataRepresented, Value: MutableDataRepresented {
+    private struct Error: Swift.Error {
+        var localizedDescription: String { return "Data could not convert to dictionary" }
+    }
+    public var localValue: Any? {
+        return self
+//        return reduce(into: [:], { (res, elem) in
+//            res[elem.key.localValue] = elem.value.localValue
+//        })
+    }
+
+    public init(data: MutableData) throws {
+        guard let v = data.value as? [Key: Value] else { throw Error() }
+
+        self = v
+    }
+}
+
+extension Array: MutableDataRepresented where Element: FireDataRepresented {
+    private struct Error: Swift.Error {
+        var localizedDescription: String { return "Data could not convert to array" }
+    }
+    public var localValue: Any? { return map { $0.localValue } }
+
+    public init(data: MutableData) throws {
+        self = try data.children.map { try Element(firData: unsafeBitCast($0 as AnyObject, to: MutableData.self)) }
+    }
+}
+
+// MARK: Serializer
+
 public protocol _Serializer {
     associatedtype Entity: HasDefaultLiteral
+    associatedtype SerializationResult
     static func deserialize(entity: DataSnapshot) -> Entity
-    static func serialize(entity: Entity) -> Any?
+    static func serialize(entity: Entity) -> SerializationResult
 }
 
 public class Serializer<Entity: HasDefaultLiteral>: _Serializer {
@@ -59,7 +103,7 @@ public class ArraySerializer<Base: _Serializer>: _Serializer {
         return entity.children.map { Base.deserialize(entity: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }
     }
     
-    public class func serialize(entity: [Base.Entity]) -> Any? {
+    public class func serialize(entity: [Base.Entity]) -> [Base.SerializationResult] {
         return entity.map { Base.serialize(entity: $0) }
     }
 }
@@ -67,7 +111,7 @@ public class ArraySerializer<Base: _Serializer>: _Serializer {
 // MARK: System types
 
 public class DateSerializer: _Serializer {
-    public class func serialize(entity: Date?) -> Any? {
+    public class func serialize(entity: Date?) -> TimeInterval? {
         return entity?.timeIntervalSince1970
     }
     
@@ -79,7 +123,7 @@ public class DateSerializer: _Serializer {
 }
 
 public class URLSerializer: _Serializer {
-    public class func serialize(entity: URL?) -> Any? {
+    public class func serialize(entity: URL?) -> String? {
         return entity?.absoluteString
     }
     
@@ -90,15 +134,27 @@ public class URLSerializer: _Serializer {
     }
 }
 
-public class EnumSerializer<EnumType: RawRepresentable>: _Serializer {
+public class OptionalEnumSerializer<EnumType: RawRepresentable>: _Serializer {
     public class func deserialize(entity: DataSnapshot) -> EnumType? {
         guard entity.exists(), let val = entity.value as? EnumType.RawValue else { return nil }
         
         return EnumType(rawValue: val)
     }
     
-    public class func serialize(entity: EnumType?) -> Any? {
+    public class func serialize(entity: EnumType?) -> EnumType.RawValue? {
         return entity?.rawValue
+    }
+}
+
+public class EnumSerializer<EnumType: RawRepresentable & HasDefaultLiteral>: _Serializer {
+    public class func deserialize(entity: DataSnapshot) -> EnumType {
+        guard entity.exists(), let val = entity.value as? EnumType.RawValue else { return EnumType() }
+
+        return EnumType(rawValue: val) ?? EnumType()
+    }
+
+    public class func serialize(entity: EnumType) -> EnumType.RawValue? {
+        return entity.rawValue
     }
 }
 
@@ -119,10 +175,10 @@ class SourceLinkArraySerializer: _Serializer {
     class func deserialize(entity: DataSnapshot) -> [SourceLink] {
         guard entity.exists() else { return Entity() }
         
-        return entity.children.map { SourceLink(snapshot: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }.flatMap { $0 }
+        return entity.children.map { SourceLink(snapshot: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }.compactMap { $0 }
     }
     
-    class func serialize(entity: [SourceLink]) -> Any? {
+    class func serialize(entity: [SourceLink]) -> [String: Any] {
         return entity.reduce([:], { (res, link) -> [String: Any] in
             var res = res
             res[link.id] = link.localValue
@@ -359,7 +415,7 @@ struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtoc
 
     var codingPath: [CodingKey] { return snapshot.codingPath }
 
-    var allKeys: [Key] { return snapshot.children.flatMap { Key(stringValue: ($0 as! DataSnapshot).key) } }
+    var allKeys: [Key] { return snapshot.children.compactMap { Key(stringValue: ($0 as! DataSnapshot).key) } }
 
     func contains(_ key: Key) -> Bool {
         return snapshot.hasChild(key.stringValue)

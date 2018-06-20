@@ -155,7 +155,7 @@ class Tests: XCTestCase {
     func testReadonlyProperty() {
         var propertyIndexSet = Property<IndexSet>(value: IndexSet(integer: 0))
         var readonlySum = ReadonlyProperty<Int>() {
-            return propertyIndexSet.value.reduce(0, +)
+            return propertyIndexSet.value.reduce(0, +) // TODO: Bad access
         }
         _ = propertyIndexSet.insider.listen(.just { _ in
             readonlySum.fetch()
@@ -185,6 +185,22 @@ class Tests: XCTestCase {
 
         XCTAssertTrue(view.backgroundColor == .red)
         XCTAssertFalse(backgroundProperty.insider.has(token: bgToken.token))
+
+        backgroundProperty <= .green
+        XCTAssertTrue(view.backgroundColor == .red)
+    }
+
+    func testIfPropertyListen() {
+        let view = UIView()
+        var backgroundProperty = Property<UIColor>(value: .white)
+
+        let _ = backgroundProperty.insider.listen(as: { $0.if(!view.isHidden) }, .just {
+            view.backgroundColor = $0
+        })
+        backgroundProperty <= .red
+
+        XCTAssertTrue(view.backgroundColor == .red)
+        view.isHidden = true
 
         backgroundProperty <= .green
         XCTAssertTrue(view.backgroundColor == .red)
@@ -717,10 +733,183 @@ class Tests: XCTestCase {
     }
 }
 
-// MARK: RealtimeObject
+// MARK: Realtime
+
+class TestObject: RealtimeObject {
+    lazy var property: StandartProperty<String?> = "prop".property(from: self.node)
+    lazy var linkedArray: LinkedRealtimeArray<RealtimeObject> = "linked_array".linkedArray(from: self.node, elements: .root)
+    lazy var array: RealtimeArray<RealtimeObject> = "array".array(from: self.node)
+    lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
+    lazy var nestedObject: NestedObject = "nestedObject".property(from: self.node)
+
+    override open class func keyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "property": return \TestObject.property
+        case "linkedArray": return \TestObject.linkedArray
+        case "array": return \TestObject.array
+        case "dictionary": return \TestObject.dictionary
+        case "nestedObject": return \TestObject.nestedObject
+        default: return nil
+        }
+    }
+
+    class NestedObject: RealtimeObject {
+        lazy var property: StandartProperty<String?> = "prop".property(from: self.node)
+
+        override open class func keyPath(for label: String) -> AnyKeyPath? {
+            switch label {
+            case "prop": return \NestedObject.property
+            default: return nil
+            }
+        }
+    }
+}
 
 extension Tests {
     // TODO: Mapping and etc.
+
+    func testNestedObjectChanges() {
+        let testObject = TestObject(in: .root)
+
+        testObject.property <= "string"
+        testObject.nestedObject.property <= "nested_string"
+
+        let trans = testObject.update()
+        let value = trans.updateNode.updateValue
+        let expectedValue = ["prop":"string", "nestedObject":["prop":"nested_string"]] as [String: Any?]
+
+        XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
+        trans.revert()
+    }
+
+    func testMergeTransactions() {
+        let testObject = TestObject(in: .root)
+
+        testObject.property <= "string"
+        testObject.nestedObject.property <= "nested_string"
+
+        let element = TestObject(in: Node.root.child(with: "element_1"))
+        element.property <= "element #1"
+        element.nestedObject.property <= "value"
+
+        let elementTransaction = element.update()
+        let objectTransaction = testObject.update()
+        elementTransaction.merge(objectTransaction)
+
+        let value = elementTransaction.updateNode.updateValue
+        let expectedValue = ["prop":"string", "nestedObject":["prop":"nested_string"],
+                             "element_1":["prop":"element #1", "nestedObject":["prop":"value"]]] as [String: Any?]
+
+        XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
+        elementTransaction.revert()
+    }
+
+    func testNode() {
+        let first = Node(key: "first", parent: .root)
+
+        let second = Node(key: "second", parent: first)
+        XCTAssertEqual(second.rootPath, "/first/second")
+        XCTAssertEqual(second.path(from: first), "/second")
+        XCTAssertTrue(second.hasParent(node: first))
+        XCTAssertTrue(second.isRooted)
+
+        let third = second.child(with: "third")
+        XCTAssertEqual(third.rootPath, "/first/second/third")
+        XCTAssertEqual(third.path(from: first), "/second/third")
+        XCTAssertTrue(third.hasParent(node: first))
+        XCTAssertTrue(third.isRooted)
+
+        let fourth = third.child(with: "fourth")
+        XCTAssertEqual(fourth.rootPath, "/first/second/third/fourth")
+        XCTAssertEqual(fourth.path(from: first), "/second/third/fourth")
+        XCTAssertTrue(fourth.hasParent(node: first))
+        XCTAssertTrue(fourth.isRooted)
+    }
+
+    func testLinksNode() {
+        let fourth = Node.root.child(with: "/first/second/third/fourth")
+        let linksNode = fourth.linksNode
+        XCTAssertEqual(linksNode.rootPath, "/__links/first/second/third/fourth")
+    }
+
+    func testConnectNode() {
+        let testObject = TestObject(in: Node())
+
+        XCTAssertTrue(testObject.isStandalone)
+        XCTAssertTrue(testObject.property.isStandalone)
+        XCTAssertTrue(testObject.linkedArray.isStandalone)
+        XCTAssertTrue(testObject.array.isStandalone)
+        XCTAssertTrue(testObject.dictionary.isStandalone)
+
+        let node = Node(key: "testObjects", parent: .root)
+        testObject.didSave(in: node)
+
+        XCTAssertTrue(testObject.isInserted)
+        XCTAssertTrue(testObject.property.isInserted)
+        XCTAssertTrue(testObject.linkedArray.isInserted)
+        XCTAssertTrue(testObject.array.isInserted)
+        XCTAssertTrue(testObject.dictionary.isInserted)
+    }
+
+    func testDisconnectNode() {
+        let node = Node(key: "testObjects", parent: .root).childByAutoId()
+        let testObject = TestObject(in: node)
+
+        XCTAssertTrue(testObject.isInserted)
+        XCTAssertTrue(testObject.property.isInserted)
+        XCTAssertTrue(testObject.linkedArray.isInserted)
+        XCTAssertTrue(testObject.array.isInserted)
+        XCTAssertTrue(testObject.dictionary.isInserted)
+
+        testObject.didRemove()
+
+        XCTAssertTrue(testObject.isStandalone)
+        XCTAssertTrue(testObject.property.isStandalone)
+        XCTAssertTrue(testObject.linkedArray.isStandalone)
+        XCTAssertTrue(testObject.array.isStandalone)
+        XCTAssertTrue(testObject.dictionary.isStandalone)
+    }
+
+    // TODO: Permission denied
+//    func testRealtimeDictionaryReturnsNilOnDoesNotExistsKey() {
+//        let exp = expectation(description: "")
+//        let dict = RealtimeDictionary<RealtimeObject, RealtimeObject>(in: Node.root.linksNode, keysNode: .root)
+//        dict.prepare { (d, _) in
+//            XCTAssertTrue(d.isPrepared)
+//            exp.fulfill()
+//        }
+//        waitForExpectations(timeout: 5) { (_) in
+//            XCTAssertNil(dict[RealtimeObject(in: .root)])
+//        }
+//    }
+}
+
+// UIKit support
+
+extension Tests {
+    func testControlListening() {
+        var counter = 0
+        let control = UIControl()
+
+        let disposable = control.listening(events: .touchUpInside, .just {
+            counter += 1
+        })
+
+        control.sendActions(for: .touchUpInside)
+
+        XCTAssertTrue(counter == 1)
+
+        control.sendActions(for: .touchUpInside)
+        control.sendActions(for: .touchDown)
+
+        XCTAssertTrue(counter == 2)
+
+        disposable.dispose()
+
+        control.sendActions(for: .touchUpInside)
+
+        XCTAssertTrue(counter == 2)
+    }
 }
 
 // MARK: Other
@@ -736,7 +925,7 @@ extension Tests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = RealtimeProperty<[Int], Serializer<[Int]>>(dbRef: .root(), value: [0])
+        let source = RealtimeProperty<[Int], Serializer<[Int]>>(in: .root, value: [0])
         let one = AnyRealtimeCollectionView(source)//SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)
@@ -756,18 +945,83 @@ extension Tests {
         XCTAssert(string == "closed")
     }
     func testMirror() {
-        let object = RealtimeObject(dbRef: .root())
+        let object = RealtimeObject(in: .root)
         let mirror = Mirror(reflecting: object)
 
         XCTAssert(mirror.children.count > 0)
         mirror.children.forEach { (child) in
-            print(child.label, child.value)
+            print(child.label as Any, child.value)
         }
 
-        _ = object.__links
+        _ = object.links
 
         mirror.children.forEach { (child) in
-            print(child.label, child.value)
+            print(child.label as Any, child.value)
+        }
+
+        let id = ObjectIdentifier.init(object)
+        print(id)
+    }
+    func testReflectEnum() {
+        enum Test {
+            case one(Any), two(Any)
+        }
+        let one = Test.one(false)
+        let oneMirror = Mirror(reflecting: one)
+        let testMirror = Mirror(reflecting: Test.self)
+
+        print(oneMirror, testMirror)
+    }
+
+    func testCodableEnum() {
+        struct Err: Error {
+            var localizedDescription: String { return "" }
+        }
+        struct News: Codable {
+            let date: TimeInterval
+        }
+        enum Feed: Codable {
+            case common(News)
+
+            enum Key: CodingKey {
+                case raw
+            }
+
+            init(from decoder: Decoder) throws {
+                let rawContainer = try decoder.container(keyedBy: Key.self)
+                let container = try decoder.singleValueContainer()
+                let rawValue = try rawContainer.decode(Int.self, forKey: .raw)
+                switch rawValue {
+                case 0:
+                    self = .common(try container.decode(News.self))
+                default:
+                    throw Err()
+                }
+            }
+
+            func encode(to encoder: Encoder) throws {
+                switch self {
+                case .common(let news):
+                    var container = encoder.singleValueContainer()
+                    try container.encode(news)
+                    var rawContainer = encoder.container(keyedBy: Key.self)
+                    try rawContainer.encode(0, forKey: .raw)
+                }
+            }
+        }
+
+        let news = News(date: 0.0)
+        let feed: Feed = .common(news)
+
+        let data = try! JSONEncoder().encode(feed)
+
+        let json = try! JSONSerialization.jsonObject(with: data, options: .allowFragments) as! NSDictionary
+        let decodedFeed = try! JSONDecoder().decode(Feed.self, from: data)
+
+        XCTAssertTrue(["raw": 0, "date": 0.0] as NSDictionary == json)
+        switch decodedFeed {
+        case .common(let n):
+            XCTAssertTrue(n.date == news.date)
         }
     }
 }

@@ -17,6 +17,15 @@ public protocol AnyListening {
     func onStop() // TODO: is not used now
 }
 public extension AnyListening {
+    /// calls if closure returns true
+    func `if`(_ itRight: @autoclosure @escaping () -> Bool) -> AnyListening {
+        return IfListening(base: self, ifRight: itRight)
+    }
+    /// calls if closure returns true
+    func `if`(_ itRight: @escaping () -> Bool) -> AnyListening {
+        return IfListening(base: self, ifRight: itRight)
+    }
+
 	/// calls closure on disconnect
     func onFire(_ todo: @escaping () -> Void) -> AnyListening {
         return OnFireListening(base: self, onFire: todo)
@@ -61,6 +70,27 @@ struct Listening: AnyListening {
     }
 
     func onStop() {}
+}
+
+struct IfListening: AnyListening {
+    private let base: AnyListening
+    private let ifRight: () -> Bool
+    var isInvalidated: Bool { return base.isInvalidated }
+
+    init(base: AnyListening, ifRight: @escaping () -> Bool) {
+        self.base = base
+        self.ifRight = ifRight
+    }
+
+    func sendData() {
+        if ifRight() {
+            base.sendData()
+        }
+    }
+
+    func onStop() {
+        base.onStop()
+    }
 }
 
 struct OnFireListening: AnyListening {
@@ -169,7 +199,7 @@ class DebounceListening: AnyListening {
     private var fireDate: DispatchTime
     var isInvalidated: Bool { return listening.isInvalidated }
 
-    init(base: AnyListening, time: DispatchTimeInterval) { // TODO: runLoop: RunLoop
+    init(base: AnyListening, time: DispatchTimeInterval) {
         self.listening = base
         self.repeatTime = time
         self.fireDate = .now()

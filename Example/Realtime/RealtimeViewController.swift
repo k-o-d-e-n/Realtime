@@ -74,8 +74,12 @@ class RealtimeViewController: UIViewController {
         view.backgroundColor = .white
         edgesForExtendedLayout.remove(.top)
 
-        user = Global.rtUsers.first
-        group = Global.rtGroups.first
+        Global.rtUsers.prepare { (users, err) in
+            self.user = users.first
+        }
+        Global.rtGroups.prepare { (groups, err) in
+            self.group = groups.first
+        }
 
         addUserButton.addTarget(self, action: #selector(addUser), for: .touchUpInside)
         removeUserButton.addTarget(self, action: #selector(removeUser), for: .touchUpInside)
@@ -90,7 +94,7 @@ class RealtimeViewController: UIViewController {
     @objc func addUser() {
         let transaction = RealtimeTransaction()
 
-        let user = Global.rtUsers.storage.placeholder()
+        let user = RealtimeUser()
         user.name <= "userName"
         user.age <= 100
 
@@ -111,7 +115,7 @@ class RealtimeViewController: UIViewController {
     @objc func addGroup() {
         let transaction = RealtimeTransaction()
 
-        let group = Global.rtGroups.storage.placeholder()
+        let group = RealtimeGroup()
         group.name <= "groupName"
 
         try! Global.rtGroups.insert(element: group, in: transaction)
@@ -129,8 +133,8 @@ class RealtimeViewController: UIViewController {
     }
 
     @objc func removeUser() {
-        guard let ref = user?.dbRef ?? Global.rtUsers.first?.dbRef else { return }
-        let u = RealtimeUser(dbRef: ref)
+        guard let ref = user?.node ?? Global.rtUsers.first?.node else { return }
+        let u = RealtimeUser(in: ref)
 
         let controller = UIAlertController(title: "", message: "Remove using collection?", preferredStyle: .alert)
 
@@ -168,8 +172,8 @@ class RealtimeViewController: UIViewController {
     }
 
     @objc func removeGroup() {
-        guard let ref = group?.dbRef ?? Global.rtGroups.first?.dbRef else { return }
-        let grp = RealtimeGroup(dbRef: ref)
+        guard let ref = group?.node ?? Global.rtGroups.first?.node else { return }
+        let grp = RealtimeGroup(in: ref)
 
         let controller = UIAlertController(title: "", message: "Remove using collection?", preferredStyle: .alert)
 
@@ -264,7 +268,7 @@ class RealtimeViewController: UIViewController {
     @objc func addConversation() {
         guard let u = user ?? Global.rtUsers.first, let g = group ?? Global.rtGroups.first else { fatalError() }
 
-        let conversationUser = g.conversations.storage.placeholder(with: u.dbKey)
+        let conversationUser = RealtimeUser()
         conversationUser.name <= "Conversation #"
         let transaction = g.conversations.set(element: conversationUser, for: u)
 
@@ -272,7 +276,7 @@ class RealtimeViewController: UIViewController {
             if let errors = errs {
                 print(errors)
             } else {
-                assert(g.conversations.containsValue(byKey: u))
+                assert(g.conversations.contains(valueBy: u))
             }
 
             self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -291,7 +295,7 @@ class RealtimeViewController: UIViewController {
                 if let errors = errs {
                     print(errors)
                 } else {
-                    assert(!g.conversations.containsValue(byKey: u))
+                    assert(!g.conversations.contains(valueBy: u))
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -312,7 +316,7 @@ class RealtimeViewController: UIViewController {
                     if let errors = errs {
                         print(errors)
                     } else {
-                        assert(!g.conversations.containsValue(byKey: u))
+                        assert(!g.conversations.contains(valueBy: u))
                     }
 
                     self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"

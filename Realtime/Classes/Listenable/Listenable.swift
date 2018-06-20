@@ -49,6 +49,11 @@ public struct Assign<A> {
         return weak(owner) { if let o = $1 { assign($0, o) } }
     }
 
+//    /// closure associated with object using weak reference, that called only when object alive
+//    static public func guardedWeak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
+//        return weak(owner) { if let o = $1 { weak var o = o; assign($0, o) } }
+//    }
+
     /// closure that called on specified dispatch queue
     static public func on(_ queue: DispatchQueue, assign: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: { v in queue.async { assign(v) } })
@@ -136,7 +141,7 @@ extension Insider: _ListeningMaker, BridgeMaker {
     public typealias Data = D
     var bridgeMaker: Insider<D> { return self }
     public typealias ListeningToken = (token: Token, listening: AnyListening)
-    mutating func addListening(_ listening: AnyListening) -> ListeningToken {
+    internal mutating func addListening(_ listening: AnyListening) -> ListeningToken {
         return (connect(with: listening), listening)
     }
 
@@ -159,7 +164,7 @@ public protocol InsiderOwner: class, Listenable {
 
 protocol InsiderAccessor {
     associatedtype Owner: InsiderOwner
-    weak var insiderOwner: Owner! { get }
+    var insiderOwner: Owner! { get }
 }
 
 extension InsiderAccessor where Self: _ListeningMaker {
@@ -194,6 +199,13 @@ extension InsiderOwner {
     public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
         let item = insider.listen(as: config, assign)
         return makeListeningItem(token: item.token, listening: item.listening)
+    }
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: @escaping (T) -> Void) -> Disposable {
+        return listening(as: config, .just(assign))
+    }
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: @escaping (T) -> Void) -> ListeningItem {
+        return listeningItem(as: config, .just(assign))
     }
 }
 
@@ -250,7 +262,7 @@ public extension Insider {
 
 /// Provides calculated listening value
 public struct ReadonlyProperty<Value> {
-    public lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
+    public lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get) // TODO: Remove public
     fileprivate let concreteValue: PropertyValue<Value>
     fileprivate(set) var value: Value {
         get { return concreteValue.get() }

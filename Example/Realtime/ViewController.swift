@@ -10,10 +10,10 @@ import UIKit
 import Realtime
 
 class Object: RealtimeObject {
-    lazy var id: StandartProperty<String?> = "id".property(from: self.dbRef)
-    lazy var array: RealtimeArray<Object> = "array".array(from: self.dbRef)
+    lazy var id: StandartProperty<String?> = "id".property(from: self.node)
+    lazy var array: RealtimeArray<Object> = "array".array(from: self.node)
 
-    lazy var name: StandartProperty<String?> = "human/name/firstname".property(from: self.dbRef)
+    lazy var name: StandartProperty<String?> = "human/name/firstname".property(from: self.node)
 }
 
 class ViewController: UIViewController {
@@ -22,6 +22,7 @@ class ViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        
         var logo = AsyncReadonlyProperty<String?>(value: nil) { (setter) in
         }
 
@@ -35,7 +36,7 @@ class ViewController: UIViewController {
         })
         print(count)
 
-        let object = Object(dbRef: .root())
+        let object = Object(in: .root)
         object.id.listening(Assign.guarded(self) { (v, o) in
 
         }.on(queue: .main)).add(to: &disposeBag)
@@ -69,7 +70,7 @@ class ViewController: UIViewController {
     }
 }
 
-class TableViewController<Collection: RealtimeCollection>: UITableViewController where Collection.Index == Int, Collection.IndexDistance == Int {
+class TableViewController<Collection: RealtimeCollection>: UITableViewController where Collection.Index == Int {
     let list: Collection
     var realtimeAdapter: RealtimeTableAdapter<Collection>!
 

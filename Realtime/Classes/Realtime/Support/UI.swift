@@ -100,7 +100,7 @@ public extension RCBasedDataSource {
 }
 
 extension Collection {
-    func element(by offset: IndexDistance) -> Iterator.Element {
+    func element(by offset: Int) -> Iterator.Element {
         return self[index(startIndex, offsetBy: offset)]
     }
 }
@@ -228,5 +228,28 @@ public class _RealtimeTableAdapter<Models: ModelDataSource> {
     public func reloadTable() {
         _isNeedReload = true
         tableView.reloadData()
+    }
+}
+
+// MARK: Views
+
+open class RealtimeTableView<RC: RealtimeCollection>: UITableView where RC.Index == Int {
+    public var adapter: RealtimeTableAdapter<RC>!
+
+    required public init(collection: RC, configuration: ((RealtimeTableAdapter<RC>) -> Void)? = nil) {
+        super.init(frame: .zero, style: .plain)
+        self.adapter = RealtimeTableAdapter(tableView: self, collection: collection)
+        configuration?(self.adapter)
+    }
+
+    required public init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override open func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window.isSome else { return }
+
+        adapter.reloadTable()
     }
 }

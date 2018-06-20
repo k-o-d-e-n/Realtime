@@ -10,11 +10,20 @@ import Foundation
 import FirebaseDatabase
 
 public extension RTNode where Self.RawValue == String {
-    func property<Type: RealtimeValue>(from parent: DatabaseReference) -> Type {
-        return Type(dbRef: reference(from: parent))
+//    func property<Type: RealtimeValue>(from parent: DatabaseReference) -> Type {
+//        return Type(in: Node.root.child(with: parent.rootPath))
+//    }
+    func property<Type: RealtimeValue>(from node: Node?) -> Type {
+        return Type(in: Node(key: rawValue, parent: node))
     }
     func property<Type: RealtimeValue>() -> Type {
-        return Type(dbRef: reference())
+        return Type(in: Node(key: rawValue, parent: .root))
+    }
+}
+
+public extension Node {
+    func property<Type: RealtimeValue>() -> Type! {
+        return Type(in: self)
     }
 }
 
@@ -24,49 +33,45 @@ extension RealtimeProperty: FilteringEntity {}
 // TODO: Remove id from value
 public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(String, Related)?, RelationableValueSerializer<Related>> {
     public override func revert() {
-        if let old = oldValue.flatMap({ $0 }) { old.1.add(link: old.1.generate(linkTo: dbRef).link) }
+        if let old = oldValue.flatMap({ $0 }) { old.1.add(link: old.1.node!.generate(linkTo: node!).link) }
         if let new = value { new.1.remove(linkBy: new.0) }
         super.revert()
     }
-    public var related: Related? {
-        get { return value?.1 }
-        set {
-            if let oldValue = value { oldValue.1.remove(linkBy: oldValue.0) }
-            value = newValue.map {
-                let link = $0.generate(linkTo: dbRef).link
-                $0.add(link: link)
-                return (link.id, $0)
-            }
+    public var related: Related? { return value?.1 }
+
+    public required init(in node: Node?, value: T) {
+        if node.map({ !$0.isRooted }) ?? true {
+            debugFatalError("Relation should be initialized with rooted node");
         }
+        super.init(in: node, value: value)
     }
 
-    public required init(dbRef: DatabaseReference, value: T) {
-        super.init(dbRef: dbRef, value: value)
-    }
-
-    @discardableResult
-    public override func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        let transaction = transaction ?? RealtimeTransaction()
-        if let (id, related) = self.value {
-            related.removeLink(by: id, in: transaction)
-        }
-        self.related = value?.1
-        transaction.set(self)
-        value?.1.insertChanges(to: transaction)
-
-        return transaction
+    public override func setValue(_ value: (String, Related)?, in transaction: RealtimeTransaction?) -> RealtimeTransaction {
+        fatalError("Use setValue(_: Related?, in:) function instead")
     }
 
     @discardableResult
     public func setValue(_ value: Related?, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        return setValue(value.map { ("", $0) }, in: transaction)
+        let transaction = transaction ?? RealtimeTransaction()
+        if let (id, related) = self.value {
+            related.removeLink(by: id, in: transaction)
+        }
+        if let v = value {
+            let link = v.node!.generate(linkTo: node!).link
+            v.addLink(link, in: transaction)
+            self.value = (link.id, v)
+            transaction.set(self)
+        } else {
+            transaction.delete(self)
+        }
+
+        return transaction
     }
 }
 
 // MARK: Listenable realtime property
 
-public typealias StandartProperty<StandartType: HasDefaultLiteral & Codable> = RealtimeProperty<StandartType, Serializer<StandartType>>
-public typealias OptionalEnumProperty<EnumType: RawRepresentable> = RealtimeProperty<EnumType?, EnumSerializer<EnumType>>
+public typealias StandartProperty<StandartType: HasDefaultLiteral> = RealtimeProperty<StandartType, Serializer<StandartType>>
 public extension URL {
     typealias OptionalProperty = RealtimeProperty<URL?, URLSerializer>
 }
@@ -75,8 +80,11 @@ public extension Date {
     typealias OptionalProperty = RealtimeProperty<Date?, DateSerializer>
 }
 
+public extension RawRepresentable {
+    typealias OptionalProperty = RealtimeProperty<Self?, OptionalEnumSerializer<Self>>
+}
 public extension RawRepresentable where Self: HasDefaultLiteral {
-    typealias OptionalProperty = RealtimeProperty<Self?, EnumSerializer<Self>>
+    typealias Property = RealtimeProperty<Self, EnumSerializer<Self>>
 }
 
 public typealias LinkedRealtimeProperty<V: RealtimeValue> = RealtimeProperty<V?, LinkableValueSerializer<V>>
@@ -126,15 +134,15 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     
     // MARK: Initializers, deinitializer
     
-    public required init(dbRef: DatabaseReference, value: T) {
+    public required init(in node: Node?, value: T) {
         self.localPropertyValue = PropertyValue(value)
         self.insider = Insider(source: localPropertyValue.get)
         self.lastError = Property<Error?>(value: nil)
-        super.init(dbRef: dbRef)
+        super.init(in: node)
     }
 
-    public convenience required init(dbRef: DatabaseReference) {
-        self.init(dbRef: dbRef, value: T())
+    public convenience required init(in node: Node?) {
+        self.init(in: node, value: T())
     }
 
 //    public convenience init(from decoder: Decoder) throws {
@@ -151,7 +159,6 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
 
 //    deinit {
 //    }
-
 
     @discardableResult
     public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
@@ -190,13 +197,13 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     
     // MARK: Events
     
-    override public func didSave() {
-        super.didSave()
+    override public func didSave(in parent: Node, by key: String) {
+        super.didSave(in: parent, by: key)
         resetHasChanges()
     }
     
-    override public func didRemove() {
-        super.didRemove()
+    override public func didRemove(from node: Node) {
+        super.didRemove(from: node)
         resetHasChanges()
         setValue(T())
     }
@@ -204,10 +211,10 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     // MARK: Changeable
     
     public convenience required init(snapshot: DataSnapshot) {
-        self.init(dbRef: snapshot.ref)
+        self.init(in: .from(snapshot))
         apply(snapshot: snapshot)
     }
-    
+
     override public func apply(snapshot: DataSnapshot, strongly: Bool) {
         super.apply(snapshot: snapshot, strongly: strongly)
         resetHasChanges()
@@ -227,4 +234,109 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     }
 }
 
-// TODO: Implement new SharedRealtimeProperty
+public class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner where T == Serializer.Entity, T: MutableDataRepresented {
+    override public var localValue: Any? { return Serializer.serialize(entity: localPropertyValue.get()) }
+
+    private var localPropertyValue: PropertyValue<T>
+    public var value: T {
+        get { return localPropertyValue.get() }
+        set { setValue(newValue) }
+    }
+    public var insider: Insider<T>
+
+    // MARK: Initializers, deinitializer
+
+    public required init(in node: Node?, value: T) {
+        self.localPropertyValue = PropertyValue(value)
+        self.insider = Insider(source: localPropertyValue.get)
+        super.init(in: node)
+    }
+
+    public convenience required init(in node: Node?) {
+        self.init(in: node, value: T())
+    }
+
+    // MARK: Events
+
+    override public func didSave(in parent: Node, by key: String) {
+        super.didSave(in: parent, by: key)
+    }
+
+    override public func didRemove(from node: Node) {
+        super.didRemove(from: node)
+        setValue(T())
+    }
+
+    // MARK: Changeable
+
+    public convenience required init(snapshot: DataSnapshot) {
+        self.init(in: .from(snapshot))
+        apply(snapshot: snapshot)
+    }
+
+    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
+        super.apply(snapshot: snapshot, strongly: strongly)
+        setValue(Serializer.deserialize(entity: snapshot))
+    }
+
+    fileprivate func setValue(_ value: T) {
+        localPropertyValue.set(value)
+        insider.dataDidChange()
+    }
+}
+
+public extension SharedProperty {
+    public func changeValue(use changing: @escaping (T) throws -> T, completion: ((Bool, T) -> Void)? = nil) {
+        debugFatalError(condition: dbRef == nil, "")
+        
+        if let ref = dbRef {
+            ref.runTransactionBlock({ data in
+                do {
+                    let dataValue = data.exists() ? try T.init(data: data) : T()
+                    data.value = try changing(dataValue).localValue
+                } catch let e {
+                    debugFatalError(e.localizedDescription)
+
+                    return .abort()
+                }
+                return .success(withValue: data)
+            }, andCompletionBlock: { [unowned self] error, commited, snapshot in
+                guard error == nil else {
+                    completion?(false, self.value)
+                    return
+                }
+
+                if let s = snapshot {
+                    self.setValue(Serializer.deserialize(entity: s))
+                    completion?(true, self.value)
+                } else {
+                    debugFatalError("Transaction completed without error, but snapshot does not exist")
+
+                    completion?(false, self.value)
+                }
+            })
+        }
+    }
+}
+
+public class MutationPoint<T> where T: FireDataRepresented {
+    public let node: Node
+    public required init(in node: Node) throws {
+        guard node.isRooted else { throw RealtimeError("Node should be rooted") }
+        self.node = node
+    }
+}
+public extension MutationPoint {
+    func set(value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        let transaction = transaction ?? RealtimeTransaction()
+        transaction.addValue(value.localValue, by: node)
+
+        return transaction
+    }
+    func mutate(by key: String? = nil, use value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        let transaction = transaction ?? RealtimeTransaction()
+        transaction.addValue(value.localValue, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+
+        return transaction
+    }
+}
