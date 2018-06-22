@@ -14,7 +14,7 @@ private enum LinkNodes {
     static let sourceID = "s_id"
 }
 
-struct Reference: DataSnapshotRepresented {
+struct Reference: DataSnapshotRepresented, Codable {
     let ref: String
 
     init(ref: String) {

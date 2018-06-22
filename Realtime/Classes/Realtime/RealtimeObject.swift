@@ -130,7 +130,7 @@ open class RealtimeObject: _RealtimeValue {
     typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>!
     lazy var links: Links = self.node!.linksNode.property()
 
-//    lazy var parent: RealtimeObject? = self.dbRef.parent.map(RealtimeObject.init) // should be typed
+    open var parent: RealtimeObject?
 
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)

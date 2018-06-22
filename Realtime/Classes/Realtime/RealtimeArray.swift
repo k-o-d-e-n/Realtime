@@ -24,6 +24,12 @@ public extension Node {
 
 // MARK: Implementation RealtimeCollection`s
 
+public extension RealtimeArray {
+    convenience init<E>(in node: Node?, elements: LinkedRealtimeArray<E>) {
+        self.init(in: node, viewSource: elements._view.source)
+    }
+}
+
 /// # Realtime Array
 /// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
 /// Comment writing guide
@@ -35,11 +41,15 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
 
     let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>>
 
-    public init(in node: Node?) {
+    public convenience init(in node: Node?) {
+        self.init(in: node, viewSource: RealtimeProperty(in: node?.child(with: Nodes.items.rawValue).linksNode))
+    }
+
+    init(in node: Node?, viewSource: RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>) {
         precondition(node != nil)
         self.node = node
         self.storage = RCArrayStorage(sourceNode: node!, elementBuilder: Element.init, elements: [:])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node?.child(with: Nodes.items.rawValue).linksNode))
+        self._view = AnyRealtimeCollectionView(viewSource)
     }
 
     // Implementation

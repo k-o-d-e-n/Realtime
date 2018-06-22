@@ -19,6 +19,11 @@ public extension RTNode where Self.RawValue == String {
     func property<Type: RealtimeValue>() -> Type {
         return Type(in: Node(key: rawValue, parent: .root))
     }
+    func property<Type: RealtimeObject>(in object: RealtimeObject) -> Type {
+        let property = Type(in: Node(key: rawValue, parent: object.node))
+        property.parent = object
+        return property
+    }
 }
 
 public extension Node {
@@ -88,6 +93,7 @@ public extension RawRepresentable where Self: HasDefaultLiteral {
 }
 
 public typealias LinkedRealtimeProperty<V: RealtimeValue> = RealtimeProperty<V?, LinkableValueSerializer<V>>
+public typealias CodableRealtimeProperty<V: Codable & HasDefaultLiteral> = RealtimeProperty<V, CodableSerializer<V>>
 
 // TODO: Add possible update value at subpath
 // TODO: Create property for storage data
