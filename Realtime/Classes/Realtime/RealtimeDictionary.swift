@@ -237,11 +237,13 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         apply(snapshot: snapshot)
     }
 
+    var _snapshot: (DataSnapshot, Bool)?
     public func apply(snapshot: DataSnapshot, strongly: Bool) {
-        if strongly || Nodes.items.has(in: snapshot) {
-            _view.source.apply(snapshot: Nodes.items.snapshot(from: snapshot))
-            _view.isPrepared = true
+        guard _view.isPrepared else {
+            _snapshot = (snapshot, strongly)
+            return
         }
+        _snapshot = nil
         _view.source.value.forEach { key in
             guard snapshot.hasChild(key.dbKey) else {
                 if strongly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }

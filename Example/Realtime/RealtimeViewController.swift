@@ -100,7 +100,7 @@ class RealtimeViewController: UIViewController {
 
         try! Global.rtUsers.insert(element: user, in: transaction)
 
-        transaction.commit(with: { (error) in
+        transaction.commit(with: { (_, error) in
             self.user = user
 
             if let error = error {
@@ -120,7 +120,7 @@ class RealtimeViewController: UIViewController {
 
         try! Global.rtGroups.insert(element: group, in: transaction)
 
-        transaction.commit(with: { (error) in
+        transaction.commit(with: { (_, error) in
             self.group = group
 
             if let error = error {
@@ -141,7 +141,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Ok", style: .default) { (_) in
             let transaction = Global.rtUsers.remove(element: u)
 
-            transaction?.commit { errs in
+            transaction?.commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -155,7 +155,7 @@ class RealtimeViewController: UIViewController {
             }
         })
         controller.addAction(UIAlertAction(title: "Cancel", style: .default) { (_) in
-            u.delete().commit { errs in
+            u.delete().commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -180,7 +180,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Ok", style: .default) { (_) in
             let transaction = Global.rtGroups.remove(element: grp)
 
-            transaction?.commit { errs in
+            transaction?.commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -194,7 +194,7 @@ class RealtimeViewController: UIViewController {
             }
         })
         controller.addAction(UIAlertAction(title: "Cancel", style: .default) { (_) in
-            grp.delete().commit { errs in
+            grp.delete().commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -219,7 +219,7 @@ class RealtimeViewController: UIViewController {
         let transaction = RealtimeTransaction()
         transaction.merge(ug)
         transaction.merge(gu)
-        transaction.commit { errs in
+        transaction.commit { _, errs in
             if let errors = errs {
                 print(errors)
             } else {
@@ -239,7 +239,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "User", style: .default) { (_) in
             let transaction = g.users.remove(element: u)
 
-            transaction?.commit { errs in
+            transaction?.commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -252,7 +252,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Group", style: .default) { (_) in
             let transaction = u.groups.remove(element: g)
 
-            transaction?.commit { errs in
+            transaction?.commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -272,7 +272,7 @@ class RealtimeViewController: UIViewController {
         conversationUser.name <= "Conversation #"
         let transaction = g.conversations.set(element: conversationUser, for: u)
 
-        transaction.commit { errs in
+        transaction.commit { _, errs in
             if let errors = errs {
                 print(errors)
             } else {
@@ -291,7 +291,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Ok", style: .default) { (_) in
             let transaction = g.conversations.remove(for: u)
 
-            transaction?.commit { errs in
+            transaction?.commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -312,7 +312,7 @@ class RealtimeViewController: UIViewController {
                     return
                 }
 
-                convers.first?.value.delete().commit { errs in
+                convers.first?.value.delete().commit { _, errs in
                     if let errors = errs {
                         print(errors)
                     } else {

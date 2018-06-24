@@ -24,9 +24,8 @@ struct AnyCollectionKey: Hashable, DatabaseKeyRepresentable {
     }
 }
 
-private class _AnyRealtimeCollectionBase<Element>: Collection {
+internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var node: Node? { fatalError() }
-    //    var dbRef: DatabaseReference { fatalError() }
     var view: RealtimeCollectionView { fatalError() }
     var isPrepared: Bool { fatalError() }
     var localValue: Any? { fatalError() }
@@ -46,7 +45,7 @@ private class _AnyRealtimeCollectionBase<Element>: Collection {
     var debugDescription: String { return "" }
 }
 
-private final class __AnyRealtimeCollection<C: RealtimeCollection>: _AnyRealtimeCollectionBase<C.Iterator.Element>
+internal final class __AnyRealtimeCollection<C: RealtimeCollection>: _AnyRealtimeCollectionBase<C.Iterator.Element>
 where C.Index == Int {
     let base: C
     required init(base: C) {
@@ -64,7 +63,6 @@ where C.Index == Int {
     }
 
     override var node: Node? { return base.node }
-    //    override var dbRef: DatabaseReference { return base.dbRef }
     override var view: RealtimeCollectionView { return base.view }
     override var localValue: Any? { return base.localValue }
     override var isPrepared: Bool { return base.isPrepared }
@@ -83,29 +81,36 @@ where C.Index == Int {
     override func stopObserving() { base.stopObserving() }
 }
 
-//class AnyRealtimeCollection<Element>: RealtimeCollection {
-//    private let base: _AnyRealtimeCollectionBase<Element>
-//
-//    public var dbRef: DatabaseReference { return base.dbRef }
-//    public var view: RealtimeCollectionView { return base.view }
-//    public var storage: AnyCollectionStorage<>
-//    public var localValue: Any? { return base.localValue }
-//    public var isPrepared: Bool { return base.isPrepared }
-//    public var startIndex: Int { return base.startIndex }
-//    public var endIndex: Int { return base.endIndex }
-//    public func index(after i: Index) -> Index { return base.index(after: i) }
-//    public subscript(position: Int) -> Element { return base[position] }
-//    public var debugDescription: String { return base.debugDescription }
-//    public func prepare(forUse completion: @escaping (Error?) -> Void) { base.prepare(forUse: completion) }
-//    public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
-//    public func runObserving() { base.runObserving() }
-//    public func stopObserving() { base.stopObserving() }
-//    public convenience required init?(snapshot: DataSnapshot) { fatalError() }
-//    public required init(dbRef: DatabaseReference) { fatalError() }
-//    public func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
-//    public func didSave() { base.didSave() }
-//    public func didRemove() { base.didRemove() }
-//}
+public final class AnyRealtimeCollection<Element>: RealtimeCollection {
+    private let base: _AnyRealtimeCollectionBase<Element>
+
+    public init<C: RealtimeCollection>(_ base: C) where C.Iterator.Element == Element, C.Index == Int {
+        self.base = __AnyRealtimeCollection<C>(base: base)
+    }
+
+    public convenience init(in node: Node?) {
+        fatalError("Cannot use this initializer")
+    }
+
+    public var node: Node? { return base.node }
+    public var storage: AnyArrayStorage = AnyArrayStorage()
+    public var view: RealtimeCollectionView { return base.view }
+    public var localValue: Any? { return base.localValue }
+    public var isPrepared: Bool { return base.isPrepared }
+    public var startIndex: Int { return base.startIndex }
+    public var endIndex: Int { return base.endIndex }
+    public func index(after i: Index) -> Int { return base.index(after: i) }
+    public func index(before i: Int) -> Int { return base.index(before: i) }
+    public subscript(position: Int) -> Element { return base[position] }
+    public var debugDescription: String { return base.debugDescription }
+    public func prepare(forUse completion: @escaping (Error?) -> Void) { base.prepare(forUse: completion) }
+    public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
+    public func runObserving() { base.runObserving() }
+    public func stopObserving() { base.stopObserving() }
+    public convenience required init?(snapshot: DataSnapshot) { fatalError() }
+    public required init(dbRef: DatabaseReference) { fatalError() }
+    public func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
+}
 
 // TODO: Create wrapper that would sort array (sorting by default) (example array from tournament table)
 // 1) Sorting performs before save prototype (storing sorted array)
@@ -192,7 +197,6 @@ where Element: RealtimeValue {
     }
 
     public var node: Node? { get { return base.node } set {} }
-    //    public var dbRef: DatabaseReference { return base.dbRef }
     public var view: RealtimeCollectionView { return base.view }
     public var storage: KeyedCollectionStorage<Element>
     public var localValue: Any? { return base.localValue }
@@ -217,11 +221,11 @@ where Element: RealtimeValue {
     }
 
     public convenience required init?(snapshot: DataSnapshot) {
-        fatalError()
+        fatalError("Cannot use this initializer")
     }
 
     public required init(dbRef: DatabaseReference) {
-        fatalError()
+        fatalError("Cannot use this initializer")
     }
 
     public func apply(snapshot: DataSnapshot, strongly: Bool) {

@@ -66,7 +66,14 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     public func runObserving() { _view.source.runObserving() }
     public func stopObserving() { _view.source.stopObserving() }
     public var debugDescription: String { return _view.source.debugDescription }
-    public func prepare(forUse completion: @escaping (Error?) -> Void) { _view.prepare(forUse: completion) }
+    public func prepare(forUse completion: @escaping (Error?) -> Void) {
+        _view.prepare { [weak self] (err) in
+            if err == nil {
+                self.map { $0._snapshot.map($0.apply) }
+            }
+            completion(err)
+        }
+    }
     
     // TODO: Create Realtime wrapper for DatabaseQuery
     // TODO: Check filter with difficult values aka dictionary
@@ -122,11 +129,10 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
             element.remove(linkBy: link.link.id)
         }
         transaction.addValue(_view.source)
+        transaction.addValue(link.link.localValue, by: link.sourceNode)
         if let elem = element as? RealtimeObject { // TODO: Fix it
-            transaction.addValue(link.link.localValue, by: link.sourceNode)
             transaction._update(elem, by: elementNode)
         } else {
-            element.add(link: link.link)
             transaction.set(element, by: elementNode)
         }
         transaction.addCompletion { [weak self] (result) in
@@ -200,12 +206,14 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         self.init(in: Node.root.child(with: snapshot.ref.rootPath))
         apply(snapshot: snapshot)
     }
-    
+
+    var _snapshot: (DataSnapshot, Bool)?
     public func apply(snapshot: DataSnapshot, strongly: Bool) {
-        if strongly || Nodes.items.has(in: snapshot) {
-            _view.source.apply(snapshot: Nodes.items.snapshot(from: snapshot))
-            _view.isPrepared = true
+        guard _view.isPrepared else {
+            _snapshot = (snapshot, strongly)
+            return
         }
+        _snapshot = nil
         _view.source.value.forEach { key in
             guard snapshot.hasChild(key.dbKey) else {
                 if strongly { storage.elements.removeValue(forKey: key) }

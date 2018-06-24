@@ -64,7 +64,7 @@ class ViewController: UIViewController {
 //                }
 //                adapter.cellForIndexPath = { _ in UITableViewCell.self }
 //            }
-            let realtimeViewController = RealtimeViewController()
+            let realtimeViewController = touches.first!.location(in: self.view).x > self.view.frame.width / 2 ? RealtimeViewController() : RealtimeTableController()
             self.navigationController?.pushViewController(realtimeViewController, animated: true)
         }
     }

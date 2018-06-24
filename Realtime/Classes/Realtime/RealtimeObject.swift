@@ -92,8 +92,9 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     open func apply(snapshot: DataSnapshot, strongly: Bool) {}
 
     public func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?) {
+        guard let node = self.node else { fatalError("Tried insert changes to transaction from non referred value") }
         if hasChanges {
-            transaction.addValue(self)
+            transaction.addValue(localValue, by: parentNode?.child(with: node.key) ?? node)
         }
     }
     
@@ -127,8 +128,8 @@ open class RealtimeObject: _RealtimeValue {
     public var typedLocalValue: [String: Any]? { return keyedValues { return $0.localValue } }
 
     private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
-    typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>!
-    lazy var links: Links = self.node!.linksNode.property()
+    typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
+    lazy var links: Links! = self.node!.linksNode.property()
 
     open var parent: RealtimeObject?
 

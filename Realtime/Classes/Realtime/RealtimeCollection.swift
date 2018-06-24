@@ -235,6 +235,10 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     }
 }
 
+public struct AnyArrayStorage: RealtimeCollectionStorage {
+    public typealias Value = Any
+}
+
 public final class AnyRealtimeCollectionView<Source>: RCView where Source: ValueWrapper & RealtimeValueActions, Source.T: BidirectionalCollection {
     let source: Source
     public internal(set) var isPrepared: Bool = false

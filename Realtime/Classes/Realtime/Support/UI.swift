@@ -36,6 +36,45 @@ open class _TableViewSectionedAdapter: NSObject, UITableViewDataSource, UITableV
     open func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
 }
 
+struct TypeKey<T>: Hashable {
+    let type: T.Type
+
+    var hashValue: Int {
+        return ObjectIdentifier(type).hashValue
+    }
+
+    static func ==(lhs: TypeKey, rhs: TypeKey) -> Bool {
+        return lhs.type == rhs.type
+    }
+}
+extension UITableViewCell {
+    // convenience static computed property to get the wrapped metatype value.
+    static var typeKey: TypeKey<UITableViewCell> {
+        return TypeKey(type: self)
+    }
+    var typeKey: TypeKey<UITableViewCell> {
+        return type(of: self).typeKey
+    }
+}
+
+
+extension SignedInteger {
+    func toOther<SI: SignedInteger>() -> SI {
+        return SI(self)
+    }
+}
+
+/// Deprecated
+
+@available(*, deprecated: 0.1.0)
+extension Collection {
+    func element(by offset: Int) -> Iterator.Element {
+        return self[index(startIndex, offsetBy: offset)]
+    }
+}
+
+
+@available(*, deprecated: 0.1.0)
 public class ReuseViewPrototype<View: AnyObject> {
     fileprivate let weakView = WeakPropertyValue<View>(nil)
     weak var view: View? {
@@ -56,41 +95,11 @@ public class ReuseViewPrototype<View: AnyObject> {
         }
     }
 }
-class ReuseViewReference {
-    var indexPath = Property<IndexPath>(value: IndexPath())
-    private(set) var listeningItem: ListeningItem! {
-        willSet { listeningItem.stop() }
-        didSet { listeningItem.start(true) }
-    }
 
-    init(data: @escaping (IndexPath) -> ListeningItem?) {
-        _ = self.indexPath.insider.listen(.just { [unowned self] (path) in
-            data(path).map { self.listeningItem = $0 }
-        })
-    }
-}
-
-struct TypeKey<T>: Hashable {
-    let type: T.Type
-
-    var hashValue: Int {
-        return ObjectIdentifier(type).hashValue
-    }
-
-    static func ==(lhs: TypeKey, rhs: TypeKey) -> Bool {
-        return lhs.type == rhs.type
-    }
-}
-extension UITableViewCell {
-    // convenience static computed property to get the wrapped metatype value.
-    static var typeKey: TypeKey<UITableViewCell> {
-        return TypeKey(type: self)
-    }
-}
-
+@available(*, deprecated: 0.1.0, message: "Use RealtimeTableViewDelegate instead")
 public final class RealtimeTableAdapter<RC: RealtimeCollection>: _RealtimeTableAdapter<RCBasedDataSource<RC>> {
     public convenience init(tableView: UITableView, collection: RC) {
-        self.init(tableView: tableView, models: RCBasedDataSource(collection), onChanges: { collection.listening(changes: $0) })
+        self.init(tableView: tableView, models: RCBasedDataSource(collection), onChanges: collection.listening)
     }
 }
 public extension RCBasedDataSource {
@@ -99,28 +108,13 @@ public extension RCBasedDataSource {
     }
 }
 
-extension Collection {
-    func element(by offset: Int) -> Iterator.Element {
-        return self[index(startIndex, offsetBy: offset)]
-    }
-}
-
-extension Int64 {
-    func toInt() -> Int {
-        return Int(self)
-    }
-}
-extension SignedInteger {
-    func toOther<SI: SignedInteger>() -> SI {
-        return SI(self)
-    }
-}
-
+@available(*, deprecated: 0.1.0)
 public protocol ModelDataSource {
     associatedtype Model
     func numberOfRowsInSection(_ section: Int) -> Int
     func model(by indexPath: IndexPath) -> Model
 }
+@available(*, deprecated: 0.1.0)
 public struct RCBasedDataSource<RC: RealtimeCollection>: ModelDataSource {
     let collection: RC
 
@@ -129,7 +123,7 @@ public struct RCBasedDataSource<RC: RealtimeCollection>: ModelDataSource {
     }
 
     public func numberOfRowsInSection(_ section: Int) -> Int {
-        return collection.count.toOther()
+        return collection.count
     }
     public func model(by indexPath: IndexPath) -> RC.Iterator.Element {
         return collection.element(by: indexPath.row.toOther())
@@ -138,6 +132,7 @@ public struct RCBasedDataSource<RC: RealtimeCollection>: ModelDataSource {
 
 // TODO: Add registration section model
 // TODO: Overhead with recompilation listenings; DECISION: Save listening items by indexPath
+@available(*, deprecated: 0.1.0, message: "Use RealtimeTableViewDelegate instead")
 public class _RealtimeTableAdapter<Models: ModelDataSource> {
     public typealias CellFactory<Cell: UITableViewCell> = (ReuseViewPrototype<Cell>, Models.Model) -> [ListeningItem]
     weak var tableView: UITableView!
@@ -209,11 +204,10 @@ public class _RealtimeTableAdapter<Models: ModelDataSource> {
         }
 
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            guard let proto = parent._prototypeCache[indexPath] else { return }
+            guard let proto = parent._prototypeCache.removeValue(forKey: indexPath) else { return }
 
             proto.disposeStore.dispose()
             proto.view = nil
-            parent._prototypeCache[indexPath] = nil
             parent._freePrototypes.append(proto)
         }
 

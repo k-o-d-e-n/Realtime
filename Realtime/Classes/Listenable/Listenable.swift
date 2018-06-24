@@ -291,7 +291,7 @@ public struct AsyncReadonlyProperty<Value> {
         set { concreteValue.setInsider(newValue) }
     }
     private let concreteValue: ListenableValue<Value>
-    private(set) var value: Value {
+    public private(set) var value: Value {
         get { return concreteValue.get() }
         set { concreteValue.set(newValue); }
     }
