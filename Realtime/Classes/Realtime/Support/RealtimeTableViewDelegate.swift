@@ -68,7 +68,7 @@ public class ReuseController<View: AnyObject> {
 public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObject {
     public typealias Binding<Cell: AnyObject> = (ReuseItem<Cell>, Model) -> Void
     public typealias ConfigureCell = (UITableView, IndexPath) -> UITableViewCell
-    fileprivate let collection: _AnyRealtimeCollectionBase<Model>
+    public private(set) var collection: AnyBidirectionalCollection<Model>
     fileprivate let reuseController: ReuseController<UITableViewCell> = ReuseController()
     fileprivate var registeredCells: [TypeKey<UITableViewCell>: Binding<UITableViewCell>] = [:]
     fileprivate var configureCell: ConfigureCell
@@ -76,14 +76,21 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
 
     public weak var tableDelegate: UITableViewDelegate?
 
-    public init<C: RealtimeCollection>(_ collection: C, cell: @escaping ConfigureCell)
+    public init<C: BidirectionalCollection>(_ collection: C, cell: @escaping ConfigureCell)
         where C.Element == Model, C.Index == Int {
-            self.collection = __AnyRealtimeCollection<C>(base: collection)
+            self.collection = AnyBidirectionalCollection(collection)
             self.configureCell = cell
     }
 
     public func register<Cell: UITableViewCell>(_ cell: Cell.Type, binding: Binding<Cell>) {
         registeredCells[cell.typeKey] = unsafeBitCast(binding, to: Binding<UITableViewCell>.self)
+    }
+
+    public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
+        where C.Element == Model, C.Index == Int {
+            self.collection.forEach { $0.stopObserving() }
+            self.collection = AnyBidirectionalCollection(newData)
+            tableView.reloadData()
     }
 
     public func bind(_ tableView: UITableView) {
@@ -116,7 +123,7 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
 
         func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
             indexPaths.forEach { ip in
-                delegate.collection[ip.row].load(completion: nil)
+                delegate.collection.element(by: ip.row).load(completion: nil)
             }
         }
 
@@ -127,7 +134,7 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
                 fatalError("Unregistered cell by type \(type(of: cell))")
             }
 
-            let model = delegate.collection[indexPath.row]
+            let model = delegate.collection.element(by: indexPath.row)
             bind(item, model)
             item.view = cell
             model.runObserving()
@@ -137,7 +144,9 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
 
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             delegate.reuseController.free(at: indexPath)
-            delegate.collection[indexPath.row].stopObserving()
+            if delegate.collection.count > indexPath.row {
+                delegate.collection.element(by: indexPath.row).stopObserving()
+            }
             delegate.tableDelegate?.tableView?(tableView, didEndDisplaying: cell, forRowAt: indexPath)
         }
 

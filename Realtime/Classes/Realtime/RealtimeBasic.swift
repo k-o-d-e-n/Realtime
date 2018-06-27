@@ -188,7 +188,7 @@ extension RealtimeValueEvents where Self: RealtimeValue {
 public protocol ChangeableRealtimeValue: RealtimeValue {
     var hasChanges: Bool { get }
 
-    func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?)
+    func insertChanges(to transaction: RealtimeTransaction, by node: Node)
 }
 
 public protocol RealtimeValueActions: RealtimeValueEvents {
@@ -207,10 +207,21 @@ public protocol Linkable {
 
 struct RemoteManager {
     static func loadData<Entity: RealtimeValue & RealtimeValueEvents>(to entity: Entity, completion: Database.TransactionCompletion? = nil) {
-        entity.dbRef!.observeSingleEvent(of: .value, with: { entity.apply(snapshot: $0); completion?(nil, entity.dbRef!) }, withCancel: { completion?($0, entity.dbRef!) })
+        guard let ref = entity.dbRef else {
+            debugFatalError(condition: true, "Couldn`t get reference")
+            completion?(RealtimeError("Couldn`t get reference"), .root())
+            return
+        }
+
+        ref.observeSingleEvent(of: .value, with: { entity.apply(snapshot: $0); completion?(nil, ref) }, withCancel: { completion?($0, ref) })
     }
 
-    static func observe<T: RealtimeValue & RealtimeValueEvents>(type: DataEventType = .value, entity: T, onUpdate: Database.TransactionCompletion? = nil) -> UInt {
-        return entity.dbRef!.observe(type, with: { entity.apply(snapshot: $0); onUpdate?(nil, $0.ref) }, withCancel: { onUpdate?($0, entity.dbRef!) })
+    static func observe<T: RealtimeValue & RealtimeValueEvents>(type: DataEventType = .value, entity: T, onUpdate: Database.TransactionCompletion? = nil) -> UInt? {
+        guard let ref = entity.dbRef else {
+            debugFatalError(condition: true, "Couldn`t get reference")
+            onUpdate?(RealtimeError("Couldn`t get reference"), .root())
+            return nil!
+        }
+        return ref.observe(type, with: { entity.apply(snapshot: $0); onUpdate?(nil, $0.ref) }, withCancel: { onUpdate?($0, ref) })
     }
 }

@@ -42,12 +42,16 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
         endObserve(for: token)
     }
     
-    func observe(type: DataEventType = .value, onUpdate: Database.TransactionCompletion? = nil) -> UInt {
+    func observe(type: DataEventType = .value, onUpdate: Database.TransactionCompletion? = nil) -> UInt? {
         return RemoteManager.observe(type: type, entity: self, onUpdate: onUpdate)
     }
 
     func endObserve(for token: UInt) {
-        dbRef!.removeObserver(withHandle: token);
+        guard let ref = dbRef else {
+            return debugFatalError(condition: true, "Couldn`t get reference")
+        }
+
+        ref.removeObserver(withHandle: token);
     }
 
     public func willRemove(in transaction: RealtimeTransaction) {}
@@ -91,10 +95,11 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     
     open func apply(snapshot: DataSnapshot, strongly: Bool) {}
 
-    public func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?) {
+    public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
         guard let node = self.node else { fatalError("Tried insert changes to transaction from non referred value") }
+
         if hasChanges {
-            transaction.addValue(localValue, by: parentNode?.child(with: node.key) ?? node)
+            transaction.addValue(localValue, by: node)
         }
     }
     
@@ -192,14 +197,26 @@ open class RealtimeObject: _RealtimeValue {
         fatalError("You should implement class func keyPath(for:)")
     }
 
-    override public func insertChanges(to transaction: RealtimeTransaction, to parentNode: Node?) {
-        reflect(to: _RealtimeValue.self) { (mirror) in
+    override public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
+        reflect { (mirror) in
             mirror.children.forEach({ (child) in
-                if let value = child.value as? _RealtimeValue {
-                    value.insertChanges(to: transaction, to: parentNode)
+                guard var label = child.label else { return }
+
+                if label.hasSuffix(lazyStoragePath) {
+                    label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
+                }
+                if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
+                    if let value = self[keyPath: keyPath] as? _RealtimeValue {
+                        if let valNode = value.node {
+                            value.insertChanges(to: transaction, by: node.child(with: valNode.key))
+                        } else {
+                            fatalError("There is not specified child node in \(self)")
+                        }
+                    }
                 }
             })
         }
+//        mv.insertChanges(to: , by: )
     }
 
     // MARK: RealtimeObject

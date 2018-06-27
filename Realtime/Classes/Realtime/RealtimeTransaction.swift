@@ -313,9 +313,9 @@ public extension RealtimeTransaction {
 
     internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) {
         guard value.hasChanges else { debugFatalError("Value has not changes"); return }
-        guard updatedNode.isRooted else { fatalError() }
+        guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
 
-        value.insertChanges(to: self, to: updatedNode) // TODO:
+        value.insertChanges(to: self, by: updatedNode)
         addCompletion { (result) in
             if result {
                 value.didSave(in: updatedNode.parent!, by: updatedNode.key)
