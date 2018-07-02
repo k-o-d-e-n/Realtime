@@ -213,7 +213,7 @@ extension RealtimeTransaction {
                 } else if let u = update as? ValueNode, u.node == node {
                     u.value = value
                 } else {
-                    fatalError()
+                    fatalError("Error in internal implementation")
                 }
             } else {
                 if node == n {

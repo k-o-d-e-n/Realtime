@@ -52,7 +52,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValuesSerializer>>
 
     public init(in node: Node, keysNode: Node) {
         self.node = node
@@ -133,7 +133,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         let needLink = shouldLinking
         let elementNode = storage.sourceNode.child(with: key.dbKey)
         let link = key.node!.generate(linkTo: [_view.source.node!, elementNode])
-        let prototypeValue = _PrototypeValue(dbKey: key.dbKey, linkId: link.link.id, index: count)
+        let prototypeValue = _PrototypeValue(dbKey: key.dbKey, linkID: link.link.id, index: count)
         let oldValue = _view.source.value
         _view.source.value.append(prototypeValue)
         storage.store(value: element, by: key)
@@ -156,7 +156,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         } else {
             transaction.set(element, by: elementNode)
         }
-        transaction.addValue([prototypeValue.linkId: _view.count], by: _view.source.node!.child(with: prototypeValue.dbKey))
+        transaction.addValue(_ProtoValueSerializer.serialize(entity: prototypeValue), by: _view.source.node!.child(with: key.dbKey))
         transaction.addCompletion { [weak self] result in
             if result {
                 if needLink {
@@ -193,12 +193,12 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
-        transaction.addValue(_view.source)
+        transaction.addValue(nil, by: _view.source.node!.child(with: key.dbKey))
         transaction.addValue(nil, by: storage.sourceNode.child(with: key.dbKey))
-        transaction.addValue(nil, by: key.node!.linksNode.child(with: p_value.linkId))
+        transaction.addValue(nil, by: key.node!.linksNode.child(with: p_value.linkID))
         transaction.addCompletion { [weak self] result in
             if result {
-                key.remove(linkBy: p_value.linkId)
+                key.remove(linkBy: p_value.linkID)
                 self?.storage.elements.removeValue(forKey: key)
                 element.didRemove()
                 self?.didSave()
@@ -269,7 +269,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
             self.node = Node(key: key, parent: parent)
         }
 
-        _view.source.didSave(in: self.node!)
+        _view.source.didSave()
     }
 
     public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }

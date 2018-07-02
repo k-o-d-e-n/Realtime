@@ -345,4 +345,10 @@ public extension MutationPoint {
 
         return transaction
     }
+    func removeValue(for key: String, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        let transaction = transaction ?? RealtimeTransaction()
+        transaction.addValue(nil, by: node.child(with: key))
+
+        return transaction
+    }
 }

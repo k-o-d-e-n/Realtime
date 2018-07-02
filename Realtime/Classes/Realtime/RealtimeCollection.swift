@@ -18,32 +18,42 @@ struct RealtimeArrayError: Error {
 
 struct _PrototypeValue: Hashable, DatabaseKeyRepresentable {
     let dbKey: String!
-    let linkId: String
+    let linkID: String
     let index: Int
 
     var hashValue: Int {
-        return dbKey.hashValue &- linkId.hashValue
+        return dbKey.hashValue &- linkID.hashValue
     }
 
     static func ==(lhs: _PrototypeValue, rhs: _PrototypeValue) -> Bool {
         return lhs.dbKey == rhs.dbKey
     }
 }
-final class _PrototypeValueSerializer: _Serializer {
+final class _PrototypeValuesSerializer: _Serializer {
     class func deserialize(entity: DataSnapshot) -> [_PrototypeValue] {
         guard let keyes = entity.value as? [String: [String: Int]] else { return Entity() }
 
         return keyes
-            .map { _PrototypeValue(dbKey: $0.key, linkId: $0.value.first!.key, index: $0.value.first!.value) }
+            .map { _PrototypeValue(dbKey: $0.key, linkID: $0.value.first!.key, index: $0.value.first!.value) }
             .sorted(by: { $0.index < $1.index })
     }
 
     class func serialize(entity: [_PrototypeValue]) -> Any? {
         return entity.reduce(Dictionary<String, Any>(), { (result, key) -> [String: Any] in
             var result = result
-            result[key.dbKey] = [key.linkId: result.count]
+            result[key.dbKey] = [key.linkID: result.count]
             return result
         })
+    }
+}
+final class _ProtoValueSerializer: _Serializer {
+    static func deserialize(entity: DataSnapshot) -> _PrototypeValue? {
+        guard let val = entity.value as? [String: Int], let first = val.first else { return Entity() }
+
+        return _PrototypeValue(dbKey: entity.key, linkID: first.key, index: first.value)
+    }
+    static func serialize(entity: _PrototypeValue?) -> [String: Int]? {
+        return entity.map { [$0.linkID: $0.index] }
     }
 }
 

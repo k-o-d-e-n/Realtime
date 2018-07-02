@@ -96,8 +96,6 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     open func apply(snapshot: DataSnapshot, strongly: Bool) {}
 
     public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
-        guard let node = self.node else { fatalError("Tried insert changes to transaction from non referred value") }
-
         if hasChanges {
             transaction.addValue(localValue, by: node)
         }

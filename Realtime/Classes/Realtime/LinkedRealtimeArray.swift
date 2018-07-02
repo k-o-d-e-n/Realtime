@@ -20,7 +20,7 @@ public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue
     public var localValue: Any? { return _view.source.localValue }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValuesSerializer>>
 
     public required init(in node: Node, elementsNode: Node) {
         self.node = node
@@ -104,14 +104,14 @@ public extension LinkedRealtimeArray {
 
         let transaction = transaction ?? RealtimeTransaction()
         let link = element.node!.generate(linkTo: _view.source.node!)
-        let key = _PrototypeValue(dbKey: element.dbKey, linkId: link.link.id, index: index ?? self.count)
+        let key = _PrototypeValue(dbKey: element.dbKey, linkID: link.link.id, index: index ?? self.count)
 
         let oldValue = _view.source.value
         _view.source.value.insert(key, at: key.index)
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
-        transaction.addValue(_view.source)
+        transaction.addValue(_ProtoValueSerializer.serialize(entity: key), by: _view.source.node!.child(with: key.dbKey))
         transaction.addValue(link.link.localValue, by: link.sourceNode)
         transaction.addCompletion { [weak self] (result) in
             if result {
@@ -149,12 +149,12 @@ public extension LinkedRealtimeArray {
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
-        transaction.addValue(_view.source)
-        let linksNode = storage.sourceNode.child(with: key.dbKey.subpath(with: key.linkId)).linksNode
+        transaction.addValue(nil, by: _view.source.node!.child(with: key.dbKey))
+        let linksNode = storage.sourceNode.child(with: key.dbKey.subpath(with: key.linkID)).linksNode
         transaction.addValue(nil, by: linksNode)
         transaction.addCompletion { [weak self] (result) in
             if result {
-                self?.storage.elements.removeValue(forKey: key)?.remove(linkBy: key.linkId)
+                self?.storage.elements.removeValue(forKey: key)?.remove(linkBy: key.linkID)
                 self?.didSave()
             }
         }

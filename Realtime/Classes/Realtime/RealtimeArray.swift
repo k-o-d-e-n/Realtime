@@ -39,13 +39,13 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValuesSerializer>>
 
     public convenience init(in node: Node?) {
         self.init(in: node, viewSource: RealtimeProperty(in: node?.child(with: Nodes.items.rawValue).linksNode))
     }
 
-    init(in node: Node?, viewSource: RealtimeProperty<[_PrototypeValue], _PrototypeValueSerializer>) {
+    init(in node: Node?, viewSource: RealtimeProperty<[_PrototypeValue], _PrototypeValuesSerializer>) {
         precondition(node != nil)
         self.node = node
         self.storage = RCArrayStorage(sourceNode: node!, elementBuilder: Element.init, elements: [:])
@@ -62,7 +62,12 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
-    public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
+    public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
+        return _view.source.listeningItem(.guarded(self) { _, this in
+            this._view.isPrepared = true
+            handler()
+        })
+    }
     public func runObserving() { _view.source.runObserving() }
     public func stopObserving() { _view.source.stopObserving() }
     public var debugDescription: String { return _view.source.debugDescription }
@@ -118,7 +123,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         let elementNode = element.node.map { $0.moveTo(storage.sourceNode); return $0 } ?? storage.sourceNode.childByAutoId()
         let transaction = transaction ?? RealtimeTransaction()
         let link = elementNode.generate(linkTo: _view.source.node!.child(with: elementNode.key))
-        let key = _PrototypeValue(dbKey: elementNode.key, linkId: link.link.id, index: index ?? count)
+        let key = _PrototypeValue(dbKey: elementNode.key, linkID: link.link.id, index: index ?? count)
 
         let oldValue = _view.source.value
         _view.source.value.insert(key, at: key.index)
@@ -128,7 +133,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
             self?.storage.elements.removeValue(forKey: key)
             element.remove(linkBy: link.link.id)
         }
-        transaction.addValue(_view.source)
+        transaction.addValue(_ProtoValueSerializer.serialize(entity: key), by: _view.source.node!.child(with: key.dbKey))
         transaction.addValue(link.link.localValue, by: link.sourceNode)
         if let elem = element as? RealtimeObject { // TODO: Fix it
             transaction._update(elem, by: elementNode)
@@ -173,7 +178,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         transaction.addReversion { [weak _view] in
             _view?.source.value = oldValue
         }
-        transaction.addValue(_view.source)
+        transaction.addValue(nil, by: _view.source.node!.child(with: key.dbKey))
         transaction.addValue(nil, by: storage.sourceNode.child(with: key.dbKey))
         transaction.addCompletion { [weak self] result in
             if result {
@@ -238,7 +243,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
             self.node = Node(key: key, parent: parent)
         }
 
-        _view.source.didSave(in: self.node!)
+        _view.source.didSave()
     }
 
     public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }

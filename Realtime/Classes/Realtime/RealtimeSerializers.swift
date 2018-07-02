@@ -15,33 +15,37 @@ public protocol HasDefaultLiteral {
     init()
 }
 
-//protocol FireDataValue: FireDataRepresented {}
-//extension FireDataValue {
-//    var localValue: Any? { return self }
-//    init(firData: FireDataProtocol) throws {
-//        guard let v = firData.value as? Self else {
-//            throw RealtimeError("Failed data for type: \(Self.self)")
-//        }
-//
-//        self = v
-//    }
-//}
+public protocol FireDataValue: FireDataRepresented {}
+extension FireDataValue {
+    public var localValue: Any? { return self }
+    public init(firData: FireDataProtocol) throws {
+        guard let v = firData.value as? Self else {
+            throw RealtimeError("Failed data for type: \(Self.self)")
+        }
+
+        self = v
+    }
+}
+
+extension Optional: FireDataValue where Wrapped: FireDataValue {}
+extension Array: FireDataValue where Element: FireDataValue {}
+extension Dictionary: FireDataValue where Key: FireDataValue, Value: FireDataValue {}
 
 extension Optional  : HasDefaultLiteral { public init() { self = .none } }
-extension Bool      : HasDefaultLiteral {}
-extension Int       : HasDefaultLiteral {}
-extension Double    : HasDefaultLiteral {}
-extension Float     : HasDefaultLiteral {}
-extension Int8      : HasDefaultLiteral {}
-extension Int16     : HasDefaultLiteral {}
-extension Int32     : HasDefaultLiteral {}
-extension Int64     : HasDefaultLiteral {}
-extension UInt      : HasDefaultLiteral {}
-extension UInt8     : HasDefaultLiteral {}
-extension UInt16    : HasDefaultLiteral {}
-extension UInt32    : HasDefaultLiteral {}
-extension UInt64    : HasDefaultLiteral {}
-extension String    : HasDefaultLiteral {}
+extension Bool      : HasDefaultLiteral, FireDataValue {}
+extension Int       : HasDefaultLiteral, FireDataValue {}
+extension Double    : HasDefaultLiteral, FireDataValue {}
+extension Float     : HasDefaultLiteral, FireDataValue {}
+extension Int8      : HasDefaultLiteral, FireDataValue {}
+extension Int16     : HasDefaultLiteral, FireDataValue {}
+extension Int32     : HasDefaultLiteral, FireDataValue {}
+extension Int64     : HasDefaultLiteral, FireDataValue {}
+extension UInt      : HasDefaultLiteral, FireDataValue {}
+extension UInt8     : HasDefaultLiteral, FireDataValue {}
+extension UInt16    : HasDefaultLiteral, FireDataValue {}
+extension UInt32    : HasDefaultLiteral, FireDataValue {}
+extension UInt64    : HasDefaultLiteral, FireDataValue {}
+extension String    : HasDefaultLiteral, FireDataValue {}
 extension Data      : HasDefaultLiteral {}
 extension Array     : HasDefaultLiteral {}
 extension Dictionary: HasDefaultLiteral {}
