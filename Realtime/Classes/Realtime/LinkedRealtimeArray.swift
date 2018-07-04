@@ -60,7 +60,7 @@ public final class LinkedRealtimeArray<Element>: RC where Element: RealtimeValue
     public func runObserving() { _view.source.runObserving() }
     public func stopObserving() { _view.source.stopObserving() }
     public var debugDescription: String { return _view.source.debugDescription }
-    public func prepare(forUse completion: @escaping (Error?) -> Void) { _view.prepare(forUse: completion) }
+    public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
     public func apply(snapshot: DataSnapshot, strongly: Bool) {
         _view.source.apply(snapshot: snapshot, strongly: strongly)
@@ -93,7 +93,7 @@ public extension LinkedRealtimeArray {
         guard isPrepared else {
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: { collection, err in
+                self.prepare(forUse: .just { collection, err in
                     try! collection.insert(element: element, at: index, in: transaction)
                     promise.fulfill(err)
                 })
@@ -112,7 +112,7 @@ public extension LinkedRealtimeArray {
             _view?.source.value = oldValue
         }
         transaction.addValue(_ProtoValueSerializer.serialize(entity: key), by: _view.source.node!.child(with: key.dbKey))
-        transaction.addValue(link.link.localValue, by: link.sourceNode)
+        transaction.addValue(link.link.localValue, by: link.node)
         transaction.addCompletion { [weak self] (result) in
             if result {
                 self?.storage.elements[key] = element
@@ -136,7 +136,7 @@ public extension LinkedRealtimeArray {
         let transaction = transaction ?? RealtimeTransaction()
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: { collection, err in
+                self.prepare(forUse: .just { collection, err in
                     collection.remove(at: index, in: transaction)
                     promise.fulfill(err)
                 })

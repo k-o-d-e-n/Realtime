@@ -29,7 +29,7 @@ public class Node: Equatable {
         override var description: String { return "root" }
     }
 
-    let key: String
+    public let key: String
     var parent: Node?
 
     public init(key: String = DatabaseReference.root().childByAutoId().key, parent: Node? = nil) {
@@ -84,7 +84,7 @@ public class Node: Equatable {
     public var description: String { return rootPath }
     public var debugDescription: String { return description }
     
-    var reference: DatabaseReference { return .fromRoot(rootPath) }
+    public var reference: DatabaseReference { return .fromRoot(rootPath) }
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
 public extension Node {
@@ -125,13 +125,13 @@ public extension Node {
 public extension Node {
     static var linksNode: Node { return Node.root.child(with: Nodes.links.rawValue) }
     var linksNode: Node { return copy(to: Node.linksNode) }
-    func generate(linkTo targetNode: Node) -> (sourceNode: Node, link: SourceLink) {
+    func generate(linkTo targetNode: Node) -> (node: Node, link: SourceLink) {
         return generate(linkTo: [targetNode])
     }
-    func generate(linkTo targetNodes: [Node]) -> (sourceNode: Node, link: SourceLink) {
+    func generate(linkTo targetNodes: [Node]) -> (node: Node, link: SourceLink) {
         return generate(linkKeyedBy: DatabaseReference.root().childByAutoId().key, to: targetNodes)
     }
-    func generate(linkKeyedBy linkKey: String, to targetNodes: [Node]) -> (sourceNode: Node, link: SourceLink) {
+    func generate(linkKeyedBy linkKey: String, to targetNodes: [Node]) -> (node: Node, link: SourceLink) {
         return (linksNode.child(with: linkKey), SourceLink(id: linkKey, links: targetNodes.map { $0.rootPath }))
     }
 }

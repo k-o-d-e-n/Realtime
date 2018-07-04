@@ -104,7 +104,7 @@ public final class RealtimeTableAdapter<RC: RealtimeCollection>: _RealtimeTableA
 }
 public extension RCBasedDataSource {
     func reloadData(completion: ((Error?) -> Void)? = nil) {
-        collection.prepare(forUse: { err in completion?(err) })
+        collection.prepare(forUse: .just { err in completion?(err) })
     }
 }
 

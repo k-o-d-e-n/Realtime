@@ -123,21 +123,21 @@ extension Dictionary: KeyValueAccessableCollection {
 
 public protocol RequiresPreparation {
     var isPrepared: Bool { get }
-    func prepare(forUse completion: @escaping (Error?) -> Void)
+    func prepare(forUse completion: Assign<(Error?)>)
     func prepareRecursive(forUse completion: @escaping (Error?) -> Void)
 }
 
 public extension RequiresPreparation {
-    func prepare(forUse completion: @escaping (Self, Error?) -> Void) {
-        prepare(forUse: { completion(self, $0) })
+    func prepare(forUse completion: Assign<(Self, Error?)>) {
+        prepare(forUse: completion.map { (self, $0) })
     }
 }
 public extension RequiresPreparation where Self: RealtimeCollection {
     func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
-        prepare { (err) in
+        prepare(forUse: Assign<(Error?)>.just { (err) in
             guard err == nil else { completion(err); return }
             prepareElementsRecursive(self, completion: { completion($0) })
-        }
+        })
     }
 }
 extension RequiresPreparation {
@@ -149,8 +149,8 @@ extension RequiresPreparation {
 public extension RealtimeCollection where Iterator.Element: RequiresPreparation {
     func prepareRecursive(_ completion: @escaping (Error?) -> Void) {
         let current = self
-        current.prepare { (err) in
-            print(current.count, Iterator.Element.self)
+        current.prepare(forUse: .just { (err) in
+//            print(current.count, Iterator.Element.self)
             guard err == nil else { completion(err); return }
 
             var lastErr: Error?
@@ -167,7 +167,7 @@ public extension RealtimeCollection where Iterator.Element: RequiresPreparation 
             group.notify(queue: .main) {
                 completion(lastErr)
             }
-        }
+        })
     }
 }
 
@@ -257,14 +257,16 @@ public final class AnyRealtimeCollectionView<Source>: RCView where Source: Value
         self.source = source
     }
 
-    public func prepare(forUse completion: @escaping (Error?) -> Void) {
-        guard !isPrepared else { completion(nil); return }
+    public func prepare(forUse completion: Assign<(Error?)>) {
+        guard !isPrepared else { completion.assign(nil); return }
 
-        source.load { (err, _) in
-            self.isPrepared = err == nil
-
-            completion(err)
-        }
+        source.load(completion:
+            completion
+                .with(work: { (err) in
+                    self.isPrepared = err == nil
+                })
+                .map({ $0.error })
+        )
     }
     public func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
         // TODO:

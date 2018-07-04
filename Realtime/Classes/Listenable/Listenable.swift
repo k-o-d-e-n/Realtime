@@ -63,6 +63,27 @@ public struct Assign<A> {
     public func on(queue: DispatchQueue) -> Assign<A> {
         return Assign.on(queue, assign: assign)
     }
+
+    public func with(work: @escaping (A) -> Void) -> Assign<A> {
+        return Assign(assign: { (v) in
+            work(v)
+            self.assign(v)
+        })
+    }
+    public func with(work: Assign<A>) -> Assign<A> {
+        return with(work: work.assign)
+    }
+
+    public func map<U>(_ transform: @escaping (U) -> A) -> Assign<U> {
+        return Assign<U>(assign: { (u) in
+            self.assign(transform(u))
+        })
+    }
+}
+
+prefix operator <-
+public prefix func <-<A>(rhs: Assign<A>) -> (A) -> Void {
+    return rhs.assign
 }
 
 // MARK: Connections

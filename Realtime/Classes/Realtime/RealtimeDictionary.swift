@@ -73,7 +73,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public func runObserving() { _view.source.runObserving() }
     public func stopObserving() { _view.source.stopObserving() }
     public var debugDescription: String { return _view.source.debugDescription }
-    public func prepare(forUse completion: @escaping (Error?) -> Void) { _view.prepare(forUse: completion) }
+    public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
     public typealias Element = (key: Key, value: Value)
 
@@ -109,7 +109,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
 //        guard !isRequiredPreparation || isPrepared else {
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: { collection, err in
+                self.prepare(forUse: .just { collection, err in
                     collection.set(element: element, for: key, in: transaction)
                     promise.fulfill(err)
                 })
@@ -147,9 +147,9 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         }
 
         if needLink {
-            transaction.addValue(link.link.localValue, by: link.sourceNode)
-            let valueLink = elementNode.generate(linkKeyedBy: link.link.id, to: [_view.source.node!.child(with: key.dbKey), link.sourceNode])
-            transaction.addValue(valueLink.link.localValue, by: valueLink.sourceNode)
+            transaction.addValue(link.link.localValue, by: link.node)
+            let valueLink = elementNode.generate(linkKeyedBy: link.link.id, to: [_view.source.node!.child(with: key.dbKey), link.node])
+            transaction.addValue(valueLink.link.localValue, by: valueLink.node)
         }
         if let e = element as? RealtimeObject {
             transaction._update(e, by: elementNode)
@@ -173,7 +173,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         guard isPrepared else {
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: { collection, err in
+                self.prepare(forUse: .just { collection, err in
                     collection.remove(for: key, in: transaction)
                     promise.fulfill(err)
                 })

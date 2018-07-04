@@ -41,7 +41,7 @@ internal func debugFatalError(condition: @autoclosure () -> Bool = true,
 ///		/// action on loadedLazyProp
 /// }
 ///
-public func didLoad<V>(_ value: V, _ completion: (V) -> Void) -> V {
+public func onLoad<V>(_ value: V, _ completion: (V) -> Void) -> V {
     defer { completion(value) }
     return value
 }
@@ -73,22 +73,25 @@ extension Optional: _Optional {
 public extension InsiderOwner where T: RealtimeValueActions {
 	/// adds loading action on receive new value
     func loadOnReceive() -> OwnedOnReceivePreprocessor<Self, T, T> {
-        return onReceive({ (v, p) in
-            v.load(completion: { (_, _) in p.fulfill() })
-        })
+        fatalError()
+//        return onReceive({ (v, p) in
+//            v.load(completion: { (_, _) in p.fulfill() })
+//        })
     }
 }
 
 public extension InsiderOwner {
     func asyncMap<U: RealtimeValueActions>(_ transform: @escaping (T) -> U) -> OwnedOnReceivePreprocessor<Self, U, U> {
-        return map(transform).onReceive({ (v, p) in
-            v.load(completion: { (_, _) in p.fulfill() })
-        })
+        fatalError()
+//        return map(transform).onReceive({ (v, p) in
+//            v.load(completion: { (_, _) in p.fulfill() })
+//        })
     }
     func loadRelated<Loaded: RealtimeValueActions>(_ transform: @escaping (T) -> Loaded?) -> OwnedOnReceivePreprocessor<Self, T, T> {
-        return onReceive({ (v, p) in
-            transform(v)?.load(completion: { (_, _) in p.fulfill() })
-        })
+        fatalError()
+//        return onReceive({ (v, p) in
+//            transform(v)?.load(completion: { (_, _) in p.fulfill() })
+//        })
     }
 }
 
@@ -98,9 +101,10 @@ public extension InsiderOwner where T: _Optional {
         return filter { $0.isSome }.map { transform($0.unsafelyUnwrapped) }
     }
     func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (T.Wrapped) -> U) -> OwnedOnReceivePreprocessor<Self, T, U> {
-        return flatMap(transform).onReceive({ (v, p) in
-            v.load(completion: { (_, _) in p.fulfill() })
-        })
+        fatalError()
+//        return flatMap(transform).onReceive({ (v, p) in
+//            v.load(completion: { (_, _) in p.fulfill() })
+//        })
     }
 }
 

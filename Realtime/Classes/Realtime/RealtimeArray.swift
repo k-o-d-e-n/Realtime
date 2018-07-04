@@ -71,13 +71,12 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
     public func runObserving() { _view.source.runObserving() }
     public func stopObserving() { _view.source.stopObserving() }
     public var debugDescription: String { return _view.source.debugDescription }
-    public func prepare(forUse completion: @escaping (Error?) -> Void) {
-        _view.prepare { [weak self] (err) in
+    public func prepare(forUse completion: Assign<(Error?)>) {
+        _view.prepare(forUse: completion.with(work: .weak(self) { err, `self` in
             if err == nil {
                 self.map { $0._snapshot.map($0.apply) }
             }
-            completion(err)
-        }
+        }))
     }
     
     // TODO: Create Realtime wrapper for DatabaseQuery
@@ -109,7 +108,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         guard isPrepared else {
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: { collection, err in
+                self.prepare(forUse: .just { collection, err in
                     try! collection.insert(element: element, at: index, in: transaction)
                     promise.fulfill(err)
                 })
@@ -134,7 +133,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
             element.remove(linkBy: link.link.id)
         }
         transaction.addValue(_ProtoValueSerializer.serialize(entity: key), by: _view.source.node!.child(with: key.dbKey))
-        transaction.addValue(link.link.localValue, by: link.sourceNode)
+        transaction.addValue(link.link.localValue, by: link.node)
         if let elem = element as? RealtimeObject { // TODO: Fix it
             transaction._update(elem, by: elementNode)
         } else {
@@ -162,7 +161,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         let transaction = transaction ?? RealtimeTransaction()
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: { collection, err in
+                self.prepare(forUse: .just { collection, err in
                     collection.remove(at: index, in: transaction)
                     promise.fulfill(err)
                 })

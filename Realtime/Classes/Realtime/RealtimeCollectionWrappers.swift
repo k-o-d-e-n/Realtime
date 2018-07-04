@@ -39,7 +39,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func runObserving() { fatalError() }
     func stopObserving() { fatalError() }
     func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
-    public func prepare(forUse completion: @escaping (Error?) -> Void) { fatalError() }
+    public func prepare(forUse completion: Assign<Error?>) { fatalError() }
     required init?(snapshot: DataSnapshot) {  }
     required init(in node: Node) {  }
     var debugDescription: String { return "" }
@@ -75,7 +75,7 @@ where C.Index == Int {
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
     override func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
-    override func prepare(forUse completion: @escaping (Error?) -> Void) { base.prepare(forUse: completion) }
+    override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving() { base.runObserving() }
     override func stopObserving() { base.stopObserving() }
@@ -103,7 +103,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public func index(before i: Int) -> Int { return base.index(before: i) }
     public subscript(position: Int) -> Element { return base[position] }
     public var debugDescription: String { return base.debugDescription }
-    public func prepare(forUse completion: @escaping (Error?) -> Void) { base.prepare(forUse: completion) }
+    public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     public func runObserving() { base.runObserving() }
     public func stopObserving() { base.stopObserving() }
@@ -208,7 +208,7 @@ where Element: RealtimeValue {
     public func index(before i: Int) -> Int { return base.index(before: i) }
     public subscript(position: Int) -> Element { return storage.object(for: baseView[position]) }
     public var debugDescription: String { return base.debugDescription }
-    public func prepare(forUse completion: @escaping (Error?) -> Void) { base.prepare(forUse: completion) }
+    public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
 
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
         return base.listening(changes: handler)

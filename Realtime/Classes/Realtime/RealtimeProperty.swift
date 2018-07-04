@@ -183,20 +183,19 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     }
     
     @discardableResult
-    override public func load(completion: Database.TransactionCompletion? = nil) -> Self {
-        super.load { (err, ref) in
-            err.map { self.lastError.value = $0 }
-            completion?(err, ref)
-        }
+    public override func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) -> Self {
+        super.load(completion: completion?.with(work: { (val) in
+            val.error.map { self.lastError.value = $0 }
+        }))
         
         return self
     }
     @discardableResult
-    public func loadValue(completion: @escaping (Error?, T) -> Void) -> Self {
-        super.load { (err, _) in
+    public func loadValue(completion: Assign<(error: Error?, value: T)>) -> Self {
+        super.load(completion: .just { (err, _) in
             err.map { self.lastError.value = $0 }
-            completion(err, self.value)
-        }
+            completion.assign((err, self.value))
+        })
 
         return self
     }
@@ -240,7 +239,7 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     }
 }
 
-public class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner where T == Serializer.Entity, T: MutableDataRepresented {
+public final class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner where T == Serializer.Entity, T: MutableDataRepresented {
     override public var localValue: Any? { return Serializer.serialize(entity: localPropertyValue.get()) }
 
     private var localPropertyValue: PropertyValue<T>
@@ -325,7 +324,7 @@ public extension SharedProperty {
     }
 }
 
-public class MutationPoint<T> where T: FireDataRepresented {
+public final class MutationPoint<T> where T: FireDataRepresented {
     public let node: Node
     public required init(in node: Node) throws {
         guard node.isRooted else { throw RealtimeError("Node should be rooted") }

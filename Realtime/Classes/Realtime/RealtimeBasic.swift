@@ -192,7 +192,7 @@ public protocol ChangeableRealtimeValue: RealtimeValue {
 }
 
 public protocol RealtimeValueActions: RealtimeValueEvents {
-    @discardableResult func load(completion: Database.TransactionCompletion?) -> Self
+    @discardableResult func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) -> Self
     @discardableResult func runObserving() -> Bool
     func stopObserving()
 }
@@ -206,14 +206,14 @@ public protocol Linkable {
 // ------------------------------------------------------------------------
 
 struct RemoteManager {
-    static func loadData<Entity: RealtimeValue & RealtimeValueEvents>(to entity: Entity, completion: Database.TransactionCompletion? = nil) {
+    static func loadData<Entity: RealtimeValue & RealtimeValueEvents>(to entity: Entity, completion: Assign<(error: Error?, ref: DatabaseReference)>? = nil) {
         guard let ref = entity.dbRef else {
             debugFatalError(condition: true, "Couldn`t get reference")
-            completion?(RealtimeError("Couldn`t get reference"), .root())
+            completion?.assign((RealtimeError("Couldn`t get reference"), .root()))
             return
         }
 
-        ref.observeSingleEvent(of: .value, with: { entity.apply(snapshot: $0); completion?(nil, ref) }, withCancel: { completion?($0, ref) })
+        ref.observeSingleEvent(of: .value, with: { entity.apply(snapshot: $0); completion?.assign((nil, ref)) }, withCancel: { completion?.assign(($0, ref)) })
     }
 
     static func observe<T: RealtimeValue & RealtimeValueEvents>(type: DataEventType = .value, entity: T, onUpdate: Database.TransactionCompletion? = nil) -> UInt? {

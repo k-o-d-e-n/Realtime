@@ -27,7 +27,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     }
     
     @discardableResult
-    public func load(completion: Database.TransactionCompletion?) -> Self {
+    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) -> Self {
         RemoteManager.loadData(to: self, completion: completion); return self
     }
 
@@ -150,11 +150,11 @@ open class RealtimeObject: _RealtimeValue {
     override public func willRemove(in transaction: RealtimeTransaction) {
         let links = self.links!
         transaction.addPrecondition { [unowned transaction] (promise) in
-            links.loadValue { err, refs in
+            links.loadValue(completion: Assign.just({ err, refs in
                 refs.flatMap { $0.links.map(Node.linksNode.child) }.forEach { transaction.addValue(nil, by: $0) }
                 transaction.delete(links)
                 promise.fulfill(err)
-            }
+            }))
         }
     }
     
