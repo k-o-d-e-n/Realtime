@@ -128,7 +128,7 @@ public protocol RequiresPreparation {
 }
 
 public extension RequiresPreparation {
-    func prepare(forUse completion: Assign<(Self, Error?)>) {
+    func prepare(forUse completion: Assign<(collection: Self, error: Error?)>) {
         prepare(forUse: completion.map { (self, $0) })
     }
 }

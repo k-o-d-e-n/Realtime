@@ -88,6 +88,6 @@ class TableViewController<Collection: RealtimeCollection>: UITableViewController
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        list.prepare(forUse: { _ in })
+        list.prepare(forUse: .just { _ in })
     }
 }

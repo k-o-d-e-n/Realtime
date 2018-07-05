@@ -15,7 +15,7 @@ import FirebaseDatabase
 open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
     public var dbRef: DatabaseReference?
     public internal(set) var node: Node?
-    private var observingToken: UInt?
+    private var observing: (token: UInt, counter: Int)?
     public var localValue: Any? { return nil }
     public required init(in node: Node?) {
         self.node = node
@@ -23,23 +23,41 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     }
 
     deinit {
-        observingToken.map(endObserve)
+        observing.map {
+            debugFatalError("Deinitialization observed value")
+            endObserve(for: $0.token)
+        }
     }
-    
-    @discardableResult
-    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) -> Self {
-        RemoteManager.loadData(to: self, completion: completion); return self
+
+    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) {
+        RemoteManager.loadData(to: self, completion: completion)
     }
 
     @discardableResult
     public func runObserving() -> Bool {
-        guard observingToken == nil, dbRef != nil else { return false }
-        observingToken = observe(type: .value, onUpdate: nil); return true
+        debugFatalError(condition: node.map { !$0.isRooted } ?? true, "Try observe not rooted value")
+        guard let o = observing else {
+            observing = observe(type: .value, onUpdate: nil).map { ($0, 1) }
+            return observing != nil
+        }
+
+        debugFatalError(condition: o.counter == 0, "Counter is null. Should been invalidated")
+        observing = (o.token, o.counter + 1)
+        return true
     }
 
     public func stopObserving() {
-        guard let token = observingToken else { return }
-        endObserve(for: token)
+        guard var o = observing else {
+            return debugFatalError("Try stop observing on not observed value")
+        }
+
+        o.counter -= 1
+        if o.counter == 0 {
+            endObserve(for: o.token)
+            observing = nil
+        } else {
+            observing = o
+        }
     }
     
     func observe(type: DataEventType = .value, onUpdate: Database.TransactionCompletion? = nil) -> UInt? {
@@ -104,33 +122,36 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
 }
 
-// TODO: Try to create `parent` typed property.
-// TODO: Make RealtimeObject (RealtimeValue) conformed Listenable for listening
 /// Main class to define Realtime models objects.
-/// You can define child properties using classes: 
+/// You can define child properties using classes:
+///
 /// - RealtimeObject subclasses;
 /// - RealtimeProperty;
 /// - LinkedRealtimeArray, RealtimeArray, RealtimeDictionary;
-/// Also for auto decoding you need implement class function 'keyPath(for:)'.
-/// This function called for each subclass, therefore you don`t need call super implementation. 
+///
+/// Also for auto decoding you need implement class function **keyPath(for:)**.
+///
+/// This function called for each subclass, therefore you don`t need call super implementation.
+///
 /// Example:
-/// class User: RealtimeObject {
-///     lazy var name: StandartProperty<String?> = "user_name".property(from: self.dbRef)
+///
+///     class User: RealtimeObject {
+///         lazy var name: StandartProperty<String?> = "user_name".property(from: self.dbRef)
 ///     
-///     open class func keyPath(for label: String) -> AnyKeyPath? {
-///         switch label {
-///             case "name": return \User.name
-///             default: return nil
+///         open class func keyPath(for label: String) -> AnyKeyPath? {
+///             switch label {
+///                 case "name": return \User.name
+///                 default: return nil
+///             }
 ///         }
 ///     }
-/// }
 ///
 open class RealtimeObject: _RealtimeValue {
     override public var hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val.hasChanges }) }
     override public var localValue: Any? { return typedLocalValue }
     public var typedLocalValue: [String: Any]? { return keyedValues { return $0.localValue } }
 
-    private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
+//    private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
     typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
     lazy var links: Links! = self.node!.linksNode.property()
 
@@ -139,11 +160,13 @@ open class RealtimeObject: _RealtimeValue {
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
         if let node = self.node {
-            mv.didSave(in: node)
-            links.didSave(in: node)
+//            mv.didSave(in: node)
+            links.didSave(in: node.linksNode)
             enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
                 value.didSave(in: node)
             }
+        } else {
+            debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.rootPath)")
         }
     }
     
@@ -159,7 +182,7 @@ open class RealtimeObject: _RealtimeValue {
     }
     
     override public func didRemove(from node: Node) {
-        mv.didRemove(from: node)
+//        mv.didRemove(from: node)
         links.didRemove()
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
             value.didRemove(from: node)
@@ -168,7 +191,7 @@ open class RealtimeObject: _RealtimeValue {
     }
     
     override open func apply(snapshot: DataSnapshot, strongly: Bool) {
-        if strongly || Nodes.modelVersion.has(in: snapshot) { mv.apply(snapshot: Nodes.modelVersion.snapshot(from: snapshot)) }
+//        if strongly || Nodes.modelVersion.has(in: snapshot) { mv.apply(snapshot: Nodes.modelVersion.snapshot(from: snapshot)) }
         if strongly || Nodes.links.has(in: snapshot) { links.apply(snapshot: Nodes.links.snapshot(from: snapshot)) }
 
         reflect { (mirror) in

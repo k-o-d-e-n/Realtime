@@ -283,7 +283,7 @@ public extension RealtimeTransaction {
     func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node? = nil) {
         guard let savedNode = node ?? value.node, savedNode.isRooted else { fatalError() }
 
-        addValue(value.localValue, by: savedNode)
+        _set(value, by: savedNode)
         addCompletion { (result) in
             if result {
                 value.didSave(in: savedNode.parent!, by: savedNode.key)
@@ -293,10 +293,7 @@ public extension RealtimeTransaction {
 
     /// adds operation of delete RealtimeValue
     func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
-        guard value.isRooted else { fatalError() }
-
-        value.willRemove(in: self)
-        addValue(nil, by: value.node!)
+        _delete(value)
         addCompletion { (result) in
             if result {
                 value.didRemove()
@@ -309,6 +306,25 @@ public extension RealtimeTransaction {
         guard let updatedNode = value.node else { fatalError() }
 
         _update(value, by: updatedNode)
+        addCompletion { (result) in
+            if result {
+                value.didSave(in: updatedNode.parent!, by: updatedNode.key)
+            }
+        }
+    }
+
+    internal func _set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) {
+        guard node.isRooted else { fatalError() }
+
+        addValue(value.localValue, by: node)
+    }
+
+    /// adds operation of delete RealtimeValue
+    internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
+        guard value.isRooted else { fatalError() }
+
+        value.willRemove(in: self)
+        addValue(nil, by: value.node!)
     }
 
     internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) {
@@ -316,11 +332,6 @@ public extension RealtimeTransaction {
         guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
 
         value.insertChanges(to: self, by: updatedNode)
-        addCompletion { (result) in
-            if result {
-                value.didSave(in: updatedNode.parent!, by: updatedNode.key)
-            }
-        }
         revertion(for: value)
     }
 

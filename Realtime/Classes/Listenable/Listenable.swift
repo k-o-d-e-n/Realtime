@@ -38,6 +38,7 @@ public struct Assign<A> {
     static public func weak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
         return Assign(assign: { [weak owner] v in assign(v, owner) })
     }
+    
 
     /// closure associated with object using unowned reference
     static public func unowned<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
@@ -133,7 +134,7 @@ extension _ListeningMaker where Bridge.Data == Self.Data, Bridge.OutData == Self
 }
 
 /// Common protocol for all objects that ensures listening value. 
-public protocol Listenable {
+public protocol Listenable { // TODO: Add method to connect use AnyListening and use his in preprocessors instead InsiderOwner
     associatedtype OutData
 
     /// Disposable listening of value
@@ -365,11 +366,7 @@ struct WeakPropertyValue<T> where T: AnyObject {
     let set: (T?) -> Void
 
     init(_ value: T?) {
-        weak var val = value// {
-        //            didSet {
-        //                print(oldValue)
-        //            }
-        //        }
+        weak var val = value
         get = { val }
         set = { val = $0 }
     }
@@ -408,6 +405,23 @@ public struct Property<Value>: ValueWrapper {
     }
 
     init(_ value: PropertyValue<Value>) {
+        self.concreteValue = value
+    }
+}
+
+public struct WeakProperty<Value>: ValueWrapper where Value: AnyObject {
+    lazy public var insider: Insider<Value?> = Insider(source: self.concreteValue.get)
+    fileprivate let concreteValue: WeakPropertyValue<Value>
+    public var value: Value? {
+        get { return concreteValue.get() }
+        set { concreteValue.set(newValue); insider.dataDidChange() }
+    }
+
+    public init(value: Value?) {
+        self.init(WeakPropertyValue(value))
+    }
+
+    init(_ value: WeakPropertyValue<Value>) {
         self.concreteValue = value
     }
 }

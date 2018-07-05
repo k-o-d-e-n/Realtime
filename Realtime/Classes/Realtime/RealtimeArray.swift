@@ -137,7 +137,7 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         if let elem = element as? RealtimeObject { // TODO: Fix it
             transaction._update(elem, by: elementNode)
         } else {
-            transaction.set(element, by: elementNode)
+            transaction._set(element, by: elementNode)
         }
         transaction.addCompletion { [weak self] (result) in
             if result {
@@ -157,7 +157,6 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
 
     @discardableResult
     public func remove(at index: Int, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-//        _view.checkPreparation()
         let transaction = transaction ?? RealtimeTransaction()
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
@@ -243,10 +242,12 @@ public final class RealtimeArray<Element>: RC where Element: RealtimeValue & Rea
         }
 
         _view.source.didSave()
+        storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0.dbKey) }
     }
 
-    public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }
+    public func willRemove(in transaction: RealtimeTransaction) { transaction.addValue(nil, by: node!.linksNode) }
     public func didRemove(from node: Node) {
         _view.source.didRemove()
+        storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
     }
 }

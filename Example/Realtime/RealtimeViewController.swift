@@ -74,12 +74,12 @@ class RealtimeViewController: UIViewController {
         view.backgroundColor = .white
         edgesForExtendedLayout.remove(.top)
 
-        Global.rtUsers.prepare { (users, err) in
+        Global.rtUsers.prepare(forUse: .just { (users, _) in
             self.user = users.first
-        }
-        Global.rtGroups.prepare { (groups, err) in
+        })
+        Global.rtGroups.prepare(forUse: .just { (groups, err) in
             self.group = groups.first
-        }
+        })
 
         addUserButton.addTarget(self, action: #selector(addUser), for: .touchUpInside)
         removeUserButton.addTarget(self, action: #selector(removeUser), for: .touchUpInside)
@@ -303,7 +303,7 @@ class RealtimeViewController: UIViewController {
         })
         controller.addAction(UIAlertAction(title: "Cancel", style: .default) { (_) in
             g.conversations.runObserving()
-            g.conversations.prepare(forUse: { (convers, err) in
+            g.conversations.prepare(forUse: .just { (convers, err) in
                 guard err == nil else {
                     if let error = err {
                         print(error)

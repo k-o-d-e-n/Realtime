@@ -95,6 +95,24 @@ class Tests: XCTestCase {
         XCTAssertTrue(valueWrapper.get() == 20)
     }
 
+    func testWeakPropertyValue() {
+        var object: NSObject? = NSObject()
+        let valueWrapper = WeakPropertyValue<NSObject>(object)
+        XCTAssertTrue(valueWrapper.get() == object)
+        object = nil
+        XCTAssertTrue(valueWrapper.get() == nil)
+    }
+
+    func testWeakPropertyValue2() {
+        var object: NSObject? = NSObject()
+        let valueWrapper = WeakPropertyValue<NSObject>(nil)
+        XCTAssertTrue(valueWrapper.get() == nil)
+        valueWrapper.set(object)
+        XCTAssertTrue(valueWrapper.get() == object)
+        object = nil
+        XCTAssertTrue(valueWrapper.get() == nil)
+    }
+
     func testListenableValue() {
         var counter = 0
         var valueWrapper = ListenableValue<Int>(0)

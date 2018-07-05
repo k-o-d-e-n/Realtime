@@ -182,13 +182,10 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
         return transaction
     }
     
-    @discardableResult
-    public override func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) -> Self {
+    public override func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) {
         super.load(completion: completion?.with(work: { (val) in
             val.error.map { self.lastError.value = $0 }
         }))
-        
-        return self
     }
     @discardableResult
     public func loadValue(completion: Assign<(error: Error?, value: T)>) -> Self {

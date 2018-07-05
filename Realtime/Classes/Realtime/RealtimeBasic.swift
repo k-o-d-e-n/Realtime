@@ -192,7 +192,7 @@ public protocol ChangeableRealtimeValue: RealtimeValue {
 }
 
 public protocol RealtimeValueActions: RealtimeValueEvents {
-    @discardableResult func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) -> Self
+    func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?)
     @discardableResult func runObserving() -> Bool
     func stopObserving()
 }
@@ -220,7 +220,7 @@ struct RemoteManager {
         guard let ref = entity.dbRef else {
             debugFatalError(condition: true, "Couldn`t get reference")
             onUpdate?(RealtimeError("Couldn`t get reference"), .root())
-            return nil!
+            return nil
         }
         return ref.observe(type, with: { entity.apply(snapshot: $0); onUpdate?(nil, $0.ref) }, withCancel: { onUpdate?($0, ref) })
     }

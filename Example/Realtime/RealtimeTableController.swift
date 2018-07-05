@@ -55,7 +55,7 @@ class RealtimeTableController: UIViewController {
             self?.tableView.reloadData()
         }.add(to: &store)
 
-        users.prepare(forUse: { _ in })
+        users.prepare(forUse: .just { _ in })
     }
 }
 

@@ -124,7 +124,10 @@ public extension Node {
 }
 public extension Node {
     static var linksNode: Node { return Node.root.child(with: Nodes.links.rawValue) }
-    var linksNode: Node { return copy(to: Node.linksNode) }
+    var linksNode: Node {
+        guard isRooted else { fatalError("Try get links node from not rooted node: \(self)") }
+        return copy(to: Node.linksNode)
+    }
     func generate(linkTo targetNode: Node) -> (node: Node, link: SourceLink) {
         return generate(linkTo: [targetNode])
     }

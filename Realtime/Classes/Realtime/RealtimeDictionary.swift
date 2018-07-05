@@ -154,7 +154,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         if let e = element as? RealtimeObject {
             transaction._update(e, by: elementNode)
         } else {
-            transaction.set(element, by: elementNode)
+            transaction._set(element, by: elementNode)
         }
         transaction.addValue(_ProtoValueSerializer.serialize(entity: prototypeValue), by: _view.source.node!.child(with: key.dbKey))
         transaction.addCompletion { [weak self] result in
@@ -270,10 +270,12 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         }
 
         _view.source.didSave()
+        storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0.dbKey) }
     }
 
-    public func willRemove(in transaction: RealtimeTransaction) { _view.source.willRemove(in: transaction) }
+    public func willRemove(in transaction: RealtimeTransaction) { transaction.addValue(nil, by: node!.linksNode) }
     public func didRemove(from node: Node) {
         _view.source.didRemove()
+        storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
     }
 }
