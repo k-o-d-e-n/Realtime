@@ -7,72 +7,91 @@
 
 import Foundation
 
-struct RealtimeArrayError: Error {
+struct RCError: Error {
     enum Kind {
         case alreadyInserted
+        case failedServerData
     }
     let type: Kind
 }
 
 /// -----------------------------------------
 
-struct _PrototypeValue: Hashable, DatabaseKeyRepresentable {
+struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataValue {
     let dbKey: String!
     let linkID: String
     let index: Int
+    let payload: [String: Any]?
+
+    init(dbKey: String, linkID: String, index: Int, payload: [String: Any]? = nil) {
+        self.dbKey = dbKey
+        self.linkID = linkID
+        self.index = index
+        self.payload = payload
+    }
+
+    init(firData: FireDataProtocol) throws {
+        guard let value = firData.children.nextObject() as? DataSnapshot else {
+            throw RCError(type: .failedServerData)
+        }
+        guard let index: Int = value.flatMap() ?? Nodes.index.map(from: value) else {
+            throw RCError(type: .failedServerData)
+        }
+
+        self.dbKey = firData.dataKey
+        self.linkID = value.dataKey!
+        self.index = index
+        self.payload = Nodes.payload.map(from: value)
+    }
+
+    var localValue: Any? {
+        return [
+            linkID: [Nodes.index.rawValue: index,
+                     Nodes.payload.rawValue: payload ?? [:]]
+        ]
+    }
 
     var hashValue: Int {
         return dbKey.hashValue &- linkID.hashValue
     }
 
-    static func ==(lhs: _PrototypeValue, rhs: _PrototypeValue) -> Bool {
+    static func ==(lhs: RCItem, rhs: RCItem) -> Bool {
         return lhs.dbKey == rhs.dbKey
     }
 }
-final class _PrototypeValuesSerializer: _Serializer {
-    class func deserialize(entity: DataSnapshot) -> [_PrototypeValue] {
-        guard let keyes = entity.value as? [String: [String: Int]] else { return Entity() }
-
-        return keyes
-            .map { _PrototypeValue(dbKey: $0.key, linkID: $0.value.first!.key, index: $0.value.first!.value) }
-            .sorted(by: { $0.index < $1.index })
+final class RCItemArraySerializer: _Serializer {
+    class func deserialize(_ entity: DataSnapshot) -> [RCItem] {
+        return (try? entity.children.lazy.map { $0 as! DataSnapshot }
+            .map(RCItem.init)
+            .sorted(by: { $0.index < $1.index })) ?? []
     }
 
-    class func serialize(entity: [_PrototypeValue]) -> Any? {
-        return entity.reduce(Dictionary<String, Any>(), { (result, key) -> [String: Any] in
+    class func serialize(_ entity: [RCItem]) -> Any? {
+        return entity.reduce(Dictionary<String, Any>(), { (result, item) -> [String: Any] in
             var result = result
-            result[key.dbKey] = [key.linkID: result.count]
+            result[item.dbKey] = item.localValue
             return result
         })
     }
 }
-final class _ProtoValueSerializer: _Serializer {
-    static func deserialize(entity: DataSnapshot) -> _PrototypeValue? {
-        guard let val = entity.value as? [String: Int], let first = val.first else { return Entity() }
-
-        return _PrototypeValue(dbKey: entity.key, linkID: first.key, index: first.value)
-    }
-    static func serialize(entity: _PrototypeValue?) -> [String: Int]? {
-        return entity.map { [$0.linkID: $0.index] }
-    }
-}
+typealias RCItemSerializer = FireDataValueSerializer<RCItem>
 
 public protocol RealtimeCollectionStorage {
     associatedtype Value
 }
 protocol RCStorage: RealtimeCollectionStorage {
     associatedtype Key: Hashable, DatabaseKeyRepresentable
-    var sourceNode: Node { get }
+    var sourceNode: Node! { get }
     func storedValue(by key: Key) -> Value?
 }
 protocol MutableRCStorage: RCStorage {
-    func buildElement(with key: String) -> Value
+    func buildElement(with key: Key) -> Value
     mutating func store(value: Value, by key: Key)
 }
 extension MutableRCStorage {
     internal mutating func object(for key: Key) -> Value {
         guard let element = storedValue(by: key) else {
-            let value = buildElement(with: key.dbKey)
+            let value = buildElement(with: key)
             store(value: value, by: key)
 
             return value
@@ -92,7 +111,7 @@ public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, Requ
     var view: RealtimeCollectionView { get }
 
     func listening(changes handler: @escaping () -> Void) -> ListeningItem // TODO: Add current changes as parameter to handler
-    func runObserving() -> Void
+    @discardableResult func runObserving() -> Bool
     func stopObserving() -> Void
 }
 protocol RC: RealtimeCollection, RealtimeValueEvents where Storage: RCStorage {
@@ -142,7 +161,7 @@ public extension RequiresPreparation where Self: RealtimeCollection {
 }
 extension RequiresPreparation {
     func checkPreparation() {
-        guard isPrepared else { fatalError("Instance should be activated before performing this action.") }
+        guard isPrepared else { fatalError("Instance should be prepared before performing this action.") }
     }
 }
 
@@ -233,15 +252,16 @@ public extension RealtimeCollection {
 
 public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     public typealias Value = V
-    let sourceNode: Node
-    let elementBuilder: (Node) -> Value
-    var elements: [_PrototypeValue: Value] = [:]
+    var sourceNode: Node!
+    let elementBuilder: (Node, [String: Any]?) -> Value
+    var elements: [RCItem: Value] = [:]
+    var localElements: [V] = []
 
-    mutating func store(value: Value, by key: _PrototypeValue) { elements[for: key] = value }
-    func storedValue(by key: _PrototypeValue) -> Value? { return elements[for: key] }
+    mutating func store(value: Value, by key: RCItem) { elements[for: key] = value }
+    func storedValue(by key: RCItem) -> Value? { return elements[for: key] }
 
-    func buildElement(with key: String) -> V {
-        return elementBuilder(sourceNode.child(with: key))
+    func buildElement(with key: RCItem) -> V {
+        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload)
     }
 }
 
@@ -250,7 +270,7 @@ public struct AnyArrayStorage: RealtimeCollectionStorage {
 }
 
 public final class AnyRealtimeCollectionView<Source>: RCView where Source: ValueWrapper & RealtimeValueActions, Source.T: BidirectionalCollection {
-    let source: Source
+    var source: Source
     public internal(set) var isPrepared: Bool = false
 
     init(_ source: Source) {

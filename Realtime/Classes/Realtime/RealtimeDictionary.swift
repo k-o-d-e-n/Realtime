@@ -16,13 +16,14 @@ public extension RTNode where RawValue == String {
 
 public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDictionaryKey {
     public typealias Value = V
-    let sourceNode: Node
+    var sourceNode: Node!
     let keysNode: Node
     let elementBuilder: (Node) -> Value
     var elements: [K: Value] = [:]
+    var localElements: [K: Value] = [:]
 
-    func buildElement(with key: String) -> V {
-        return elementBuilder(sourceNode.child(with: key))
+    func buildElement(with key: K) -> V {
+        return elementBuilder(sourceNode.child(with: key.dbKey))
     }
 
     mutating func store(value: Value, by key: K) { elements[for: key] = value }
@@ -30,8 +31,8 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
 
     internal mutating func element(by key: String) -> (Key, Value) {
         guard let element = storedElement(by: key) else {
-            let value = buildElement(with: key)
             let storeKey = Key(in: keysNode.child(with: key))
+            let value = buildElement(with: storeKey)
             store(value: value, by: storeKey)
 
             return (storeKey, value)
@@ -45,19 +46,22 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
 }
 
 public typealias RealtimeDictionaryKey = Hashable & RealtimeValue & Linkable
-public final class RealtimeDictionary<Key, Value>: RC
+public final class RealtimeDictionary<Key, Value>: _RealtimeValue, RC
 where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
-    public internal(set) var node: Node?
+    override public var hasChanges: Bool { return !storage.localElements.isEmpty }
     public var view: RealtimeCollectionView { return _view }
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[_PrototypeValue], _PrototypeValuesSerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem], RCItemArraySerializer>>
 
-    public init(in node: Node, keysNode: Node) {
-        self.node = node
-        self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: Value.init, elements: [:])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node.child(with: Nodes.items.rawValue).linksNode))
+    public required init(in node: Node?, keysNode: Node) {
+        guard keysNode.isRooted else { fatalError("Keys must has rooted location") }
+
+        let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
+        self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: Value.init, elements: [:], localElements: [:])
+        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: Node(key: Nodes.items.rawValue, parent: viewParentNode)))
+        super.init(in: node)
     }
 
     // MARK: Implementation
@@ -70,9 +74,9 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
-    public func runObserving() { _view.source.runObserving() }
-    public func stopObserving() { _view.source.stopObserving() }
-    public var debugDescription: String { return _view.source.debugDescription }
+    override public func runObserving() -> Bool { return _view.source.runObserving() }
+    override public func stopObserving() { _view.source.stopObserving() }
+    override public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
     public typealias Element = (key: Key, value: Value)
@@ -101,75 +105,90 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
 
     // MARK: Mutating
 
+    public func set(element: Value, for key: Key) {
+        guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:for:in:)") }
+        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
+            else { fatalError("Element is referred to incorrect location") }
+
+        storage.localElements[key] = element
+    }
+
     @discardableResult
-    public func set(element: Value, for key: Key, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        guard element.isStandalone else { fatalError("Element already saved to database") }
+    public func write(element: Value, for key: Key, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+        guard isRooted else { fatalError("This method is available only for rooted objects. Use method set(element:for:)") }
+        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
+            else { fatalError("Element is referred to incorrect location") }
 
         let transaction = transaction ?? RealtimeTransaction()
-//        guard !isRequiredPreparation || isPrepared else {
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection.set(element: element, for: key, in: transaction)
+                    try! collection._write(element, for: key, in: transaction)
                     promise.fulfill(err)
                 })
             }
             return transaction
         }
 
-//        var oldElement: Value?
-        if contains(valueBy: key) {//let p_value = _view.source.value.first(where: { $0.dbKey == key.dbKey }) {
+        try _write(element, for: key, in: transaction)
+        return transaction
+    }
+
+    func _write(_ element: Value, for key: Key, in transaction: RealtimeTransaction) throws {
+        if contains(valueBy: key) {
             fatalError("Value by key \(key) already exists. Replacing is not supported yet.")
-//            oldElement = storage.object(for: key)
-//            transaction.addPrecondition { [unowned transaction] (promise) in
-//                oldElement!.willRemove { err, refs in
-//                    refs?.filter { $0.key != key.dbKey }.forEach { transaction.addNode(item: ($0, .value(nil))) }
-//                    transaction.addNode(oldElement!.node!.linksNode.child(with: p_value.linkId), value: nil)
-//                    promise.fulfill(err)
-//                }
-//            }
         }
 
-        let needLink = shouldLinking
-        let elementNode = storage.sourceNode.child(with: key.dbKey)
-        let link = key.node!.generate(linkTo: [_view.source.node!, elementNode])
-        let prototypeValue = _PrototypeValue(dbKey: key.dbKey, linkID: link.link.id, index: count)
-        let oldValue = _view.source.value
-        _view.source.value.append(prototypeValue)
-        storage.store(value: element, by: key)
-        transaction.addReversion { [weak self] in
-            self?._view.source.value = oldValue
-//            if let old = oldElement {
-//                self?.storage.store(value: old, by: key)
-//            } else {
-//                self?.storage.elements.removeValue(forKey: key)
-//            }
+        _write(element, for: key,
+               by: (storage: node!, itms: _view.source.node!), in: transaction)
+        transaction.addCompletion { [weak self] result in
+            if result {
+                self?.didSave()
+            }
         }
+    }
+
+    func _write(_ element: Value, for key: Key,
+                by location: (storage: Node, itms: Node), in transaction: RealtimeTransaction) {
+        let needLink = shouldLinking
+        let itemNode = location.itms.child(with: key.dbKey)
+        let elementNode = location.storage.child(with: key.dbKey)
+        let link = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
+        let item = RCItem(dbKey: key.dbKey, linkID: link.link.id, index: count)
+
+        var reversion: () -> Void {
+            let sourceRevers = _view.source.hasChanges ?
+                nil : _view.source.currentReversion()
+
+            return { [weak self] in
+                sourceRevers?()
+                self?.storage.elements.removeValue(forKey: key)
+            }
+        }
+        transaction.addReversion(reversion)
+        _view.source.value.append(item)
+        storage.store(value: element, by: key)
 
         if needLink {
             transaction.addValue(link.link.localValue, by: link.node)
-            let valueLink = elementNode.generate(linkKeyedBy: link.link.id, to: [_view.source.node!.child(with: key.dbKey), link.node])
+            let valueLink = elementNode.generate(linkKeyedBy: link.link.id,
+                                                 to: [itemNode, link.node])
             transaction.addValue(valueLink.link.localValue, by: valueLink.node)
         }
+        transaction.addValue(RCItemSerializer.serialize(item), by: itemNode)
         if let e = element as? RealtimeObject {
             transaction._update(e, by: elementNode)
         } else {
             transaction._set(element, by: elementNode)
         }
-        transaction.addValue(_ProtoValueSerializer.serialize(entity: prototypeValue), by: _view.source.node!.child(with: key.dbKey))
-        transaction.addCompletion { [weak self] result in
-            if result {
-                if needLink {
-                    key.add(link: link.link)
-                }
-                self?.didSave()
-            }
-        }
-        return transaction
     }
 
     @discardableResult
     public func remove(for key: Key, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
+        guard isRooted else { fatalError("This method is available only for rooted objects") }
+        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         guard isPrepared else {
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
@@ -185,21 +204,21 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
 
         let transaction = transaction ?? RealtimeTransaction()
 
-        let element = self[key]!
+        let element = storage.elements.removeValue(forKey: key) ?? storage.object(for: key)
         element.willRemove(in: transaction)
 
-        let oldValue = _view.source.value
-        let p_value = _view.source.value.remove(at: index)
-        transaction.addReversion { [weak _view] in
-            _view?.source.value = oldValue
+        if !_view.source.hasChanges {
+            transaction.addReversion(_view.source.currentReversion())
         }
-        transaction.addValue(nil, by: _view.source.node!.child(with: key.dbKey))
-        transaction.addValue(nil, by: storage.sourceNode.child(with: key.dbKey))
-        transaction.addValue(nil, by: key.node!.linksNode.child(with: p_value.linkID))
+        let item = _view.source.value.remove(at: index)
+        transaction.addReversion { [weak self] in
+            self?.storage.elements[key] = element
+        }
+        transaction.addValue(nil, by: _view.source.node!.child(with: key.dbKey)) // remove item element
+        transaction.addValue(nil, by: storage.sourceNode.child(with: key.dbKey)) // remove element
+        transaction.addValue(nil, by: key.node!.linksNode.child(with: item.linkID)) // remove link from key object
         transaction.addCompletion { [weak self] result in
             if result {
-                key.remove(linkBy: p_value.linkID)
-                self?.storage.elements.removeValue(forKey: key)
                 element.didRemove()
                 self?.didSave()
             }
@@ -209,7 +228,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
 
     // MARK: Realtime
 
-    public var localValue: Any? {
+    override public var localValue: Any? {
         let split = storage.elements.reduce((exists: [], removed: [])) { (res, keyValue) -> (exists: [(Key, Value)], removed: [(Key, Value)]) in
             guard _view.contains(where: { $0.dbKey == keyValue.key.dbKey }) else {
                 return (res.exists, res.removed + [keyValue])
@@ -218,13 +237,13 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
             return (res.exists + [keyValue], res.removed)
         }
         var value = Dictionary<String, Any?>(keyValues: split.exists, mapKey: { $0.dbKey }, mapValue: { $0.localValue })
-        value[_view.source.dbKey] = _view.source.localValue
+//        value[_view.source.dbKey] = _view.source.localValue
         split.removed.forEach { value[$0.0.dbKey] = nil }
 
         return value
     }
 
-    public init(in node: Node?) {
+    public required init(in node: Node?) {
         fatalError("Realtime dictionary cannot be initialized with init(in:) initializer")
     }
 
@@ -238,7 +257,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     }
 
     var _snapshot: (DataSnapshot, Bool)?
-    public func apply(snapshot: DataSnapshot, strongly: Bool) {
+    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
         guard _view.isPrepared else {
             _snapshot = (snapshot, strongly)
             return
@@ -259,22 +278,37 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         }
     }
 
-    public func didSave(in parent: Node, by key: String) {
-        debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node!.key).")
-        debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
-
-        if let node = self.node {
-            node.parent = parent
-        } else {
-            self.node = Node(key: key, parent: parent)
+    override public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
+        if hasChanges {
+            storage.localElements.forEach { (key, value) in
+                _write(value,
+                       for: key,
+                       by: (storage: node,
+                            itms: Node(key: Nodes.items.rawValue, parent: node.linksNode)),
+                       in: transaction)
+            }
         }
+    }
 
-        _view.source.didSave()
+//    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
+//
+//    }
+    override public func didSave(in parent: Node, by key: String) {
+        super.didSave(in: parent, by: key)
+        _view.source.didSave(in: parent.linksNode)
+        if let node = self.node {
+            storage.sourceNode = node
+        }
+        storage.localElements.removeAll()
         storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0.dbKey) }
     }
 
-    public func willRemove(in transaction: RealtimeTransaction) { transaction.addValue(nil, by: node!.linksNode) }
-    public func didRemove(from node: Node) {
+    override public func willRemove(in transaction: RealtimeTransaction) {
+        super.willRemove(in: transaction)
+        transaction.addValue(nil, by: node!.linksNode)
+    }
+    override public func didRemove(from node: Node) {
+        super.didRemove(from: node)
         _view.source.didRemove()
         storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
     }

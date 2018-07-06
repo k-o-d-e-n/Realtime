@@ -8,8 +8,8 @@
 
 import UIKit
 
-public class ReuseItem<View: AnyObject> {
-    public weak var view: View? {
+public class ReuseItem<View: AnyObject>: InsiderOwner {
+    private weak var view: View? {
         didSet {
             if let v = view, v !== oldValue {
                 reload()
@@ -29,15 +29,26 @@ public class ReuseItem<View: AnyObject> {
         listeningItems.append(value.listeningItem({ data = $0 }))
     }
 
+    public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
+        listeningItems.append(filter({ $0 != nil }).map({ $0! }).listeningItem({ assign($0, value) }))
+    }
+
     func free() {
         listeningItems.forEach { $0.dispose() }
         listeningItems.removeAll()
         view = nil
     }
 
+    func set(view: View) {
+        self.view = view
+        insider.dataDidChange()
+    }
+
     func reload() {
         listeningItems.forEach { $0.start() }
     }
+
+    public lazy var insider: Insider<View?> = Insider(source: { [unowned self] in self.view })
 }
 
 public class ReuseController<View: AnyObject> {
@@ -68,7 +79,7 @@ public class ReuseController<View: AnyObject> {
 public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObject {
     public typealias Binding<Cell: AnyObject> = (ReuseItem<Cell>, Model) -> Void
     public typealias ConfigureCell = (UITableView, IndexPath) -> UITableViewCell
-    public private(set) var collection: AnyBidirectionalCollection<Model>
+    fileprivate(set) var collection: AnySharedCollection<Model>
     fileprivate let reuseController: ReuseController<UITableViewCell> = ReuseController()
     fileprivate var registeredCells: [TypeKey<UITableViewCell>: Binding<UITableViewCell>] = [:]
     fileprivate var configureCell: ConfigureCell
@@ -78,7 +89,7 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
 
     public init<C: BidirectionalCollection>(_ collection: C, cell: @escaping ConfigureCell)
         where C.Element == Model, C.Index == Int {
-            self.collection = AnyBidirectionalCollection(collection)
+            self.collection = AnySharedCollection(collection)
             self.configureCell = cell
     }
 
@@ -89,7 +100,7 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
         where C.Element == Model, C.Index == Int {
             self.collection.forEach { $0.stopObserving() }
-            self.collection = AnyBidirectionalCollection(newData)
+            self.collection = AnySharedCollection(newData)
             tableView.reloadData()
     }
 
@@ -99,6 +110,10 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
         if #available(iOS 10.0, *) {
             tableView.prefetchDataSource = delegateService
         }
+    }
+
+    public func model(at indexPath: IndexPath) -> Model {
+        return collection[indexPath.row]
     }
 
     /// UITableView service
@@ -123,7 +138,7 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
 
         func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
             indexPaths.forEach { ip in
-                delegate.collection.element(by: ip.row).load(completion: nil)
+                delegate.collection[ip.row].load(completion: nil)
             }
         }
 
@@ -134,10 +149,12 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
                 fatalError("Unregistered cell by type \(type(of: cell))")
             }
 
-            let model = delegate.collection.element(by: indexPath.row)
+            let model = delegate.collection[indexPath.row]
             bind(item, model)
-            item.view = cell
-            model.runObserving()
+            item.set(view: cell)
+            if !model.runObserving() {
+                debugFatalError("Observing is not running")
+            }
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
         }
@@ -145,7 +162,7 @@ public final class RealtimeTableViewDelegate<Model: RealtimeValueActions>: NSObj
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             delegate.reuseController.free(at: indexPath)
             if delegate.collection.count > indexPath.row {
-                delegate.collection.element(by: indexPath.row).stopObserving()
+                delegate.collection[indexPath.row].stopObserving()
             }
             delegate.tableDelegate?.tableView?(tableView, didEndDisplaying: cell, forRowAt: indexPath)
         }

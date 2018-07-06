@@ -13,6 +13,8 @@ enum Nodes {
     static let modelVersion = RealtimeNode(rawValue: "__mv")
     static let links = RealtimeNode(rawValue: "__links")
     static let items = RealtimeNode(rawValue: "__itms")
+    static let index = RealtimeNode(rawValue: "__i")
+    static let payload = RealtimeNode(rawValue: "__pl")
 }
 
 public class Node: Equatable {
@@ -152,7 +154,7 @@ extension Node: Sequence {
 public extension FireDataProtocol {
     func map<Mapped>(_ transform: (Any) -> Mapped = { $0 as! Mapped }) -> Mapped? { return value.map(transform) }
     func flatMap<Mapped>(_ transform: (Any) -> Mapped? = { $0 as? Mapped }) -> Mapped? { return value.flatMap(transform) }
-    func map<Mapped>(child path: String, map: (FireDataProtocol) -> Mapped?) -> Mapped? {
+    func map<Mapped>(child path: String, map: (FireDataProtocol) -> Mapped? = { $0.flatMap() }) -> Mapped? {
         guard hasChild(path) else { return nil }
         return map(child(forPath: path))
     }

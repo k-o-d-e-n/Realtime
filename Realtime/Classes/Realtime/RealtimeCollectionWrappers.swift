@@ -36,7 +36,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
     func apply(snapshot: DataSnapshot, strongly: Bool) { fatalError() }
-    func runObserving() { fatalError() }
+    func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
     func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
     public func prepare(forUse completion: Assign<Error?>) { fatalError() }
@@ -77,7 +77,7 @@ where C.Index == Int {
     override func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
-    override func runObserving() { base.runObserving() }
+    override func runObserving() -> Bool { return base.runObserving() }
     override func stopObserving() { base.stopObserving() }
 }
 
@@ -105,7 +105,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
-    public func runObserving() { base.runObserving() }
+    public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
     public convenience required init?(snapshot: DataSnapshot) { fatalError() }
     public required init(dbRef: DatabaseReference) { fatalError() }
@@ -159,7 +159,7 @@ struct AnySharedCollection<Element>: Collection {
 public struct KeyedCollectionStorage<V>: MutableRCStorage {
     public typealias Value = V
     let key: String
-    let sourceNode: Node
+    let sourceNode: Node!
     let elementBuilder: (Node) -> Value
     var elements: [AnyCollectionKey: Value] = [:]
 
@@ -172,8 +172,8 @@ public struct KeyedCollectionStorage<V>: MutableRCStorage {
     mutating func store(value: Value, by key: AnyCollectionKey) { elements[for: key] = value }
     func storedValue(by key: AnyCollectionKey) -> Value? { return elements[for: key] }
 
-    func buildElement(with key: String) -> V {
-        return elementBuilder(sourceNode.child(with: key).child(with: self.key))
+    func buildElement(with key: AnyCollectionKey) -> V {
+        return elementBuilder(sourceNode.child(with: key.dbKey).child(with: self.key))
     }
 }
 
@@ -187,6 +187,7 @@ where Element: RealtimeValue {
     init<B: RC, Key: RTNode>(base: B, key: Key, elementBuilder: @escaping (Node) -> Element = Element.init)
         where B.View.Iterator.Element: DatabaseKeyRepresentable,
         B.View.Index: SignedInteger, B.Iterator.Element == BaseElement, B.Index == Int, Key.RawValue == String {
+            guard base.isRooted else { fatalError("Only rooted collections can use in keyed collection") }
             self.base = __AnyRealtimeCollection(base: base)
             self.storage = KeyedCollectionStorage(base.storage, key: key.rawValue, builder: elementBuilder)
             self.baseView = AnySharedCollection(base._view.lazy.map(AnyCollectionKey.init))
@@ -213,8 +214,8 @@ where Element: RealtimeValue {
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
         return base.listening(changes: handler)
     }
-    public func runObserving() {
-        base.runObserving()
+    public func runObserving() -> Bool {
+        return base.runObserving()
     }
     public func stopObserving() {
         base.stopObserving()

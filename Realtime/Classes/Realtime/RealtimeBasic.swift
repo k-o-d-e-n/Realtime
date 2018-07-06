@@ -70,7 +70,11 @@ extension MutableData: FireDataProtocol {
 
 public protocol DataSnapshotRepresented {
     var localValue: Any? { get }
+    var payload: [String: Any]? { get }
     init?(snapshot: DataSnapshot)
+}
+extension DataSnapshotRepresented {
+    public var payload: [String : Any]? { return nil }
 }
 
 public protocol MutableDataRepresented {
@@ -145,6 +149,13 @@ public extension Hashable where Self: RealtimeValue {
     }
 }
 public protocol RealtimeValueEvents {
+    /// Must call always before save(update) action
+    ///
+    /// - Parameters:
+    ///   - transaction: Save transaction
+    ///   - parent: Parent node to save
+    ///   - key: Location in parent node
+    func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String)
     /// Notifies object that it has been saved in specified parent node
     ///
     /// - Parameter parent: Parent node
@@ -152,7 +163,7 @@ public protocol RealtimeValueEvents {
     func didSave(in parent: Node, by key: String)
     /// Must call always before removing action
     ///
-    /// - Parameter transaction: Current transaction
+    /// - Parameter transaction: Remove transaction
     func willRemove(in transaction: RealtimeTransaction)
     /// Notifies object that it has been removed from specified ancestor node
     ///
@@ -160,6 +171,12 @@ public protocol RealtimeValueEvents {
     func didRemove(from ancestor: Node)
 }
 extension RealtimeValueEvents where Self: RealtimeValue {
+    func willSave(in transaction: RealtimeTransaction, in parent: Node) {
+        guard let node = self.node else {
+            return debugFatalError("Unkeyed value will be saved to undefined location in parent node: \(parent.rootPath)")
+        }
+        willSave(in: transaction, in: parent, by: node.key)
+    }
     func didSave(in parent: Node) {
         if let node = self.node {
             didSave(in: parent, by: node.key)
@@ -198,8 +215,8 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
 }
 
 public protocol Linkable {
-    @discardableResult func add(link: SourceLink) -> Self
-    @discardableResult func remove(linkBy id: String) -> Self
+    @discardableResult func add(link: SourceLink) -> Self // TODO: Remove
+    @discardableResult func remove(linkBy id: String) -> Self // TODO: Remove
     var linksNode: Node! { get }
 }
 

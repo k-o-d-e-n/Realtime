@@ -16,7 +16,8 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     public var dbRef: DatabaseReference?
     public internal(set) var node: Node?
     private var observing: (token: UInt, counter: Int)?
-    public var localValue: Any? { return nil }
+    public var isObserved: Bool { return observing != nil }
+    public var localValue: Any? { fatalError("You should implement in your subclass") }
     public required init(in node: Node?) {
         self.node = node
         self.dbRef = node.flatMap { $0.isRooted ? $0.reference : nil }
@@ -81,11 +82,13 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
         debugFatalError(condition: !ancestor.isRooted, "Value has been removed from non rooted node: \(ancestor)")
 
         dbRef?.removeAllObservers()
+        observing = nil
         if node?.parent == ancestor {
             self.node?.parent = nil
             self.dbRef = nil
         }
     }
+    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {}
     public func didSave(in parent: Node, by key: String) {
         debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
         debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
@@ -153,9 +156,19 @@ open class RealtimeObject: _RealtimeValue {
 
 //    private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
     typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
-    lazy var links: Links! = self.node!.linksNode.property()
+    lazy var links: Links! = self.node!.linksNode.property() // TODO: Remove. It is needed only in remote.
 
     open var parent: RealtimeObject?
+
+    public override func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
+        super.willSave(in: transaction, in: parent, by: key)
+        let node = parent.child(with: key)
+//        mv.willSave(in: transaction, in: node)
+        links.willSave(in: transaction, in: node.linksNode)
+        enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
+            value.willSave(in: transaction, in: node, by: value.node!.key)
+        }
+    }
 
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
@@ -250,7 +263,7 @@ open class RealtimeObject: _RealtimeValue {
     private func keyedValues(use maping: (_RealtimeValue) -> Any?) -> [String: Any]? {
         var keyedValues: [String: Any]? = nil
         enumerateChilds { (_, value: _RealtimeValue) in
-            guard let mappedValue = maping(value) else { return }
+            guard value !== links, let mappedValue = maping(value) else { return }
 
             if keyedValues == nil { keyedValues = [String: Any]() }
             keyedValues![value.dbKey] = mappedValue

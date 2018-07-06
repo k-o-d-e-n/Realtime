@@ -358,6 +358,7 @@ public extension RealtimeTransaction {
 
 public extension RealtimeTransaction {
     func addValue<Value: RealtimeValue>(_ value: Value) {
+        guard value.isRooted else { fatalError() }
         addValue(value.localValue, by: value.node!)
     }
 }

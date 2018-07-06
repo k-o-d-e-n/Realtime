@@ -76,7 +76,7 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(
 
 // MARK: Listenable realtime property
 
-public typealias StandartProperty<StandartType: HasDefaultLiteral> = RealtimeProperty<StandartType, Serializer<StandartType>>
+public typealias StandartProperty<StandartType: HasDefaultLiteral & FireDataValue> = RealtimeProperty<StandartType, Serializer<StandartType>>
 public extension URL {
     typealias OptionalProperty = RealtimeProperty<URL?, URLSerializer>
 }
@@ -105,7 +105,6 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
             resetHasChanges()
             insider.dataDidChange()
         }
-//        (value as? Reverting & ChangeableRealtimeValue)?.revertIfChanged()
     }
     public func currentReversion() -> () -> Void {
         return { [weak self] in
@@ -121,17 +120,19 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     private var _hasChanges = false
     override public private(set) var hasChanges: Bool {
         set { _hasChanges = newValue }
-        get { return _hasChanges }//(value as? ChangeableRealtimeValue).map { $0.hasChanges || _hasChanges } ?? _hasChanges }
+        get { return _hasChanges }
     }
-    override public var localValue: Any? { return Serializer.serialize(entity: localPropertyValue.get()) }
+    override public var localValue: Any? { return Serializer.serialize(localPropertyValue.get()) }
     
     private var localPropertyValue: PropertyValue<T>
     fileprivate var oldValue: T?
     public var value: T {
         get { return localPropertyValue.get() }
         set {
-            oldValue = localPropertyValue.get()
-            registerHasChanges()
+            if !hasChanges {
+                oldValue = localPropertyValue.get()
+                registerHasChanges()
+            }
             setValue(newValue)
         }
     }
@@ -150,21 +151,6 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     public convenience required init(in node: Node?) {
         self.init(in: node, value: T())
     }
-
-//    public convenience init(from decoder: Decoder) throws {
-////        self.init(snapshot: decoder as! DataSnapshot)
-//        let container = try decoder.singleValueContainer()
-//        self.init(dbRef: decoder.userInfo[CodingUserInfoKey(rawValue: "ref")!] as! DatabaseReference,
-//                  value: try container.decode(T.self))
-//    }
-//
-//    public func encode(to encoder: Encoder) throws {
-//        var container = encoder.singleValueContainer()
-//        try container.encode(value)
-//    }
-
-//    deinit {
-//    }
 
     @discardableResult
     public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
@@ -196,6 +182,13 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
 
         return self
     }
+
+    override public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
+        if hasChanges {
+            transaction.addReversion(currentReversion())
+            super.insertChanges(to: transaction, by: node)
+        }
+    }
     
     // MARK: Events
     
@@ -220,7 +213,7 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
     override public func apply(snapshot: DataSnapshot, strongly: Bool) {
         super.apply(snapshot: snapshot, strongly: strongly)
         resetHasChanges()
-        setValue(Serializer.deserialize(entity: snapshot))
+        setValue(Serializer.deserialize(snapshot))
     }
 
     private func registerHasChanges() {
@@ -237,7 +230,7 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
 }
 
 public final class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner where T == Serializer.Entity, T: MutableDataRepresented {
-    override public var localValue: Any? { return Serializer.serialize(entity: localPropertyValue.get()) }
+    override public var localValue: Any? { return Serializer.serialize(localPropertyValue.get()) }
 
     private var localPropertyValue: PropertyValue<T>
     public var value: T {
@@ -278,7 +271,7 @@ public final class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, V
 
     override public func apply(snapshot: DataSnapshot, strongly: Bool) {
         super.apply(snapshot: snapshot, strongly: strongly)
-        setValue(Serializer.deserialize(entity: snapshot))
+        setValue(Serializer.deserialize(snapshot))
     }
 
     fileprivate func setValue(_ value: T) {
@@ -309,7 +302,7 @@ public extension SharedProperty {
                 }
 
                 if let s = snapshot {
-                    self.setValue(Serializer.deserialize(entity: s))
+                    self.setValue(Serializer.deserialize(s))
                     completion?(true, self.value)
                 } else {
                     debugFatalError("Transaction completed without error, but snapshot does not exist")

@@ -51,13 +51,7 @@ struct Relation: DataSnapshotRepresented {
         guard
             let sourceID: String = LinkNodes.sourceID.map(from: snapshot),
             let ref = Reference(snapshot: snapshot)
-            else {
-                // TODO: Remove after move to new version data model
-                guard let ref = Reference(snapshot: snapshot) else { return nil }
-                self.ref = ref
-                self.sourceID = snapshot.key
-                return
-        }
+        else { return nil }
 
         self.sourceID = sourceID
         self.ref = ref
