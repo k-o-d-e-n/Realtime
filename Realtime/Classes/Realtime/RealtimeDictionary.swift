@@ -45,7 +45,7 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
     }
 }
 
-public typealias RealtimeDictionaryKey = Hashable & RealtimeValue & Linkable
+public typealias RealtimeDictionaryKey = Hashable & RealtimeValue
 public final class RealtimeDictionary<Key, Value>: _RealtimeValue, RC
 where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     override public var hasChanges: Bool { return !storage.localElements.isEmpty }

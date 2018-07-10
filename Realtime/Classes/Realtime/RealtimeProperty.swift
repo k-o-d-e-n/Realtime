@@ -37,11 +37,6 @@ extension RealtimeProperty: FilteringEntity {}
 // TODO: May be need create real relation to property in linked entity, but not simple register external link
 // TODO: Remove id from value
 public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(String, Related)?, RelationableValueSerializer<Related>> {
-    public override func revert() {
-        if let old = oldValue.flatMap({ $0 }) { old.1.add(link: old.1.node!.generate(linkTo: node!).link) }
-        if let new = value { new.1.remove(linkBy: new.0) }
-        super.revert()
-    }
     public var related: Related? { return value?.1 }
 
     public required init(in node: Node?, value: T) {
@@ -59,11 +54,11 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<(
     public func setValue(_ value: Related?, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
         if let (id, related) = self.value {
-            related.removeLink(by: id, in: transaction)
+            transaction.addValue(nil, by: related.node!.linksNode.child(with: id))
         }
         if let v = value {
             let link = v.node!.generate(linkTo: node!).link
-            v.addLink(link, in: transaction)
+            transaction.addValue(link.localValue, by: v.node!.linksNode.child(with: link.id))
             self.value = (link.id, v)
             transaction.set(self)
         } else {

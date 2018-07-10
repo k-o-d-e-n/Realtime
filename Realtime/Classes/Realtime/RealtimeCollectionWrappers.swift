@@ -233,3 +233,63 @@ where Element: RealtimeValue {
         base.apply(snapshot: snapshot, strongly: strongly)
     }
 }
+
+public extension RealtimeCollection {
+    func childMap<Mapped: RealtimeValue>(_ transform: @escaping (Element) -> Mapped) -> MapRealtimeCollection<Mapped, Self> {
+        return MapRealtimeCollection(base: self, transform: transform)
+    }
+}
+
+public final class MapRealtimeCollection<Element, Base: RealtimeCollection>: RealtimeCollection
+where Element: RealtimeValue, Base.Index == Int {
+    public typealias Index = Int
+    private let transform: (Base.Element) -> Element
+    private let base: _AnyRealtimeCollectionBase<Base.Element>
+
+    public required init(base: Base, transform: @escaping (Base.Element) -> Element) {
+        guard base.isRooted else { fatalError("Only rooted collections can use in keyed collection") }
+        self.base = __AnyRealtimeCollection<Base>(base: base)
+        self.storage = AnyArrayStorage()
+        self.transform = transform
+    }
+
+    public init(in node: Node?) {
+        fatalError()
+    }
+
+    public var node: Node? { get { return base.node } set {} }
+    public var view: RealtimeCollectionView { return base.view }
+    public var storage: AnyArrayStorage
+    public var localValue: Any? { return base.localValue }
+    public var isPrepared: Bool { return base.isPrepared }
+
+    public var startIndex: Index { return base.startIndex }
+    public var endIndex: Index { return base.endIndex }
+    public func index(after i: Index) -> Index { return base.index(after: i) }
+    public func index(before i: Int) -> Int { return base.index(before: i) }
+    public subscript(position: Int) -> Element { return transform(base[position]) }
+    public var debugDescription: String { return base.debugDescription }
+    public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
+
+    public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
+        return base.listening(changes: handler)
+    }
+    public func runObserving() -> Bool {
+        return base.runObserving()
+    }
+    public func stopObserving() {
+        base.stopObserving()
+    }
+
+    public convenience required init?(snapshot: DataSnapshot) {
+        fatalError("Cannot use this initializer")
+    }
+
+    public required init(dbRef: DatabaseReference) {
+        fatalError("Cannot use this initializer")
+    }
+
+    public func apply(snapshot: DataSnapshot, strongly: Bool) {
+        base.apply(snapshot: snapshot, strongly: strongly)
+    }
+}

@@ -36,7 +36,7 @@ public extension RealtimeArray {
 /// # Realtime Array
 /// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
 /// Comment writing guide
-public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue & RealtimeValueEvents & Linkable {
+public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue & RealtimeValueEvents {
     override public var hasChanges: Bool { return !storage.localElements.isEmpty }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }

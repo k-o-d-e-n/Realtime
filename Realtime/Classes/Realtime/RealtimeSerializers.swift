@@ -426,6 +426,9 @@ struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContainer {
 }
 
 struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtocol {
+    enum Error: Swift.Error {
+        case typeMismatch
+    }
     typealias Key = K
     let snapshot: DataSnapshot
 
@@ -449,7 +452,10 @@ struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtoc
     }
 
     func decode(_ type: Int.Type, forKey key: Key) throws -> Int {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! Int
+        guard let val = snapshot.childSnapshot(forPath: key.stringValue).value as? Int else {
+            throw Error.typeMismatch
+        }
+        return val
     }
 
     func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 {

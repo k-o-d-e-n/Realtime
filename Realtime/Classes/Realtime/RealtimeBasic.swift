@@ -210,14 +210,9 @@ public protocol ChangeableRealtimeValue: RealtimeValue {
 
 public protocol RealtimeValueActions: RealtimeValueEvents {
     func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?)
+    var canObserve: Bool { get }
     @discardableResult func runObserving() -> Bool
     func stopObserving()
-}
-
-public protocol Linkable {
-    @discardableResult func add(link: SourceLink) -> Self // TODO: Remove
-    @discardableResult func remove(linkBy id: String) -> Self // TODO: Remove
-    var linksNode: Node! { get }
 }
 
 // ------------------------------------------------------------------------

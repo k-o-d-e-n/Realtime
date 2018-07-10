@@ -17,6 +17,7 @@ struct RCError: Error {
 
 /// -----------------------------------------
 
+// TODO: May be need use format as: [__linkID: linkID, __i: index, __pl: [...]]
 struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataValue {
     let dbKey: String!
     let linkID: String

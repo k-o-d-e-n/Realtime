@@ -10,49 +10,59 @@ import UIKit
 
 // MARK: UITableView - Adapter
 
-open class _TableViewSectionedAdapter: NSObject, UITableViewDataSource, UITableViewDelegate {
-    // MARK: UITableViewDataSource
-
-    open func numberOfSections(in tableView: UITableView) -> Int {
+internal class _TableViewSectionedAdapter: NSObject, UITableViewDataSource, UITableViewDelegate, UITableViewDataSourcePrefetching {
+    internal func numberOfSections(in tableView: UITableView) -> Int {
         fatalError("Need override this method")
     }
 
-    open func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    internal func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         fatalError("Need override this method")
     }
 
-    open func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+    internal func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         fatalError("Need override this method")
     }
 
     // MARK: UITableViewDelegate
 
     @available(iOS 2.0, *)
-    public func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {}
+    internal func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {}
 
     @available(iOS 6.0, *)
-    public func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {}
+    internal func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {}
 
-    open func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
+    internal func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
+
+    func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {}
+    func tableView(_ tableView: UITableView, didEndDisplayingHeaderView view: UIView, forSection section: Int) {}
+    func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? { return nil }
+    func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? { return nil }
+    func tableView(_ tableView: UITableView, sectionForSectionIndexTitle title: String, at index: Int) -> Int { return index }
+    func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat { return 0.0 }
+    func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {}
 }
 
-struct TypeKey<T>: Hashable {
-    let type: T.Type
+struct TypeKey: Hashable {
+    fileprivate let type: AnyClass
 
     var hashValue: Int {
         return ObjectIdentifier(type).hashValue
     }
 
     static func ==(lhs: TypeKey, rhs: TypeKey) -> Bool {
-        return lhs.type == rhs.type
+        return lhs.type === rhs.type
+    }
+
+    static func `for`<T: AnyObject>(_ type: T.Type) -> TypeKey {
+        return TypeKey(type: type)
     }
 }
 extension UITableViewCell {
     // convenience static computed property to get the wrapped metatype value.
-    static var typeKey: TypeKey<UITableViewCell> {
-        return TypeKey(type: self)
+    static var typeKey: TypeKey {
+        return TypeKey.for(self)
     }
-    var typeKey: TypeKey<UITableViewCell> {
+    var typeKey: TypeKey {
         return type(of: self).typeKey
     }
 }
@@ -138,7 +148,7 @@ public class _RealtimeTableAdapter<Models: ModelDataSource> {
     weak var tableView: UITableView!
     private var _freePrototypes: [ReuseViewPrototype<UITableViewCell>] = []
     private var _prototypeCache = Dictionary<IndexPath, ReuseViewPrototype<UITableViewCell>>()
-    private var _cellProtos: [TypeKey<UITableViewCell>: CellFactory<UITableViewCell>] = [:]
+    private var _cellProtos: [TypeKey: CellFactory<UITableViewCell>] = [:]
     private var _isNeedReload: Bool = false // TODO: Not reset, need reset after reload
     private var _listening: Disposable!
 

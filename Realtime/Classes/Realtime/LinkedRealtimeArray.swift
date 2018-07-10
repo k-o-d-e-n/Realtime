@@ -13,7 +13,7 @@ public extension RTNode where RawValue == String {
     }
 }
 
-public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue & Linkable {
+public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue {
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
     override public var localValue: Any? { return _view.source.localValue }

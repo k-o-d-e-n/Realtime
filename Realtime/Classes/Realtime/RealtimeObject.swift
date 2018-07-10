@@ -17,6 +17,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     public internal(set) var node: Node?
     private var observing: (token: UInt, counter: Int)?
     public var isObserved: Bool { return observing != nil }
+    public var canObserve: Bool { return isRooted }
     public var localValue: Any? { fatalError("You should implement in your subclass") }
     public required init(in node: Node?) {
         self.node = node
@@ -48,12 +49,10 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     }
 
     public func stopObserving() {
-        guard var o = observing else {
-            return debugFatalError("Try stop observing on not observed value")
-        }
+        guard var o = observing else { return }
 
         o.counter -= 1
-        if o.counter == 0 {
+        if o.counter < 1 {
             endObserve(for: o.token)
             observing = nil
         } else {
@@ -156,7 +155,7 @@ open class RealtimeObject: _RealtimeValue {
 
 //    private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
     typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
-    lazy var links: Links! = self.node!.linksNode.property() // TODO: Remove. It is needed only in remote.
+    lazy var links: Links? = self.node?.linksNode.property() // TODO: Remove. It is needed only in remote.
 
     open var parent: RealtimeObject?
 
@@ -164,7 +163,7 @@ open class RealtimeObject: _RealtimeValue {
         super.willSave(in: transaction, in: parent, by: key)
         let node = parent.child(with: key)
 //        mv.willSave(in: transaction, in: node)
-        links.willSave(in: transaction, in: node.linksNode)
+        links?.willSave(in: transaction, in: node.linksNode)
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
             value.willSave(in: transaction, in: node, by: value.node!.key)
         }
@@ -174,7 +173,7 @@ open class RealtimeObject: _RealtimeValue {
         super.didSave(in: parent, by: key)
         if let node = self.node {
 //            mv.didSave(in: node)
-            links.didSave(in: node.linksNode)
+            links?.didSave(in: node.linksNode)
             enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
                 value.didSave(in: node)
             }
@@ -196,7 +195,7 @@ open class RealtimeObject: _RealtimeValue {
     
     override public func didRemove(from node: Node) {
 //        mv.didRemove(from: node)
-        links.didRemove()
+        links?.didRemove()
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
             value.didRemove(from: node)
         }
@@ -205,7 +204,6 @@ open class RealtimeObject: _RealtimeValue {
     
     override open func apply(snapshot: DataSnapshot, strongly: Bool) {
 //        if strongly || Nodes.modelVersion.has(in: snapshot) { mv.apply(snapshot: Nodes.modelVersion.snapshot(from: snapshot)) }
-        if strongly || Nodes.links.has(in: snapshot) { links.apply(snapshot: Nodes.links.snapshot(from: snapshot)) }
 
         reflect { (mirror) in
             apply(snapshot: snapshot, strongly: strongly, to: mirror)
@@ -357,33 +355,5 @@ extension RealtimeObject {
         let transaction = transaction ?? RealtimeTransaction()
         transaction.delete(self)
         return transaction
-    }
-}
-
-extension RealtimeObject: Linkable {
-    public var linksNode: Node! { return links.node! }
-    @discardableResult
-    public func add(link: SourceLink) -> Self {
-        guard !links.value.contains(where: { $0.id == link.id }) else { return self }
-            
-        links.value.append(link)
-        return self
-    }
-    @discardableResult
-    public func remove(linkBy id: String) -> Self {
-        guard let index = links.value.index(where: { $0.id == id }) else { return self }
-
-        links.value.remove(at: index)
-        return self
-    }
-}
-public extension Linkable {
-    func addLink(_ link: SourceLink, in transaction: RealtimeTransaction) {
-        add(link: link)
-        transaction.addValue(link.localValue, by: linksNode.child(with: link.id))
-    }
-    func removeLink(by id: String, in transaction: RealtimeTransaction) {
-        remove(linkBy: id)
-        transaction.addValue(nil, by: linksNode.child(with: id))
     }
 }
