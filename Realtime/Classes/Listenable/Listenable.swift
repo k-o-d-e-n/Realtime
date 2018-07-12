@@ -386,8 +386,29 @@ public extension ValueWrapper {
     static func <=(_ value: inout T, _ prop: Self) {
         value = prop.value
     }
+    static func <=(_ value: inout T?, _ prop: Self) {
+        value = prop.value
+    }
+
+    @available(*, deprecated: 0.3.0)
     postfix static func ~(_ prop: inout Self) -> T {
         return prop.value
+    }
+}
+public extension ValueWrapper {
+    func mapValue<U>(_ transform: (T) -> U) -> U {
+        return transform(value)
+    }
+}
+public extension ValueWrapper where T: _Optional {
+    static func <=(_ value: inout T?, _ prop: Self) {
+        value = prop.value
+    }
+    func mapValue<U>(_ transform: (T.Wrapped) -> U) -> U? {
+        return value.map(transform)
+    }
+    func flatMapValue<U>(_ transform: (T.Wrapped) -> U?) -> U? {
+        return value.flatMap(transform)
     }
 }
 

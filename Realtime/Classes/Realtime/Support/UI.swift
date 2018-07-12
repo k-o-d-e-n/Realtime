@@ -25,12 +25,12 @@ internal class _TableViewSectionedAdapter: NSObject, UITableViewDataSource, UITa
 
     // MARK: UITableViewDelegate
 
+    func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat { return 0.0 }
     @available(iOS 2.0, *)
     internal func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {}
 
     @available(iOS 6.0, *)
     internal func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {}
-
     internal func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
 
     func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {}

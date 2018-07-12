@@ -82,3 +82,70 @@ extension Dictionary {
         keyValues.forEach { self[mapKey($0)] = $1 }
     }
 }
+
+extension DatabaseReference: Listenable {
+    private func makeDispose(for token: UInt) -> ListeningDispose {
+        return ListeningDispose({ [weak self] in self?.removeObserver(withHandle: token) })
+    }
+    private func makeListeningItem(for event: DataEventType, listening: AnyListening, assign: Assign<OutData>) -> ListeningItem {
+        let snapListening = SnapshotListening(self, event: event, listening: listening, assign: assign)
+        return ListeningItem(start: snapListening.onStart,
+                             stop: snapListening.onStop,
+                             notify: {},
+                             token: ())
+    }
+
+    public typealias OutData = (snapshot: DataSnapshot?, error: Error?)
+
+    /// Disposable listening of value
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> Disposable {
+        return SnapshotListening(self, event: .value, listening: config(Listening(bridge: {})), assign: assign)
+    }
+
+    /// Listening with possibility to control active state
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem {
+        return makeListeningItem(for: .value, listening: config(Listening(bridge: {})), assign: assign)
+    }
+
+    private class SnapshotListening: AnyListening, Disposable, Hashable {
+        let ref: DatabaseReference
+        let event: DataEventType
+        var token: UInt?
+        let assign: Assign<OutData>
+
+        var isInvalidated: Bool { return token == nil }
+        var dispose: () -> Void { return onStop }
+
+        init(_ ref: DatabaseReference, event: DataEventType, listening: AnyListening, assign: Assign<OutData>) {
+            self.ref = ref
+            self.event = event
+            self.assign = assign
+
+            onStart()
+        }
+
+        @objc func onEvent(_ control: UIControl, _ event: UIEvent) { // TODO: UIEvent
+            sendData()
+        }
+
+        func sendData() {
+        }
+
+        func onStart() {
+            guard token == nil else { return }
+            let receiver = assign.assign
+            token = ref.observe(event, with: { receiver(($0, nil)) }, withCancel: { receiver((nil, $0)) })
+        }
+
+        func onStop() {
+            if let t = token {
+                ref.removeObserver(withHandle: t)
+            }
+        }
+
+        var hashValue: Int { return Int(event.rawValue) }
+        static func ==(lhs: SnapshotListening, rhs: SnapshotListening) -> Bool {
+            return lhs === rhs
+        }
+    }
+}

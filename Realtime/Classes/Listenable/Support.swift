@@ -51,19 +51,25 @@ extension String {
     var asProperty: Property<String> { return Realtime.Property(value: self) }
 }
 
-public protocol _Optional {
+public protocol _Optional: ExpressibleByNilLiteral {
     associatedtype Wrapped
     func map<U>(_ f: (Wrapped) throws -> U) rethrows -> U?
     func flatMap<U>(_ f: (Wrapped) throws -> U?) rethrows -> U?
+
+    @available(*, deprecated: 0.1.0)
     var isNone: Bool { get }
+    @available(*, deprecated: 0.1.0)
     var isSome: Bool { get }
+
     var unsafelyUnwrapped: Wrapped { get }
 }
 extension Optional: _Optional {
+    @available(*, deprecated: 0.1.0)
     public var isNone: Bool {
         if case .none = self { return true }
         return false
     }
+    @available(*, deprecated: 0.1.0)
     public var isSome: Bool {
         if case .some = self { return true }
         return false
@@ -73,38 +79,36 @@ extension Optional: _Optional {
 public extension InsiderOwner where T: RealtimeValueActions {
 	/// adds loading action on receive new value
     func loadOnReceive() -> OwnedOnReceivePreprocessor<Self, T, T> {
-        fatalError()
-//        return onReceive({ (v, p) in
-//            v.load(completion: { (_, _) in p.fulfill() })
-//        })
+        return onReceive({ (v, p) in
+            v.load(completion: .just { (_, _) in p.fulfill() })
+        })
     }
 }
 
 public extension InsiderOwner {
     func asyncMap<U: RealtimeValueActions>(_ transform: @escaping (T) -> U) -> OwnedOnReceivePreprocessor<Self, U, U> {
-        fatalError()
-//        return map(transform).onReceive({ (v, p) in
-//            v.load(completion: { (_, _) in p.fulfill() })
-//        })
+        return map(transform).onReceive({ (v, p) in
+            v.load(completion: .just { (_, _) in p.fulfill() })
+        })
     }
     func loadRelated<Loaded: RealtimeValueActions>(_ transform: @escaping (T) -> Loaded?) -> OwnedOnReceivePreprocessor<Self, T, T> {
-        fatalError()
-//        return onReceive({ (v, p) in
-//            transform(v)?.load(completion: { (_, _) in p.fulfill() })
-//        })
+        return onReceive({ (v, p) in
+            transform(v)?.load(completion: .just { (_, _) in p.fulfill() })
+        })
     }
 }
 
 public extension InsiderOwner where T: _Optional {
 	/// skips nil values
     func flatMap<U>(_ transform: @escaping (T.Wrapped) -> U) -> OwnedTransformedFilteredPreprocessor<Self, T, U> {
-        return filter { $0.isSome }.map { transform($0.unsafelyUnwrapped) }
+        return self
+            .filter { $0.map { _ in true } ?? false }
+            .map { transform($0.unsafelyUnwrapped) }
     }
     func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (T.Wrapped) -> U) -> OwnedOnReceivePreprocessor<Self, T, U> {
-        fatalError()
-//        return flatMap(transform).onReceive({ (v, p) in
-//            v.load(completion: { (_, _) in p.fulfill() })
-//        })
+        return flatMap(transform).onReceive({ (v, p) in
+            v.load(completion: .just { (_, _) in p.fulfill() })
+        })
     }
 }
 
@@ -226,40 +230,5 @@ extension UITextField {
         @objc private func textDidChange() {
             state.value = self.base.text
         }
-    }
-}
-
-extension UITextField {
-    // TODO: need decision without using layer as retainer Property struct.
-    var realtimeText: Property<String?> {
-        set { layer.setValue(newValue, forKey: "realtime.text") }
-        get {
-            guard layer.value(forKey: "realtime.text") != nil else {
-                let propertyValue = PropertyValue<String?>(unowned: self, getter: { $0.text }, setter: { $0.text = $1 })
-                addTarget(self, action: #selector(textDidChange), for: .valueChanged)
-                self.realtimeText = Property(propertyValue)
-                return self.realtimeText
-            }
-
-            return layer.value(forKey: "realtime.text") as! Property<String?>
-        }
-    }
-
-    @objc private func textDidChange() {
-        realtimeText.value = text
-    }
-
-    var rt: UITextField.Realtime {
-        return .init(base: self)
-    }
-
-//    var realtime: ControlEventsTarget<String?> {
-//        let target = Unmanaged.passRetained(ControlEventsTarget(control: self, events: .valueChanged, getter: { $0?.text }))
-//        return target.takeUnretainedValue()
-//    }
-
-    var textInsider: Insider<String?> {
-        set { }
-        get { return Insider(source: { [weak self] in self?.text }) }
     }
 }

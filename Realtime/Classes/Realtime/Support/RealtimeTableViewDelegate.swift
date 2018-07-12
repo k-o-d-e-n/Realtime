@@ -79,8 +79,7 @@ public class ReuseController<View: AnyObject, Key: Hashable> {
 
 open class RealtimeTableViewDelegate<Model: RealtimeValueActions, Section> {
     public typealias BindingCell<Cell: AnyObject> = (ReuseItem<Cell>, Model) -> Void
-    public typealias ConfigureCell = (UITableView, IndexPath) -> UITableViewCell
-//    let modelAccessor: AnyModelAccessor<Model, Section>
+    public typealias ConfigureCell = (UITableView, IndexPath, Model) -> UITableViewCell
     fileprivate let reuseController: ReuseController<UITableViewCell, IndexPath> = ReuseController()
     fileprivate var registeredCells: [TypeKey: BindingCell<UITableViewCell>] = [:]
     fileprivate var configureCell: ConfigureCell
@@ -153,13 +152,17 @@ extension SingleSectionTableViewDelegate {
         }
 
         override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-            return delegate.configureCell(tableView, indexPath)
+            return delegate.configureCell(tableView, indexPath, delegate.collection[indexPath.row])
         }
 
         override func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
             indexPaths.forEach { ip in
                 delegate.collection[ip.row].load(completion: nil)
             }
+        }
+
+        override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+            return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? 44.0
         }
 
         /// events
@@ -254,7 +257,7 @@ extension SectionedTableViewDelegate {
         }
 
         override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-            return delegate.configureCell(tableView, indexPath)
+            return delegate.configureCell(tableView, indexPath, delegate.model(at: indexPath))
         }
 
         override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
@@ -270,6 +273,10 @@ extension SectionedTableViewDelegate {
 
         override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
             return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ?? 44.0
+        }
+
+        override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+            return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? 44.0
         }
 
         override func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {

@@ -32,7 +32,7 @@ public class Node: Equatable {
     }
 
     public let key: String
-    var parent: Node?
+    public var parent: Node?
 
     public init(key: String = DatabaseReference.root().childByAutoId().key, parent: Node? = nil) {
         self.key = key
@@ -110,18 +110,46 @@ public extension Node {
         let copied = current
         while let next = copying.parent, !next.isRoot {
             copying = next
-            current = current.moveTo(nodeKeyedBy: next.key)
+            current = current.movedToNode(keyedBy: next.key)
         }
         current.moveTo(node)
         return copied
     }
-    func moveTo(nodeKeyedBy key: String) -> Node {
+    func movedToNode(keyedBy key: String) -> Node {
         let parent = Node(key: key)
         self.parent = parent
         return parent
     }
     func moveTo(_ node: Node) {
         self.parent = node
+    }
+    func slicedFirst(_ count: Int = 1) -> (dropped: Node, sliced: Node)? {
+        guard count != 0, parent != nil else { return nil }
+
+        let nodes = reversed()
+        let firstIsRoot = nodes.first!.isRoot
+        var iterator = nodes.makeIterator()
+        var dropped: Node?
+        (0..<count + (firstIsRoot ? 1 : 0)).forEach { _ in
+            if let next = iterator.next(), next !== Node.root {
+                dropped = next
+            } else {
+                dropped = nil
+            }
+        }
+        guard let d = dropped else { return nil }
+
+        var sliced: Node?
+        while let next = iterator.next() {
+            if sliced == nil {
+                sliced = Node(key: next.key, parent: firstIsRoot ? .root : nil)
+            } else {
+                sliced = Node(key: next.key, parent: sliced)
+            }
+        }
+        guard let s = sliced else { return nil }
+
+        return (d, s)
     }
 }
 public extension Node {

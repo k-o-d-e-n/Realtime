@@ -89,6 +89,7 @@ struct PrimitiveProperty<Value>: ValueWrapper {
 protocol AnyInsider {
     associatedtype Data
     associatedtype Token
-    var dataSource: () -> Data { get }
+//    var dataSource: () -> Data { get }
     mutating func connect(with listening: AnyListening) -> Token
+    mutating func disconnect(with token: Token)
 }

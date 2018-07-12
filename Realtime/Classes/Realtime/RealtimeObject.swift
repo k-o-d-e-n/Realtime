@@ -26,7 +26,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
 
     deinit {
         observing.map {
-            debugFatalError("Deinitialization observed value")
+            debugFatalError(condition: $0.counter > 1, "Deinitialization observed value")
             endObserve(for: $0.token)
         }
     }
@@ -218,7 +218,7 @@ open class RealtimeObject: _RealtimeValue {
             }
 
             if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
-                if let value = self[keyPath: keyPath] as? (DataSnapshotRepresented & RealtimeValue) {
+                if case let value as (DataSnapshotRepresented & RealtimeValue) = self[keyPath: keyPath] {
                     value.apply(parentSnapshotIfNeeded: snapshot, strongly: strongly)
                 }
             }
@@ -279,7 +279,7 @@ open class RealtimeObject: _RealtimeValue {
 
                 guard
                     let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label),
-                    let value = self[keyPath: keyPath] as? As
+                    case let value as As = self[keyPath: keyPath]
                 else
                     { return }
 
@@ -290,7 +290,7 @@ open class RealtimeObject: _RealtimeValue {
     fileprivate func enumerateChilds<As>(from type: Any.Type = _RealtimeValue.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
-                guard let value = child.value as? As else { return }
+                guard case let value as As = child.value else { return }
 
                 block(child.label, value)
             })
@@ -301,7 +301,7 @@ open class RealtimeObject: _RealtimeValue {
         reflect(to: type) { (mirror) in
             guard !contains else { return }
             contains = mirror.children.contains(where: { (child) -> Bool in
-                guard let value = child.value as? As else { return false }
+                guard case let value as As = child.value else { return false }
 
                 return block(child.label, value)
             })
