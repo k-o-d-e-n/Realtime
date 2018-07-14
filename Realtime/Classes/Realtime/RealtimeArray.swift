@@ -296,8 +296,8 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
 //    }
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
-        _view.source.didSave(in: parent.linksNode)
         if let node = self.node {
+            _view.source.didSave(in: node.linksNode)
             storage.sourceNode = node
         }
         storage.localElements.removeAll()

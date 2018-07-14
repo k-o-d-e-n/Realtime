@@ -74,6 +74,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
+    @discardableResult
     override public func runObserving() -> Bool { return _view.source.runObserving() }
     override public func stopObserving() { _view.source.stopObserving() }
     override public var debugDescription: String { return _view.source.debugDescription }
@@ -295,8 +296,8 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
 //    }
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
-        _view.source.didSave(in: parent.linksNode)
         if let node = self.node {
+            _view.source.didSave(in: node.linksNode)
             storage.sourceNode = node
         }
         storage.localElements.removeAll()

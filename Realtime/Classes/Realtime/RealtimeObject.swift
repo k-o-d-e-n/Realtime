@@ -154,8 +154,6 @@ open class RealtimeObject: _RealtimeValue {
     public var typedLocalValue: [String: Any]? { return keyedValues { return $0.localValue } }
 
 //    private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
-    typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
-    lazy var links: Links? = self.node?.linksNode.property() // TODO: Remove. It is needed only in remote.
 
     open var parent: RealtimeObject?
 
@@ -163,7 +161,6 @@ open class RealtimeObject: _RealtimeValue {
         super.willSave(in: transaction, in: parent, by: key)
         let node = parent.child(with: key)
 //        mv.willSave(in: transaction, in: node)
-        links?.willSave(in: transaction, in: node.linksNode)
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
             value.willSave(in: transaction, in: node, by: value.node!.key)
         }
@@ -173,7 +170,6 @@ open class RealtimeObject: _RealtimeValue {
         super.didSave(in: parent, by: key)
         if let node = self.node {
 //            mv.didSave(in: node)
-            links?.didSave(in: node.linksNode)
             enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
                 value.didSave(in: node)
             }
@@ -181,12 +177,13 @@ open class RealtimeObject: _RealtimeValue {
             debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.rootPath)")
         }
     }
-    
+
+    typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
     override public func willRemove(in transaction: RealtimeTransaction) {
-        let links = self.links!
+        let links: Links = self.node!.linksNode.property()
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(completion: Assign.just({ err, refs in
-                refs.flatMap { $0.links.map(Node.linksNode.child) }.forEach { transaction.addValue(nil, by: $0) }
+                refs.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.addValue(nil, by: $0) }
                 transaction.delete(links)
                 promise.fulfill(err)
             }))
@@ -195,7 +192,6 @@ open class RealtimeObject: _RealtimeValue {
     
     override public func didRemove(from node: Node) {
 //        mv.didRemove(from: node)
-        links?.didRemove()
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
             value.didRemove(from: node)
         }
@@ -261,7 +257,7 @@ open class RealtimeObject: _RealtimeValue {
     private func keyedValues(use maping: (_RealtimeValue) -> Any?) -> [String: Any]? {
         var keyedValues: [String: Any]? = nil
         enumerateChilds { (_, value: _RealtimeValue) in
-            guard value !== links, let mappedValue = maping(value) else { return }
+            guard let mappedValue = maping(value) else { return }
 
             if keyedValues == nil { keyedValues = [String: Any]() }
             keyedValues![value.dbKey] = mappedValue

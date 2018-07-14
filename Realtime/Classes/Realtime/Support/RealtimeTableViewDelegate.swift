@@ -67,7 +67,7 @@ public class ReuseController<View: AnyObject, Key: Hashable> {
 
     func free(at key: Key) {
         guard let item = activeItems.removeValue(forKey: key)
-            else { fatalError("Try free non-active reuse item") }
+            else { return debugLog("Try free non-active reuse item") } //fatalError("Try free non-active reuse item") }
         item.free()
         freeItems.append(item)
     }
@@ -75,6 +75,11 @@ public class ReuseController<View: AnyObject, Key: Hashable> {
 //    func exchange(indexPath: IndexPath, to ip: IndexPath) {
 //        swap(&items[indexPath], &items[ip])
 //    }
+}
+
+public protocol RealtimeEditingTableDataSource: class {
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath)
+    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath)
 }
 
 open class RealtimeTableViewDelegate<Model: RealtimeValueActions, Section> {
@@ -85,6 +90,7 @@ open class RealtimeTableViewDelegate<Model: RealtimeValueActions, Section> {
     fileprivate var configureCell: ConfigureCell
 
     open weak var tableDelegate: UITableViewDelegate?
+    open weak var editingDataSource: RealtimeEditingTableDataSource?
 
     init(cell: @escaping ConfigureCell) {
         self.configureCell = cell
@@ -231,6 +237,10 @@ public final class SectionedTableViewDelegate<
         return mapElement(sections[indexPath.section], indexPath.row)
     }
 
+    public func section(at index: Int) -> Section {
+        return sections[index]
+    }
+
     public override func bind(_ tableView: UITableView) {
         tableView.delegate = delegateService
         tableView.dataSource = delegateService
@@ -306,9 +316,11 @@ extension SectionedTableViewDelegate {
 
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             delegate.reuseController.free(at: indexPath)
-            let section = delegate.sections[indexPath.section]
-            if delegate.mapCount(section) > indexPath.row {
-                delegate.mapElement(section, indexPath.row).stopObserving()
+            if delegate.sections.count > indexPath.section { // TODO: incorrect if removed in middle of collection
+                let section = delegate.sections[indexPath.section]
+                if delegate.mapCount(section) > indexPath.row {
+                    delegate.mapElement(section, indexPath.row).stopObserving()
+                }
             }
             delegate.tableDelegate?.tableView?(tableView, didEndDisplaying: cell, forRowAt: indexPath)
         }
@@ -337,6 +349,18 @@ extension SectionedTableViewDelegate {
                 delegate.sections[section].stopObserving()
             }
             delegate.tableDelegate?.tableView?(tableView, didEndDisplayingHeaderView: view, forSection: section)
+        }
+
+        override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+            return delegate.tableDelegate?.tableView?(tableView, editingStyleForRowAt: indexPath) ?? .delete
+        }
+
+        override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+            delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
+        }
+
+        override func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
+            delegate.editingDataSource?.tableView(tableView, moveRowAt: sourceIndexPath, to: destinationIndexPath)
         }
     }
 }
