@@ -59,6 +59,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
+    @discardableResult
     override public func runObserving() -> Bool { return _view.source.runObserving() }
     override public func stopObserving() { _view.source.stopObserving() }
     override public var debugDescription: String { return _view.source.debugDescription }

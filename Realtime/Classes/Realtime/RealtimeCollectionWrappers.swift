@@ -235,13 +235,13 @@ where Element: RealtimeValue {
 }
 
 public extension RealtimeCollection {
-    func childMap<Mapped: RealtimeValue>(_ transform: @escaping (Element) -> Mapped) -> MapRealtimeCollection<Mapped, Self> {
+    func lazyMap<Mapped>(_ transform: @escaping (Element) -> Mapped) -> MapRealtimeCollection<Mapped, Self> {
         return MapRealtimeCollection(base: self, transform: transform)
     }
 }
 
 public final class MapRealtimeCollection<Element, Base: RealtimeCollection>: RealtimeCollection
-where Element: RealtimeValue, Base.Index == Int {
+where Base.Index == Int {
     public typealias Index = Int
     private let transform: (Base.Element) -> Element
     private let base: _AnyRealtimeCollectionBase<Base.Element>

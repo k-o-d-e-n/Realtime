@@ -19,15 +19,34 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
     }
     private var listeningItems: [ListeningItem] = []
 
+
     init() {}
     deinit { free() }
 
-    public func bind<T: Listenable>(_ value: T, _ assign: @escaping (View, T.OutData) -> Void) {
+    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.OutData) -> Void) {
         var data: T.OutData {
             set { view.map { v in assign(v, newValue) } }
             get { fatalError() }
         }
         listeningItems.append(value.listeningItem({ data = $0 }))
+        if source.runObserving() {
+            listeningItems.append(ListeningItem(start: { () }, stop: source.stopObserving, notify: {}, token: nil))
+        } else {
+            debugFatalError("Observing is not running")
+        }
+    }
+
+    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.OutData) -> Void) {
+        var data: T.OutData {
+            set { view.map { v in assign(v, newValue) } }
+            get { fatalError() }
+        }
+        listeningItems.append(value.listeningItem({ data = $0 }))
+        if value.runObserving() {
+            listeningItems.append(ListeningItem(start: { () }, stop: value.stopObserving, notify: {}, token: nil))
+        } else {
+            debugFatalError("Observing is not running")
+        }
     }
 
     public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
@@ -72,6 +91,14 @@ public class ReuseController<View: AnyObject, Key: Hashable> {
         freeItems.append(item)
     }
 
+    func freeAll() {
+        activeItems.forEach {
+            $0.value.free()
+            freeItems.append($0.value)
+        }
+        activeItems.removeAll()
+    }
+
 //    func exchange(indexPath: IndexPath, to ip: IndexPath) {
 //        swap(&items[indexPath], &items[ip])
 //    }
@@ -82,7 +109,7 @@ public protocol RealtimeEditingTableDataSource: class {
     func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath)
 }
 
-open class RealtimeTableViewDelegate<Model: RealtimeValueActions, Section> {
+open class RealtimeTableViewDelegate<Model, Section> {
     public typealias BindingCell<Cell: AnyObject> = (ReuseItem<Cell>, Model) -> Void
     public typealias ConfigureCell = (UITableView, IndexPath, Model) -> UITableViewCell
     fileprivate let reuseController: ReuseController<UITableViewCell, IndexPath> = ReuseController()
@@ -91,6 +118,7 @@ open class RealtimeTableViewDelegate<Model: RealtimeValueActions, Section> {
 
     open weak var tableDelegate: UITableViewDelegate?
     open weak var editingDataSource: RealtimeEditingTableDataSource?
+    open weak var prefetchingDataSource: UITableViewDataSourcePrefetching?
 
     init(cell: @escaping ConfigureCell) {
         self.configureCell = cell
@@ -109,7 +137,7 @@ open class RealtimeTableViewDelegate<Model: RealtimeValueActions, Section> {
     }
 }
 
-public final class SingleSectionTableViewDelegate<Model: RealtimeValueActions>: RealtimeTableViewDelegate<Model, Void> {
+public final class SingleSectionTableViewDelegate<Model>: RealtimeTableViewDelegate<Model, Void> {
     fileprivate lazy var delegateService: Service = Service(self)
 
     var collection: AnySharedCollection<Model>
@@ -122,7 +150,7 @@ public final class SingleSectionTableViewDelegate<Model: RealtimeValueActions>: 
 
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
         where C.Element == Model, C.Index == Int {
-            self.collection.forEach { $0.stopObserving() }
+            self.reuseController.freeAll()
             self.collection = AnySharedCollection(newData)
             tableView.reloadData()
     }
@@ -162,9 +190,7 @@ extension SingleSectionTableViewDelegate {
         }
 
         override func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
-            indexPaths.forEach { ip in
-                delegate.collection[ip.row].load(completion: nil)
-            }
+            delegate.prefetchingDataSource?.tableView(tableView, prefetchRowsAt: indexPaths)
         }
 
         override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
@@ -181,18 +207,12 @@ extension SingleSectionTableViewDelegate {
             let model = delegate.collection[indexPath.row]
             bind(item, model)
             item.set(view: cell)
-            if !model.runObserving() {
-                debugFatalError("Observing is not running")
-            }
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
         }
 
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             delegate.reuseController.free(at: indexPath)
-            if delegate.collection.count > indexPath.row {
-                delegate.collection[indexPath.row].stopObserving()
-            }
             delegate.tableDelegate?.tableView?(tableView, didEndDisplaying: cell, forRowAt: indexPath)
         }
 
@@ -202,17 +222,14 @@ extension SingleSectionTableViewDelegate {
     }
 }
 
-public final class SectionedTableViewDelegate<
-    Model: RealtimeValueActions,
-    Section: RealtimeValueActions
->: RealtimeTableViewDelegate<Model, Section> {
+public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableViewDelegate<Model, Section> {
     public typealias BindingSection<Cell: AnyObject> = (ReuseItem<Cell>, Section) -> Void
     public typealias ConfigureSection = (UITableView, Int) -> UIView?
     fileprivate var configureSection: ConfigureSection
     fileprivate var registeredHeaders: [TypeKey: BindingSection<UIView>] = [:]
     fileprivate let reuseHeadersController: ReuseController<UIView, Int> = ReuseController()
     fileprivate lazy var delegateService: Service = Service(self)
-    let sections: AnySharedCollection<Section>
+    var sections: AnySharedCollection<Section>
     let mapElement: (Section, Int) -> Model
     let mapCount: (Section) -> Int
 
@@ -239,6 +256,13 @@ public final class SectionedTableViewDelegate<
 
     public func section(at index: Int) -> Section {
         return sections[index]
+    }
+
+    public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
+        where C.Element == Section, C.Index == Int {
+            self.reuseController.freeAll()
+            self.sections = AnySharedCollection(newData)
+            tableView.reloadData()
     }
 
     public override func bind(_ tableView: UITableView) {
@@ -290,9 +314,7 @@ extension SectionedTableViewDelegate {
         }
 
         override func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
-            indexPaths.forEach { ip in
-                delegate.model(at: ip).load(completion: nil)
-            }
+            delegate.prefetchingDataSource?.tableView(tableView, prefetchRowsAt: indexPaths)
         }
 
         /// events
@@ -305,23 +327,12 @@ extension SectionedTableViewDelegate {
             let model = delegate.model(at: indexPath)
             bind(item, model)
             item.set(view: cell)
-            if model.canObserve {
-                if !model.runObserving() {
-                    debugFatalError("Observing is not running")
-                }
-            }
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
         }
 
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             delegate.reuseController.free(at: indexPath)
-            if delegate.sections.count > indexPath.section { // TODO: incorrect if removed in middle of collection
-                let section = delegate.sections[indexPath.section]
-                if delegate.mapCount(section) > indexPath.row {
-                    delegate.mapElement(section, indexPath.row).stopObserving()
-                }
-            }
             delegate.tableDelegate?.tableView?(tableView, didEndDisplaying: cell, forRowAt: indexPath)
         }
 
@@ -337,17 +348,12 @@ extension SectionedTableViewDelegate {
             let model = delegate.sections[section]
             bind(item, model)
             item.set(view: view)
-//            if !model.runObserving() {
-//                debugFatalError("Observing is not running")
-//            }
+
             delegate.tableDelegate?.tableView?(tableView, willDisplayHeaderView: view, forSection: section)
         }
 
         override func tableView(_ tableView: UITableView, didEndDisplayingHeaderView view: UIView, forSection section: Int) {
             delegate.reuseHeadersController.free(at: section)
-            if delegate.sections.count > section {
-                delegate.sections[section].stopObserving()
-            }
             delegate.tableDelegate?.tableView?(tableView, didEndDisplayingHeaderView: view, forSection: section)
         }
 
@@ -359,8 +365,8 @@ extension SectionedTableViewDelegate {
             delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
         }
 
-        override func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
-            delegate.editingDataSource?.tableView(tableView, moveRowAt: sourceIndexPath, to: destinationIndexPath)
-        }
+//        override func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
+//            delegate.editingDataSource?.tableView(tableView, moveRowAt: sourceIndexPath, to: destinationIndexPath)
+//        }
     }
 }

@@ -198,7 +198,7 @@ public protocol RTNode: RawRepresentable, Equatable {
 public protocol AssociatedRTNode: RTNode {
     associatedtype ConcreteType: RealtimeValue
 }
-public extension RTNode where Self.RawValue == String {
+public extension RawRepresentable where Self.RawValue == String {
     /// checks availability child in snapshot with node name   
     func has(in snapshot: DataSnapshot) -> Bool {
         return snapshot.hasChild(rawValue)

@@ -168,16 +168,14 @@ extension RequiresPreparation {
 
 public extension RealtimeCollection where Iterator.Element: RequiresPreparation {
     func prepareRecursive(_ completion: @escaping (Error?) -> Void) {
-        let current = self
-        current.prepare(forUse: .just { (err) in
-//            print(current.count, Iterator.Element.self)
+        prepare(forUse: .just { (collection, err) in
             guard err == nil else { completion(err); return }
 
             var lastErr: Error?
             let group = DispatchGroup()
 
-            current.indices.forEach { _ in group.enter() }
-            current.forEach { element in
+            collection.indices.forEach { _ in group.enter() }
+            collection.forEach { element in
                 element.prepareRecursive { (e) in
                     lastErr = e
                     group.leave()
@@ -197,7 +195,7 @@ func prepareElementsRecursive<RC: Collection>(_ collection: RC, completion: @esc
 
     collection.indices.forEach { _ in group.enter() }
     collection.forEach { element in
-        if let prepared = (element as? RequiresPreparation) {
+        if case let prepared as RequiresPreparation = element {
             prepared.prepareRecursive { (err) in
                 lastErr = err
                 group.leave()

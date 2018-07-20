@@ -180,6 +180,9 @@ open class RealtimeObject: _RealtimeValue {
 
     typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
     override public func willRemove(in transaction: RealtimeTransaction) {
+        enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
+            value.willRemove(in: transaction)
+        }
         let links: Links = self.node!.linksNode.property()
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(completion: Assign.just({ err, refs in

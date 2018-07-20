@@ -229,6 +229,10 @@ extension RealtimeTransaction {
 
     // TODO: nearest search uses to resolve permission error
     func performUpdate(_ completion: @escaping (Error?, DatabaseReference) -> Void) {
+        guard updateNode.childs.count > 0 else {
+            fatalError("Try commit empty transaction")
+        }
+
         var nearest = updateNode
         while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
             nearest = next

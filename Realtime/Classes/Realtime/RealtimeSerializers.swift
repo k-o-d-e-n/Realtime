@@ -227,12 +227,11 @@ public class RelationableValueSerializer<V: RealtimeValue>: _Serializer {
     }
 }
 
-/// ---------------------------
+/// --------------------------- DataSnapshot Decoder ------------------------------
 
-// TODO: Avoid as!
 extension DataSnapshot: Decoder {
     public var codingPath: [CodingKey] {
-        return children.map { ($0 as! DataSnapshot).key }
+        return []
     }
 
     public var userInfo: [CodingUserInfoKey : Any] {
@@ -252,10 +251,9 @@ extension DataSnapshot: Decoder {
     }
 }
 
-struct DataSnapshotSingleValueContainer: SingleValueDecodingContainer {
+fileprivate struct DataSnapshotSingleValueContainer: SingleValueDecodingContainer {
     let snapshot: DataSnapshot
-
-    var codingPath: [CodingKey] { return snapshot.children.map { ($0 as! DataSnapshot).key } }
+    var codingPath: [CodingKey] { return snapshot.codingPath }
 
     func decodeNil() -> Bool {
         if let v = snapshot.value {
@@ -264,277 +262,156 @@ struct DataSnapshotSingleValueContainer: SingleValueDecodingContainer {
         return true
     }
 
-    func decode(_ type: Bool.Type) throws -> Bool {
-        return snapshot.value as! Bool
+    private func _decode<T>(_ type: T.Type) throws -> T {
+        guard case let v as T = snapshot.value else {
+            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: codingPath, debugDescription: snapshot.debugDescription))
+        }
+        return v
     }
 
-    func decode(_ type: Int.Type) throws -> Int {
-        return snapshot.value as! Int
-    }
-
-    func decode(_ type: Int8.Type) throws -> Int8 {
-        return snapshot.value as! Int8
-    }
-
-    func decode(_ type: Int16.Type) throws -> Int16 {
-        return snapshot.value as! Int16
-    }
-
-    func decode(_ type: Int32.Type) throws -> Int32 {
-        return snapshot.value as! Int32
-    }
-
-    func decode(_ type: Int64.Type) throws -> Int64 {
-        return snapshot.value as! Int64
-    }
-
-    func decode(_ type: UInt.Type) throws -> UInt {
-        return snapshot.value as! UInt
-    }
-
-    func decode(_ type: UInt8.Type) throws -> UInt8 {
-        return snapshot.value as! UInt8
-    }
-
-    func decode(_ type: UInt16.Type) throws -> UInt16 {
-        return snapshot.value as! UInt16
-    }
-
-    func decode(_ type: UInt32.Type) throws -> UInt32 {
-        return snapshot.value as! UInt32
-    }
-
-    func decode(_ type: UInt64.Type) throws -> UInt64 {
-        return snapshot.value as! UInt64
-    }
-
-    func decode(_ type: Float.Type) throws -> Float {
-        return snapshot.value as! Float
-    }
-
-    func decode(_ type: Double.Type) throws -> Double {
-        return snapshot.value as! Double
-    }
-
-    func decode(_ type: String.Type) throws -> String {
-        return snapshot.value as! String
-    }
-
-    func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
-        return try T(from: snapshot)
-    }
+    func decode(_ type: Bool.Type) throws -> Bool { return try _decode(type) }
+    func decode(_ type: Int.Type) throws -> Int { return try _decode(type) }
+    func decode(_ type: Int8.Type) throws -> Int8 { return try _decode(type) }
+    func decode(_ type: Int16.Type) throws -> Int16 { return try _decode(type) }
+    func decode(_ type: Int32.Type) throws -> Int32 { return try _decode(type) }
+    func decode(_ type: Int64.Type) throws -> Int64 { return try _decode(type) }
+    func decode(_ type: UInt.Type) throws -> UInt { return try _decode(type) }
+    func decode(_ type: UInt8.Type) throws -> UInt8 { return try _decode(type) }
+    func decode(_ type: UInt16.Type) throws -> UInt16 { return try _decode(type) }
+    func decode(_ type: UInt32.Type) throws -> UInt32 { return try _decode(type) }
+    func decode(_ type: UInt64.Type) throws -> UInt64 { return try _decode(type) }
+    func decode(_ type: Float.Type) throws -> Float { return try _decode(type) }
+    func decode(_ type: Double.Type) throws -> Double { return try _decode(type) }
+    func decode(_ type: String.Type) throws -> String { return try _decode(type) }
+    func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: snapshot) }
 }
 
-struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContainer {
+fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContainer {
     let snapshot: DataSnapshot
     let enumerator: NSEnumerator
 
     init(snapshot: DataSnapshot) {
         self.snapshot = snapshot
         self.enumerator = snapshot.children
+        self.currentIndex = 0
     }
 
-    var codingPath: [CodingKey] { return snapshot.children.map { ($0 as! DataSnapshot).key } }
-
+    var codingPath: [CodingKey] { return snapshot.codingPath }
     var count: Int? { return Int(snapshot.childrenCount) }
-
     var isAtEnd: Bool { return currentIndex >= count! }
-
-    var currentIndex: Int { return Int.max }
+    var currentIndex: Int
 
     mutating func decodeNil() throws -> Bool {
-        if let value = (enumerator.nextObject() as? DataSnapshot)?.value {
+        if let value = try nextDecoder().value {
             return value is NSNull
         }
         return true
     }
 
-    mutating func decode(_ type: Bool.Type) throws -> Bool {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! Bool
+    private mutating func nextDecoder() throws -> DataSnapshot {
+        guard case let next as DataSnapshot = enumerator.nextObject() else {
+            throw DecodingError.dataCorruptedError(in: self, debugDescription: snapshot.debugDescription)
+        }
+        currentIndex += 1
+        return next
     }
 
-    mutating func decode(_ type: Int.Type) throws -> Int {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! Int
+    private mutating func _decode<T>(_ type: T.Type) throws -> T {
+        let next = try nextDecoder()
+        guard case let v as T = next.value else {
+            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: [DataSnapshot._CodingKey(intValue: currentIndex)!], debugDescription: next.debugDescription))
+        }
+        return v
     }
 
-    mutating func decode(_ type: Int8.Type) throws -> Int8 {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! Int8
+    mutating func decode(_ type: Bool.Type) throws -> Bool { return try _decode(type) }
+    mutating func decode(_ type: Int.Type) throws -> Int { return try _decode(type) }
+    mutating func decode(_ type: Int8.Type) throws -> Int8 { return try _decode(type) }
+    mutating func decode(_ type: Int16.Type) throws -> Int16 { return try _decode(type) }
+    mutating func decode(_ type: Int32.Type) throws -> Int32 { return try _decode(type) }
+    mutating func decode(_ type: Int64.Type) throws -> Int64 { return try _decode(type) }
+    mutating func decode(_ type: UInt.Type) throws -> UInt { return try _decode(type) }
+    mutating func decode(_ type: UInt8.Type) throws -> UInt8 { return try _decode(type) }
+    mutating func decode(_ type: UInt16.Type) throws -> UInt16 { return try _decode(type) }
+    mutating func decode(_ type: UInt32.Type) throws -> UInt32 { return try _decode(type) }
+    mutating func decode(_ type: UInt64.Type) throws -> UInt64 { return try _decode(type) }
+    mutating func decode(_ type: Float.Type) throws -> Float { return try _decode(type) }
+    mutating func decode(_ type: Double.Type) throws -> Double { return try _decode(type) }
+    mutating func decode(_ type: String.Type) throws -> String { return try _decode(type) }
+    mutating func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: try nextDecoder()) }
+
+    mutating func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type)
+        throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
+        return try nextDecoder().container(keyedBy: type)
     }
 
-    mutating func decode(_ type: Int16.Type) throws -> Int16 {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! Int16
-    }
-
-    mutating func decode(_ type: Int32.Type) throws -> Int32 {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! Int32
-    }
-
-    mutating func decode(_ type: Int64.Type) throws -> Int64 {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! Int64
-    }
-
-    mutating func decode(_ type: UInt.Type) throws -> UInt {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! UInt
-    }
-
-    mutating func decode(_ type: UInt8.Type) throws -> UInt8 {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! UInt8
-    }
-
-    mutating func decode(_ type: UInt16.Type) throws -> UInt16 {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! UInt16
-    }
-
-    mutating func decode(_ type: UInt32.Type) throws -> UInt32 {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! UInt32
-    }
-
-    mutating func decode(_ type: UInt64.Type) throws -> UInt64 {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! UInt64
-    }
-
-    mutating func decode(_ type: Float.Type) throws -> Float {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! Float
-    }
-
-    mutating func decode(_ type: Double.Type) throws -> Double {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! Double
-    }
-
-    mutating func decode(_ type: String.Type) throws -> String {
-        return (enumerator.nextObject() as? DataSnapshot)?.value as! String
-    }
-
-    mutating func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
-        guard let child = enumerator.nextObject() as? DataSnapshot else { fatalError() }
-        return try T(from: child)
-    }
-
-    mutating func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        guard let child = enumerator.nextObject() as? DataSnapshot else { fatalError() }
-        return try child.container(keyedBy: type)
-    }
-
-    mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
-        guard let child = enumerator.nextObject() as? DataSnapshot else { fatalError() }
-        return try child.unkeyedContainer()
-    }
-
-    mutating func superDecoder() throws -> Decoder {
-        fatalError()
-    }
+    mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer { return try nextDecoder().unkeyedContainer() }
+    mutating func superDecoder() throws -> Decoder { return snapshot }
 }
 
 struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtocol {
-    enum Error: Swift.Error {
-        case typeMismatch
-    }
     typealias Key = K
     let snapshot: DataSnapshot
 
-    var codingPath: [CodingKey] { return snapshot.codingPath }
-
+    var codingPath: [CodingKey] { return [] }
     var allKeys: [Key] { return snapshot.children.compactMap { Key(stringValue: ($0 as! DataSnapshot).key) } }
+
+    private func childDecoder(forKey key: Key) throws -> DataSnapshot {
+        guard contains(key) else {
+            throw DecodingError.keyNotFound(key, DecodingError.Context(codingPath: [key], debugDescription: snapshot.debugDescription))
+        }
+        return snapshot.childSnapshot(forPath: key.stringValue)
+    }
+
+    private func _decode<T>(_ type: T.Type, forKey key: Key) throws -> T {
+        let child = try childDecoder(forKey: key)
+        guard case let v as T = child.value else {
+            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: [key], debugDescription: child.debugDescription))
+        }
+        return v
+    }
 
     func contains(_ key: Key) -> Bool {
         return snapshot.hasChild(key.stringValue)
     }
 
-    func decodeNil(forKey key: Key) throws -> Bool {
-        if contains(key) {
-            return snapshot.childSnapshot(forPath: key.stringValue).value is NSNull
-        }
-        return true
-    }
-
-    func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! Bool
-    }
-
-    func decode(_ type: Int.Type, forKey key: Key) throws -> Int {
-        guard let val = snapshot.childSnapshot(forPath: key.stringValue).value as? Int else {
-            throw Error.typeMismatch
-        }
-        return val
-    }
-
-    func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! Int8
-    }
-
-    func decode(_ type: Int16.Type, forKey key: Key) throws -> Int16 {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! Int16
-    }
-
-    func decode(_ type: Int32.Type, forKey key: Key) throws -> Int32 {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! Int32
-    }
-
-    func decode(_ type: Int64.Type, forKey key: Key) throws -> Int64 {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! Int64
-    }
-
-    func decode(_ type: UInt.Type, forKey key: Key) throws -> UInt {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! UInt
-    }
-
-    func decode(_ type: UInt8.Type, forKey key: Key) throws -> UInt8 {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! UInt8
-    }
-
-    func decode(_ type: UInt16.Type, forKey key: Key) throws -> UInt16 {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! UInt16
-    }
-
-    func decode(_ type: UInt32.Type, forKey key: Key) throws -> UInt32 {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! UInt32
-    }
-
-    func decode(_ type: UInt64.Type, forKey key: Key) throws -> UInt64 {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! UInt64
-    }
-
-    func decode(_ type: Float.Type, forKey key: Key) throws -> Float {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! Float
-    }
-
-    func decode(_ type: Double.Type, forKey key: Key) throws -> Double {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! Double
-    }
-
-    func decode(_ type: String.Type, forKey key: Key) throws -> String {
-        return snapshot.childSnapshot(forPath: key.stringValue).value as! String
-    }
-
+    func decodeNil(forKey key: Key) throws -> Bool { return try childDecoder(forKey: key).value is NSNull }
+    func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool { return try _decode(type, forKey: key) }
+    func decode(_ type: Int.Type, forKey key: Key) throws -> Int { return try _decode(type, forKey: key) }
+    func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 { return try _decode(type, forKey: key) }
+    func decode(_ type: Int16.Type, forKey key: Key) throws -> Int16 { return try _decode(type, forKey: key) }
+    func decode(_ type: Int32.Type, forKey key: Key) throws -> Int32 { return try _decode(type, forKey: key) }
+    func decode(_ type: Int64.Type, forKey key: Key) throws -> Int64 { return try _decode(type, forKey: key) }
+    func decode(_ type: UInt.Type, forKey key: Key) throws -> UInt { return try _decode(type, forKey: key) }
+    func decode(_ type: UInt8.Type, forKey key: Key) throws -> UInt8 { return try _decode(type, forKey: key) }
+    func decode(_ type: UInt16.Type, forKey key: Key) throws -> UInt16 { return try _decode(type, forKey: key) }
+    func decode(_ type: UInt32.Type, forKey key: Key) throws -> UInt32 { return try _decode(type, forKey: key) }
+    func decode(_ type: UInt64.Type, forKey key: Key) throws -> UInt64 { return try _decode(type, forKey: key) }
+    func decode(_ type: Float.Type, forKey key: Key) throws -> Float { return try _decode(type, forKey: key) }
+    func decode(_ type: Double.Type, forKey key: Key) throws -> Double { return try _decode(type, forKey: key) }
+    func decode(_ type: String.Type, forKey key: Key) throws -> String { return try _decode(type, forKey: key) }
     func decode<T>(_ type: T.Type, forKey key: Key) throws -> T where T : Decodable {
-        return try T(from: snapshot.childSnapshot(forPath: key.stringValue))
+        return try T(from: childDecoder(forKey: key))
     }
-
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        return try snapshot.childSnapshot(forPath: key.stringValue).container(keyedBy: type)
+        return try childDecoder(forKey: key).container(keyedBy: type)
     }
-
     func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer {
-        return try snapshot.childSnapshot(forPath: key.stringValue).unkeyedContainer()
+        return try childDecoder(forKey: key).unkeyedContainer()
     }
-
-    func superDecoder() throws -> Decoder {
-        fatalError()
-    }
-
-    func superDecoder(forKey key: Key) throws -> Decoder {
-        fatalError()
+    func superDecoder() throws -> Decoder { return snapshot }
+    func superDecoder(forKey key: Key) throws -> Decoder { return snapshot }
+}
+extension DataSnapshot {
+    struct _CodingKey: CodingKey {
+        internal var intValue: Int?
+        internal init?(intValue: Int) {
+            self.intValue = intValue
+            self.stringValue = String(intValue)
+        }
+        internal var stringValue: String
+        internal init?(stringValue: String) {
+            self.stringValue = stringValue
+        }
     }
 }
-extension String: CodingKey {
-    public var intValue: Int? { return Int(self) }
-    public init?(intValue: Int) {
-        self.init(intValue)
-    }
-    public var stringValue: String { return self }
-    public init?(stringValue: String) {
-        self.init(stringValue)
-    }
-}
-
-

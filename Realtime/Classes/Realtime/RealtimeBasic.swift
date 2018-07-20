@@ -96,7 +96,6 @@ public protocol DatabaseKeyRepresentable {
 
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented {
-//    var dbRef: DatabaseReference { get } // TODO: Use abstract protocol which has methods for observing and reference. Need for use DatabaseQuery
     var node: Node? { get }
 
     init(in node: Node?)
@@ -114,6 +113,7 @@ public extension RealtimeValue {
     }
     init() { self.init(in: nil) }
 }
+extension HasDefaultLiteral where Self: RealtimeValue {}
 
 public extension RealtimeValue {
     func apply(snapshot: DataSnapshot) {
