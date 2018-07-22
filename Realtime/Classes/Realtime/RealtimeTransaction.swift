@@ -335,7 +335,7 @@ public extension RealtimeTransaction {
         guard value.hasChanges else { debugFatalError("Value has not changes"); return }
         guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
 
-        value.insertChanges(to: self, by: updatedNode)
+        value.writeChanges(to: self, by: updatedNode)
         revertion(for: value)
     }
 

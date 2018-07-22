@@ -279,7 +279,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
         }
     }
 
-    override public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
+    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         if hasChanges {
             for (index, element) in storage.localElements.enumerated() {
                 _write(element,

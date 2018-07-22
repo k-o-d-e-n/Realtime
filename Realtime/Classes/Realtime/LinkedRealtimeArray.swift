@@ -71,7 +71,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
         _view.isPrepared = true
     }
 
-    override public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
+    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         if hasChanges {
             for (index, element) in storage.localElements.enumerated() {
                 _write(element, at: index, by: node, in: transaction)

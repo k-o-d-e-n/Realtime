@@ -178,10 +178,10 @@ public class RealtimeProperty<T, Serializer: _Serializer>: _RealtimeValue, Value
         return self
     }
 
-    override public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
+    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         if hasChanges {
             transaction.addReversion(currentReversion())
-            super.insertChanges(to: transaction, by: node)
+            super.writeChanges(to: transaction, by: node)
         }
     }
     

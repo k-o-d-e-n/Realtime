@@ -98,6 +98,9 @@ public protocol DatabaseKeyRepresentable {
 public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented {
     var node: Node? { get }
 
+    /// Designed initializer
+    ///
+    /// - Parameter node: Node location for value
     init(in node: Node?)
     /// Applies value of data snapshot
     ///
@@ -203,15 +206,29 @@ extension RealtimeValueEvents where Self: RealtimeValue {
 // MARK: Extended Realtime Value
 
 public protocol ChangeableRealtimeValue: RealtimeValue {
+    /// Indicates that value was changed
     var hasChanges: Bool { get }
 
-    func insertChanges(to transaction: RealtimeTransaction, by node: Node)
+    /// Writes all changes of value to passed transaction
+    ///
+    /// - Parameters:
+    ///   - transaction: Current transaction
+    ///   - node: Node for this value
+    func writeChanges(to transaction: RealtimeTransaction, by node: Node)
 }
 
 public protocol RealtimeValueActions: RealtimeValueEvents {
+    /// Single loading of value. Returns error if object hasn't rooted node.
+    ///
+    /// - Parameter completion: Closure that called on end loading or error
     func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?)
+    /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
+    /// Runs observing value, if
+    ///
+    /// - Returns: True if running was successful or observing already run, otherwise false
     @discardableResult func runObserving() -> Bool
+    /// Stops observing, if observers no more.
     func stopObserving()
 }
 

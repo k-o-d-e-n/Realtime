@@ -29,6 +29,8 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
             get { fatalError() }
         }
         listeningItems.append(value.listeningItem({ data = $0 }))
+
+        guard source.canObserve else { return }
         if source.runObserving() {
             listeningItems.append(ListeningItem(start: { () }, stop: source.stopObserving, notify: {}, token: nil))
         } else {
@@ -42,6 +44,8 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
             get { fatalError() }
         }
         listeningItems.append(value.listeningItem({ data = $0 }))
+
+        guard value.canObserve else { return }
         if value.runObserving() {
             listeningItems.append(ListeningItem(start: { () }, stop: value.stopObserving, notify: {}, token: nil))
         } else {

@@ -279,7 +279,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         }
     }
 
-    override public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
+    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         if hasChanges {
             storage.localElements.forEach { (key, value) in
                 _write(value,

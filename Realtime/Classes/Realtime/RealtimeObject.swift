@@ -115,7 +115,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     
     open func apply(snapshot: DataSnapshot, strongly: Bool) {}
 
-    public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
+    public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         if hasChanges {
             transaction.addValue(localValue, by: node)
         }
@@ -228,7 +228,7 @@ open class RealtimeObject: _RealtimeValue {
         fatalError("You should implement class func keyPath(for:)")
     }
 
-    override public func insertChanges(to transaction: RealtimeTransaction, by node: Node) {
+    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         reflect { (mirror) in
             mirror.children.forEach({ (child) in
                 guard var label = child.label else { return }
@@ -239,7 +239,7 @@ open class RealtimeObject: _RealtimeValue {
                 if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
                     if let value = self[keyPath: keyPath] as? _RealtimeValue {
                         if let valNode = value.node {
-                            value.insertChanges(to: transaction, by: node.child(with: valNode.key))
+                            value.writeChanges(to: transaction, by: node.child(with: valNode.key))
                         } else {
                             fatalError("There is not specified child node in \(self)")
                         }
