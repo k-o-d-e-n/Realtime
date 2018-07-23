@@ -14,14 +14,17 @@ private enum LinkNodes {
     static let sourceID = "s_id"
 }
 
-struct Reference: FireDataRepresented, Codable {
+struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
     let ref: String
 
     init(ref: String) {
         self.ref = ref
     }
 
-    var localValue: Any? { return [LinkNodes.path.rawValue: ref] }
+    var fireValue: FireDataValue {
+        let v: [String: FireDataValue] = [LinkNodes.path.rawValue: ref]
+        return v
+    }
     init(fireData: FireDataProtocol) throws {
         guard let ref: String = LinkNodes.path.map(from: fireData) else { throw RealtimeError("Fail") }
         self.ref = ref
@@ -39,7 +42,7 @@ extension RealtimeValue {
     }
 }
 
-struct Relation: FireDataRepresented {
+struct Relation: FireDataRepresented, FireDataValueRepresented {
     /// Path to related object
     let targetPath: String
     /// Property of related object that represented this relation
@@ -55,8 +58,11 @@ struct Relation: FireDataRepresented {
         case relatedProperty = "r_prop"
     }
 
-    var localValue: Any? { return [CodingKeys.targetPath.rawValue: targetPath,
-                                   CodingKeys.relatedProperty.rawValue: relatedProperty] }
+    var fireValue: FireDataValue {
+        let v: [String: FireDataValue] = [CodingKeys.targetPath.rawValue: targetPath,
+                                          CodingKeys.relatedProperty.rawValue: relatedProperty]
+        return v
+    }
 
     init(fireData: FireDataProtocol) throws {
         guard
@@ -69,7 +75,7 @@ struct Relation: FireDataRepresented {
     }
 }
 
-public struct SourceLink: FireDataRepresented {
+struct SourceLink: FireDataRepresented, FireDataValueRepresented {
     let links: [String]
     let id: String
 
@@ -78,8 +84,8 @@ public struct SourceLink: FireDataRepresented {
         self.links = links
     }
 
-    public var localValue: Any? { return links }
-    public init(fireData: FireDataProtocol) throws {
+    var fireValue: FireDataValue { return links }
+    init(fireData: FireDataProtocol) throws {
         guard
             let id = fireData.dataKey,
             let links: [String] = fireData.flatMap()

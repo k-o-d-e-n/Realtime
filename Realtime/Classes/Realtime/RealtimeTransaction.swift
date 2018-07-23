@@ -365,8 +365,8 @@ public extension RealtimeTransaction {
     }
 }
 
-public extension RealtimeTransaction {
+extension RealtimeTransaction {
     func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) {
-        addValue(link.localValue, by: value.node!.linksNode.child(with: link.id))
+        addValue(link.fireValue, by: value.node!.linksNode.child(with: link.id))
     }
 }

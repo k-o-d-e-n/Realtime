@@ -18,13 +18,13 @@ struct RCError: Error {
 /// -----------------------------------------
 
 // TODO: May be need use format as: [__linkID: linkID, __i: index, __pl: [...]]
-struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataValue {
+struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireDataValueRepresented {
     let dbKey: String!
     let linkID: String
     let index: Int
-    let payload: [String: Any]?
+    let payload: [String: FireDataValue]?
 
-    init(dbKey: String, linkID: String, index: Int, payload: [String: Any]? = nil) {
+    init(dbKey: String, linkID: String, index: Int, payload: [String: FireDataValue]? = nil) {
         self.dbKey = dbKey
         self.linkID = linkID
         self.index = index
@@ -45,11 +45,15 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataValue {
         self.payload = Nodes.payload.map(from: value)
     }
 
-    var localValue: Any? {
-        return [
-            linkID: [Nodes.index.rawValue: index,
-                     Nodes.payload.rawValue: payload ?? [:]]
-        ]
+    var fireValue: FireDataValue {
+        var value: [String: FireDataValue] = [:]
+        let link: [String: FireDataValue] = [Nodes.index.rawValue: index]
+        value[linkID] = link
+        if let p = payload {
+            value[Nodes.payload.rawValue] = p
+        }
+
+        return value
     }
 
     var hashValue: Int {
@@ -60,22 +64,6 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataValue {
         return lhs.dbKey == rhs.dbKey
     }
 }
-final class RCItemArraySerializer: _Serializer {
-    class func deserialize(_ entity: DataSnapshot) -> [RCItem] {
-        return (try? entity.children.lazy.map { $0 as! DataSnapshot }
-            .map(RCItem.init)
-            .sorted(by: { $0.index < $1.index })) ?? []
-    }
-
-    class func serialize(_ entity: [RCItem]) -> Any? {
-        return entity.reduce(Dictionary<String, Any>(), { (result, item) -> [String: Any] in
-            var result = result
-            result[item.dbKey] = item.localValue
-            return result
-        })
-    }
-}
-typealias RCItemSerializer = FireDataValueSerializer<RCItem>
 
 public protocol RealtimeCollectionStorage {
     associatedtype Value

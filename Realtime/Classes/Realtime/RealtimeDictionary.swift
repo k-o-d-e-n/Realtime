@@ -178,12 +178,12 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         storage.store(value: element, by: key)
 
         if needLink {
-            transaction.addValue(link.link.localValue, by: link.node)
+            transaction.addValue(link.link.fireValue, by: link.node)
             let valueLink = elementNode.generate(linkKeyedBy: link.link.id,
                                                  to: [itemNode, link.node])
-            transaction.addValue(valueLink.link.localValue, by: valueLink.node)
+            transaction.addValue(valueLink.link.fireValue, by: valueLink.node)
         }
-        transaction.addValue(RCItemSerializer.serialize(item), by: itemNode)
+        transaction.addValue(item.fireValue, by: itemNode)
         if let e = element as? RealtimeObject {
             transaction._update(e, by: elementNode)
         } else {
@@ -280,6 +280,11 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
                        in: transaction)
             }
         }
+    }
+
+    public override func write(to transaction: RealtimeTransaction, by node: Node) {
+        // writes changes because after save collection can use only transaction mutations
+        writeChanges(to: transaction, by: node)
     }
 
 //    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {

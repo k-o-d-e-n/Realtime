@@ -57,7 +57,7 @@ public extension AnyRVRepresenter where V: RealtimeValue {
             encoding: { v in
                 guard let node = v?.node else { return nil }
 
-                return Relation(path: node.rootPath, property: property).localValue
+                return Relation(path: node.rootPath, property: property).fireValue
         },
             decoding: { d in
                 guard d.exists() else { return nil }
@@ -84,7 +84,6 @@ public protocol HasDefaultLiteral {
 
 public protocol FireDataValue: FireDataRepresented {}
 extension FireDataValue {
-    public var localValue: Any? { return self }
     public init(fireData: FireDataProtocol) throws {
         guard let v = fireData.value as? Self else {
             throw RealtimeError("Failed data for type: \(Self.self)")
@@ -95,13 +94,40 @@ extension FireDataValue {
 }
 
 extension Optional: FireDataValue, FireDataRepresented where Wrapped: FireDataValue {
-    public var localValue: Any? { return self?.localValue }
     public init(fireData: FireDataProtocol) throws {
         self = fireData.value as? Wrapped
     }
 }
-extension Array: FireDataValue where Element: FireDataValue {}
-extension Dictionary: FireDataValue where Key: FireDataValue, Value: FireDataValue {}
+extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue {
+    public init(fireData: FireDataProtocol) throws {
+        guard let v = fireData.value as? Array<Element> else {
+            throw RealtimeError("Failed data for type: \(Array<Element>.self)")
+        }
+
+        self = v
+    }
+}
+
+// TODO: Swift 4.2
+//extension Dictionary: FireDataValue, FireDataRepresented where Key: FireDataValue, Value: FireDataValue {
+//    public init(fireData: FireDataProtocol) throws {
+//        guard let v = fireData.value as? [Key: Value] else {
+//            throw RealtimeError("Failed data for type: \([Key: Value].self)")
+//        }
+//
+//        self = v
+//    }
+//}
+
+extension Dictionary: FireDataValue, FireDataRepresented where Key: FireDataValue, Value == FireDataValue {
+    public init(fireData: FireDataProtocol) throws {
+        guard let v = fireData.value as? [Key: Value] else {
+            throw RealtimeError("Failed data for type: \([Key: Value].self)")
+        }
+
+        self = v
+    }
+}
 
 extension Optional  : HasDefaultLiteral { public init() { self = .none } }
 extension Bool      : HasDefaultLiteral, FireDataValue {}
@@ -121,35 +147,6 @@ extension String    : HasDefaultLiteral, FireDataValue {}
 extension Data      : HasDefaultLiteral {}
 extension Array     : HasDefaultLiteral {}
 extension Dictionary: HasDefaultLiteral {}
-
-extension Dictionary: MutableDataRepresented {//} where Key: MutableDataRepresented, Value: MutableDataRepresented {
-    private struct Error: Swift.Error {
-        var localizedDescription: String { return "Data could not convert to dictionary" }
-    }
-    public var localValue: Any? {
-        return self
-//        return reduce(into: [:], { (res, elem) in
-//            res[elem.key.localValue] = elem.value.localValue
-//        })
-    }
-
-    public init(data: MutableData) throws {
-        guard let v = data.value as? [Key: Value] else { throw Error() }
-
-        self = v
-    }
-}
-
-extension Array: MutableDataRepresented where Element: FireDataRepresented {
-    private struct Error: Swift.Error {
-        var localizedDescription: String { return "Data could not convert to array" }
-    }
-    public var localValue: Any? { return map { $0.localValue } }
-
-    public init(data: MutableData) throws {
-        self = try data.children.map { try Element(fireData: unsafeBitCast($0 as AnyObject, to: MutableData.self)) }
-    }
-}
 
 // MARK: Serializer
 
@@ -175,7 +172,7 @@ public class FireDataValueSerializer<V: FireDataValue>: _Serializer {
         return try? V(fireData: entity)
     }
     public static func serialize(_ entity: V?) -> Any? {
-        return entity.localValue
+        return entity
     }
 }
 
@@ -264,15 +261,15 @@ class SourceLinkArraySerializer: _Serializer {
     class func serialize(_ entity: [SourceLink]) -> [String: Any] {
         return entity.reduce([:], { (res, link) -> [String: Any] in
             var res = res
-            res[link.id] = link.localValue
+            res[link.id] = link.fireValue
             return res
         })
     }
 }
 
-class DataSnapshotRepresentedSerializer<L: FireDataRepresented>: _Serializer {
+class DataSnapshotRepresentedSerializer<L: FireDataRepresented & FireDataValueRepresented>: _Serializer {
     class func deserialize(_ entity: DataSnapshot) -> L? { return try? L(fireData: entity) }
-    class func serialize(_ entity: L?) -> Any? { return entity.flatMap { $0.localValue } }
+    class func serialize(_ entity: L?) -> Any? { return entity.flatMap { $0.fireValue } }
 }
 
 public class LinkableValueSerializer<V: RealtimeValue>: _Serializer {
@@ -280,7 +277,7 @@ public class LinkableValueSerializer<V: RealtimeValue>: _Serializer {
         return DataSnapshotRepresentedSerializer<Reference>.deserialize(entity)?.make()
     }
     public static func serialize(_ entity: V?) -> Any? {
-        return entity?.reference()?.localValue
+        return entity?.reference()?.fireValue
     }
 }
 

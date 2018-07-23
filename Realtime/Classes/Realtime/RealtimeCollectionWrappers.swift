@@ -26,6 +26,7 @@ struct AnyCollectionKey: Hashable, DatabaseKeyRepresentable {
 
 internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var node: Node? { fatalError() }
+    var payload: [String : FireDataValue]? { fatalError() }
     var view: RealtimeCollectionView { fatalError() }
     var isPrepared: Bool { fatalError() }
     func makeIterator() -> AnyIterator<Element> { fatalError() }
@@ -65,6 +66,7 @@ where C.Index == Int {
     }
 
     override var node: Node? { return base.node }
+    override var payload: [String : FireDataValue]? { return base.payload }
     override var view: RealtimeCollectionView { return base.view }
     override var isPrepared: Bool { return base.isPrepared }
 
@@ -98,6 +100,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     }
 
     public var node: Node? { return base.node }
+    public var payload: [String : FireDataValue]? { return base.payload }
     public var storage: AnyArrayStorage = AnyArrayStorage()
     public var view: RealtimeCollectionView { return base.view }
     public var isPrepared: Bool { return base.isPrepared }
@@ -205,6 +208,7 @@ where Element: RealtimeValue {
     }
 
     public var node: Node? { get { return base.node } set {} }
+    public var payload: [String : FireDataValue]? { return base.payload }
     public var view: RealtimeCollectionView { return base.view }
     public var storage: KeyedCollectionStorage<Element>
     public var isPrepared: Bool { return base.isPrepared }
@@ -271,6 +275,7 @@ where Base.Index == Int {
     }
 
     public var node: Node? { get { return base.node } set {} }
+    public var payload: [String : FireDataValue]? { return base.payload }
     public var view: RealtimeCollectionView { return base.view }
     public var storage: AnyArrayStorage
     public var isPrepared: Bool { return base.isPrepared }

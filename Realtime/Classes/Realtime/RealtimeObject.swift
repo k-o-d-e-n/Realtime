@@ -15,12 +15,16 @@ import FirebaseDatabase
 open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
     public var dbRef: DatabaseReference?
     public internal(set) var node: Node?
+    public internal(set) var payload: [String : FireDataValue]?
     private var observing: (token: UInt, counter: Int)?
     public var isObserved: Bool { return observing != nil }
     public var canObserve: Bool { return isRooted }
     public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self.node = node
         self.dbRef = node.flatMap { $0.isRooted ? $0.reference : nil }
+        if case let pl as [String: FireDataValue] = options[.payload] {
+            self.payload = pl
+        }
     }
 
     deinit {
@@ -163,14 +167,11 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
 open class RealtimeObject: _RealtimeValue {
     override public var hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val.hasChanges }) }
 
-//    private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
-
     open var parent: RealtimeObject?
 
     public override func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
         super.willSave(in: transaction, in: parent, by: key)
         let node = parent.child(with: key)
-//        mv.willSave(in: transaction, in: node)
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
             value.willSave(in: transaction, in: node, by: value.node!.key)
         }
@@ -179,7 +180,6 @@ open class RealtimeObject: _RealtimeValue {
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
         if let node = self.node {
-//            mv.didSave(in: node)
             enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
                 value.didSave(in: node)
             }
@@ -205,7 +205,6 @@ open class RealtimeObject: _RealtimeValue {
     }
     
     override public func didRemove(from node: Node) {
-//        mv.didRemove(from: node)
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
             value.didRemove(from: node)
         }
@@ -213,8 +212,7 @@ open class RealtimeObject: _RealtimeValue {
     }
     
     override open func apply(snapshot: DataSnapshot, strongly: Bool) {
-//        if strongly || Nodes.modelVersion.has(in: snapshot) { mv.apply(snapshot: Nodes.modelVersion.snapshot(from: snapshot)) }
-
+        super.apply(snapshot: snapshot, strongly: strongly)
         reflect { (mirror) in
             apply(snapshot: snapshot, strongly: strongly, to: mirror)
         }
@@ -239,6 +237,27 @@ open class RealtimeObject: _RealtimeValue {
         fatalError("You should implement class func keyPath(for:)")
     }
 
+    public override func write(to transaction: RealtimeTransaction, by node: Node) {
+        reflect { (mirror) in
+            mirror.children.forEach({ (child) in
+                guard var label = child.label else { return }
+
+                if label.hasSuffix(lazyStoragePath) {
+                    label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
+                }
+                if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
+                    if case let value as _RealtimeValue = self[keyPath: keyPath] {
+                        if let valNode = value.node {
+                            value.write(to: transaction, by: node.child(with: valNode.key))
+                        } else {
+                            fatalError("There is not specified child node in \(self)")
+                        }
+                    }
+                }
+            })
+        }
+    }
+
     override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         reflect { (mirror) in
             mirror.children.forEach({ (child) in
@@ -248,7 +267,7 @@ open class RealtimeObject: _RealtimeValue {
                     label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
                 }
                 if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
-                    if let value = self[keyPath: keyPath] as? _RealtimeValue {
+                    if case let value as _RealtimeValue = self[keyPath: keyPath] {
                         if let valNode = value.node {
                             value.writeChanges(to: transaction, by: node.child(with: valNode.key))
                         } else {
@@ -258,15 +277,9 @@ open class RealtimeObject: _RealtimeValue {
                 }
             })
         }
-//        mv.insertChanges(to: , by: )
     }
 
     // MARK: RealtimeObject
-    
-    // TODO: Link as callback for modelVersion property
-    open func performMigration(from version: Int?) {
-        // implement migration
-    }
 
     private func keyedValues(use maping: (_RealtimeValue) -> Any?) -> [String: Any]? {
         var keyedValues: [String: Any]? = nil

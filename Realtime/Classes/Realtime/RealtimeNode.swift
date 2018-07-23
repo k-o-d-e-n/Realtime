@@ -171,13 +171,13 @@ public extension Node {
         guard isRooted else { fatalError("Try get links node from not rooted node: \(self)") }
         return copy(to: Node.linksNode)
     }
-    func generate(linkTo targetNode: Node) -> (node: Node, link: SourceLink) {
+    internal func generate(linkTo targetNode: Node) -> (node: Node, link: SourceLink) {
         return generate(linkTo: [targetNode])
     }
-    func generate(linkTo targetNodes: [Node]) -> (node: Node, link: SourceLink) {
+    internal func generate(linkTo targetNodes: [Node]) -> (node: Node, link: SourceLink) {
         return generate(linkKeyedBy: DatabaseReference.root().childByAutoId().key, to: targetNodes)
     }
-    func generate(linkKeyedBy linkKey: String, to targetNodes: [Node]) -> (node: Node, link: SourceLink) {
+    internal func generate(linkKeyedBy linkKey: String, to targetNodes: [Node]) -> (node: Node, link: SourceLink) {
         return (linksNode.child(with: linkKey), SourceLink(id: linkKey, links: targetNodes.map { $0.rootPath }))
     }
 }

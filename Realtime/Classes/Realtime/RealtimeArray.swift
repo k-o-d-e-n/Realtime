@@ -187,8 +187,8 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
         transaction.addReversion(reversion)
         _view.source.value.insert(item, at: item.index)
         storage.store(value: element, by: item)
-        transaction.addValue(RCItemSerializer.serialize(item), by: itemNode)
-        transaction.addValue(link.link.localValue, by: link.node)
+        transaction.addValue(item.fireValue, by: itemNode)
+        transaction.addValue(link.link.fireValue, by: link.node)
         if let elem = element as? RealtimeObject { // TODO: Fix it
             transaction._update(elem, by: elementNode)
         } else {
@@ -278,6 +278,11 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
                        in: transaction)
             }
         }
+    }
+
+    public override func write(to transaction: RealtimeTransaction, by node: Node) {
+        // writes changes because after save collection can use only transaction mutations
+        writeChanges(to: transaction, by: node)
     }
 
 //    override public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {

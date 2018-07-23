@@ -91,7 +91,7 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
             let ownerNode = node.ancestor(on: options.ownerLevelsUp)!
             let thisProperty = node.path(from: ownerNode)
             let backwardRelation = Relation(path: ownerNode.rootPath, property: thisProperty)
-            transaction.addValue(backwardRelation.localValue, by: backwardNode)
+            transaction.addValue(backwardRelation.fireValue, by: backwardNode)
         }
         if let previousNode = oldValue??.node?.child(with: options.property) {
             transaction.addValue(nil, by: previousNode)
@@ -329,7 +329,7 @@ public extension SharedProperty {
             ref.runTransactionBlock({ data in
                 do {
                     let dataValue = data.exists() ? try T.init(fireData: data) : T()
-                    data.value = try changing(dataValue).localValue
+                    data.value = try changing(dataValue)
                 } catch let e {
                     debugFatalError(e.localizedDescription)
 
@@ -355,7 +355,7 @@ public extension SharedProperty {
     }
 }
 
-public final class MutationPoint<T> where T: FireDataRepresented {
+public final class MutationPoint<T> where T: FireDataValue {
     public let node: Node
     public required init(in node: Node) throws {
         guard node.isRooted else { throw RealtimeError("Node should be rooted") }
@@ -365,13 +365,13 @@ public final class MutationPoint<T> where T: FireDataRepresented {
 public extension MutationPoint {
     func set(value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
-        transaction.addValue(value.localValue, by: node)
+        transaction.addValue(value, by: node)
 
         return transaction
     }
     func mutate(by key: String? = nil, use value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
-        transaction.addValue(value.localValue, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+        transaction.addValue(value, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
 
         return transaction
     }

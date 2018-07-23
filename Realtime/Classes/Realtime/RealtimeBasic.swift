@@ -69,11 +69,7 @@ extension MutableData: FireDataProtocol {
 // TODO: Avoid using three separated protocols
 
 public protocol DataSnapshotRepresented {
-    var payload: [String: Any]? { get }
     init?(snapshot: DataSnapshot)
-}
-extension DataSnapshotRepresented {
-    public var payload: [String : Any]? { return nil }
 }
 
 public protocol MutableDataRepresented {
@@ -83,8 +79,10 @@ public protocol MutableDataRepresented {
 
 // TODO: I can make data wrapper struct, without create protocol or conformed protocol (avoid conformation DataSnapshot and MutableData)
 public protocol FireDataRepresented {
-    var localValue: Any? { get }
     init(fireData: FireDataProtocol) throws
+}
+public protocol FireDataValueRepresented {
+    var fireValue: FireDataValue { get }
 }
 
 public protocol DatabaseKeyRepresentable {
@@ -106,6 +104,8 @@ extension RealtimeValueOption {
 
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented {
+    /// Some data associated with value
+    var payload: [String: FireDataValue]? { get }
     /// Node location in database
     var node: Node? { get }
 

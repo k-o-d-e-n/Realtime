@@ -76,6 +76,11 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
         }
     }
 
+    public override func write(to transaction: RealtimeTransaction, by node: Node) {
+        // writes changes because after save collection can use only transaction mutations
+        writeChanges(to: transaction, by: node)
+    }
+
 //    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
 
 //    }
@@ -155,8 +160,8 @@ public extension LinkedRealtimeArray {
         transaction.addReversion(reversion)
         _view.source.value.insert(item, at: item.index)
         storage.store(value: element, by: item)
-        transaction.addValue(RCItemSerializer.serialize(item), by: itemNode)
-        transaction.addValue(link.link.localValue, by: link.node)
+        transaction.addValue(item.fireValue, by: itemNode)
+        transaction.addValue(link.link.fireValue, by: link.node)
     }
 
     @discardableResult

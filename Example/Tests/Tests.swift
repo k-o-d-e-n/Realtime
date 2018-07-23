@@ -886,18 +886,125 @@ extension Tests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
     }
 
-    // TODO: Permission denied
-//    func testRealtimeDictionaryReturnsNilOnDoesNotExistsKey() {
-//        let exp = expectation(description: "")
-//        let dict = RealtimeDictionary<RealtimeObject, RealtimeObject>(in: Node.root.linksNode, keysNode: .root)
-//        dict.prepare { (d, _) in
-//            XCTAssertTrue(d.isPrepared)
-//            exp.fulfill()
-//        }
-//        waitForExpectations(timeout: 5) { (_) in
-//            XCTAssertNil(dict[RealtimeObject(in: .root)])
-//        }
-//    }
+
+    enum ValueWithPayload: RealtimeValue, RealtimeValueActions {
+        var node: Node? { return value.node }
+        var payload: [String : FireDataValue]? {
+            switch self {
+            case .one: return nil
+            case .two: return ["__raw": 1]
+            }
+        }
+        var value: RealtimeObject {
+            switch self {
+            case .one(let v): return v
+            case .two(let v): return v
+            }
+        }
+
+        case one(TestObject)
+        case two(TestObject)
+
+        init(in node: Node?, options: [RealtimeValueOption : Any]) {
+            let payload = options[.payload] as? [String:Int]
+            let type = payload?["__raw"] ?? 0
+
+            switch type {
+            case 1: self = .two(TestObject(in: node, options: options))
+            default: self = .one(TestObject(in: node, options: options))
+            }
+        }
+
+        init?(snapshot: DataSnapshot) {
+            let type: CShort = "__raw".map(from: snapshot) ?? 0
+
+            switch type {
+            case 0: self = .one(TestObject(snapshot: snapshot))
+            case 1: self = .two(TestObject(snapshot: snapshot))
+            default: return nil
+            }
+        }
+
+        func apply(snapshot: DataSnapshot, strongly: Bool) {
+            value.apply(snapshot: snapshot, strongly: strongly)
+        }
+
+        func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) {
+            value.load(completion: completion)
+        }
+
+        var canObserve: Bool { return value.canObserve }
+
+        func runObserving() -> Bool {
+            return value.runObserving()
+        }
+
+        func stopObserving() {
+            value.stopObserving()
+        }
+
+        func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
+            value.willSave(in: transaction, in: parent, by: key)
+        }
+
+        func didSave(in parent: Node, by key: String) {
+            value.didSave(in: parent, by: key)
+        }
+
+        func didRemove(from ancestor: Node) {
+            value.didRemove(from: ancestor)
+        }
+
+        func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+            value.willRemove(in: transaction, from: ancestor)
+        }
+
+        func write(to transaction: RealtimeTransaction, by node: Node) {
+            value.write(to: transaction, by: node)
+        }
+    }
+
+    func testPayload() {
+        let array = RealtimeArray<ValueWithPayload>(in: Node.root.child(with: "__tests/array")) { node, payload in
+            return ValueWithPayload(in: node, options: payload.map { [.payload: $0] } ?? [:])
+        }
+        let exp = expectation(description: "")
+        let transaction = RealtimeTransaction()
+
+        array.prepare(forUse: .just { (a, err) in
+            XCTAssertNil(err)
+            XCTAssertTrue(a.isPrepared)
+
+            try! a.write(element: .one(TestObject()), in: transaction)
+            try! a.write(element: .two(TestObject()), in: transaction)
+
+            exp.fulfill()
+        })
+
+        waitForExpectations(timeout: 40) { (err) in
+            XCTAssertNil(err)
+            XCTAssertTrue(array.count == 2)
+            XCTAssertNoThrow(array.storage.buildElement(with: array._view.last!))
+            transaction.revert()
+        }
+    }
+
+    func testInitializeWithPayload() {
+        let value = TestObject(in: .root, options: [.payload: ["key": "val"]])
+        XCTAssertTrue((value.payload as NSDictionary?) == ["key": "val"])
+    }
+
+    func testInitializeWithPayload2() {
+        let payload: [String: Any] = ["key": "val"]
+        let value = TestObject(in: .root, options: [.payload: payload])
+        XCTAssertTrue((value.payload as NSDictionary?) == (payload as NSDictionary))
+    }
+
+    func testInitializeWithPayload3() {
+        let payload: Any = ["key": "val"]
+        let value = TestObject(in: .root, options: [.payload: payload])
+        XCTAssertTrue((value.payload as NSDictionary?) == (payload as? NSDictionary))
+    }
 }
 
 // UIKit support
