@@ -98,7 +98,7 @@ class RealtimeViewController: UIViewController {
         user.name <= "userName"
         user.age <= 100
 
-        try! Global.rtUsers.insert(element: user, in: transaction)
+        try! Global.rtUsers.write(element: user, in: transaction)
 
         transaction.commit(with: { (_, error) in
             self.user = user
@@ -118,7 +118,7 @@ class RealtimeViewController: UIViewController {
         let group = RealtimeGroup()
         group.name <= "groupName"
 
-        try! Global.rtGroups.insert(element: group, in: transaction)
+        try! Global.rtGroups.write(element: group, in: transaction)
 
         transaction.commit(with: { (_, error) in
             self.group = group
@@ -213,8 +213,10 @@ class RealtimeViewController: UIViewController {
     @objc func linkUserGroup() {
         guard let u = user ?? Global.rtUsers.first, let g = group ?? Global.rtGroups.first else { fatalError() }
 
-        let ug = try! u.groups.insert(element: g)
-        let gu = try! g.users.insert(element: u)
+        let ug = try! u.groups.write(element: g)
+        let gu = try! g.users.write(element: u)
+
+        u.ownedGroup <= group
 
         let transaction = RealtimeTransaction()
         transaction.merge(ug)
@@ -270,7 +272,7 @@ class RealtimeViewController: UIViewController {
 
         let conversationUser = RealtimeUser()
         conversationUser.name <= "Conversation #"
-        let transaction = g.conversations.set(element: conversationUser, for: u)
+        let transaction = try! g.conversations.write(element: conversationUser, for: u)
 
         transaction.commit { _, errs in
             if let errors = errs {

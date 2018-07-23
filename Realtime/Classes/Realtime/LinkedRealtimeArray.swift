@@ -9,8 +9,12 @@ import Foundation
 
 public extension RTNode where RawValue == String {
     func linkedArray<Element>(from node: Node?, elements: Node) -> LinkedRealtimeArray<Element> {
-        return LinkedRealtimeArray(in: Node(key: rawValue, parent: node), elementsNode: elements)
+        return LinkedRealtimeArray(in: Node(key: rawValue, parent: node), options: [.elementsNode: elements])
     }
+}
+
+public extension RealtimeValueOption {
+    static var elementsNode = RealtimeValueOption("realtime.linkedarray.elements")
 }
 
 public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue {
@@ -19,34 +23,28 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
     override public var localValue: Any? { return _view.source.localValue }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem], RCItemArraySerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem]>>
 
-    public required init(in node: Node?, elementsNode: Node) {
-        self.storage = RCArrayStorage(sourceNode: elementsNode,
+    public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
+        guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
+
+        self.storage = RCArrayStorage(sourceNode: elements,
                                       elementBuilder: { n, _ in Element(in: n) },
                                       elements: [:],
                                       localElements: [])
         self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node))
-        super.init(in: node)
-    }
-
-    public required init(in node: Node?) {
-        fatalError("Linked array cannot be initialized with init(node:) initializer")
+        super.init(in: node, options: options)
     }
 
     // MARK: Realtime
 
-    public required init(dbRef: DatabaseReference) {
-        fatalError("Linked array cannot be initialized with init(dbRef:) initializer")
-    }
-    // TODO: For resolve error can be store link to objects in private key
-    public required init(snapshot: DataSnapshot) {
-        fatalError("Linked array cannot be initialized with init(snapshot:) initializer")
+    public convenience init(snapshot: DataSnapshot, elementsNode: Node) {
+        self.init(in: Node.root.child(with: snapshot.ref.rootPath), options: [.elementsNode: elementsNode])
+        apply(snapshot: snapshot)
     }
 
-    public convenience required init(snapshot: DataSnapshot, elementsNode: Node) {
-        self.init(in: Node.root.child(with: snapshot.ref.rootPath), elementsNode: elementsNode)
-        apply(snapshot: snapshot)
+    public required init(snapshot: DataSnapshot) {
+        fatalError("init(snapshot:) has not been implemented")
     }
 
     // Implementation

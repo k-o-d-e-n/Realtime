@@ -10,7 +10,7 @@ import FirebaseDatabase
 
 public extension RTNode where RawValue == String {
     func dictionary<Key, Element>(from node: Node?, keys: Node) -> RealtimeDictionary<Key, Element> {
-        return RealtimeDictionary(in: Node(key: rawValue, parent: node), keysNode: keys)
+        return RealtimeDictionary(in: Node(key: rawValue, parent: node), options: [.keys: keys])
     }
 }
 
@@ -45,6 +45,10 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
     }
 }
 
+extension RealtimeValueOption {
+    static var keys = RealtimeValueOption("realtime.dictionary")
+}
+
 public typealias RealtimeDictionaryKey = Hashable & RealtimeValue
 public final class RealtimeDictionary<Key, Value>: _RealtimeValue, RC
 where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
@@ -53,15 +57,16 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem], RCItemArraySerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem]>>
 
-    public required init(in node: Node?, keysNode: Node) {
+    public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
+        guard case let keysNode as Node = options[.keys] else { fatalError("Skipped required options") }
         guard keysNode.isRooted else { fatalError("Keys must has rooted location") }
 
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: Value.init, elements: [:], localElements: [:])
         self._view = AnyRealtimeCollectionView(RealtimeProperty(in: Node(key: Nodes.items.rawValue, parent: viewParentNode)))
-        super.init(in: node)
+        super.init(in: node, options: options)
     }
 
     // MARK: Implementation
@@ -253,7 +258,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     }
 
     public convenience init(snapshot: DataSnapshot, keysNode: Node) {
-        self.init(in: Node.root.child(with: snapshot.ref.rootPath), keysNode: keysNode)
+        self.init(in: Node.root.child(with: snapshot.ref.rootPath), options: [.keys: keysNode])
         apply(snapshot: snapshot)
     }
 

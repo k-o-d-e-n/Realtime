@@ -16,24 +16,26 @@ enum Global {
 }
 
 class RealtimeGroup: RealtimeObject {
-    lazy var name: StandartProperty<String?> = "name".property(from: self.node)
+    lazy var name: RealtimeProperty<String?> = "name".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
     //    @objc dynamic var cover: File?
     lazy var users: LinkedRealtimeArray<RealtimeUser> = "users".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var conversations: RealtimeDictionary<RealtimeUser, RealtimeUser> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
+    lazy var manager: RealtimeRelation<RealtimeUser> = "manager".relation(owner: self, "ownedGroup")
 
     override open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
         case "name": return \RealtimeGroup.name
         case "users": return \RealtimeGroup.users
         case "conversations": return \RealtimeGroup.conversations
+        case "manager": return \RealtimeGroup.manager
         default: return nil
         }
     }
 }
 
 class RealtimeUser: RealtimeObject {
-    lazy var name: StandartProperty<String?> = "name".property(from: self.node)
-    lazy var age: StandartProperty<Int> = "age".property(from: self.node)
+    lazy var name: RealtimeProperty<String?> = "name".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
+    lazy var age: RealtimeProperty<Int> = "age".property(from: self.node, representer: AnyRVRepresenter<Int>.default)
     //    lazy var gender: String?
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
     //    @objc dynamic var items: [String] = []
@@ -45,6 +47,8 @@ class RealtimeUser: RealtimeObject {
     //    @objc dynamic var type: UserType = .first
     //    @objc dynamic var testItems: Set<String> = []
     lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
+
+    lazy var ownedGroup: RealtimeRelation<RealtimeGroup> = "ownedGroup".relation(owner: self, "manager")
 
 
     //    override class var keyPaths: [String: AnyKeyPath] {
@@ -59,13 +63,14 @@ class RealtimeUser: RealtimeObject {
         case "age": return \RealtimeUser.age
         case "groups": return \RealtimeUser.groups
         case "followers": return \RealtimeUser.followers
+        case "ownedGroup": return \RealtimeUser.ownedGroup
         default: return nil
         }
     }
 }
 
 class RealtimeUser2: RealtimeUser {
-    lazy var human: StandartProperty<[String: Any?]?> = "human".property(from: self.node)
+    lazy var human: RealtimeProperty<[String: Any?]?> = "human".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
 
     override class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {

@@ -35,6 +35,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(after i: Int) -> Int { fatalError() }
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
+    func write(to transaction: RealtimeTransaction, by node: Node) { fatalError() }
     func apply(snapshot: DataSnapshot, strongly: Bool) { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
@@ -43,6 +44,8 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     required init?(snapshot: DataSnapshot) {  }
     required init(in node: Node) {  }
     var debugDescription: String { return "" }
+    func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { fatalError() }
+    var canObserve: Bool { fatalError() }
 }
 
 internal final class __AnyRealtimeCollection<C: RealtimeCollection>: _AnyRealtimeCollectionBase<C.Iterator.Element>
@@ -74,11 +77,15 @@ where C.Index == Int {
     override func index(before i: Int) -> Int { return base.index(before: i) }
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
+    override func write(to transaction: RealtimeTransaction, by node: Node) { base.write(to: transaction, by: node) }
     override func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving() -> Bool { return base.runObserving() }
     override func stopObserving() { base.stopObserving() }
+    override func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { base.load(completion: completion) }
+    /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
+    override var canObserve: Bool { return base.canObserve }
 }
 
 public final class AnyRealtimeCollection<Element>: RealtimeCollection {
@@ -88,7 +95,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
         self.base = __AnyRealtimeCollection<C>(base: base)
     }
 
-    public convenience init(in node: Node?) {
+    public convenience init(in node: Node?, options: [RealtimeValueOption: Any]) {
         fatalError("Cannot use this initializer")
     }
 
@@ -104,12 +111,15 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public subscript(position: Int) -> Element { return base[position] }
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
+    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { base.load(completion: completion) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
+    public var canObserve: Bool { return base.canObserve }
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
     public convenience required init?(snapshot: DataSnapshot) { fatalError() }
     public required init(dbRef: DatabaseReference) { fatalError() }
     public func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
+    public func write(to transaction: RealtimeTransaction, by node: Node) { base.write(to: transaction, by: node) }
 }
 
 // TODO: Create wrapper that would sort array (sorting by default) (example array from tournament table)
@@ -193,7 +203,7 @@ where Element: RealtimeValue {
             self.baseView = AnySharedCollection(base._view.lazy.map(AnyCollectionKey.init))
     }
 
-    public init(in node: Node?) {
+    public init(in node: Node?, options: [RealtimeValueOption: Any]) {
         fatalError()
     }
 
@@ -210,6 +220,9 @@ where Element: RealtimeValue {
     public subscript(position: Int) -> Element { return storage.object(for: baseView[position]) }
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
+
+    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { base.load(completion: completion) }
+    public var canObserve: Bool { return base.canObserve }
 
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
         return base.listening(changes: handler)
@@ -231,6 +244,10 @@ where Element: RealtimeValue {
 
     public func apply(snapshot: DataSnapshot, strongly: Bool) {
         base.apply(snapshot: snapshot, strongly: strongly)
+    }
+
+    public func write(to transaction: RealtimeTransaction, by node: Node) {
+        base.write(to: transaction, by: node)
     }
 }
 
@@ -253,7 +270,7 @@ where Base.Index == Int {
         self.transform = transform
     }
 
-    public init(in node: Node?) {
+    public init(in node: Node?, options: [RealtimeValueOption: Any]) {
         fatalError()
     }
 
@@ -270,6 +287,9 @@ where Base.Index == Int {
     public subscript(position: Int) -> Element { return transform(base[position]) }
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
+
+    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { base.load(completion: completion) }
+    public var canObserve: Bool { return base.canObserve }
 
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
         return base.listening(changes: handler)
@@ -291,5 +311,9 @@ where Base.Index == Int {
 
     public func apply(snapshot: DataSnapshot, strongly: Bool) {
         base.apply(snapshot: snapshot, strongly: strongly)
+    }
+
+    public func write(to transaction: RealtimeTransaction, by node: Node) {
+        base.write(to: transaction, by: node)
     }
 }

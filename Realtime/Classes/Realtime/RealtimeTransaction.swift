@@ -203,7 +203,7 @@ extension RealtimeTransaction {
     }
 
     /// registers new single value for specified reference
-    public func addValue(_ value: Any?, by node: Realtime.Node) {
+    public func addValue(_ value: Any?, by node: Realtime.Node) { // TODO: Write different methods only for available values
         var nodes = node.reversed().dropFirst().makeIterator()
         var current = updateNode
         while let n = nodes.next() {
@@ -317,10 +317,10 @@ public extension RealtimeTransaction {
         }
     }
 
-    internal func _set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) {
+    internal func _set<T: RealtimeValue>(_ value: T, by node: Realtime.Node) {
         guard node.isRooted else { fatalError() }
 
-        addValue(value.localValue, by: node)
+        value.write(to: self, by: node)
     }
 
     /// adds operation of delete RealtimeValue
@@ -361,10 +361,6 @@ public extension RealtimeTransaction {
 }
 
 public extension RealtimeTransaction {
-    func addValue<Value: RealtimeValue>(_ value: Value) {
-        guard value.isRooted else { fatalError() }
-        addValue(value.localValue, by: value.node!)
-    }
     func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) {
         addValue(link.localValue, by: value.node!.linksNode.child(with: link.id))
     }

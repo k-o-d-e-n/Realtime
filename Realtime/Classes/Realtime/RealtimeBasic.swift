@@ -85,23 +85,35 @@ public protocol MutableDataRepresented {
 // TODO: I can make data wrapper struct, without create protocol or conformed protocol (avoid conformation DataSnapshot and MutableData)
 public protocol FireDataRepresented {
     var localValue: Any? { get }
-    init(firData: FireDataProtocol) throws
+    init(fireData: FireDataProtocol) throws
 }
-
-// MARK: RealtimeValue
 
 public protocol DatabaseKeyRepresentable {
     var dbKey: String! { get }
 }
 
+// MARK: RealtimeValue
+
+public struct RealtimeValueOption: Hashable {
+    let rawValue: String
+
+    init(_ rawValue: String) {
+        self.rawValue = rawValue
+    }
+}
+extension RealtimeValueOption {
+    static var payload: RealtimeValueOption = RealtimeValueOption("realtime.value.payload")
+}
+
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented {
+    /// Node location in database
     var node: Node? { get }
 
     /// Designed initializer
     ///
     /// - Parameter node: Node location for value
-    init(in node: Node?)
+    init(in node: Node?, options: [RealtimeValueOption: Any])
     /// Applies value of data snapshot
     ///
     /// - Parameters:
@@ -109,11 +121,14 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented
     ///   - strongly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
     ///               Pass `false` if snapshot represents part of data (for example filtered list).
     func apply(snapshot: DataSnapshot, strongly: Bool)
+
+    func write(to transaction: RealtimeTransaction, by node: Node)
 }
 public extension RealtimeValue {
     var dbRef: DatabaseReference? {
         return node.flatMap { $0.isRooted ? $0.reference : nil }
     }
+    init(in node: Node?) { self.init(in: node, options: [:]) }
     init() { self.init(in: nil) }
 }
 extension HasDefaultLiteral where Self: RealtimeValue {}

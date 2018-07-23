@@ -23,7 +23,7 @@ class TableCell: UITableViewCell {
 class RealtimeTableController: UIViewController {
     var store = ListeningDisposeStore()
     var tableView: UITableView! { return view as! UITableView }
-    var delegate: RealtimeTableViewDelegate<RealtimeUser>!
+    var delegate: SingleSectionTableViewDelegate<RealtimeUser>!
 
     override func loadView() {
         view = UITableView()
@@ -35,7 +35,7 @@ class RealtimeTableController: UIViewController {
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: NSStringFromClass(UITableViewCell.self))
         tableView.register(TableCell.self, forCellReuseIdentifier: NSStringFromClass(TableCell.self))
         let users = RealtimeArray<RealtimeUser>(in: Node(key: "users", parent: .root))
-        delegate = RealtimeTableViewDelegate(users) { (table, ip) -> UITableViewCell in
+        delegate = SingleSectionTableViewDelegate(users) { (table, ip, _) -> UITableViewCell in
             return table.dequeueReusableCell(withIdentifier: NSStringFromClass(TableCell.self), for: ip)
         }
         delegate.register(UITableViewCell.self) { (item, user) in

@@ -19,7 +19,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     public var isObserved: Bool { return observing != nil }
     public var canObserve: Bool { return isRooted }
     public var localValue: Any? { fatalError("You should implement in your subclass") }
-    public required init(in node: Node?) {
+    public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self.node = node
         self.dbRef = node.flatMap { $0.isRooted ? $0.reference : nil }
     }
@@ -117,8 +117,12 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
 
     public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         if hasChanges {
-            transaction.addValue(localValue, by: node)
+            write(to: transaction, by: node)
         }
+    }
+
+    public func write(to transaction: RealtimeTransaction, by node: Node) {
+        fatalError("You should implement in your subclass")
     }
     
     public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
@@ -178,12 +182,12 @@ open class RealtimeObject: _RealtimeValue {
         }
     }
 
-    typealias Links = RealtimeProperty<[SourceLink], SourceLinkArraySerializer>
+    typealias Links = RealtimeProperty<[SourceLink]>
     override public func willRemove(in transaction: RealtimeTransaction) {
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
             value.willRemove(in: transaction)
         }
-        let links: Links = self.node!.linksNode.property()
+        let links: Links = Links(in: node!.linksNode, options: [.representer: AnyRVRepresenter(serializer: SourceLinkArraySerializer.self)])
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(completion: Assign.just({ err, refs in
                 refs.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.addValue(nil, by: $0) }

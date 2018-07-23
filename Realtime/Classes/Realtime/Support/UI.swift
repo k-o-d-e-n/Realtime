@@ -240,6 +240,7 @@ public class _RealtimeTableAdapter<Models: ModelDataSource> {
 
 // MARK: Views
 
+@available(*, deprecated: 0.3.0)
 open class RealtimeTableView<RC: RealtimeCollection>: UITableView where RC.Index == Int {
     public var adapter: RealtimeTableAdapter<RC>!
 

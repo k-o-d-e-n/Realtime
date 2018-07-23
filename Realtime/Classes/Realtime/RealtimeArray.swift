@@ -28,6 +28,7 @@ public extension Node {
 public extension RealtimeArray {
     convenience init<E>(in node: Node?, elements: LinkedRealtimeArray<E>) {
         self.init(in: node,
+                  options: [:],
                   viewSource: elements._view.source,
                   builder: { n, _ in Element(in: n) })
     }
@@ -42,22 +43,24 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem], RCItemArraySerializer>>
+    let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem]>>
 
-    public convenience required init(in node: Node?) {
-        self.init(in: node, builder: { n, _ in Element(in: n) })
+    public convenience required init(in node: Node?, options: [RealtimeValueOption: Any] = [:]) {
+        self.init(in: node, options: options, builder: { n, _ in Element(in: n) })
     }
 
-    public convenience init(in node: Node?, builder: @escaping (Node, [String: Any]?) -> Element) {
+    public convenience init(in node: Node?, options: [RealtimeValueOption: Any] = [:], builder: @escaping (Node, [String: Any]?) -> Element) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         self.init(in: node,
+                  options: options,
                   viewSource: RealtimeProperty(in: Node(key: Nodes.items.rawValue,
                                                         parent: viewParentNode)),
                   builder: builder)
     }
 
     init(in node: Node?,
-         viewSource: RealtimeProperty<[RCItem], RCItemArraySerializer>,
+         options: [RealtimeValueOption: Any],
+         viewSource: RealtimeProperty<[RCItem]>,
          builder: @escaping (Node, [String: Any]?) -> Element) {
         precondition(node != nil)
         self.storage = RCArrayStorage(sourceNode: node,
@@ -65,7 +68,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
                                       elements: [:],
                                       localElements: [])
         self._view = AnyRealtimeCollectionView(viewSource)
-        super.init(in: node)
+        super.init(in: node, options: options)
     }
 
     // Implementation

@@ -31,15 +31,15 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataValue {
         self.payload = payload
     }
 
-    init(firData: FireDataProtocol) throws {
-        guard let value = firData.children.nextObject() as? DataSnapshot else {
+    init(fireData: FireDataProtocol) throws {
+        guard let value = fireData.children.nextObject() as? DataSnapshot else {
             throw RCError(type: .failedServerData)
         }
         guard let index: Int = value.flatMap() ?? Nodes.index.map(from: value) else {
             throw RCError(type: .failedServerData)
         }
 
-        self.dbKey = firData.dataKey
+        self.dbKey = fireData.dataKey
         self.linkID = value.dataKey!
         self.index = index
         self.payload = Nodes.payload.map(from: value)
@@ -105,15 +105,28 @@ extension MutableRCStorage {
 public protocol RealtimeCollectionView {}
 protocol RCView: RealtimeCollectionView, BidirectionalCollection, RequiresPreparation {}
 
-public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RequiresPreparation {
+public protocol RealtimeCollectionActions {
+    /// Single loading of value. Returns error if object hasn't rooted node.
+    ///
+    /// - Parameter completion: Closure that called on end loading or error
+    func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?)
+    /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
+    var canObserve: Bool { get }
+    /// Runs observing value, if
+    ///
+    /// - Returns: True if running was successful or observing already run, otherwise false
+    @discardableResult func runObserving() -> Bool
+    /// Stops observing, if observers no more.
+    func stopObserving()
+}
+
+public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RealtimeCollectionActions, RequiresPreparation {
     associatedtype Storage: RealtimeCollectionStorage
     var storage: Storage { get }
     //    associatedtype View: RealtimeCollectionView
     var view: RealtimeCollectionView { get }
 
     func listening(changes handler: @escaping () -> Void) -> ListeningItem // TODO: Add current changes as parameter to handler
-    @discardableResult func runObserving() -> Bool
-    func stopObserving() -> Void
 }
 protocol RC: RealtimeCollection, RealtimeValueEvents where Storage: RCStorage {
     associatedtype View: RCView

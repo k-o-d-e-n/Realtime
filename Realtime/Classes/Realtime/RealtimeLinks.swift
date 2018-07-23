@@ -37,6 +37,35 @@ extension RealtimeValue {
     }
 }
 
+struct NewRelation: DataSnapshotRepresented {
+    /// Path to related object
+    let targetPath: String
+    /// Property of related object that represented this relation
+    let relatedProperty: String
+
+    init(path: String, property: String) {
+        self.targetPath = path
+        self.relatedProperty = property
+    }
+
+    enum CodingKeys: String {
+        case targetPath = "t_pth"
+        case relatedProperty = "r_prop"
+    }
+
+    var localValue: Any? { return [CodingKeys.targetPath: targetPath, CodingKeys.relatedProperty: relatedProperty] }
+
+    init?(snapshot: DataSnapshot) {
+        guard
+            let path: String = CodingKeys.targetPath.map(from: snapshot),
+            let property: String = CodingKeys.relatedProperty.map(from: snapshot)
+        else { return nil }
+
+        self.targetPath = path
+        self.relatedProperty = property
+    }
+}
+
 struct Relation: DataSnapshotRepresented {
     let sourceID: String
     let ref: Reference

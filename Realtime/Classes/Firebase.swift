@@ -83,6 +83,7 @@ extension Dictionary {
     }
 }
 
+/*
 extension DatabaseReference: Listenable {
     private func makeDispose(for token: UInt) -> ListeningDispose {
         return ListeningDispose({ [weak self] in self?.removeObserver(withHandle: token) })
@@ -149,3 +150,4 @@ extension DatabaseReference: Listenable {
         }
     }
 }
+*/

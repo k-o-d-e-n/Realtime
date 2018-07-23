@@ -603,43 +603,43 @@ class Tests: XCTestCase {
         XCTAssertTrue(value == "Test #2154" + " is successful")
     }
 
-    func testRealtimeTextField() {
-        let textField = UITextField()
-        let propertyValue = PropertyValue<String?>(unowned: textField, getter: { $0.text }, setter: { $0.text = $1 })
-        var property = Property(propertyValue)
+//    func testRealtimeTextField() {
+//        let textField = UITextField()
+//        let propertyValue = PropertyValue<String?>(unowned: textField, getter: { $0.text }, setter: { $0.text = $1 })
+//        var property = Property(propertyValue)
+//
+//        _ = textField.realtimeText.insider.listen(.just { print($0 ?? "nil") })
+//
+//        property.value = "Text"
+//        XCTAssertTrue(property.value == textField.text)
+//
+//        textField.realtimeText.value = "Some text"
+//
+//        XCTAssertTrue(textField.text == "Some text")
+//
+//        property.value = "new text"
+//        XCTAssertTrue(textField.text == "new text")
+//    }
 
-        _ = textField.realtimeText.insider.listen(.just { print($0 ?? "nil") })
-
-        property.value = "Text"
-        XCTAssertTrue(property.value == textField.text)
-
-        textField.realtimeText.value = "Some text"
-
-        XCTAssertTrue(textField.text == "Some text")
-
-        property.value = "new text"
-        XCTAssertTrue(textField.text == "new text")
-    }
-
-    func testRealtimeTextField2() {
-        let textField = UITextField()
-        let realtimeTF = textField.rt
-        _ = realtimeTF.text.insider.listen(.just {
-            print($0 ?? "nil")
-        })
-
-        realtimeTF.text.value = "Text"
-        XCTAssertTrue(realtimeTF.text.value == textField.text)
-
-        textField.realtimeText.value = "Some text"
-        textField.sendActions(for: .valueChanged)
-
-        XCTAssertTrue(textField.text == "Some text")
-        XCTAssertTrue(realtimeTF.text~ == "Some text")
-
-        realtimeTF.text <= "new text"
-        XCTAssertTrue(textField.text == "new text")
-    }
+//    func testRealtimeTextField2() {
+//        let textField = UITextField()
+//        let realtimeTF = textField.rt
+//        _ = realtimeTF.text.insider.listen(.just {
+//            print($0 ?? "nil")
+//        })
+//
+//        realtimeTF.text.value = "Text"
+//        XCTAssertTrue(realtimeTF.text.value == textField.text)
+//
+//        textField.realtimeText.value = "Some text"
+//        textField.sendActions(for: .valueChanged)
+//
+//        XCTAssertTrue(textField.text == "Some text")
+//        XCTAssertTrue(realtimeTF.text~ == "Some text")
+//
+//        realtimeTF.text <= "new text"
+//        XCTAssertTrue(textField.text == "new text")
+//    }
 
     func testPrimitiveValue() {
         let referencedValue = PropertyValue<Int>(10)
@@ -754,11 +754,11 @@ class Tests: XCTestCase {
 // MARK: Realtime
 
 class TestObject: RealtimeObject {
-    lazy var property: StandartProperty<String?> = "prop".property(from: self.node)
+    lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
     lazy var linkedArray: LinkedRealtimeArray<RealtimeObject> = "linked_array".linkedArray(from: self.node, elements: .root)
     lazy var array: RealtimeArray<RealtimeObject> = "array".array(from: self.node)
     lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
-    lazy var nestedObject: NestedObject = "nestedObject".property(from: self.node)
+    lazy var nestedObject: NestedObject = "nestedObject".property(in: self)
 
     override open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -772,7 +772,7 @@ class TestObject: RealtimeObject {
     }
 
     class NestedObject: RealtimeObject {
-        lazy var property: StandartProperty<String?> = "prop".property(from: self.node)
+        lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
 
         override open class func keyPath(for label: String) -> AnyKeyPath? {
             switch label {
@@ -943,7 +943,7 @@ extension Tests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = RealtimeProperty<[Int], Serializer<[Int]>>(in: .root, value: [0])
+        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: AnyRVRepresenter<String?>.default])
         let one = AnyRealtimeCollectionView(source)//SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)
@@ -970,8 +970,6 @@ extension Tests {
         mirror.children.forEach { (child) in
             print(child.label as Any, child.value)
         }
-
-        _ = object.links
 
         mirror.children.forEach { (child) in
             print(child.label as Any, child.value)

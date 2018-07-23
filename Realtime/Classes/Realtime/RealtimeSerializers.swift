@@ -11,6 +11,72 @@ import FirebaseDatabase
 
 // TODO: View transformers in ObjectMapper as example implementation serializers
 
+public protocol RealtimeValueRepresenter {
+    associatedtype V
+    func encode(_ value: V) throws -> Any?
+    func decode(_ data: DataSnapshot) throws -> V
+}
+extension RealtimeValueRepresenter {
+    func optional() -> AnyRVRepresenter<V?> {
+        return AnyRVRepresenter(optional: self)
+    }
+}
+
+public struct AnyRVRepresenter<V>: RealtimeValueRepresenter {
+    let encoding: (V) throws -> Any?
+    let decoding: (DataSnapshot) throws -> V
+    public func decode(_ data: DataSnapshot) throws -> V {
+        return try decoding(data)
+    }
+    public func encode(_ value: V) throws -> Any? {
+        return try encoding(value)
+    }
+}
+public extension AnyRVRepresenter {
+    init<R: RealtimeValueRepresenter>(_ base: R) where V == R.V {
+        self.encoding = base.encode
+        self.decoding = base.decode
+    }
+    init<R: RealtimeValueRepresenter>(optional base: R) where V == R.V? {
+        self.encoding = { (v) -> Any? in
+            return try v.map(base.encode)
+        }
+        self.decoding = { (data) -> R.V? in
+            guard data.exists() else { return nil }
+            return try base.decode(data)
+        }
+    }
+    init<S: _Serializer>(serializer base: S.Type) where V == S.Entity {
+        self.encoding = base.serialize
+        self.decoding = base.deserialize
+    }
+}
+public extension AnyRVRepresenter where V: RealtimeValue {
+    static func relation(_ property: String) -> AnyRVRepresenter<V?> {
+        return AnyRVRepresenter<V?>(
+            encoding: { v in
+                guard let node = v?.node else { return nil }
+
+                return NewRelation(path: node.rootPath, property: property).localValue
+        },
+            decoding: { d in
+                guard let relation = NewRelation(snapshot: d) else { return nil }
+
+                return V(in: Node.root.child(with: relation.targetPath))
+        })
+    }
+}
+public extension AnyRVRepresenter {
+    static var `default`: AnyRVRepresenter<V> {
+        return AnyRVRepresenter<V>(encoding: { $0 }, decoding: { d in
+            guard let v = d.value as? V else { throw RealtimeError("Fail") }
+
+            return v
+        })
+    }
+}
+
+
 public protocol HasDefaultLiteral {
     init()
 }
@@ -18,8 +84,8 @@ public protocol HasDefaultLiteral {
 public protocol FireDataValue: FireDataRepresented {}
 extension FireDataValue {
     public var localValue: Any? { return self }
-    public init(firData: FireDataProtocol) throws {
-        guard let v = firData.value as? Self else {
+    public init(fireData: FireDataProtocol) throws {
+        guard let v = fireData.value as? Self else {
             throw RealtimeError("Failed data for type: \(Self.self)")
         }
 
@@ -29,8 +95,8 @@ extension FireDataValue {
 
 extension Optional: FireDataValue, FireDataRepresented where Wrapped: FireDataValue {
     public var localValue: Any? { return self?.localValue }
-    public init(firData: FireDataProtocol) throws {
-        self = firData.value as? Wrapped
+    public init(fireData: FireDataProtocol) throws {
+        self = fireData.value as? Wrapped
     }
 }
 extension Array: FireDataValue where Element: FireDataValue {}
@@ -80,7 +146,7 @@ extension Array: MutableDataRepresented where Element: FireDataRepresented {
     public var localValue: Any? { return map { $0.localValue } }
 
     public init(data: MutableData) throws {
-        self = try data.children.map { try Element(firData: unsafeBitCast($0 as AnyObject, to: MutableData.self)) }
+        self = try data.children.map { try Element(fireData: unsafeBitCast($0 as AnyObject, to: MutableData.self)) }
     }
 }
 
@@ -105,7 +171,7 @@ public class Serializer<Entity: HasDefaultLiteral>: _Serializer {
 
 public class FireDataValueSerializer<V: FireDataValue>: _Serializer {
     public static func deserialize(_ entity: DataSnapshot) -> V? {
-        return try? V(firData: entity)
+        return try? V(fireData: entity)
     }
     public static func serialize(_ entity: V?) -> Any? {
         return entity.localValue
