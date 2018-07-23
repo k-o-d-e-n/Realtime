@@ -14,16 +14,16 @@ private enum LinkNodes {
     static let sourceID = "s_id"
 }
 
-struct Reference: DataSnapshotRepresented, Codable {
+struct Reference: FireDataRepresented, Codable {
     let ref: String
 
     init(ref: String) {
         self.ref = ref
     }
 
-    var localValue: Any? { return ref }
-    init?(snapshot: DataSnapshot) {
-        guard let ref: String = snapshot.flatMap() ?? LinkNodes.path.map(from: snapshot) else { return nil } // TODO: Remove ?? ..., after move to new version data model
+    var localValue: Any? { return [LinkNodes.path.rawValue: ref] }
+    init(fireData: FireDataProtocol) throws {
+        guard let ref: String = LinkNodes.path.map(from: fireData) else { throw RealtimeError("Fail") }
         self.ref = ref
     }
 }
@@ -31,13 +31,15 @@ extension Reference {
     func make<V: RealtimeValue>(in node: Node = .root) -> V { return V(in: node.child(with: ref)) }
 }
 extension RealtimeValue {
-    func makeReference(from node: Node = .root) -> Reference! { return Reference(ref: self.node!.path(from: node)) }
-    func makeRelation(from node: Node = .root, use sourceID: String? = nil) -> Relation! {
-        return Relation(sourceID: sourceID ?? DatabaseReference.root().childByAutoId().key, ref: makeReference(from: node))
+    func reference(from node: Node = .root) -> Reference? {
+        return self.node.map { Reference(ref: $0.path(from: node)) }
+    }
+    func relation(use property: String) -> Relation? {
+        return node.map { Relation(path: $0.rootPath, property: property) }
     }
 }
 
-struct NewRelation: DataSnapshotRepresented {
+struct Relation: FireDataRepresented {
     /// Path to related object
     let targetPath: String
     /// Property of related object that represented this relation
@@ -53,41 +55,21 @@ struct NewRelation: DataSnapshotRepresented {
         case relatedProperty = "r_prop"
     }
 
-    var localValue: Any? { return [CodingKeys.targetPath: targetPath, CodingKeys.relatedProperty: relatedProperty] }
+    var localValue: Any? { return [CodingKeys.targetPath.rawValue: targetPath,
+                                   CodingKeys.relatedProperty.rawValue: relatedProperty] }
 
-    init?(snapshot: DataSnapshot) {
+    init(fireData: FireDataProtocol) throws {
         guard
-            let path: String = CodingKeys.targetPath.map(from: snapshot),
-            let property: String = CodingKeys.relatedProperty.map(from: snapshot)
-        else { return nil }
+            let path: String = CodingKeys.targetPath.map(from: fireData),
+            let property: String = CodingKeys.relatedProperty.map(from: fireData)
+        else { throw RealtimeError("Fail") }
 
         self.targetPath = path
         self.relatedProperty = property
     }
 }
 
-struct Relation: DataSnapshotRepresented {
-    let sourceID: String
-    let ref: Reference
-
-    init(sourceID: String, ref: Reference) {
-        self.sourceID = sourceID
-        self.ref = ref
-    }
-
-    var localValue: Any? { return [LinkNodes.path: ref.ref, LinkNodes.sourceID: sourceID] }
-    init?(snapshot: DataSnapshot) {
-        guard
-            let sourceID: String = LinkNodes.sourceID.map(from: snapshot),
-            let ref = Reference(snapshot: snapshot)
-        else { return nil }
-
-        self.sourceID = sourceID
-        self.ref = ref
-    }
-}
-
-public struct SourceLink: DataSnapshotRepresented {
+public struct SourceLink: FireDataRepresented {
     let links: [String]
     let id: String
 
@@ -97,9 +79,13 @@ public struct SourceLink: DataSnapshotRepresented {
     }
 
     public var localValue: Any? { return links }
-    public init?(snapshot: DataSnapshot) {
-        guard let links: [String] = snapshot.flatMap() else { return nil }
-        self.id = snapshot.key
+    public init(fireData: FireDataProtocol) throws {
+        guard
+            let id = fireData.dataKey,
+            let links: [String] = fireData.flatMap()
+        else { throw RealtimeError("Fail") }
+        
+        self.id = id
         self.links = links
     }
 }

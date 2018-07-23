@@ -20,7 +20,6 @@ public extension RealtimeValueOption {
 public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue {
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
-    override public var localValue: Any? { return _view.source.localValue }
     public var isPrepared: Bool { return _view.isPrepared }
 
     let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem]>>
@@ -85,9 +84,9 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
         _view.source.didSave(in: parent)
     }
 
-    override public func willRemove(in transaction: RealtimeTransaction) {
-        super.willRemove(in: transaction)
-        _view.source.willRemove(in: transaction)
+    public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+        super.willRemove(in: transaction, from: ancestor)
+        _view.source.willRemove(in: transaction, from: ancestor)
     }
     override public func didRemove(from node: Node) {
         super.didRemove(from: node)

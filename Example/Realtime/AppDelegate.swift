@@ -11,16 +11,16 @@ import Firebase
 import Realtime
 
 enum Global {
-    static let rtUsers: RealtimeArray<RealtimeUser> = "_users".array(from: .root)
-    static let rtGroups: RealtimeArray<RealtimeGroup> = "_groups".array(from: .root)
+    static let rtUsers: RealtimeArray<RealtimeUser> = "___tests/_users".array(from: .root)
+    static let rtGroups: RealtimeArray<RealtimeGroup> = "___tests/_groups".array(from: .root)
 }
 
 class RealtimeGroup: RealtimeObject {
-    lazy var name: RealtimeProperty<String?> = "name".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
+    lazy var name: RealtimeProperty<String?> = "name".property(from: self.node)
     //    @objc dynamic var cover: File?
     lazy var users: LinkedRealtimeArray<RealtimeUser> = "users".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var conversations: RealtimeDictionary<RealtimeUser, RealtimeUser> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
-    lazy var manager: RealtimeRelation<RealtimeUser> = "manager".relation(owner: self, "ownedGroup")
+    lazy var manager: RealtimeRelation<RealtimeUser> = "manager".relation(from: self.node, "ownedGroup")
 
     override open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -34,8 +34,8 @@ class RealtimeGroup: RealtimeObject {
 }
 
 class RealtimeUser: RealtimeObject {
-    lazy var name: RealtimeProperty<String?> = "name".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
-    lazy var age: RealtimeProperty<Int> = "age".property(from: self.node, representer: AnyRVRepresenter<Int>.default)
+    lazy var name: RealtimeProperty<String?> = "name".property(from: self.node)
+    lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
     //    lazy var gender: String?
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
     //    @objc dynamic var items: [String] = []
@@ -48,7 +48,7 @@ class RealtimeUser: RealtimeObject {
     //    @objc dynamic var testItems: Set<String> = []
     lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
 
-    lazy var ownedGroup: RealtimeRelation<RealtimeGroup> = "ownedGroup".relation(owner: self, "manager")
+    lazy var ownedGroup: RealtimeRelation<RealtimeGroup> = "ownedGroup".relation(from: self.node, "manager")
 
 
     //    override class var keyPaths: [String: AnyKeyPath] {
@@ -70,7 +70,7 @@ class RealtimeUser: RealtimeObject {
 }
 
 class RealtimeUser2: RealtimeUser {
-    lazy var human: RealtimeProperty<[String: Any?]?> = "human".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
+    lazy var human: RealtimeProperty<[String: Any?]?> = "human".property(from: self.node)
 
     override class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {

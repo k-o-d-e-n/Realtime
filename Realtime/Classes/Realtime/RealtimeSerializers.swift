@@ -23,8 +23,8 @@ extension RealtimeValueRepresenter {
 }
 
 public struct AnyRVRepresenter<V>: RealtimeValueRepresenter {
-    let encoding: (V) throws -> Any?
-    let decoding: (DataSnapshot) throws -> V
+    fileprivate let encoding: (V) throws -> Any?
+    fileprivate let decoding: (DataSnapshot) throws -> V
     public func decode(_ data: DataSnapshot) throws -> V {
         return try decoding(data)
     }
@@ -57,11 +57,12 @@ public extension AnyRVRepresenter where V: RealtimeValue {
             encoding: { v in
                 guard let node = v?.node else { return nil }
 
-                return NewRelation(path: node.rootPath, property: property).localValue
+                return Relation(path: node.rootPath, property: property).localValue
         },
             decoding: { d in
-                guard let relation = NewRelation(snapshot: d) else { return nil }
+                guard d.exists() else { return nil }
 
+                let relation = try Relation(fireData: d)
                 return V(in: Node.root.child(with: relation.targetPath))
         })
     }
@@ -257,7 +258,7 @@ class SourceLinkArraySerializer: _Serializer {
     class func deserialize(_ entity: DataSnapshot) -> [SourceLink] {
         guard entity.exists() else { return Entity() }
         
-        return entity.children.map { SourceLink(snapshot: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }.compactMap { $0 }
+        return entity.children.compactMap { try? SourceLink(fireData: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }
     }
     
     class func serialize(_ entity: [SourceLink]) -> [String: Any] {
@@ -269,8 +270,8 @@ class SourceLinkArraySerializer: _Serializer {
     }
 }
 
-class DataSnapshotRepresentedSerializer<L: DataSnapshotRepresented>: _Serializer {
-    class func deserialize(_ entity: DataSnapshot) -> L? { return L(snapshot: entity) }
+class DataSnapshotRepresentedSerializer<L: FireDataRepresented>: _Serializer {
+    class func deserialize(_ entity: DataSnapshot) -> L? { return try? L(fireData: entity) }
     class func serialize(_ entity: L?) -> Any? { return entity.flatMap { $0.localValue } }
 }
 
@@ -279,17 +280,7 @@ public class LinkableValueSerializer<V: RealtimeValue>: _Serializer {
         return DataSnapshotRepresentedSerializer<Reference>.deserialize(entity)?.make()
     }
     public static func serialize(_ entity: V?) -> Any? {
-        return entity?.makeReference().localValue
-    }
-}
-
-public class RelationableValueSerializer<V: RealtimeValue>: _Serializer {
-    public static func deserialize(_ entity: DataSnapshot) -> (String, V)? {
-        guard let relation = DataSnapshotRepresentedSerializer<Relation>.deserialize(entity) else { return nil }
-        return (relation.sourceID, relation.ref.make())
-    }
-    public static func serialize(_ entity: (String, V)?) -> Any? {
-        return entity.flatMap { $1.makeRelation(use: $0).localValue }
+        return entity?.reference()?.localValue
     }
 }
 

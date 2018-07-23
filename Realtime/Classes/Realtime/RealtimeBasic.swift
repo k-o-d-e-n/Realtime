@@ -69,7 +69,6 @@ extension MutableData: FireDataProtocol {
 // TODO: Avoid using three separated protocols
 
 public protocol DataSnapshotRepresented {
-    var localValue: Any? { get }
     var payload: [String: Any]? { get }
     init?(snapshot: DataSnapshot)
 }
@@ -122,6 +121,11 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented
     ///               Pass `false` if snapshot represents part of data (for example filtered list).
     func apply(snapshot: DataSnapshot, strongly: Bool)
 
+    /// Writes all local stored data to transaction as is. You shouldn't call it directly.
+    ///
+    /// - Parameters:
+    ///   - transaction: Current transaction
+    ///   - node: Database node where data will be store
     func write(to transaction: RealtimeTransaction, by node: Node)
 }
 public extension RealtimeValue {
@@ -181,8 +185,10 @@ public protocol RealtimeValueEvents {
     func didSave(in parent: Node, by key: String)
     /// Must call always before removing action
     ///
-    /// - Parameter transaction: Remove transaction
-    func willRemove(in transaction: RealtimeTransaction)
+    /// - Parameters:
+    ///   - transaction: Remove transaction
+    ///   - ancestor: Ancestor where remove action called
+    func willRemove(in transaction: RealtimeTransaction, from ancestor: Node)
     /// Notifies object that it has been removed from specified ancestor node
     ///
     /// - Parameter ancestor: Ancestor node
@@ -207,6 +213,13 @@ extension RealtimeValueEvents where Self: RealtimeValue {
             didSave(in: parent, by: node.key)
         } else {
             debugFatalError("Rootless value has been saved to undefined location")
+        }
+    }
+    func willRemove(in transaction: RealtimeTransaction) {
+        if let parent = node?.parent {
+            willRemove(in: transaction, from: parent)
+        } else {
+            debugFatalError("Rootless value will be removed from itself location")
         }
     }
     func didRemove() {

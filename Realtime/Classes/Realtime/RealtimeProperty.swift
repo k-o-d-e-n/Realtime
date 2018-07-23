@@ -10,38 +10,44 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where Self.RawValue == String {
-    func property<Type: RealtimeValue, R: RealtimeValueRepresenter>(from node: Node?, representer: R) -> Type {
-        return Type(in: Node(key: rawValue, parent: node), options: [.representer: AnyRVRepresenter(representer)])
+    func property<T: HasDefaultLiteral>(from node: Node?, options: [RealtimeValueOption: Any] = [.representer: AnyRVRepresenter<T>.default]) -> RealtimeProperty<T> {
+        return RealtimeProperty(in: Node(key: rawValue, parent: node), options: options)
     }
 
     func primitive<V: FireDataValue>(from node: Node?) -> RealtimeProperty<V> {
-        return RealtimeProperty(in: node)
+        return RealtimeProperty(in: Node(key: rawValue, parent: node))
     }
-
-    func relation<V>(owner: RealtimeObject, _ property: String) -> RealtimeRelation<V> {
-        return RealtimeRelation(in: owner.node, options: [.relation: RealtimeRelation.Options(owner: owner, property: property)])
+    func relation<V: RealtimeObject>(from node: Node?, ownerLevelsUp: Int = 1, _ property: String) -> RealtimeRelation<V> {
+        return RealtimeRelation(in: Node(key: rawValue, parent: node),
+                                options: [.relation: RealtimeRelation<V>.Options(ownerLevelsUp: ownerLevelsUp, property: property)])
     }
     func `enum`<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V> {
-        return RealtimeProperty(in: node, options: [.representer: AnyRVRepresenter<V>(serializer: EnumSerializer.self)])
+        return RealtimeProperty(in: Node(key: rawValue, parent: node),
+                                options: [.representer: AnyRVRepresenter<V>(serializer: EnumSerializer.self)])
     }
     func optionalEnum<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V?> {
-        return RealtimeProperty(in: node, options: [.representer: AnyRVRepresenter<V?>(serializer: OptionalEnumSerializer.self)])
+        return RealtimeProperty(in: Node(key: rawValue, parent: node),
+                                options: [.representer: AnyRVRepresenter<V?>(serializer: OptionalEnumSerializer.self)])
     }
     func optionalDate(from node: Node?) -> RealtimeProperty<Date?> {
-        return RealtimeProperty(in: node, options: [.representer: AnyRVRepresenter(serializer: DateSerializer.self)])
+        return RealtimeProperty(in: Node(key: rawValue, parent: node),
+                                options: [.representer: AnyRVRepresenter(serializer: DateSerializer.self)])
     }
     func optionalUrl(from node: Node?) -> RealtimeProperty<URL?> {
-        return RealtimeProperty(in: node, options: [.representer: AnyRVRepresenter(serializer: URLSerializer.self)])
+        return RealtimeProperty(in: Node(key: rawValue, parent: node),
+                                options: [.representer: AnyRVRepresenter(serializer: URLSerializer.self)])
     }
 
     func linked<V: RealtimeValue>(from node: Node?) -> RealtimeProperty<V?> {
-        return RealtimeProperty(in: node, options: [.representer: AnyRVRepresenter(serializer: LinkableValueSerializer<V>.self)])
+        return RealtimeProperty(in: Node(key: rawValue, parent: node),
+                                options: [.representer: AnyRVRepresenter(serializer: LinkableValueSerializer<V>.self)])
     }
     func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V> {
-        return RealtimeProperty(in: node, options: [.representer: AnyRVRepresenter<V>(serializer: CodableSerializer.self)])
+        return RealtimeProperty(in: Node(key: rawValue, parent: node),
+                                options: [.representer: AnyRVRepresenter<V>(serializer: CodableSerializer.self)])
     }
 
-    func property<Type: RealtimeObject>(in object: RealtimeObject) -> Type {
+    func nested<Type: RealtimeObject>(in object: RealtimeObject) -> Type {
         let property = Type(in: Node(key: rawValue, parent: object.node))
         property.parent = object
         return property
@@ -67,7 +73,8 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
         super.init(in: node, options: [.representer: AnyRVRepresenter<Related>.relation(relation.property)])
     }
 
-    public override func willRemove(in transaction: RealtimeTransaction) {
+    public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+        super.willRemove(in: transaction, from: ancestor)
         transaction.addPrecondition { [unowned transaction] (promise) in
             self.loadValue(completion: .just({ (err, val) in
                 if let node = val?.node?.child(with: self.options.property) {
@@ -81,9 +88,9 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
         super.write(to: transaction, by: node)
         if let backwardNode = value?.node?.child(with: options.property) {
-            let ownerNode = options.owner.node!
+            let ownerNode = node.ancestor(on: options.ownerLevelsUp)!
             let thisProperty = node.path(from: ownerNode)
-            let backwardRelation = NewRelation(path: ownerNode.rootPath, property: thisProperty)
+            let backwardRelation = Relation(path: ownerNode.rootPath, property: thisProperty)
             transaction.addValue(backwardRelation.localValue, by: backwardNode)
         }
         if let previousNode = oldValue??.node?.child(with: options.property) {
@@ -92,7 +99,9 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
     }
 
     public struct Options {
-        unowned var owner: RealtimeObject
+        /// Levels up by hierarchy to relation owner of this property
+        let ownerLevelsUp: Int
+        /// String path from related object to his relation property
         let property: String
     }
 }
@@ -101,6 +110,7 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
 
 public extension RealtimeValueOption {
     static var representer: RealtimeValueOption = RealtimeValueOption("realtime.property.representer")
+    static var initialValue: RealtimeValueOption = RealtimeValueOption("realtime.property.initialValue")
 }
 
 // TODO: Add possible update value at subpath
@@ -130,11 +140,7 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
         set { _hasChanges = newValue }
         get { return _hasChanges }
     }
-    override public var localValue: Any? {
-        do { return try representer.encode(localPropertyValue.get()) }
-        catch { return nil }
-    }
-    
+
     private var localPropertyValue: PropertyValue<T>
     fileprivate var oldValue: T?
     public var value: T {
@@ -156,7 +162,7 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     public required init(in node: Node?, options: [RealtimeValueOption: Any] = [.representer: AnyRVRepresenter<T>.default]) {
         guard case let representer as AnyRVRepresenter<T> = options[.representer] else { fatalError("Bad options") }
 
-        self.localPropertyValue = PropertyValue(T())
+        self.localPropertyValue = PropertyValue(options[.initialValue] as? T ?? T())
         self.insider = Insider(source: localPropertyValue.get)
         self.representer = representer
         self.lastError = Property<Error?>(value: nil)
@@ -202,7 +208,11 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     }
 
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
-        transaction.addValue(localValue, by: node)
+        do {
+            transaction.addValue(try representer.encode(localPropertyValue.get()), by: node)
+        } catch let e {
+            fatalError(e.localizedDescription)
+        }
     }
     
     // MARK: Events

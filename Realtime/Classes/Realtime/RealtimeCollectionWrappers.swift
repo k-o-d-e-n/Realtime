@@ -28,7 +28,6 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var node: Node? { fatalError() }
     var view: RealtimeCollectionView { fatalError() }
     var isPrepared: Bool { fatalError() }
-    var localValue: Any? { fatalError() }
     func makeIterator() -> AnyIterator<Element> { fatalError() }
     var startIndex: Int { fatalError() }
     var endIndex: Int { fatalError() }
@@ -67,7 +66,6 @@ where C.Index == Int {
 
     override var node: Node? { return base.node }
     override var view: RealtimeCollectionView { return base.view }
-    override var localValue: Any? { return base.localValue }
     override var isPrepared: Bool { return base.isPrepared }
 
     override func makeIterator() -> AnyIterator<C.Iterator.Element> { return AnyIterator(base.makeIterator()) }
@@ -102,7 +100,6 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var node: Node? { return base.node }
     public var storage: AnyArrayStorage = AnyArrayStorage()
     public var view: RealtimeCollectionView { return base.view }
-    public var localValue: Any? { return base.localValue }
     public var isPrepared: Bool { return base.isPrepared }
     public var startIndex: Int { return base.startIndex }
     public var endIndex: Int { return base.endIndex }
@@ -210,7 +207,6 @@ where Element: RealtimeValue {
     public var node: Node? { get { return base.node } set {} }
     public var view: RealtimeCollectionView { return base.view }
     public var storage: KeyedCollectionStorage<Element>
-    public var localValue: Any? { return base.localValue }
     public var isPrepared: Bool { return base.isPrepared }
 
     public var startIndex: Index { return base.startIndex }
@@ -277,7 +273,6 @@ where Base.Index == Int {
     public var node: Node? { get { return base.node } set {} }
     public var view: RealtimeCollectionView { return base.view }
     public var storage: AnyArrayStorage
-    public var localValue: Any? { return base.localValue }
     public var isPrepared: Bool { return base.isPrepared }
 
     public var startIndex: Index { return base.startIndex }

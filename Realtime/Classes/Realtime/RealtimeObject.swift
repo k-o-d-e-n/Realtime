@@ -18,7 +18,6 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     private var observing: (token: UInt, counter: Int)?
     public var isObserved: Bool { return observing != nil }
     public var canObserve: Bool { return isRooted }
-    public var localValue: Any? { fatalError("You should implement in your subclass") }
     public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self.node = node
         self.dbRef = node.flatMap { $0.isRooted ? $0.reference : nil }
@@ -72,7 +71,13 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
         ref.removeObserver(withHandle: token);
     }
 
-    public func willRemove(in transaction: RealtimeTransaction) {}
+    public func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+        debugFatalError(condition: self.node == nil || !self.node!.isRooted,
+                        "Value will be removed from node: \(ancestor), but has not been inserted before. Current: \(self.node?.description ?? "")")
+        debugFatalError(condition: !self.node!.hasParent(node: ancestor),
+                        "Value will be removed from node: \(ancestor), that is not ancestor for this location: \(self.node!.description)")
+        debugFatalError(condition: !ancestor.isRooted, "Value will be removed from non rooted node: \(ancestor)")
+    }
     public func didRemove(from ancestor: Node) {
         debugFatalError(condition: self.node == nil || !self.node!.isRooted,
                         "Value has been removed from node: \(ancestor), but has not been inserted before. Current: \(self.node?.description ?? "")")
@@ -87,7 +92,10 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
             self.dbRef = nil
         }
     }
-    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {}
+    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
+        debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value will be saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
+        debugFatalError(condition: !parent.isRooted, "Value will be saved non rooted node: \(parent)")
+    }
     public func didSave(in parent: Node, by key: String) {
         debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
         debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
@@ -125,7 +133,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
         fatalError("You should implement in your subclass")
     }
     
-    public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \(String(describing: localValue));\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
+    public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \("TODO:");\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
 }
 
 /// Main class to define Realtime models objects.
@@ -154,8 +162,6 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
 ///
 open class RealtimeObject: _RealtimeValue {
     override public var hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val.hasChanges }) }
-    override public var localValue: Any? { return typedLocalValue }
-    public var typedLocalValue: [String: Any]? { return keyedValues { return $0.localValue } }
 
 //    private lazy var mv: StandartProperty<Int?> = Nodes.modelVersion.property(from: self.node)
 
@@ -183,9 +189,10 @@ open class RealtimeObject: _RealtimeValue {
     }
 
     typealias Links = RealtimeProperty<[SourceLink]>
-    override public func willRemove(in transaction: RealtimeTransaction) {
+    public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+        super.willRemove(in: transaction, from: ancestor)
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
-            value.willRemove(in: transaction)
+            value.willRemove(in: transaction, from: ancestor)
         }
         let links: Links = Links(in: node!.linksNode, options: [.representer: AnyRVRepresenter(serializer: SourceLinkArraySerializer.self)])
         transaction.addPrecondition { [unowned transaction] (promise) in
@@ -274,6 +281,7 @@ open class RealtimeObject: _RealtimeValue {
     fileprivate func enumerateKeyPathChilds<As>(from type: Any.Type = _RealtimeValue.self, _ block: (String, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
+                guard mirror.subjectType != RealtimeObject.self && (child.value as AnyObject) !== parent else { return }
                 guard var label = child.label else { return }
 
                 if label.hasSuffix(lazyStoragePath) {
@@ -293,6 +301,7 @@ open class RealtimeObject: _RealtimeValue {
     fileprivate func enumerateChilds<As>(from type: Any.Type = _RealtimeValue.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
+                guard mirror.subjectType != RealtimeObject.self && (child.value as AnyObject) !== parent else { return }
                 guard case let value as As = child.value else { return }
 
                 block(child.label, value)
@@ -304,6 +313,7 @@ open class RealtimeObject: _RealtimeValue {
         reflect(to: type) { (mirror) in
             guard !contains else { return }
             contains = mirror.children.contains(where: { (child) -> Bool in
+                guard mirror.subjectType != RealtimeObject.self && (child.value as AnyObject) !== parent else { return false }
                 guard case let value as As = child.value else { return false }
 
                 return block(child.label, value)

@@ -10,10 +10,10 @@ import UIKit
 import Realtime
 
 class Object: RealtimeObject {
-    lazy var id: RealtimeProperty<String?> = "id".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
+    lazy var id: RealtimeProperty<String?> = "id".property(from: self.node)
     lazy var array: RealtimeArray<Object> = "array".array(from: self.node)
 
-    lazy var name: RealtimeProperty<String?> = "human/name/firstname".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
+    lazy var name: RealtimeProperty<String?> = "human/name/firstname".property(from: self.node)
 }
 
 class ViewController: UIViewController {

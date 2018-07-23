@@ -65,6 +65,19 @@ public class Node: Equatable {
         fatalError("Path cannot be get from non parent node")
     }
 
+    func ancestor(on level: Int) -> Node? {
+        guard level > 0 else { fatalError("Level must be more than 0") }
+        
+        var currentLevel = 1
+        var ancestor = parent
+        while currentLevel < level, let ancr = ancestor {
+            ancestor = ancr.parent
+            currentLevel += 1
+        }
+
+        return ancestor
+    }
+
     func hasParent(node: Node) -> Bool {
         var current: Node = self
         while let parent = current.parent {

@@ -211,7 +211,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         let transaction = transaction ?? RealtimeTransaction()
 
         let element = storage.elements.removeValue(forKey: key) ?? storage.object(for: key)
-        element.willRemove(in: transaction)
+        element.willRemove(in: transaction, from: storage.sourceNode)
 
         if !_view.source.hasChanges {
             transaction.addReversion(_view.source.currentReversion())
@@ -234,20 +234,6 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
 
     // MARK: Realtime
 
-    override public var localValue: Any? {
-        let split = storage.elements.reduce((exists: [], removed: [])) { (res, keyValue) -> (exists: [(Key, Value)], removed: [(Key, Value)]) in
-            guard _view.contains(where: { $0.dbKey == keyValue.key.dbKey }) else {
-                return (res.exists, res.removed + [keyValue])
-            }
-
-            return (res.exists + [keyValue], res.removed)
-        }
-        var value = Dictionary<String, Any?>(keyValues: split.exists, mapKey: { $0.dbKey }, mapValue: { $0.localValue })
-//        value[_view.source.dbKey] = _view.source.localValue
-        split.removed.forEach { value[$0.0.dbKey] = nil }
-
-        return value
-    }
 
     public required init(in node: Node?) {
         fatalError("Realtime dictionary cannot be initialized with init(in:) initializer")
@@ -309,9 +295,11 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0.dbKey) }
     }
 
-    override public func willRemove(in transaction: RealtimeTransaction) {
-        super.willRemove(in: transaction)
-        transaction.addValue(nil, by: node!.linksNode)
+    public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {  // TODO: Elements don't receive willRemove event
+        super.willRemove(in: transaction, from: ancestor)
+        if ancestor == node?.parent {
+            transaction.addValue(nil, by: node!.linksNode)
+        }
     }
     override public func didRemove(from node: Node) {
         super.didRemove(from: node)

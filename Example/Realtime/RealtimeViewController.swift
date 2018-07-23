@@ -59,7 +59,7 @@ class RealtimeViewController: UIViewController {
     }
 
     lazy var label: UILabel! = UILabel().add(to: view) {
-        $0.frame = CGRect(x: 0, y: view.bounds.height - 30, width: view.bounds.width, height: 30)
+        $0.frame = CGRect(x: 20, y: view.bounds.height - 100, width: view.bounds.width, height: 30)
         $0.text = "Result here"
     }
     var user: RealtimeUser? {
@@ -136,9 +136,9 @@ class RealtimeViewController: UIViewController {
         guard let ref = user?.node ?? Global.rtUsers.first?.node else { return }
         let u = RealtimeUser(in: ref)
 
-        let controller = UIAlertController(title: "", message: "Remove using collection?", preferredStyle: .alert)
+        let controller = UIAlertController(title: "", message: "Remove using:", preferredStyle: .alert)
 
-        controller.addAction(UIAlertAction(title: "Ok", style: .default) { (_) in
+        controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtUsers.remove(element: u)
 
             transaction?.commit { _, errs in
@@ -154,12 +154,12 @@ class RealtimeViewController: UIViewController {
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
             }
         })
-        controller.addAction(UIAlertAction(title: "Cancel", style: .default) { (_) in
+        controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
             u.delete().commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
-                    assert(!Global.rtUsers.contains(u))
+//                    assert(!Global.rtUsers.contains(u))
                     if let g = self.group {
                         assert(!g.users.contains(u))
                     }
@@ -175,9 +175,9 @@ class RealtimeViewController: UIViewController {
         guard let ref = group?.node ?? Global.rtGroups.first?.node else { return }
         let grp = RealtimeGroup(in: ref)
 
-        let controller = UIAlertController(title: "", message: "Remove using collection?", preferredStyle: .alert)
+        let controller = UIAlertController(title: "", message: "Remove using:", preferredStyle: .alert)
 
-        controller.addAction(UIAlertAction(title: "Ok", style: .default) { (_) in
+        controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtGroups.remove(element: grp)
 
             transaction?.commit { _, errs in
@@ -193,12 +193,12 @@ class RealtimeViewController: UIViewController {
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
             }
         })
-        controller.addAction(UIAlertAction(title: "Cancel", style: .default) { (_) in
+        controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
             grp.delete().commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
-                    assert(!Global.rtGroups.contains(grp))
+//                    assert(!Global.rtGroups.contains(grp))
                     if let u = self.user {
                         assert(!u.groups.contains(grp))
                     }
@@ -216,9 +216,8 @@ class RealtimeViewController: UIViewController {
         let ug = try! u.groups.write(element: g)
         let gu = try! g.users.write(element: u)
 
-        u.ownedGroup <= group
-
         let transaction = RealtimeTransaction()
+        u.ownedGroup.setValue(group, in: transaction)
         transaction.merge(ug)
         transaction.merge(gu)
         transaction.commit { _, errs in
@@ -240,6 +239,7 @@ class RealtimeViewController: UIViewController {
 
         controller.addAction(UIAlertAction(title: "User", style: .default) { (_) in
             let transaction = g.users.remove(element: u)
+            u.ownedGroup.setValue(nil, in: transaction)
 
             transaction?.commit { _, errs in
                 if let errors = errs {
@@ -253,6 +253,7 @@ class RealtimeViewController: UIViewController {
         })
         controller.addAction(UIAlertAction(title: "Group", style: .default) { (_) in
             let transaction = u.groups.remove(element: g)
+            g.manager.setValue(nil, in: transaction)
 
             transaction?.commit { _, errs in
                 if let errors = errs {
@@ -288,9 +289,9 @@ class RealtimeViewController: UIViewController {
     @objc func removeConversation() {
         guard let u = user ?? Global.rtUsers.first, let g = group ?? Global.rtGroups.first else { fatalError() }
 
-        let controller = UIAlertController(title: "", message: "Remove using collection?", preferredStyle: .alert)
+        let controller = UIAlertController(title: "", message: "Remove using:", preferredStyle: .alert)
 
-        controller.addAction(UIAlertAction(title: "Ok", style: .default) { (_) in
+        controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = g.conversations.remove(for: u)
 
             transaction?.commit { _, errs in
@@ -303,7 +304,7 @@ class RealtimeViewController: UIViewController {
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
             }
         })
-        controller.addAction(UIAlertAction(title: "Cancel", style: .default) { (_) in
+        controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
             g.conversations.runObserving()
             g.conversations.prepare(forUse: .just { (convers, err) in
                 guard err == nil else {

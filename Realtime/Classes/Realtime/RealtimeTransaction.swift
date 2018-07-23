@@ -104,7 +104,7 @@ public class RealtimeTransaction {
     public var isFailed: Bool { return state == .failed }
     public var isPerforming: Bool { return state == .performing }
     public var isMerged: Bool { return state == .merged }
-    public var isInvalidated: Bool { return isCompleted || isFailed || isMerged }
+    public var isInvalidated: Bool { return isCompleted || isFailed || isMerged || isReverted }
 
     public enum State {
         case waiting, performing, completed, failed
@@ -204,19 +204,24 @@ extension RealtimeTransaction {
 
     /// registers new single value for specified reference
     public func addValue(_ value: Any?, by node: Realtime.Node) { // TODO: Write different methods only for available values
-        var nodes = node.reversed().dropFirst().makeIterator()
+        let nodes = node.reversed().dropFirst()
         var current = updateNode
-        while let n = nodes.next() {
+        var iterator = nodes.makeIterator()
+        while let n = iterator.next() {
             if let update = current.childs.first(where: { $0.node == n }) {
-                if let u = update as? ObjectNode {
-                    current = u
-                } else if let u = update as? ValueNode, u.node == node {
+                if case let u as ObjectNode = update {
+                    if n === node {
+                        fatalError("Tries insert value higher than earlier writed values")
+                    } else {
+                        current = u
+                    }
+                } else if case let u as ValueNode = update, n === node {
                     u.value = value
                 } else {
-                    fatalError("Error in internal implementation")
+                    fatalError("Tries insert value lower than earlier writed single value")
                 }
             } else {
-                if node == n {
+                if node === n {
                     current.childs.append(ValueNode(node: node, value: value))
                 } else {
                     let child = ObjectNode(node: n)
@@ -325,10 +330,10 @@ public extension RealtimeTransaction {
 
     /// adds operation of delete RealtimeValue
     internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
-        guard value.isRooted else { fatalError() }
+        guard let node = value.node, node.isRooted else { fatalError() }
 
         value.willRemove(in: self)
-        addValue(nil, by: value.node!)
+        addValue(nil, by: node)
     }
 
     internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) {

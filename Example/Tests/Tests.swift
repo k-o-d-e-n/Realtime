@@ -754,11 +754,11 @@ class Tests: XCTestCase {
 // MARK: Realtime
 
 class TestObject: RealtimeObject {
-    lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
+    lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node)
     lazy var linkedArray: LinkedRealtimeArray<RealtimeObject> = "linked_array".linkedArray(from: self.node, elements: .root)
     lazy var array: RealtimeArray<RealtimeObject> = "array".array(from: self.node)
     lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
-    lazy var nestedObject: NestedObject = "nestedObject".property(in: self)
+    lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
 
     override open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -772,11 +772,11 @@ class TestObject: RealtimeObject {
     }
 
     class NestedObject: RealtimeObject {
-        lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node, representer: AnyRVRepresenter<String?>.default)
+        lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node)
 
         override open class func keyPath(for label: String) -> AnyKeyPath? {
             switch label {
-            case "prop": return \NestedObject.property
+            case "property": return \NestedObject.property
             default: return nil
             }
         }
@@ -784,8 +784,6 @@ class TestObject: RealtimeObject {
 }
 
 extension Tests {
-    // TODO: Mapping and etc.
-
     func testNestedObjectChanges() {
         let testObject = TestObject(in: .root)
 
@@ -794,7 +792,7 @@ extension Tests {
 
         let trans = testObject.update()
         let value = trans.updateNode.updateValue
-        let expectedValue = ["prop":"string", "nestedObject":["prop":"nested_string"]] as [String: Any?]
+        let expectedValue = ["/prop":"string", "/nestedObject/prop":"nested_string"] as [String: Any?]
 
         XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
         trans.revert()
@@ -815,8 +813,8 @@ extension Tests {
         elementTransaction.merge(objectTransaction)
 
         let value = elementTransaction.updateNode.updateValue
-        let expectedValue = ["prop":"string", "nestedObject":["prop":"nested_string"],
-                             "element_1":["prop":"element #1", "nestedObject":["prop":"value"]]] as [String: Any?]
+        let expectedValue = ["/prop":"string", "/nestedObject/prop":"nested_string",
+                             "/element_1/prop":"element #1", "/element_1/nestedObject/prop":"value"] as [String: Any?]
 
         XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
         elementTransaction.revert()
@@ -943,7 +941,7 @@ extension Tests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: AnyRVRepresenter<String?>.default])
+        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: AnyRVRepresenter<[Int]>.default, .initialValue: [0]])
         let one = AnyRealtimeCollectionView(source)//SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)
