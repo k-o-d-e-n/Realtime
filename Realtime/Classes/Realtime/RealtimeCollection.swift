@@ -132,13 +132,13 @@ protocol KeyValueAccessableCollection {
 extension Array: KeyValueAccessableCollection {
     subscript(for key: Int) -> Element? {
         get { return self[key] }
-        set(newValue) { self[key] = newValue! }
+        set { self[key] = newValue! }
     }
 }
 extension Dictionary: KeyValueAccessableCollection {
     subscript(for key: Key) -> Value? {
         get { return self[key] }
-        set(newValue) { self[key] = newValue }
+        set { self[key] = newValue }
     }
 }
 
@@ -254,11 +254,11 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     public typealias Value = V
     var sourceNode: Node!
     let elementBuilder: (Node, [String: Any]?) -> Value
-    var elements: [RCItem: Value] = [:]
+    var elements: [String: Value] = [:]
     var localElements: [V] = []
 
-    mutating func store(value: Value, by key: RCItem) { elements[for: key] = value }
-    func storedValue(by key: RCItem) -> Value? { return elements[for: key] }
+    mutating func store(value: Value, by key: RCItem) { elements[for: key.dbKey] = value }
+    func storedValue(by key: RCItem) -> Value? { return elements[for: key.dbKey] }
 
     func buildElement(with key: RCItem) -> V {
         return elementBuilder(sourceNode.child(with: key.dbKey), key.payload)

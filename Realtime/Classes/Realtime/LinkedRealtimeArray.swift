@@ -154,7 +154,7 @@ public extension LinkedRealtimeArray {
 
             return { [weak self] in
                 sourceRevers?()
-                self?.storage.elements.removeValue(forKey: item)
+                self?.storage.elements.removeValue(forKey: item.dbKey)
             }
         }
         transaction.addReversion(reversion)
@@ -191,9 +191,9 @@ public extension LinkedRealtimeArray {
             transaction.addReversion(_view.source.currentReversion())
         }
         let item = _view.remove(at: index)
-        let element = storage.elements.removeValue(forKey: item)
+        let element = storage.elements.removeValue(forKey: item.dbKey)
         transaction.addReversion { [weak self] in
-            self?.storage.elements[item] = element
+            self?.storage.elements[item.dbKey] = element
         }
         transaction.addValue(nil, by: _view.source.node!.child(with: item.dbKey))
         let elementLinksNode = storage.sourceNode.linksNode.child(

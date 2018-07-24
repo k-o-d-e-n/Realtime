@@ -181,7 +181,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
 
             return { [weak self] in
                 sourceRevers?()
-                self?.storage.elements.removeValue(forKey: item)
+                self?.storage.elements.removeValue(forKey: item.dbKey)
             }
         }
         transaction.addReversion(reversion)
@@ -223,10 +223,10 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
             transaction.addReversion(_view.source.currentReversion())
         }
         let item = _view.remove(at: index)
-        let element = storage.elements.removeValue(forKey: item) ?? storage.object(for: item)
+        let element = storage.elements.removeValue(forKey: item.dbKey) ?? storage.object(for: item)
         element.willRemove(in: transaction, from: storage.sourceNode)
         transaction.addReversion { [weak self] in
-            self?.storage.elements[item] = element
+            self?.storage.elements[item.dbKey] = element
         }
         transaction.addValue(nil, by: _view.source.node!.child(with: item.dbKey)) // remove item element
         transaction.addValue(nil, by: storage.sourceNode.child(with: item.dbKey)) // remove element
@@ -255,14 +255,14 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
         _snapshot = nil
         _view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if strongly { storage.elements.removeValue(forKey: key) }
+                if strongly { storage.elements.removeValue(forKey: key.dbKey) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
-            if let element = storage.elements[key] {
+            if let element = storage.elements[key.dbKey] {
                 element.apply(childData, strongly: strongly)
             } else {
-                storage.elements[key] = try! Element(fireData: childData, strongly: strongly)
+                storage.elements[key.dbKey] = try! Element(fireData: childData, strongly: strongly)
             }
         }
     }
@@ -294,7 +294,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
             storage.sourceNode = node
         }
         storage.localElements.removeAll()
-        storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0.dbKey) }
+        storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0) }
     }
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {  // TODO: Elements don't receive willRemove event
