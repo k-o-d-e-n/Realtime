@@ -62,7 +62,7 @@ struct PrimitiveValue<T> {
     init(_ value: T) {
         self.value = value
         setter = { $0.value = $1 }
-        //        let pointer = UnsafeMutablePointer<PrimitiveValue<T>>(&self)
+        //        let pointer = UnsafeMutablePointer<PrimitiveValue<V>>(&self)
         getter = { $0.value }
     }
 

@@ -150,6 +150,7 @@ extension Dictionary: HasDefaultLiteral {}
 
 // MARK: Serializer
 
+@available(*, deprecated: 0.3.7, message: "Use RealtimeValueRepresenter instead")
 public protocol _Serializer {
     associatedtype Entity: HasDefaultLiteral
     associatedtype SerializationResult

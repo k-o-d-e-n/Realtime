@@ -180,8 +180,8 @@ extension Insider: _ListeningMaker, BridgeMaker {
 
 /// Object that provides listenable data
 public protocol InsiderOwner: class, Listenable {
-    associatedtype T
-    var insider: Insider<T> { get set }
+    associatedtype InsiderValue
+    var insider: Insider<InsiderValue> { get set }
 }
 
 protocol InsiderAccessor {
@@ -199,10 +199,10 @@ extension InsiderAccessor where Self: _ListeningMaker {
 }
 
 extension InsiderOwner {
-    private func makeDispose(for token: Insider<T>.Token) -> ListeningDispose {
+    private func makeDispose(for token: Insider<InsiderValue>.Token) -> ListeningDispose {
         return ListeningDispose({ [weak self] in self?.insider.disconnect(with: token) })
     }
-    private func makeListeningItem(token: Insider<T>.Token, listening: AnyListening) -> ListeningItem {
+    private func makeListeningItem(token: Insider<InsiderValue>.Token, listening: AnyListening) -> ListeningItem {
         return ListeningItem(start: { [weak self] in return self?.insider.connect(with: listening) },
                              stop: { [weak self] in self?.insider.disconnect(with: $0) },
                              notify: { listening.sendData() },
@@ -215,18 +215,18 @@ extension InsiderOwner {
         return makeListeningItem(token: insider.connect(with: listening), listening: listening)
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<InsiderValue>) -> Disposable {
         return makeDispose(for: insider.listen(as: config, assign).token)
     }
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<InsiderValue>) -> ListeningItem {
         let item = insider.listen(as: config, assign)
         return makeListeningItem(token: item.token, listening: item.listening)
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: @escaping (T) -> Void) -> Disposable {
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: @escaping (InsiderValue) -> Void) -> Disposable {
         return listening(as: config, .just(assign))
     }
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: @escaping (T) -> Void) -> ListeningItem {
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: @escaping (InsiderValue) -> Void) -> ListeningItem {
         return listeningItem(as: config, .just(assign))
     }
 }
@@ -374,40 +374,40 @@ struct WeakPropertyValue<T> where T: AnyObject {
 
 /// Common protocol for entities that represents some data
 public protocol ValueWrapper {
-    associatedtype T
-    var value: T { get set }
+    associatedtype V
+    var value: V { get set }
 }
 
 postfix operator ~
 public extension ValueWrapper {
-    static func <=(_ prop: inout Self, _ value: T) {
+    static func <=(_ prop: inout Self, _ value: V) {
         prop.value = value
     }
-    static func <=(_ value: inout T, _ prop: Self) {
+    static func <=(_ value: inout V, _ prop: Self) {
         value = prop.value
     }
-    static func <=(_ value: inout T?, _ prop: Self) {
+    static func <=(_ value: inout V?, _ prop: Self) {
         value = prop.value
     }
 
     @available(*, deprecated: 0.3.0)
-    postfix static func ~(_ prop: inout Self) -> T {
+    postfix static func ~(_ prop: inout Self) -> V {
         return prop.value
     }
 }
 public extension ValueWrapper {
-    func mapValue<U>(_ transform: (T) -> U) -> U {
+    func mapValue<U>(_ transform: (V) -> U) -> U {
         return transform(value)
     }
 }
-public extension ValueWrapper where T: _Optional {
-    static func <=(_ value: inout T?, _ prop: Self) {
+public extension ValueWrapper where V: _Optional {
+    static func <=(_ value: inout V?, _ prop: Self) {
         value = prop.value
     }
-    func mapValue<U>(_ transform: (T.Wrapped) -> U) -> U? {
+    func mapValue<U>(_ transform: (V.Wrapped) -> U) -> U? {
         return value.map(transform)
     }
-    func flatMapValue<U>(_ transform: (T.Wrapped) -> U?) -> U? {
+    func flatMapValue<U>(_ transform: (V.Wrapped) -> U?) -> U? {
         return value.flatMap(transform)
     }
 }
@@ -481,7 +481,7 @@ public extension InsiderOwner {
     /// - Parameter other: Insider owner that will be invoke notifications himself listenings
     /// - Returns: Listening token
     @discardableResult
-    func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.T == Self.T {
+    func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.InsiderValue {
         return listening(as: { $0.livetime(other) }, .just { [weak other] v in other?.value = v })
     }
 }

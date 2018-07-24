@@ -208,7 +208,7 @@ open class RealtimeObject: _RealtimeValue {
         let links: Links = Links(in: node!.linksNode, options: [.representer: AnyRVRepresenter(serializer: SourceLinkArraySerializer.self)])
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(completion: Assign.just({ err, refs in
-                refs.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.addValue(nil, by: $0) }
+                refs?.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.addValue(nil, by: $0) }
                 transaction.delete(links)
                 promise.fulfill(err)
             }))

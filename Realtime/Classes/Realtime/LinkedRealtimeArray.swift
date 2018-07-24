@@ -22,7 +22,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem]>>
+    let _view: AnyRealtimeCollectionView<[RCItem]>
 
     public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
@@ -48,9 +48,9 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
 
     // Implementation
 
-    public func contains(_ element: Element) -> Bool { return _view.source.value.contains { $0.dbKey == element.dbKey } }
+    public func contains(_ element: Element) -> Bool { return _view.contains { $0.dbKey == element.dbKey } }
 
-    public subscript(position: Int) -> Element { return storage.object(for: _view.source.value[position]) }
+    public subscript(position: Int) -> Element { return storage.object(for: _view[position]) }
     public var startIndex: Int { return _view.startIndex }
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
@@ -158,7 +158,7 @@ public extension LinkedRealtimeArray {
             }
         }
         transaction.addReversion(reversion)
-        _view.source.value.insert(item, at: item.index)
+        _view.insert(item, at: item.index)
         storage.store(value: element, by: item)
         transaction.addValue(item.fireValue, by: itemNode)
         transaction.addValue(link.link.fireValue, by: link.node)
@@ -166,7 +166,7 @@ public extension LinkedRealtimeArray {
 
     @discardableResult
     func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
-        if let index = _view.source.value.index(where: { $0.dbKey == element.dbKey }) {
+        if let index = _view.index(where: { $0.dbKey == element.dbKey }) {
             return remove(at: index, in: transaction)
         }
         return transaction
@@ -190,7 +190,7 @@ public extension LinkedRealtimeArray {
         if !_view.source.hasChanges {
             transaction.addReversion(_view.source.currentReversion())
         }
-        let item = _view.source.value.remove(at: index)
+        let item = _view.remove(at: index)
         let element = storage.elements.removeValue(forKey: item)
         transaction.addReversion { [weak self] in
             self?.storage.elements[item] = element

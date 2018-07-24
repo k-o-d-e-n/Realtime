@@ -202,8 +202,16 @@ extension RealtimeTransaction {
         }
     }
 
+    public func addValue(_ value: Any, by node: Realtime.Node) {
+        addValue(value, by: node)
+    }
+
+    public func removeValue(by node: Realtime.Node) {
+        addValue(nil, by: node)
+    }
+
     /// registers new single value for specified reference
-    public func addValue(_ value: Any?/*FireDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
+    func addValue(_ value: Any?/*FireDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
         let nodes = node.reversed().dropFirst()
         var current = updateNode
         var iterator = nodes.makeIterator()
@@ -232,7 +240,6 @@ extension RealtimeTransaction {
         }
     }
 
-    // TODO: nearest search uses to resolve permission error
     func performUpdate(_ completion: @escaping (Error?, DatabaseReference) -> Void) {
         guard updateNode.childs.count > 0 else {
             fatalError("Try commit empty transaction")
