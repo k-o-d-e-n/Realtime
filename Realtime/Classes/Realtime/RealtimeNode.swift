@@ -103,8 +103,8 @@ public class Node: Equatable {
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
 public extension Node {
-    static func from(_ snapshot: DataSnapshot) -> Node {
-        return from(snapshot.ref)
+    static func from(_ snapshot: FireDataProtocol) -> Node? {
+        return snapshot.dataRef.map(Node.from)
     }
     static func from(_ reference: DatabaseReference) -> Node {
         return Node.root.child(with: reference.rootPath)
@@ -213,24 +213,6 @@ public protocol AssociatedRTNode: RTNode {
 }
 public extension RawRepresentable where Self.RawValue == String {
     /// checks availability child in snapshot with node name   
-    func has(in snapshot: DataSnapshot) -> Bool {
-        return snapshot.hasChild(rawValue)
-    }
-
-    /// gets child snapshot by node name
-    func snapshot(from parent: DataSnapshot) -> DataSnapshot {
-        return parent.childSnapshot(forPath: rawValue)
-    }
-
-    func map<Returned>(from parent: DataSnapshot) -> Returned? {
-        return parent.map(child: rawValue) { $0.value as? Returned }
-    }
-
-    func take(from parent: DataSnapshot, exactly: Bool, map: (DataSnapshot) -> Void) {
-        parent.mapExactly(if: exactly, child: rawValue, map: map)
-    }
-
-    /// checks availability child in snapshot with node name
     func has(in snapshot: FireDataProtocol) -> Bool {
         return snapshot.hasChild(rawValue)
     }

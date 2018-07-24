@@ -14,7 +14,7 @@ import FirebaseDatabase
 public protocol RealtimeValueRepresenter {
     associatedtype V
     func encode(_ value: V) throws -> Any?
-    func decode(_ data: DataSnapshot) throws -> V
+    func decode(_ data: FireDataProtocol) throws -> V
 }
 extension RealtimeValueRepresenter {
     func optional() -> AnyRVRepresenter<V?> {
@@ -24,8 +24,8 @@ extension RealtimeValueRepresenter {
 
 public struct AnyRVRepresenter<V>: RealtimeValueRepresenter {
     fileprivate let encoding: (V) throws -> Any?
-    fileprivate let decoding: (DataSnapshot) throws -> V
-    public func decode(_ data: DataSnapshot) throws -> V {
+    fileprivate let decoding: (FireDataProtocol) throws -> V
+    public func decode(_ data: FireDataProtocol) throws -> V {
         return try decoding(data)
     }
     public func encode(_ value: V) throws -> Any? {
@@ -153,12 +153,12 @@ extension Dictionary: HasDefaultLiteral {}
 public protocol _Serializer {
     associatedtype Entity: HasDefaultLiteral
     associatedtype SerializationResult
-    static func deserialize(_ entity: DataSnapshot) -> Entity
+    static func deserialize(_ entity: FireDataProtocol) -> Entity
     static func serialize(_ entity: Entity) -> SerializationResult
 }
 
 public class Serializer<Entity: HasDefaultLiteral>: _Serializer {
-    public class func deserialize(_ entity: DataSnapshot) -> Entity {
+    public class func deserialize(_ entity: FireDataProtocol) -> Entity {
         return (entity.value as? Entity) ?? Entity()
     }
     
@@ -168,7 +168,7 @@ public class Serializer<Entity: HasDefaultLiteral>: _Serializer {
 }
 
 public class FireDataValueSerializer<V: FireDataValue>: _Serializer {
-    public static func deserialize(_ entity: DataSnapshot) -> V? {
+    public static func deserialize(_ entity: FireDataProtocol) -> V? {
         return try? V(fireData: entity)
     }
     public static func serialize(_ entity: V?) -> Any? {
@@ -177,10 +177,10 @@ public class FireDataValueSerializer<V: FireDataValue>: _Serializer {
 }
 
 public class ArraySerializer<Base: _Serializer>: _Serializer {
-    public class func deserialize(_ entity: DataSnapshot) -> [Base.Entity] {
+    public class func deserialize(_ entity: FireDataProtocol) -> [Base.Entity] {
         guard entity.hasChildren() else { return Entity() }
         
-        return entity.children.map { Base.deserialize(unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }
+        return entity.map(Base.deserialize)
     }
     
     public class func serialize(_ entity: [Base.Entity]) -> [Base.SerializationResult] {
@@ -195,7 +195,7 @@ public class DateSerializer: _Serializer {
         return entity?.timeIntervalSince1970
     }
     
-    public class func deserialize(_ entity: DataSnapshot) -> Date? {
+    public class func deserialize(_ entity: FireDataProtocol) -> Date? {
         guard entity.exists() else { return nil }
         
         return Date(timeIntervalSince1970: entity.value as! TimeInterval)
@@ -207,7 +207,7 @@ public class URLSerializer: _Serializer {
         return entity?.absoluteString
     }
     
-    public class func deserialize(_ entity: DataSnapshot) -> URL? {
+    public class func deserialize(_ entity: FireDataProtocol) -> URL? {
         guard entity.exists() else { return nil }
         
         return URL(string: entity.value as! String)
@@ -215,7 +215,7 @@ public class URLSerializer: _Serializer {
 }
 
 public class OptionalEnumSerializer<EnumType: RawRepresentable>: _Serializer {
-    public class func deserialize(_ entity: DataSnapshot) -> EnumType? {
+    public class func deserialize(_ entity: FireDataProtocol) -> EnumType? {
         guard entity.exists(), let val = entity.value as? EnumType.RawValue else { return nil }
         
         return EnumType(rawValue: val)
@@ -227,7 +227,7 @@ public class OptionalEnumSerializer<EnumType: RawRepresentable>: _Serializer {
 }
 
 public class EnumSerializer<EnumType: RawRepresentable & HasDefaultLiteral>: _Serializer {
-    public class func deserialize(_ entity: DataSnapshot) -> EnumType {
+    public class func deserialize(_ entity: FireDataProtocol) -> EnumType {
         guard entity.exists(), let val = entity.value as? EnumType.RawValue else { return EnumType() }
 
         return EnumType(rawValue: val) ?? EnumType()
@@ -244,7 +244,7 @@ public class CodableSerializer<T: Codable & HasDefaultLiteral>: _Serializer {
         return try? JSONSerialization.jsonObject(with: data, options: .allowFragments)
     }
 
-    public class func deserialize(_ entity: DataSnapshot) -> T {
+    public class func deserialize(_ entity: FireDataProtocol) -> T {
         return (try? T(from: entity)) ?? T()
     }
 }
@@ -252,10 +252,10 @@ public class CodableSerializer<T: Codable & HasDefaultLiteral>: _Serializer {
 // MARK: Containers
 
 class SourceLinkArraySerializer: _Serializer {
-    class func deserialize(_ entity: DataSnapshot) -> [SourceLink] {
+    class func deserialize(_ entity: FireDataProtocol) -> [SourceLink] {
         guard entity.exists() else { return Entity() }
         
-        return entity.children.compactMap { try? SourceLink(fireData: unsafeBitCast($0 as AnyObject, to: DataSnapshot.self)) }
+        return (try? entity.map(SourceLink.init)) ?? []
     }
     
     class func serialize(_ entity: [SourceLink]) -> [String: Any] {
@@ -268,12 +268,12 @@ class SourceLinkArraySerializer: _Serializer {
 }
 
 class DataSnapshotRepresentedSerializer<L: FireDataRepresented & FireDataValueRepresented>: _Serializer {
-    class func deserialize(_ entity: DataSnapshot) -> L? { return try? L(fireData: entity) }
+    class func deserialize(_ entity: FireDataProtocol) -> L? { return try? L(fireData: entity) }
     class func serialize(_ entity: L?) -> Any? { return entity.flatMap { $0.fireValue } }
 }
 
 public class LinkableValueSerializer<V: RealtimeValue>: _Serializer {
-    public static func deserialize(_ entity: DataSnapshot) -> V? {
+    public static func deserialize(_ entity: FireDataProtocol) -> V? {
         return DataSnapshotRepresentedSerializer<Reference>.deserialize(entity)?.make()
     }
     public static func serialize(_ entity: V?) -> Any? {
@@ -283,13 +283,13 @@ public class LinkableValueSerializer<V: RealtimeValue>: _Serializer {
 
 /// --------------------------- DataSnapshot Decoder ------------------------------
 
-extension DataSnapshot: Decoder {
+extension Decoder where Self: FireDataProtocol {
     public var codingPath: [CodingKey] {
         return []
     }
 
     public var userInfo: [CodingUserInfoKey : Any] {
-        return [CodingUserInfoKey(rawValue: "ref")!: ref]
+        return [CodingUserInfoKey(rawValue: "ref")!: dataRef as Any]
     }
 
     public func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
@@ -303,10 +303,19 @@ extension DataSnapshot: Decoder {
     public func singleValueContainer() throws -> SingleValueDecodingContainer {
         return DataSnapshotSingleValueContainer(snapshot: self)
     }
+
+    fileprivate func childDecoder<Key: CodingKey>(forKey key: Key) throws -> FireDataProtocol {
+        guard hasChild(key.stringValue) else {
+            throw DecodingError.keyNotFound(key, DecodingError.Context(codingPath: [key], debugDescription: debugDescription))
+        }
+        return child(forPath: key.stringValue)
+    }
 }
+extension DataSnapshot: Decoder {}
+extension MutableData: Decoder {}
 
 fileprivate struct DataSnapshotSingleValueContainer: SingleValueDecodingContainer {
-    let snapshot: DataSnapshot
+    let snapshot: FireDataProtocol
     var codingPath: [CodingKey] { return snapshot.codingPath }
 
     func decodeNil() -> Bool {
@@ -341,10 +350,10 @@ fileprivate struct DataSnapshotSingleValueContainer: SingleValueDecodingContaine
 }
 
 fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContainer {
-    let snapshot: DataSnapshot
+    let snapshot: FireDataProtocol
     let enumerator: NSEnumerator
 
-    init(snapshot: DataSnapshot) {
+    init(snapshot: FireDataProtocol & Decoder) {
         self.snapshot = snapshot
         self.enumerator = snapshot.children
         self.currentIndex = 0
@@ -362,8 +371,8 @@ fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContaine
         return true
     }
 
-    private mutating func nextDecoder() throws -> DataSnapshot {
-        guard case let next as DataSnapshot = enumerator.nextObject() else {
+    private mutating func nextDecoder() throws -> FireDataProtocol {
+        guard case let next as FireDataProtocol = enumerator.nextObject() else {
             throw DecodingError.dataCorruptedError(in: self, debugDescription: snapshot.debugDescription)
         }
         currentIndex += 1
@@ -405,20 +414,13 @@ fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContaine
 
 struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtocol {
     typealias Key = K
-    let snapshot: DataSnapshot
+    let snapshot: FireDataProtocol
 
     var codingPath: [CodingKey] { return [] }
-    var allKeys: [Key] { return snapshot.children.compactMap { Key(stringValue: ($0 as! DataSnapshot).key) } }
-
-    private func childDecoder(forKey key: Key) throws -> DataSnapshot {
-        guard contains(key) else {
-            throw DecodingError.keyNotFound(key, DecodingError.Context(codingPath: [key], debugDescription: snapshot.debugDescription))
-        }
-        return snapshot.childSnapshot(forPath: key.stringValue)
-    }
+    var allKeys: [Key] { return snapshot.compactMap { $0.dataKey.flatMap(Key.init) } }
 
     private func _decode<T>(_ type: T.Type, forKey key: Key) throws -> T {
-        let child = try childDecoder(forKey: key)
+        let child = try snapshot.childDecoder(forKey: key)
         guard case let v as T = child.value else {
             throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: [key], debugDescription: child.debugDescription))
         }
@@ -429,7 +431,7 @@ struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtoc
         return snapshot.hasChild(key.stringValue)
     }
 
-    func decodeNil(forKey key: Key) throws -> Bool { return try childDecoder(forKey: key).value is NSNull }
+    func decodeNil(forKey key: Key) throws -> Bool { return try snapshot.childDecoder(forKey: key).value is NSNull }
     func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool { return try _decode(type, forKey: key) }
     func decode(_ type: Int.Type, forKey key: Key) throws -> Int { return try _decode(type, forKey: key) }
     func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 { return try _decode(type, forKey: key) }
@@ -445,13 +447,13 @@ struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtoc
     func decode(_ type: Double.Type, forKey key: Key) throws -> Double { return try _decode(type, forKey: key) }
     func decode(_ type: String.Type, forKey key: Key) throws -> String { return try _decode(type, forKey: key) }
     func decode<T>(_ type: T.Type, forKey key: Key) throws -> T where T : Decodable {
-        return try T(from: childDecoder(forKey: key))
+        return try T(from: snapshot.childDecoder(forKey: key))
     }
     func nestedContainer<NestedKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> where NestedKey : CodingKey {
-        return try childDecoder(forKey: key).container(keyedBy: type)
+        return try snapshot.childDecoder(forKey: key).container(keyedBy: type)
     }
     func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer {
-        return try childDecoder(forKey: key).unkeyedContainer()
+        return try snapshot.childDecoder(forKey: key).unkeyedContainer()
     }
     func superDecoder() throws -> Decoder { return snapshot }
     func superDecoder(forKey key: Key) throws -> Decoder { return snapshot }

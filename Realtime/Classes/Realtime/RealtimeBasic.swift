@@ -18,7 +18,7 @@ struct RealtimeError: Error {
 
 internal let lazyStoragePath = ".storage"
 
-public protocol FireDataProtocol {
+public protocol FireDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
     var value: Any? { get }
     var priority: Any? { get }
     var children: NSEnumerator { get }
@@ -29,9 +29,20 @@ public protocol FireDataProtocol {
     func hasChildren() -> Bool
     func hasChild(_ childPathString: String) -> Bool
     func child(forPath path: String) -> FireDataProtocol
+    func map<T>(_ transform: (FireDataProtocol) throws -> T) rethrows -> [T]
+    func compactMap<ElementOfResult>(_ transform: (FireDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult]
+    func forEach(_ body: (FireDataProtocol) throws -> Swift.Void) rethrows
+}
+extension Sequence where Self: FireDataProtocol {
+    public func makeIterator() -> AnyIterator<FireDataProtocol> {
+        let childs = children
+        return AnyIterator {
+            return unsafeBitCast(childs.nextObject(), to: FireDataProtocol.self)
+        }
+    }
 }
 
-extension DataSnapshot: FireDataProtocol {
+extension DataSnapshot: FireDataProtocol, Sequence {
     public var dataKey: String? {
         return key
     }
@@ -44,7 +55,7 @@ extension DataSnapshot: FireDataProtocol {
         return childSnapshot(forPath: path)
     }
 }
-extension MutableData: FireDataProtocol {
+extension MutableData: FireDataProtocol, Sequence {
     public var dataKey: String? {
         return key
     }
@@ -54,7 +65,7 @@ extension MutableData: FireDataProtocol {
     }
 
     public func exists() -> Bool {
-        return value != nil && !(value is NSNull)
+        return value.map { !($0 is NSNull) } ?? false
     }
 
     public func child(forPath path: String) -> FireDataProtocol {
@@ -66,18 +77,6 @@ extension MutableData: FireDataProtocol {
     }
 }
 
-// TODO: Avoid using three separated protocols
-
-public protocol DataSnapshotRepresented {
-    init?(snapshot: DataSnapshot)
-}
-
-public protocol MutableDataRepresented {
-    var localValue: Any? { get }
-    init(data: MutableData) throws
-}
-
-// TODO: I can make data wrapper struct, without create protocol or conformed protocol (avoid conformation DataSnapshot and MutableData)
 public protocol FireDataRepresented {
     init(fireData: FireDataProtocol) throws
 }
@@ -103,7 +102,7 @@ extension RealtimeValueOption {
 }
 
 /// Base protocol for all database entities
-public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented {
+public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
     /// Some data associated with value
     var payload: [String: FireDataValue]? { get }
     /// Node location in database
@@ -119,7 +118,7 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented
     ///   - snapshot: Snapshot value
     ///   - strongly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
     ///               Pass `false` if snapshot represents part of data (for example filtered list).
-    func apply(snapshot: DataSnapshot, strongly: Bool)
+    func apply(_ data: FireDataProtocol, strongly: Bool)
 
     /// Writes all local stored data to transaction as is. You shouldn't call it directly.
     ///
@@ -129,41 +128,38 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, DataSnapshotRepresented
     func write(to transaction: RealtimeTransaction, by node: Node)
 }
 public extension RealtimeValue {
+    var dbKey: String! { return node?.key }
     var dbRef: DatabaseReference? {
         return node.flatMap { $0.isRooted ? $0.reference : nil }
     }
-    init(in node: Node?) { self.init(in: node, options: [:]) }
-    init() { self.init(in: nil) }
-}
-extension HasDefaultLiteral where Self: RealtimeValue {}
 
-public extension RealtimeValue {
-    func apply(snapshot: DataSnapshot) {
-        apply(snapshot: snapshot, strongly: true)
-    }
-    func apply(parentSnapshotIfNeeded parent: DataSnapshot, strongly: Bool) {
-        guard strongly || dbKey.has(in: parent) else { return }
-
-        apply(snapshot: dbKey.snapshot(from: parent), strongly: strongly)
-    }
-}
-public extension RealtimeValue {
     var isInserted: Bool { return isRooted }
     var isStandalone: Bool { return !isRooted }
     var isReferred: Bool { return node?.parent != nil }
     var isRooted: Bool { return node?.isRooted ?? false }
-}
-public extension RealtimeValue {
-    var dbKey: String! { return node!.key }
 
-    init?(snapshot: DataSnapshot, strongly: Bool) {
-        if strongly { self.init(snapshot: snapshot) }
-        else {
-            self.init(in: .from(snapshot))
-            apply(snapshot: snapshot, strongly: false)
+    init(in node: Node?) { self.init(in: node, options: [:]) }
+    init() { self.init(in: nil) }
+    init(fireData: FireDataProtocol, strongly: Bool) throws {
+        if strongly {
+            try self.init(fireData: fireData)
+        } else {
+            self.init(in: fireData.dataRef.map(Node.from))
+            apply(fireData, strongly: false)
         }
     }
+
+    func apply(_ data: FireDataProtocol) {
+        apply(data, strongly: true)
+    }
+    func apply(parentDataIfNeeded parent: FireDataProtocol, strongly: Bool) {
+        guard strongly || dbKey.has(in: parent) else { return }
+
+        apply(dbKey.child(from: parent), strongly: strongly)
+    }
 }
+extension HasDefaultLiteral where Self: RealtimeValue {}
+
 public extension Hashable where Self: RealtimeValue {
     var hashValue: Int { return dbKey.hashValue }
     static func ==(lhs: Self, rhs: Self) -> Bool {
@@ -258,27 +254,4 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     @discardableResult func runObserving() -> Bool
     /// Stops observing, if observers no more.
     func stopObserving()
-}
-
-// ------------------------------------------------------------------------
-
-struct RemoteManager {
-    static func loadData<Entity: RealtimeValue & RealtimeValueEvents>(to entity: Entity, completion: Assign<(error: Error?, ref: DatabaseReference)>? = nil) {
-        guard let ref = entity.dbRef else {
-            debugFatalError(condition: true, "Couldn`t get reference")
-            completion?.assign((RealtimeError("Couldn`t get reference"), .root()))
-            return
-        }
-
-        ref.observeSingleEvent(of: .value, with: { entity.apply(snapshot: $0); completion?.assign((nil, ref)) }, withCancel: { completion?.assign(($0, ref)) })
-    }
-
-    static func observe<T: RealtimeValue & RealtimeValueEvents>(type: DataEventType = .value, entity: T, onUpdate: Database.TransactionCompletion? = nil) -> UInt? {
-        guard let ref = entity.dbRef else {
-            debugFatalError(condition: true, "Couldn`t get reference")
-            onUpdate?(RealtimeError("Couldn`t get reference"), .root())
-            return nil
-        }
-        return ref.observe(type, with: { entity.apply(snapshot: $0); onUpdate?(nil, $0.ref) }, withCancel: { onUpdate?($0, ref) })
-    }
 }

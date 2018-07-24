@@ -108,10 +108,10 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
     public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
         checkPreparation()
 
-        query(dbRef!).observeSingleEvent(of: .value, with: { (snapshot) in
-            self.apply(snapshot: snapshot, strongly: false)
+        query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
+            self.apply(data, strongly: false)
             
-            completion(self.filter { snapshot.hasChild($0.dbKey) }, nil)
+            completion(self.filter { data.hasChild($0.dbKey) }, nil)
         }) { (error) in
             completion([], error)
         }
@@ -240,30 +240,29 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
     }
     
     // MARK: Realtime
-    
 
-    public required convenience init(snapshot: DataSnapshot) {
-        self.init(in: Node.root.child(with: snapshot.ref.rootPath))
-        apply(snapshot: snapshot)
+    public required convenience init(fireData: FireDataProtocol) throws {
+        self.init(in: fireData.dataRef.map(Node.from))
+        apply(fireData)
     }
 
-    var _snapshot: (DataSnapshot, Bool)?
-    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
+    var _snapshot: (FireDataProtocol, Bool)?
+    override public func apply(_ data: FireDataProtocol, strongly: Bool) {
         guard _view.isPrepared else {
-            _snapshot = (snapshot, strongly)
+            _snapshot = (data, strongly)
             return
         }
         _snapshot = nil
         _view.source.value.forEach { key in
-            guard snapshot.hasChild(key.dbKey) else {
+            guard data.hasChild(key.dbKey) else {
                 if strongly { storage.elements.removeValue(forKey: key) }
                 return
             }
-            let childSnapshot = snapshot.childSnapshot(forPath: key.dbKey)
+            let childData = data.child(forPath: key.dbKey)
             if let element = storage.elements[key] {
-                element.apply(snapshot: childSnapshot, strongly: strongly)
+                element.apply(childData, strongly: strongly)
             } else {
-                storage.elements[key] = Element(snapshot: childSnapshot, strongly: strongly)
+                storage.elements[key] = try! Element(fireData: childData, strongly: strongly)
             }
         }
     }

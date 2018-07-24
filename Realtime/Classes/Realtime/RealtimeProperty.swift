@@ -229,17 +229,17 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     }
     
     // MARK: Changeable
-    
-    public convenience required init(snapshot: DataSnapshot) {
-        self.init(in: .from(snapshot))
-        apply(snapshot: snapshot)
+
+    public convenience required init(fireData: FireDataProtocol) throws {
+        self.init(in: fireData.dataRef.map(Node.from))
+        apply(fireData)
     }
 
-    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
-        super.apply(snapshot: snapshot, strongly: strongly)
+    override public func apply(_ data: FireDataProtocol, strongly: Bool) {
+        super.apply(data, strongly: strongly)
         resetHasChanges()
         do {
-            setValue(try representer.decode(snapshot))
+            setValue(try representer.decode(data))
         } catch let e {
             lastError <= e
         }
@@ -258,27 +258,14 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     }
 }
 
-//public final class ReadonlyRealtimeProperty<T>: RealtimeValue, ValueWrapper, InsiderOwner {
-//    let base: (_RealtimeValue & ValueWrapper & InsiderOwner)
-//
-//    init<Property>(_ property: Property) where Property: _RealtimeValue, Property: ValueWrapper, Property: InsiderOwner {
-//        self.base = property
-//    }
-//
-//    public init(in node: Node?) {
-//        fatalError()
-//    }
-//}
-
-public final class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, ValueWrapper, InsiderOwner where T == Serializer.Entity, T: FireDataValue {
-//    override public var localValue: Any? { return Serializer.serialize(localPropertyValue.get()) }
-
+public final class SharedProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner where T: FireDataValue, T: HasDefaultLiteral {
     private var localPropertyValue: PropertyValue<T>
     public var value: T {
         get { return localPropertyValue.get() }
         set { setValue(newValue) }
     }
     public var insider: Insider<T>
+    let representer: AnyRVRepresenter<T> = .default
 
     // MARK: Initializers, deinitializer
 
@@ -305,14 +292,18 @@ public final class SharedProperty<T, Serializer: _Serializer>: _RealtimeValue, V
 
     // MARK: Changeable
 
-    public convenience required init(snapshot: DataSnapshot) {
-        self.init(in: .from(snapshot))
-        apply(snapshot: snapshot)
+    public convenience required init(fireData: FireDataProtocol) throws {
+        self.init(in: fireData.dataRef.map(Node.from))
+        apply(fireData)
     }
 
-    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
-        super.apply(snapshot: snapshot, strongly: strongly)
-        setValue(Serializer.deserialize(snapshot))
+    override public func apply(_ data: FireDataProtocol, strongly: Bool) {
+        super.apply(data, strongly: strongly)
+        do {
+            setValue(try representer.decode(data))
+        } catch let e {
+            debugFatalError(e.localizedDescription)
+        }
     }
 
     fileprivate func setValue(_ value: T) {

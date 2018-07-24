@@ -100,10 +100,10 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
         checkPreparation()
 
-        query(dbRef!).observeSingleEvent(of: .value, with: { (snapshot) in
-            self.apply(snapshot: snapshot, strongly: false)
+        query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
+            self.apply(data, strongly: false)
 
-            completion(self.filter { snapshot.hasChild($0.key.dbKey) }, nil)
+            completion(self.filter { data.hasChild($0.key.dbKey) }, nil)
         }) { (error) in
             completion([], error)
         }
@@ -239,33 +239,33 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         fatalError("Realtime dictionary cannot be initialized with init(in:) initializer")
     }
 
-    public required convenience init(snapshot: DataSnapshot) {
+    public required convenience init(fireData: FireDataProtocol) throws {
         fatalError("Realtime dictionary cannot be initialized with init(snapshot:) initializer")
     }
 
-    public convenience init(snapshot: DataSnapshot, keysNode: Node) {
-        self.init(in: Node.root.child(with: snapshot.ref.rootPath), options: [.keys: keysNode])
-        apply(snapshot: snapshot)
+    public convenience init(fireData: FireDataProtocol, keysNode: Node) throws {
+        self.init(in: fireData.dataRef.map(Node.from), options: [.keys: keysNode])
+        apply(fireData)
     }
 
-    var _snapshot: (DataSnapshot, Bool)?
-    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
+    var _snapshot: (FireDataProtocol, Bool)?
+    override public func apply(_ data: FireDataProtocol, strongly: Bool) {
         guard _view.isPrepared else {
-            _snapshot = (snapshot, strongly)
+            _snapshot = (data, strongly)
             return
         }
         _snapshot = nil
         _view.source.value.forEach { key in
-            guard snapshot.hasChild(key.dbKey) else {
+            guard data.hasChild(key.dbKey) else {
                 if strongly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }
                 return
             }
-            let childSnapshot = snapshot.childSnapshot(forPath: key.dbKey)
+            let childData = data.child(forPath: key.dbKey)
             if let element = storage.elements.first(where: { $0.0.dbKey == key.dbKey })?.value {
-                element.apply(snapshot: childSnapshot, strongly: strongly)
+                element.apply(childData, strongly: strongly)
             } else {
                 let keyEntity = Key(in: storage.keysNode.child(with: key.dbKey))
-                storage.elements[keyEntity] = Value(snapshot: childSnapshot, strongly: strongly)
+                storage.elements[keyEntity] = try! Value(fireData: childData, strongly: strongly)
             }
         }
     }

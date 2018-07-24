@@ -28,7 +28,6 @@ public extension DatabaseReference {
         return self === ref || url == ref.url
     }
 
-//    public typealias UpdateItem = (path: String, value: Any?)
     func update(use keyValuePairs: [String: Any?], completion: Database.TransactionCompletion?) {
         if completion == nil {
             updateChildValues(keyValuePairs as Any as! [AnyHashable : Any])
@@ -47,16 +46,6 @@ public extension Database {
         let childValues = Dictionary<String, Any?>(keyValues: refValuePairs, mapKey: { $0.path(from: root) })
         root.update(use: childValues, completion: completion)
     }
-}
-
-public extension DataSnapshot {
-    func map<Mapped>(_ transform: (Any) -> Mapped = { $0 as! Mapped }) -> Mapped? { return value.map(transform) }
-    func flatMap<Mapped>(_ transform: (Any) -> Mapped? = { $0 as? Mapped }) -> Mapped? { return value.flatMap(transform) }
-    func map<Mapped>(child: String, map: (DataSnapshot) -> Mapped?) -> Mapped? {
-        guard hasChild(child) else { return nil }
-        return map(childSnapshot(forPath: child))
-    }
-    func mapExactly(if truth: Bool, child: String, map: (DataSnapshot) -> Void) { if truth || hasChild(child) { map(childSnapshot(forPath: child)) } }
 }
 
 /// TODO: Temporary

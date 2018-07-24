@@ -203,7 +203,7 @@ extension RealtimeTransaction {
     }
 
     /// registers new single value for specified reference
-    public func addValue(_ value: Any?, by node: Realtime.Node) { // TODO: Write different methods only for available values
+    public func addValue(_ value: Any?/*FireDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
         let nodes = node.reversed().dropFirst()
         var current = updateNode
         var iterator = nodes.makeIterator()

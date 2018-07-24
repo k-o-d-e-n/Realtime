@@ -915,18 +915,17 @@ extension Tests {
             }
         }
 
-        init?(snapshot: DataSnapshot) {
-            let type: CShort = "__raw".map(from: snapshot) ?? 0
+        init(fireData: FireDataProtocol) throws {
+            let type: CShort = "__raw".map(from: fireData) ?? 0
 
             switch type {
-            case 0: self = .one(TestObject(snapshot: snapshot))
-            case 1: self = .two(TestObject(snapshot: snapshot))
-            default: return nil
+            case 1: self = .two(try TestObject(fireData: fireData))
+            default: self = .one(try TestObject(fireData: fireData))
             }
         }
 
-        func apply(snapshot: DataSnapshot, strongly: Bool) {
-            value.apply(snapshot: snapshot, strongly: strongly)
+        func apply(_ data: FireDataProtocol, strongly: Bool) {
+            value.apply(data, strongly: strongly)
         }
 
         func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) {
@@ -984,7 +983,7 @@ extension Tests {
         waitForExpectations(timeout: 40) { (err) in
             XCTAssertNil(err)
             XCTAssertTrue(array.count == 2)
-            XCTAssertNoThrow(array.storage.buildElement(with: array._view.last!))
+//            XCTAssertNoThrow(array.storage.buildElement(with: array._view.last!))
             transaction.revert()
         }
     }

@@ -36,13 +36,11 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
     func write(to transaction: RealtimeTransaction, by node: Node) { fatalError() }
-    func apply(snapshot: DataSnapshot, strongly: Bool) { fatalError() }
+    func apply(_ data: FireDataProtocol, strongly: Bool) { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
     func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
     public func prepare(forUse completion: Assign<Error?>) { fatalError() }
-    required init?(snapshot: DataSnapshot) {  }
-    required init(in node: Node) {  }
     var debugDescription: String { return "" }
     func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { fatalError() }
     var canObserve: Bool { fatalError() }
@@ -53,11 +51,10 @@ where C.Index == Int {
     let base: C
     required init(base: C) {
         self.base = base
-        super.init(in: base.node!)
     }
 
-    convenience required init?(snapshot: DataSnapshot) {
-        guard let base = C(snapshot: snapshot) else { return nil }
+    convenience required init(fireData: FireDataProtocol) throws {
+        let base = try C(fireData: fireData)
         self.init(base: base)
     }
 
@@ -78,7 +75,7 @@ where C.Index == Int {
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
     override func write(to transaction: RealtimeTransaction, by node: Node) { base.write(to: transaction, by: node) }
-    override func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
+    override func apply(_ data: FireDataProtocol, strongly: Bool) { base.apply(data, strongly: strongly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving() -> Bool { return base.runObserving() }
@@ -116,9 +113,8 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var canObserve: Bool { return base.canObserve }
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
-    public convenience required init?(snapshot: DataSnapshot) { fatalError() }
-    public required init(dbRef: DatabaseReference) { fatalError() }
-    public func apply(snapshot: DataSnapshot, strongly: Bool) { base.apply(snapshot: snapshot, strongly: strongly) }
+    public convenience required init(fireData: FireDataProtocol) throws { fatalError() }
+    public func apply(_ data: FireDataProtocol, strongly: Bool) { base.apply(data, strongly: strongly) }
     public func write(to transaction: RealtimeTransaction, by node: Node) { base.write(to: transaction, by: node) }
 }
 
@@ -234,16 +230,12 @@ where Element: RealtimeValue {
         base.stopObserving()
     }
 
-    public convenience required init?(snapshot: DataSnapshot) {
+    public convenience required init(fireData: FireDataProtocol) throws {
         fatalError("Cannot use this initializer")
     }
 
-    public required init(dbRef: DatabaseReference) {
-        fatalError("Cannot use this initializer")
-    }
-
-    public func apply(snapshot: DataSnapshot, strongly: Bool) {
-        base.apply(snapshot: snapshot, strongly: strongly)
+    public func apply(_ data: FireDataProtocol, strongly: Bool) {
+        base.apply(data, strongly: strongly)
     }
 
     public func write(to transaction: RealtimeTransaction, by node: Node) {
@@ -301,16 +293,12 @@ where Base.Index == Int {
         base.stopObserving()
     }
 
-    public convenience required init?(snapshot: DataSnapshot) {
+    public convenience required init(fireData: FireDataProtocol) throws {
         fatalError("Cannot use this initializer")
     }
 
-    public required init(dbRef: DatabaseReference) {
-        fatalError("Cannot use this initializer")
-    }
-
-    public func apply(snapshot: DataSnapshot, strongly: Bool) {
-        base.apply(snapshot: snapshot, strongly: strongly)
+    public func apply(_ data: FireDataProtocol, strongly: Bool) {
+        base.apply(data, strongly: strongly)
     }
 
     public func write(to transaction: RealtimeTransaction, by node: Node) {

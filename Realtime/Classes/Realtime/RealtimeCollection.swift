@@ -32,7 +32,7 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
     }
 
     init(fireData: FireDataProtocol) throws {
-        guard let value = fireData.children.nextObject() as? DataSnapshot else {
+        guard case let value as FireDataProtocol = fireData.children.nextObject() else {
             throw RCError(type: .failedServerData)
         }
         guard let index: Int = value.flatMap() ?? Nodes.index.map(from: value) else {

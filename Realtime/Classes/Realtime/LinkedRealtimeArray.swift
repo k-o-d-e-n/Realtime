@@ -37,12 +37,12 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
 
     // MARK: Realtime
 
-    public convenience init(snapshot: DataSnapshot, elementsNode: Node) {
-        self.init(in: Node.root.child(with: snapshot.ref.rootPath), options: [.elementsNode: elementsNode])
-        apply(snapshot: snapshot)
+    public convenience init(fireData: FireDataProtocol, elementsNode: Node) throws {
+        self.init(in: fireData.dataRef.map(Node.from), options: [.elementsNode: elementsNode])
+        apply(fireData)
     }
 
-    public required init(snapshot: DataSnapshot) {
+    public required init(fireData: FireDataProtocol) throws {
         fatalError("init(snapshot:) has not been implemented")
     }
 
@@ -62,9 +62,9 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
     override public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
-    override public func apply(snapshot: DataSnapshot, strongly: Bool) {
-        super.apply(snapshot: snapshot, strongly: strongly)
-        _view.source.apply(snapshot: snapshot, strongly: strongly)
+    override public func apply(_ data: FireDataProtocol, strongly: Bool) {
+        super.apply(data, strongly: strongly)
+        _view.source.apply(data, strongly: strongly)
         _view.isPrepared = true
     }
 

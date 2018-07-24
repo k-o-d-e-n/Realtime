@@ -35,7 +35,13 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     }
 
     public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) {
-        RemoteManager.loadData(to: self, completion: completion)
+        guard let ref = dbRef else {
+            debugFatalError(condition: true, "Couldn`t get reference")
+            completion?.assign((RealtimeError("Couldn`t get reference"), .root()))
+            return
+        }
+
+        ref.observeSingleEvent(of: .value, with: { self.apply($0); completion?.assign((nil, ref)) }, withCancel: { completion?.assign(($0, ref)) })
     }
 
     @discardableResult
@@ -64,7 +70,12 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     }
     
     func observe(type: DataEventType = .value, onUpdate: Database.TransactionCompletion? = nil) -> UInt? {
-        return RemoteManager.observe(type: type, entity: self, onUpdate: onUpdate)
+        guard let ref = dbRef else {
+            debugFatalError(condition: true, "Couldn`t get reference")
+            onUpdate?(RealtimeError("Couldn`t get reference"), .root())
+            return nil
+        }
+        return ref.observe(type, with: { self.apply($0); onUpdate?(nil, $0.ref) }, withCancel: { onUpdate?($0, ref) })
     }
 
     func endObserve(for token: UInt) {
@@ -119,13 +130,13 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
 
     // MARK: Realtime Value
 
-    public required init(snapshot: DataSnapshot) {
-        self.node = Node.root.child(with: snapshot.ref.rootPath)
-        self.dbRef = snapshot.ref
-        apply(snapshot: snapshot)
+    public required init(fireData: FireDataProtocol) throws {
+        self.node = Node.root.child(with: fireData.dataRef!.rootPath)
+        self.dbRef = fireData.dataRef
+        apply(fireData)
     }
     
-    open func apply(snapshot: DataSnapshot, strongly: Bool) {}
+    open func apply(_ data: FireDataProtocol, strongly: Bool) {}
 
     public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         if hasChanges {
@@ -211,13 +222,13 @@ open class RealtimeObject: _RealtimeValue {
         super.didRemove(from: node)
     }
     
-    override open func apply(snapshot: DataSnapshot, strongly: Bool) {
-        super.apply(snapshot: snapshot, strongly: strongly)
+    override open func apply(_ data: FireDataProtocol, strongly: Bool) {
+        super.apply(data, strongly: strongly)
         reflect { (mirror) in
-            apply(snapshot: snapshot, strongly: strongly, to: mirror)
+            apply(data, strongly: strongly, to: mirror)
         }
     }
-    private func apply(snapshot: DataSnapshot, strongly: Bool, to mirror: Mirror) {
+    private func apply(_ data: FireDataProtocol, strongly: Bool, to mirror: Mirror) {
         mirror.children.forEach { (child) in
             guard var label = child.label else { return }
 
@@ -226,8 +237,8 @@ open class RealtimeObject: _RealtimeValue {
             }
 
             if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
-                if case let value as (DataSnapshotRepresented & RealtimeValue) = self[keyPath: keyPath] {
-                    value.apply(parentSnapshotIfNeeded: snapshot, strongly: strongly)
+                if case let value as RealtimeValue = self[keyPath: keyPath] {
+                    value.apply(parentDataIfNeeded: data, strongly: strongly)
                 }
             }
         }
