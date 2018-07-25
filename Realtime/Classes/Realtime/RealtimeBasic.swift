@@ -86,8 +86,8 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
 }
 public extension RealtimeValue {
     var dbKey: String! { return node?.key }
-    var dbRef: DatabaseReference? {
-        return node.flatMap { $0.isRooted ? $0.reference : nil }
+    func dbRef(_ database: Database = Database.database()) -> DatabaseReference? {
+        return node.flatMap { $0.isRooted ? $0.reference(for: database) : nil }
     }
 
     var isInserted: Bool { return isRooted }

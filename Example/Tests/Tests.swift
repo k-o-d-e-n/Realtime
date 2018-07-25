@@ -771,6 +771,10 @@ class TestObject: RealtimeObject {
         }
     }
 
+    open class func keyPaths() -> [AnyKeyPath] { // TODO: Consider
+        return [\TestObject.property, \TestObject.linkedArray, \TestObject.array, \TestObject.dictionary, \TestObject.nestedObject]
+    }
+
     class NestedObject: RealtimeObject {
         lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node)
 

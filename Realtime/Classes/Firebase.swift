@@ -12,8 +12,10 @@ public typealias DataSnapshot = FirebaseDatabase.DataSnapshot
 public typealias DatabaseReference = FirebaseDatabase.DatabaseReference
 
 public extension DatabaseReference {
-    static func root() -> DatabaseReference { return Database.database().reference() }
-    static func fromRoot(_ path: String) -> DatabaseReference { return Database.database().reference(withPath: path) }
+    static func root(of database: Database = Database.database()) -> DatabaseReference { return database.reference() }
+    static func fromRoot(_ path: String, of database: Database = Database.database()) -> DatabaseReference {
+        return database.reference(withPath: path)
+    }
 
     var rootPath: String { return path(from: root) }
     

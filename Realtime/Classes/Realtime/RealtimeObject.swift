@@ -23,7 +23,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     public var canObserve: Bool { return isRooted }
     public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self.node = node
-        self.dbRef = node.flatMap { $0.isRooted ? $0.reference : nil }
+        self.dbRef = node.flatMap { $0.isRooted ? $0.reference() : nil }
         if case let pl as [String: FireDataValue] = options[.payload] {
             self.payload = pl
         }
@@ -127,7 +127,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
             self.node = Node(key: key, parent: parent)
         }
         
-        self.dbRef = parent.isRooted ? self.node?.reference : nil
+        self.dbRef = parent.isRooted ? self.node?.reference() : nil
     }
     
     // MARK: Changeable
@@ -269,6 +269,8 @@ open class RealtimeObject: _RealtimeValue {
                 guard var label = child.label else { return }
 
                 if label.hasSuffix(lazyStoragePath) {
+                    guard !((child.value as AnyObject) is NSNull) else { return }
+
                     label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
                 }
                 if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
@@ -290,6 +292,8 @@ open class RealtimeObject: _RealtimeValue {
                 guard var label = child.label else { return }
 
                 if label.hasSuffix(lazyStoragePath) {
+                    guard !((child.value as AnyObject) is NSNull) else { return }
+                    
                     label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
                 }
                 if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {

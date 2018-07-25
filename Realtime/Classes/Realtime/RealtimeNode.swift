@@ -30,7 +30,7 @@ public class Node: Equatable {
         override var rootPath: String { return "" }
         override func path(from node: Node) -> String { fatalError("Root node cannot have parent nodes") }
         override func hasParent(node: Node) -> Bool { return false }
-        override var reference: DatabaseReference { return .root() }
+        override func reference(for database: Database) -> DatabaseReference { return .root(of: database) }
         override var description: String { return "root" }
     }
 
@@ -109,8 +109,10 @@ public class Node: Equatable {
 
     public var description: String { return rootPath }
     public var debugDescription: String { return description }
-    
-    public var reference: DatabaseReference { return .fromRoot(rootPath) }
+
+    public func reference(for database: Database = Database.database()) -> DatabaseReference {
+        return .fromRoot(rootPath, of: database)
+    }
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
 public extension Node {

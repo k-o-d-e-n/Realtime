@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FirebaseDatabase
 
 public protocol Reverting: class {
     /// reverts last change
@@ -91,6 +92,7 @@ extension ObjectNode {
 /// Helps to make complex write transactions.
 /// Provides addition of operations with completion handler, cancelation, and async preconditions.
 public class RealtimeTransaction {
+    let database: Database
     internal var updateNode: ObjectNode = .root()
     fileprivate var preconditions: [(ResultPromise<Error?>) -> Void] = []
     fileprivate var completions: [(Bool) -> Void] = []
@@ -115,7 +117,9 @@ public class RealtimeTransaction {
         case reverted
     }
 
-    public init() {}
+    public init(database: Database = Database.database()) {
+        self.database = database
+    }
 
     fileprivate func runPreconditions(_ completion: @escaping ([Error]) -> Void) {
         guard !preconditions.isEmpty else { completion([]); return }
@@ -242,7 +246,7 @@ extension RealtimeTransaction {
         while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
             nearest = next
         }
-        nearest.node.reference.update(use: nearest.updateValue, completion: completion)
+        nearest.node.reference(for: database).update(use: nearest.updateValue, completion: completion)
     }
 
     /// registers new cancelation of made changes
