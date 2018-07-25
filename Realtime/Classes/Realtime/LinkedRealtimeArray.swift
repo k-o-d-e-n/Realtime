@@ -180,9 +180,20 @@ public extension LinkedRealtimeArray {
 
     @discardableResult
     func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
-        if let index = _view.source.value.index(where: { $0.dbKey == element.dbKey }) {
-            return remove(at: index, in: transaction)
+        guard isRooted else { fatalError("This method is available only for rooted objects") }
+
+        let transaction = transaction ?? RealtimeTransaction()
+        guard isPrepared else {
+            transaction.addPrecondition { [unowned transaction] promise in
+                self.prepare(forUse: .just { collection, err in
+                    collection._remove(element, in: transaction)
+                    promise.fulfill(err)
+                })
+            }
+            return transaction
         }
+
+        _remove(element, in: transaction)
         return transaction
     }
 
@@ -194,13 +205,26 @@ public extension LinkedRealtimeArray {
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection.remove(at: index, in: transaction)
+                    collection._remove(at: index, in: transaction)
                     promise.fulfill(err)
                 })
             }
             return transaction
         }
 
+        _remove(at: index, in: transaction)
+        return transaction
+    }
+
+    private func _remove(_ element: Element, in transaction: RealtimeTransaction) {
+        if let index = _view.source.value.index(where: { $0.dbKey == element.dbKey }) {
+            _remove(at: index, in: transaction)
+        } else {
+            debugFatalError("Tries to remove not existed value")
+        }
+    }
+
+    private func _remove(at index: Int, in transaction: RealtimeTransaction) {
         if !_view.source.hasChanges {
             transaction.addReversion(_view.source.currentReversion())
         }
@@ -219,7 +243,6 @@ public extension LinkedRealtimeArray {
                 self?.didSave()
             }
         }
-        return transaction
     }
 }
 
