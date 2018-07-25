@@ -9,12 +9,18 @@
 import Foundation
 import FirebaseDatabase
 
-public extension RTNode where RawValue == String {
+public extension RawRepresentable where RawValue == String {
     func array<Element>(from node: Node?) -> RealtimeArray<Element> {
         return RealtimeArray(in: Node(key: rawValue, parent: node))
     }
-    func array<Element>(from node: Node?, builder: @escaping (Node, [String: Any]?) -> Element) -> RealtimeArray<Element> {
-        return RealtimeArray(in: Node(key: rawValue, parent: node), builder: builder)
+    func array<Element>(from node: Node?, elementOptions: [RealtimeValueOption: Any]) -> RealtimeArray<Element> {
+        return array(from: node, builder: { (node, options) in
+            let compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
+            return Element(in: node, options: compoundOptions)
+        })
+    }
+    func array<Element>(from node: Node?, builder: @escaping RCElementBuilder<Element>) -> RealtimeArray<Element> {
+        return RealtimeArray(in: Node(key: rawValue, parent: node), options: [.elementBuilder: builder])
     }
 }
 public extension Node {
@@ -28,9 +34,8 @@ public extension Node {
 public extension RealtimeArray {
     convenience init<E>(in node: Node?, elements: LinkedRealtimeArray<E>) {
         self.init(in: node,
-                  options: [:],
-                  viewSource: elements._view.source,
-                  builder: { n, _ in Element(in: n) })
+                  options: [.elementBuilder: elements.storage.elementBuilder],
+                  viewSource: elements._view.source)
     }
 }
 
@@ -45,28 +50,20 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
 
     let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem]>>
 
-    public convenience required init(in node: Node?, options: [RealtimeValueOption: Any] = [:]) {
-        self.init(in: node, options: options, builder: { n, _ in Element(in: n) })
-    }
-
-    public convenience init(in node: Node?, options: [RealtimeValueOption: Any] = [:], builder: @escaping (Node, [String: Any]?) -> Element) {
+    public convenience required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
-        self.init(in: node,
-                  options: options,
-                  viewSource: RealtimeProperty(in: Node(key: Nodes.items.rawValue,
-                                                        parent: viewParentNode)),
-                  builder: builder)
+        self.init(
+            in: node,
+            options: options,
+            viewSource: RealtimeProperty(in: Node(key: InternalKeys.items, parent: viewParentNode))
+        )
     }
 
     init(in node: Node?,
          options: [RealtimeValueOption: Any],
-         viewSource: RealtimeProperty<[RCItem]>,
-         builder: @escaping (Node, [String: Any]?) -> Element) {
-        precondition(node != nil)
-        self.storage = RCArrayStorage(sourceNode: node,
-                                      elementBuilder: builder,
-                                      elements: [:],
-                                      localElements: [])
+         viewSource: RealtimeProperty<[RCItem]>) {
+        let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
+        self.storage = RCArrayStorage(sourceNode: node, elementBuilder: builder, elements: [:], localElements: [])
         self._view = AnyRealtimeCollectionView(viewSource)
         super.init(in: node, options: options)
     }
@@ -101,7 +98,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
     
     // TODO: Create Realtime wrapper for DatabaseQuery
     // TODO: Check filter with difficult values aka dictionary
-    public func filtered(by value: Any, for node: RealtimeNode, completion: @escaping ([Element], Error?) -> ()) {
+    public func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
     }
     
@@ -273,7 +270,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
                 _write(element,
                        at: index,
                        by: (storage: node,
-                            itms: Node(key: Nodes.items.rawValue, parent: node.linksNode)),
+                            itms: Node(key: InternalKeys.items, parent: node.linksNode)),
                        in: transaction)
             }
         }

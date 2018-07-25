@@ -18,7 +18,6 @@ class Object: RealtimeObject {
 
 class ViewController: UIViewController {
     var disposeBag = ListeningDisposeStore()
-    let node = RealtimeNode(rawValue: "node")
 
     override func viewDidLoad() {
         super.viewDidLoad()

@@ -9,11 +9,6 @@ import Foundation
 
 /// Link value describing reference to some location of database.
 
-private enum LinkNodes {
-    static let path = "pth"
-    static let sourceID = "s_id"
-}
-
 struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
     let ref: String
 
@@ -22,11 +17,11 @@ struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
     }
 
     var fireValue: FireDataValue {
-        let v: [String: FireDataValue] = [LinkNodes.path.rawValue: ref]
+        let v: [String: FireDataValue] = [CodingKeys.ref.stringValue: ref]
         return v
     }
     init(fireData: FireDataProtocol) throws {
-        guard let ref: String = LinkNodes.path.map(from: fireData) else { throw RealtimeError("Fail") }
+        guard let ref: String = CodingKeys.ref.stringValue.map(from: fireData) else { throw RealtimeError("Fail") }
         self.ref = ref
     }
 }
@@ -42,7 +37,7 @@ extension RealtimeValue {
     }
 }
 
-struct Relation: FireDataRepresented, FireDataValueRepresented {
+struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
     /// Path to related object
     let targetPath: String
     /// Property of related object that represented this relation
@@ -53,7 +48,7 @@ struct Relation: FireDataRepresented, FireDataValueRepresented {
         self.relatedProperty = property
     }
 
-    enum CodingKeys: String {
+    enum CodingKeys: String, CodingKey {
         case targetPath = "t_pth"
         case relatedProperty = "r_prop"
     }
@@ -75,7 +70,7 @@ struct Relation: FireDataRepresented, FireDataValueRepresented {
     }
 }
 
-struct SourceLink: FireDataRepresented, FireDataValueRepresented {
+struct SourceLink: FireDataRepresented, FireDataValueRepresented, Codable {
     let links: [String]
     let id: String
 

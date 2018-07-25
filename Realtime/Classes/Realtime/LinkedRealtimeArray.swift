@@ -7,14 +7,23 @@
 
 import Foundation
 
-public extension RTNode where RawValue == String {
+public extension RawRepresentable where RawValue == String {
     func linkedArray<Element>(from node: Node?, elements: Node) -> LinkedRealtimeArray<Element> {
         return LinkedRealtimeArray(in: Node(key: rawValue, parent: node), options: [.elementsNode: elements])
+    }
+    func linkedArray<Element>(from node: Node?, elements: Node, elementOptions: [RealtimeValueOption: Any]) -> LinkedRealtimeArray<Element> {
+        return linkedArray(from: node, elements: elements, builder: { (node, options) in
+            let compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
+            return Element(in: node, options: compoundOptions)
+        })
+    }
+    func linkedArray<Element>(from node: Node?, elements: Node, builder: @escaping RCElementBuilder<Element>) -> LinkedRealtimeArray<Element> {
+        return LinkedRealtimeArray(in: node, options: [.elementsNode: elements, .elementBuilder: builder])
     }
 }
 
 public extension RealtimeValueOption {
-    static var elementsNode = RealtimeValueOption("realtime.linkedarray.elements")
+    static let elementsNode = RealtimeValueOption("realtime.linkedarray.elements")
 }
 
 public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue {
@@ -26,9 +35,10 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
 
     public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
+        let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
 
         self.storage = RCArrayStorage(sourceNode: elements,
-                                      elementBuilder: { n, _ in Element(in: n) },
+                                      elementBuilder: builder,
                                       elements: [:],
                                       localElements: [])
         self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node))

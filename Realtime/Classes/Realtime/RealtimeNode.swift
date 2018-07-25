@@ -9,17 +9,18 @@
 import Foundation
 import FirebaseDatabase
 
-enum Nodes {
-    static let modelVersion = RealtimeNode(rawValue: "__mv")
-    static let links = RealtimeNode(rawValue: "__links")
-    static let items = RealtimeNode(rawValue: "__itms")
-    static let index = RealtimeNode(rawValue: "__i")
-    static let payload = RealtimeNode(rawValue: "__pl")
+enum InternalKeys: String {
+    case modelVersion = "__mv"
+    case links = "__links"
+    case items = "__itms"
+    case index = "__i"
+    case payload = "__pl"
 }
 
 public class Node: Equatable {
-    public static let root: Node = Root(key: "")
+    public static let root: Node = Root()
     class Root: Node {
+        init() { super.init(key: "") }
         override var isRoot: Bool { return true }
         override var isRooted: Bool { return true }
         override var root: Node? { return nil }
@@ -34,7 +35,15 @@ public class Node: Equatable {
     public let key: String
     public var parent: Node?
 
-    public init(key: String = DatabaseReference.root().childByAutoId().key, parent: Node? = nil) {
+    public convenience init(parent: Node? = nil) {
+        self.init(key: DatabaseReference.root().childByAutoId().key, parent: parent)
+    }
+
+    public convenience init<Key: RawRepresentable>(key: Key, parent: Node? = nil) where Key.RawValue == String {
+        self.init(key: key.rawValue, parent: parent)
+    }
+
+    public init(key: String, parent: Node? = nil) {
         self.key = key
         self.parent = parent
     }
@@ -103,6 +112,9 @@ public class Node: Equatable {
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
 public extension Node {
+    static func root(_ path: String) -> Node {
+        return Node.root.child(with: path)
+    }
     static func from(_ snapshot: FireDataProtocol) -> Node? {
         return snapshot.dataRef.map(Node.from)
     }
@@ -111,6 +123,9 @@ public extension Node {
     }
     func childByAutoId() -> Node {
         return Node(parent: self)
+    }
+    func child<Path: RawRepresentable>(with path: Path) -> Node where Path.RawValue == String {
+        return child(with: path.rawValue)
     }
     func child(with path: String) -> Node {
         return path
@@ -166,7 +181,7 @@ public extension Node {
     }
 }
 public extension Node {
-    static var linksNode: Node { return Node.root.child(with: Nodes.links.rawValue) }
+    static var linksNode: Node { return Node.root.child(with: InternalKeys.links) }
     var linksNode: Node {
         guard isRooted else { fatalError("Try get links node from not rooted node: \(self)") }
         return copy(to: Node.linksNode)
@@ -202,15 +217,6 @@ public extension FireDataProtocol {
     func mapExactly(if truth: Bool, child path: String, map: (FireDataProtocol) -> Void) { if truth || hasChild(path) { map(child(forPath: path)) } }
 }
 
-/// Describes node of database
-public protocol RTNode: RawRepresentable, Equatable {
-    associatedtype RawValue: Equatable = String
-}
-
-/// Typed node of database
-public protocol AssociatedRTNode: RTNode {
-    associatedtype ConcreteType: RealtimeValue
-}
 public extension RawRepresentable where Self.RawValue == String {
     /// checks availability child in snapshot with node name   
     func has(in snapshot: FireDataProtocol) -> Bool {
@@ -234,7 +240,7 @@ public extension RawRepresentable where Self.RawValue == String {
         return superpath + "/" + rawValue + (subpath.map { "/" + $0 } ?? "")
     }
 
-    func subpath(with node: RealtimeNode) -> String {
+    func subpath<Node: RawRepresentable>(with node: Node) -> String where Node.RawValue == String {
         return subpath(with: node.rawValue)
     }
     func subpath(with path: String) -> String {
@@ -249,76 +255,11 @@ public extension RawRepresentable where Self.RawValue == String {
         return ref.child(rawValue)
     }
 }
-public extension AssociatedRTNode where Self.RawValue == String {
-    /// returns object referenced by node name in specific reference.
-    func entity(in node: Node?) -> ConcreteType {
-        return ConcreteType(in: Node(key: rawValue, parent: node))
-    }
-}
-extension AssociatedRTNode {
-    private var type: ConcreteType.Type { return ConcreteType.self }
-    public static func ==(lhs: Self, rhs: Self) -> Bool {
-        return lhs.rawValue == rhs.rawValue && lhs.type == rhs.type
-    }
-}
 
-public extension RTNode where Self.RawValue == String, Self: ExpressibleByStringLiteral {
-    typealias UnicodeScalarLiteralType = String
-    typealias ExtendedGraphemeClusterLiteralType = String
-    typealias StringLiteralType = String
-
-    public init(stringLiteral value: String) {
-        self.init(rawValue: value)!
-    }
-
-    public init(unicodeScalarLiteral value: String) {
-        self.init(rawValue: value)!
-    }
-
-    public init(extendedGraphemeClusterLiteral value: String) {
-        self.init(rawValue: value)!
-    }
-}
-extension RTNode where Self.RawValue == String, Self: CustomStringConvertible {
-    public var description: String { return rawValue }
-}
-
-// TODO: Use in structs (such as HumanName) as property
-public struct RealtimeNode: RTNode, ExpressibleByStringLiteral, CustomStringConvertible {
-    public let rawValue: String
-    public init(rawValue: String) { self.rawValue = rawValue }
-}
-extension RTNode {
-    public static func ==(lhs: Self, rhs: Self) -> Bool {
-        return lhs.rawValue == rhs.rawValue
-    }
-    public static func ==<Other: RTNode>(lhs: Self, rhs: Other) -> Bool where Other.RawValue == RawValue {
-        return lhs.rawValue == rhs.rawValue
-    }
-}
-extension RealtimeNode {
-    func associated<T: RealtimeValue>() -> AssociatedRealtimeNode<T> {
-        return AssociatedRealtimeNode(rawValue: rawValue)
-    }
-}
-extension String: RTNode {
+extension String: RawRepresentable {
     public var rawValue: String { return self }
     public init(rawValue: String) {
         self = rawValue
-    }
-}
-extension String {
-    var realtimeNode: RealtimeNode { return .init(rawValue: self) }
-}
-
-public struct AssociatedRealtimeNode<Concrete: RealtimeValue>: AssociatedRTNode, ExpressibleByStringLiteral, CustomStringConvertible {
-    public typealias ConcreteType = Concrete
-    public let rawValue: String
-    public init(rawValue: String) { self.rawValue = rawValue }
-}
-extension AssociatedRealtimeNode {
-    public static func ==(lhs: AssociatedRealtimeNode, rhs: RealtimeNode) -> Bool {
-        return lhs.rawValue == rhs.rawValue
     }
 }
 

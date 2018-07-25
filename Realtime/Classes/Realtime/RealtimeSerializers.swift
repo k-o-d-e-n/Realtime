@@ -66,6 +66,18 @@ public extension AnyRVRepresenter where V: RealtimeValue {
                 return V(in: Node.root.child(with: relation.targetPath))
         })
     }
+
+    static func key(by rootedNode: Node) -> AnyRVRepresenter<V?> {
+        let stringRepresenter: AnyRVRepresenter<String> = .default
+        return AnyRVRepresenter<V?>(
+            encoding: { $0?.dbKey },
+            decoding: { (data) in
+                guard data.exists() else { return nil }
+
+                return V(in: Node(key: try stringRepresenter.decode(data), parent: rootedNode))
+            }
+        )
+    }
 }
 public extension AnyRVRepresenter {
     static var `default`: AnyRVRepresenter<V> {

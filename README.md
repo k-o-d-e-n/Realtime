@@ -28,16 +28,16 @@ Implementation based on myself designed reactive structures. `(don't ask me why 
 To create any model data structure you can make by subclassing `RealtimeObject`.
 You can define child properties using classes:
 + `RealtimeObject` subclasses;
-+ `RealtimeProperty` (typealias `StandartProperty`);
++ `RealtimeProperty` (typealias `RealtimeProperty`);
 + `LinkedRealtimeArray`, `RealtimeArray`, `RealtimeDictionary`;
 Also for auto decoding you need implement class function `keyPath(for:)`. (Please tell me if you know how avoid it, without inheriting NSObject).
 This function called for each subclass, therefore you don't need call super implementation. 
 Example:
 ```swift
 class User: RealtimeObject {
-    lazy var name: StandartProperty<String?> = "name".property(from: self.dbRef)
-    lazy var birthdate: Date.OptionalProperty = "birthdate".property(from: self.dbRef)
-    lazy var groups: LinkedRealtimeArray<Group> = "groups".linkedArray(from: self.dbRef, elements: .fromRoot("groups")
+    lazy var name: RealtimeProperty<String?> = "name".property(from: self.node)
+    lazy var birthdate: RealtimeProperty<Date?> = "birthdate".property(from: self.node)
+    lazy var groups: LinkedRealtimeArray<Group> = "groups".linkedArray(from: self.node, elements: .fromRoot("groups"))
 
     open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -60,7 +60,7 @@ transaction.commit { err in
 ### Properties
 
 ***RealtimeProperty*** - stored property for any value.
-For system types (such as Bool, Int, String, Array, Dictionary) you can use `typealias StandartProperty`. For custom types you need implement serializer conformed to protocol `_Serializer`.
+For system types (such as Bool, Int, String, Array, Dictionary) you can use `typealias RealtimeProperty`. For custom types you need implement serializer conformed to protocol `_Serializer`.
 
 ***SharedRealtimeProperty*** - stored property similar `RealtimeProperty`, but uses concurrency transaction to update value. Use this property if value assumes shared access (for example 'like' value). :exclamation: Not implemented yet.
 
@@ -73,16 +73,16 @@ For system types (such as Bool, Int, String, Array, Dictionary) you can use `typ
 ### Collections
 ```swift
 class Object: RealtimeObject {
-    lazy var array: RealtimeArray<Object> = "some_array".array(from: self.dbRef)
-    lazy var linkedArray: LinkedRealtimeArray<Object> = "some_linked_array".linkedArray(from: self.dbRef, elements: .fromRoot("linked_objects"))
-    lazy var dictionary: RealtimeDictionary<Object> = "some_dictionary".dictionary(from: self.dbRef, keys: .fromRoot("key_objects"))
-    lazy var linkedDictionary: RealtimeDictionary<Object> = "some_linked_dictionary".linkedDictionary(from: self.dbRef, keys: .fromRoot("key_objects"), values: .fromRoot("value_objects"))
+    lazy var array: RealtimeArray<Object> = "some_array".array(from: self.node)
+    lazy var linkedArray: LinkedRealtimeArray<Object> = "some_linked_array".linkedArray(from: self.node, elements: .root("linked_objects"))
+    lazy var dictionary: RealtimeDictionary<Object> = "some_dictionary".dictionary(from: self.node, keys: .root("key_objects"))
+    lazy var linkedDictionary: RealtimeDictionary<Object> = "some_linked_dictionary".linkedDictionary(from: self.node, keys: .root("key_objects"), values: .root("value_objects"))
 }
 ```
 All collections conform to protocol `RealtimeCollection`.
 Collections are entities that require preparation before using. In common case you should write such code:
 ```swift
-let users = RealtimeArray<User>(dbRef: .fromRoot("users"))
+let users = RealtimeArray<User>(in: .root("users"))
 users.prepare { (users, err) in
     /// working with collection
 }
@@ -98,8 +98,8 @@ Source elements must locate in the same reference. On insertion of object to thi
 ```swift
 let transaction = RealtimeTransaction()
 ...
-let element = array.storage.placeholder() // you should take new element from target collection location
-try! array.insert(element: element, in: transaction)
+let element = Element()
+try! array.write(element: element, in: transaction)
 try! otherArray.remove(at: 1, in: trasaction)
 
 transaction.commit { (err) in
@@ -117,8 +117,8 @@ transaction.commit { (err) in
 ```swift
 let transaction = RealtimeTransaction()
 ...
-let element = dictionary.storage.placeholder(with: key.dbKey) // you should take new element from target collection location
-try! dictionary.set(element: element, key: key, in: transaction)
+let element = Element() // you should take new element from target collection location
+try! dictionary.write(element: element, key: key, in: transaction)
 try! otherDictionary.remove(by: key, in: transaction)
 
 transaction.commit { (err) in
@@ -128,7 +128,7 @@ transaction.commit { (err) in
 
 ***KeyedRealtimeArray*** is immutable collection that gets elements from elements of base collection by specific key path. This is the result of x.keyed(by:elementBuilder:) method where x is any RealtimeCollection.
 ```swift
-let userNames = RealtimeArray<User>(dbRef: usersRef).keyed(by: Nodes.name)
+let userNames = RealtimeArray<User>(in: usersNode).keyed(by: Nodes.name)
 ```
 
 ### Transactions
@@ -152,7 +152,7 @@ For more details see API documentation.
 
 ### UI
 
-***RealtimeTableAdapter***
+***RealtimeTableViewDelegate***
 
 ### Local listening
 

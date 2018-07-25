@@ -964,9 +964,7 @@ extension Tests {
     }
 
     func testPayload() {
-        let array = RealtimeArray<ValueWithPayload>(in: Node.root.child(with: "__tests/array")) { node, payload in
-            return ValueWithPayload(in: node, options: payload.map { [.payload: $0] } ?? [:])
-        }
+        let array = RealtimeArray<ValueWithPayload>(in: Node.root.child(with: "__tests/array"))
         let exp = expectation(description: "")
         let transaction = RealtimeTransaction()
 
@@ -1003,6 +1001,12 @@ extension Tests {
         let payload: Any = ["key": "val"]
         let value = TestObject(in: .root, options: [.payload: payload])
         XCTAssertTrue((value.payload as NSDictionary?) == (payload as? NSDictionary))
+    }
+
+    func testReferenceFireValue() {
+        let ref = Reference(ref: Node.root.child(with: "first/two").rootPath)
+        let fireValue = ref.fireValue
+        XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "/first/two"])
     }
 }
 
@@ -1059,12 +1063,6 @@ extension Tests {
         XCTAssertTrue(one.count == 2)
         XCTAssertTrue(lazyOne.count == 2)
         XCTAssertTrue(anyLazyOne.count == 2)
-    }
-    func testRealtimeNodeStringInterpolation() {
-        let node = RealtimeNode(rawValue: "closed")
-        let string = "\(node)"
-
-        XCTAssert(string == "closed")
     }
     func testMirror() {
         let object = RealtimeObject(in: .root)

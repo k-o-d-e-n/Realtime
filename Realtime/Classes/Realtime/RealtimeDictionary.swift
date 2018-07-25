@@ -8,9 +8,18 @@
 import Foundation
 import FirebaseDatabase
 
-public extension RTNode where RawValue == String {
-    func dictionary<Key, Element>(from node: Node?, keys: Node) -> RealtimeDictionary<Key, Element> {
+public extension RawRepresentable where RawValue == String {
+    func dictionary<Key, Value>(from node: Node?, keys: Node) -> RealtimeDictionary<Key, Value> {
         return RealtimeDictionary(in: Node(key: rawValue, parent: node), options: [.keys: keys])
+    }
+    func dictionary<Key, Value>(from node: Node?, keys: Node, elementOptions: [RealtimeValueOption: Any]) -> RealtimeDictionary<Key, Value> {
+        return dictionary(from: node, keys: keys, builder: { (node, options) in
+            let compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
+            return Value(in: node, options: compoundOptions)
+        })
+    }
+    func dictionary<Key, Value>(from node: Node?, keys: Node, builder: @escaping RCElementBuilder<Value>) -> RealtimeDictionary<Key, Value> {
+        return RealtimeDictionary(in: Node(key: rawValue, parent: node), options: [.keys: keys, .elementBuilder: builder])
     }
 }
 
@@ -18,12 +27,12 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
     public typealias Value = V
     var sourceNode: Node!
     let keysNode: Node
-    let elementBuilder: (Node) -> Value
+    let elementBuilder: (Node, [RealtimeValueOption: Any]) -> Value
     var elements: [K: Value] = [:]
     var localElements: [K: Value] = [:]
 
     func buildElement(with key: K) -> V {
-        return elementBuilder(sourceNode.child(with: key.dbKey))
+        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.payload: $0] } ?? [:])
     }
 
     mutating func store(value: Value, by key: K) { elements[for: key] = value }
@@ -46,7 +55,7 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
 }
 
 extension RealtimeValueOption {
-    static var keys = RealtimeValueOption("realtime.dictionary")
+    static let keys = RealtimeValueOption("realtime.dictionary")
 }
 
 public typealias RealtimeDictionaryKey = Hashable & RealtimeValue
@@ -64,8 +73,9 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         guard keysNode.isRooted else { fatalError("Keys must has rooted location") }
 
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
-        self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: Value.init, elements: [:], localElements: [:])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: Node(key: Nodes.items.rawValue, parent: viewParentNode)))
+        let builder = options[.elementBuilder] as? RCElementBuilder<Value> ?? Value.init
+        self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: builder, elements: [:], localElements: [:])
+        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: Node(key: InternalKeys.items, parent: viewParentNode)))
         super.init(in: node, options: options)
     }
 
@@ -93,7 +103,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
 
     public func contains(valueBy key: Key) -> Bool { _view.checkPreparation(); return _view.source.value.contains(where: { $0.dbKey == key.dbKey }) }
 
-    public func filtered(by value: Any, for node: RealtimeNode, completion: @escaping ([Element], Error?) -> ()) {
+    public func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
     }
 
@@ -276,7 +286,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
                 _write(value,
                        for: key,
                        by: (storage: node,
-                            itms: Node(key: Nodes.items.rawValue, parent: node.linksNode)),
+                            itms: Node(key: InternalKeys.items, parent: node.linksNode)),
                        in: transaction)
             }
         }

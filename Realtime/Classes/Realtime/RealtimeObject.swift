@@ -165,7 +165,7 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
 /// Example:
 ///
 ///     class User: RealtimeObject {
-///         lazy var name: StandartProperty<String?> = "user_name".property(from: self.dbRef)
+///         lazy var name: RealtimeProperty<String?> = "user_name".property(from: self.node)
 ///     
 ///         open class func keyPath(for label: String) -> AnyKeyPath? {
 ///             switch label {

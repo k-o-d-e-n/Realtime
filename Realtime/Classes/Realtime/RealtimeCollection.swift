@@ -15,6 +15,10 @@ struct RCError: Error {
     let type: Kind
 }
 
+extension RealtimeValueOption {
+    static let elementBuilder = RealtimeValueOption("realtime.collection.builder")
+}
+
 /// -----------------------------------------
 
 // TODO: May be need use format as: [__linkID: linkID, __i: index, __pl: [...]]
@@ -35,22 +39,22 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
         guard case let value as FireDataProtocol = fireData.children.nextObject() else {
             throw RCError(type: .failedServerData)
         }
-        guard let index: Int = value.flatMap() ?? Nodes.index.map(from: value) else {
+        guard let index: Int = value.flatMap() ?? InternalKeys.index.map(from: value) else {
             throw RCError(type: .failedServerData)
         }
 
         self.dbKey = fireData.dataKey
         self.linkID = value.dataKey!
         self.index = index
-        self.payload = Nodes.payload.map(from: value)
+        self.payload = InternalKeys.payload.map(from: value)
     }
 
     var fireValue: FireDataValue {
         var value: [String: FireDataValue] = [:]
-        let link: [String: FireDataValue] = [Nodes.index.rawValue: index]
+        let link: [String: FireDataValue] = [InternalKeys.index.rawValue: index]
         value[linkID] = link
         if let p = payload {
-            value[Nodes.payload.rawValue] = p
+            value[InternalKeys.payload.rawValue] = p
         }
 
         return value
@@ -250,10 +254,11 @@ public extension RealtimeCollection {
     }
 }
 
+public typealias RCElementBuilder<Element> = (Node, [RealtimeValueOption: Any]) -> Element
 public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     public typealias Value = V
     var sourceNode: Node!
-    let elementBuilder: (Node, [String: Any]?) -> Value
+    let elementBuilder: RCElementBuilder<V>
     var elements: [RCItem: Value] = [:]
     var localElements: [V] = []
 
@@ -261,7 +266,7 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     func storedValue(by key: RCItem) -> Value? { return elements[for: key] }
 
     func buildElement(with key: RCItem) -> V {
-        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload)
+        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.payload: $0] } ?? [:])
     }
 }
 

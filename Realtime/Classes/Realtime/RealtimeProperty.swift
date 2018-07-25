@@ -17,10 +17,6 @@ public extension RawRepresentable where Self.RawValue == String {
     func primitive<V: FireDataValue>(from node: Node?) -> RealtimeProperty<V> {
         return RealtimeProperty(in: Node(key: rawValue, parent: node))
     }
-    func relation<V: RealtimeObject>(from node: Node?, ownerLevelsUp: Int = 1, _ property: String) -> RealtimeRelation<V> {
-        return RealtimeRelation(in: Node(key: rawValue, parent: node),
-                                options: [.relation: RealtimeRelation<V>.Options(ownerLevelsUp: ownerLevelsUp, property: property)])
-    }
     func `enum`<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V> {
         return RealtimeProperty(in: Node(key: rawValue, parent: node),
                                 options: [.representer: AnyRVRepresenter<V>(serializer: EnumSerializer.self)])
@@ -38,10 +34,19 @@ public extension RawRepresentable where Self.RawValue == String {
                                 options: [.representer: AnyRVRepresenter(serializer: URLSerializer.self)])
     }
 
-    func linked<V: RealtimeValue>(from node: Node?) -> RealtimeProperty<V?> {
+    func key<V: RealtimeValue>(from node: Node?, source: Node) -> RealtimeProperty<V?> {
+        return RealtimeProperty(in: Node(key: rawValue, parent: node),
+                                options: [.representer: AnyRVRepresenter<V>.key(by: source)])
+    }
+    func reference<V: RealtimeValue>(from node: Node?) -> RealtimeProperty<V?> {
         return RealtimeProperty(in: Node(key: rawValue, parent: node),
                                 options: [.representer: AnyRVRepresenter(serializer: LinkableValueSerializer<V>.self)])
     }
+    func relation<V: RealtimeObject>(from node: Node?, ownerLevelsUp: Int = 1, _ property: String) -> RealtimeRelation<V> {
+        return RealtimeRelation(in: Node(key: rawValue, parent: node),
+                                options: [.relation: RealtimeRelation<V>.Options(ownerLevelsUp: ownerLevelsUp, property: property)])
+    }
+    
     func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V> {
         return RealtimeProperty(in: Node(key: rawValue, parent: node),
                                 options: [.representer: AnyRVRepresenter<V>(serializer: CodableSerializer.self)])
@@ -57,7 +62,7 @@ public extension RawRepresentable where Self.RawValue == String {
 extension RealtimeProperty: FilteringEntity {}
 
 public extension RealtimeValueOption {
-    static var relation = RealtimeValueOption("realtime.relation")
+    static let relation = RealtimeValueOption("realtime.relation")
 }
 
 // TODO: May be need create real relation to property in linked entity, but not simple register external link
@@ -109,8 +114,8 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
 // MARK: Listenable realtime property
 
 public extension RealtimeValueOption {
-    static var representer: RealtimeValueOption = RealtimeValueOption("realtime.property.representer")
-    static var initialValue: RealtimeValueOption = RealtimeValueOption("realtime.property.initialValue")
+    static let representer: RealtimeValueOption = RealtimeValueOption("realtime.property.representer")
+    static let initialValue: RealtimeValueOption = RealtimeValueOption("realtime.property.initialValue")
 }
 
 // TODO: Add possible update value at subpath
