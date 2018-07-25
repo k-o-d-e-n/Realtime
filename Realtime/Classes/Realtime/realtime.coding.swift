@@ -209,14 +209,23 @@ public extension AnyRVRepresenter where V: RealtimeValue {
         })
     }
 
-    static func key(by rootedNode: Node) -> AnyRVRepresenter<V?> {
-        let stringRepresenter: AnyRVRepresenter<String> = .default
+    static func reference(_ mode: RealtimeReference<V>.Mode) -> AnyRVRepresenter<V?> {
         return AnyRVRepresenter<V?>(
-            encoding: { $0?.dbKey },
+            encoding: { v in
+                switch mode {
+                case .fullPath: return v?.reference()?.fireValue
+                case .key(from: let n): return v?.reference(from: n)?.fireValue
+                }
+        },
             decoding: { (data) in
                 guard data.exists() else { return nil }
 
-                return V(in: Node(key: try stringRepresenter.decode(data), parent: rootedNode))
+                let reference = try Reference(fireData: data)
+                let options: [RealtimeValueOption: Any] = [.internalPayload: InternalPayload(data.version, data.rawValue)]
+                switch mode {
+                case .fullPath: return reference.make(options: options)
+                case .key(from: let n): return reference.make(in: n, options: options)
+                }
         }
         )
     }

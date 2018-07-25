@@ -26,7 +26,9 @@ struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
     }
 }
 extension Reference {
-    func make<V: RealtimeValue>(in node: Node = .root) -> V { return V(in: node.child(with: ref)) }
+    func make<V: RealtimeValue>(in node: Node = .root, options: [RealtimeValueOption: Any]) -> V {
+        return V(in: node.child(with: ref), options: options)
+    }
 }
 extension RealtimeValue {
     func reference(from node: Node = .root) -> Reference? {

@@ -34,13 +34,8 @@ public extension RawRepresentable where Self.RawValue == String {
                                 options: [.representer: AnyRVRepresenter(serializer: URLSerializer.self)])
     }
 
-    func key<V: RealtimeValue>(from node: Node?, source: Node) -> RealtimeProperty<V?> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node),
-                                options: [.representer: AnyRVRepresenter<V>.key(by: source)])
-    }
-    func reference<V: RealtimeValue>(from node: Node?) -> RealtimeProperty<V?> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node),
-                                options: [.representer: AnyRVRepresenter(serializer: LinkableValueSerializer<V>.self)])
+    func reference<V: RealtimeValue>(from node: Node?, mode: RealtimeReference<V>.Mode) -> RealtimeReference<V> {
+        return RealtimeReference(in: Node(key: rawValue, parent: node), options: [.reference: mode])
     }
     func relation<V: RealtimeObject, Property: RawRepresentable>(from node: Node?, ownerLevelsUp: Int = 1, _ property: Property) -> RealtimeRelation<V> where Property.RawValue == String {
         return RealtimeRelation(in: Node(key: rawValue, parent: node),
@@ -63,16 +58,34 @@ extension RealtimeProperty: FilteringEntity {}
 
 public extension RealtimeValueOption {
     static let relation = RealtimeValueOption("realtime.relation")
+    static let reference = RealtimeValueOption("realtime.reference")
 }
 
-// TODO: May be need create real relation to property in linked entity, but not simple register external link
-// TODO: Remove id from value
+public final class RealtimeReference<Referenced: RealtimeValue>: RealtimeProperty<Referenced?> {
+    public override var version: Int? { return _version }
+    public override var raw: FireDataValue? { return _raw }
+    public override var payload: [String : FireDataValue]? { return _payload }
+
+    public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
+        let mode: Mode = options[.reference] as? Mode ?? .fullPath
+        super.init(in: node, options: [.representer: AnyRVRepresenter.reference(mode)])
+    }
+
+    public enum Mode {
+        case fullPath
+        case key(from: Node)
+    }
+}
+
 public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<Related?> {
     let options: Options
+    public override var version: Int? { return _version }
+    public override var raw: FireDataValue? { return _raw }
+    public override var payload: [String : FireDataValue]? { return _payload }
 
     public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         guard let node = node else { fatalError() }
-        guard case let relation as Options = options[.relation] else { fatalError("Skipped required options")}
+        guard case let relation as Options = options[.relation] else { fatalError("Skipped required options") }
 
         self.options = relation
         super.init(in: node, options: [.representer: AnyRVRepresenter<Related>.relation(relation.property)])
@@ -165,6 +178,10 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
     public override var payload: [String : FireDataValue]? { return nil }
+
+    internal var _version: Int? { return super.version }
+    internal var _raw: FireDataValue? { return super.raw }
+    internal var _payload: [String : FireDataValue]? { return super.payload }
     
     // MARK: Initializers, deinitializer
     
@@ -219,7 +236,7 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     /// Property does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
-//        super.write(to: transaction, by: node)
+        super.write(to: transaction, by: node)
         do {
             transaction.addValue(try representer.encode(localPropertyValue.get()), by: node)
         } catch let e {

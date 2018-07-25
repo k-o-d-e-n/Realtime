@@ -133,15 +133,6 @@ class DataSnapshotRepresentedSerializer<L: FireDataRepresented & FireDataValueRe
     class func serialize(_ entity: L?) -> Any? { return entity.flatMap { $0.fireValue } }
 }
 
-public class LinkableValueSerializer<V: RealtimeValue>: _Serializer {
-    public static func deserialize(_ entity: FireDataProtocol) -> V? {
-        return DataSnapshotRepresentedSerializer<Reference>.deserialize(entity)?.make()
-    }
-    public static func serialize(_ entity: V?) -> Any? {
-        return entity?.reference()?.fireValue
-    }
-}
-
 /// --------------------------- DataSnapshot Decoder ------------------------------
 
 extension Decoder where Self: FireDataProtocol {
