@@ -10,7 +10,7 @@ import FirebaseDatabase
 
 public extension RawRepresentable where RawValue == String {
     func dictionary<Key, Value>(from node: Node?, keys: Node) -> RealtimeDictionary<Key, Value> {
-        return RealtimeDictionary(in: Node(key: rawValue, parent: node), options: [.keys: keys])
+        return RealtimeDictionary(in: Node(key: rawValue, parent: node), options: [.keysNode: keys])
     }
     func dictionary<Key, Value>(from node: Node?, keys: Node, elementOptions: [RealtimeValueOption: Any]) -> RealtimeDictionary<Key, Value> {
         return dictionary(from: node, keys: keys, builder: { (node, options) in
@@ -19,7 +19,7 @@ public extension RawRepresentable where RawValue == String {
         })
     }
     func dictionary<Key, Value>(from node: Node?, keys: Node, builder: @escaping RCElementBuilder<Value>) -> RealtimeDictionary<Key, Value> {
-        return RealtimeDictionary(in: Node(key: rawValue, parent: node), options: [.keys: keys, .elementBuilder: builder])
+        return RealtimeDictionary(in: Node(key: rawValue, parent: node), options: [.keysNode: keys, .elementBuilder: builder])
     }
 }
 
@@ -55,12 +55,15 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
 }
 
 extension RealtimeValueOption {
-    static let keys = RealtimeValueOption("realtime.dictionary")
+    static let keysNode = RealtimeValueOption("realtime.dictionary.keys")
 }
 
 public typealias RealtimeDictionaryKey = Hashable & RealtimeValue
 public final class RealtimeDictionary<Key, Value>: _RealtimeValue, RC
 where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
+    public override var version: Int? { return nil }
+    public override var raw: FireDataValue? { return nil }
+    public override var payload: [String : FireDataValue]? { return nil }
     override public var hasChanges: Bool { return !storage.localElements.isEmpty }
     public var view: RealtimeCollectionView { return _view }
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
@@ -69,7 +72,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem]>>
 
     public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
-        guard case let keysNode as Node = options[.keys] else { fatalError("Skipped required options") }
+        guard case let keysNode as Node = options[.keysNode] else { fatalError("Skipped required options") }
         guard keysNode.isRooted else { fatalError("Keys must has rooted location") }
 
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
@@ -172,7 +175,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         let itemNode = location.itms.child(with: key.dbKey)
         let elementNode = location.storage.child(with: key.dbKey)
         let link = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
-        let item = RCItem(dbKey: key.dbKey, linkID: link.link.id, index: count)
+        let item = RCItem(element: key, linkID: link.link.id, index: count)
 
         var reversion: () -> Void {
             let sourceRevers = _view.source.hasChanges ?
@@ -194,11 +197,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
             transaction.addValue(valueLink.link.fireValue, by: valueLink.node)
         }
         transaction.addValue(item.fireValue, by: itemNode)
-        if let e = element as? RealtimeObject {
-            transaction._update(e, by: elementNode)
-        } else {
-            transaction._set(element, by: elementNode)
-        }
+        transaction._set(element, by: elementNode)
     }
 
     @discardableResult
@@ -254,7 +253,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     }
 
     public convenience init(fireData: FireDataProtocol, keysNode: Node) throws {
-        self.init(in: fireData.dataRef.map(Node.from), options: [.keys: keysNode])
+        self.init(in: fireData.dataRef.map(Node.from), options: [.keysNode: keysNode])
         apply(fireData)
     }
 
@@ -292,7 +291,10 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         }
     }
 
+    /// Collection does not respond for versions and raw value, and also payload.
+    /// To change value version/raw can use enum, but use modified representer.
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
+//        super.write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
         writeChanges(to: transaction, by: node)
     }

@@ -18,77 +18,13 @@ struct RealtimeError: Error {
 
 internal let lazyStoragePath = ".storage"
 
-public protocol FireDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
-    var value: Any? { get }
-    var priority: Any? { get }
-    var children: NSEnumerator { get }
-    var dataKey: String? { get }
-    var dataRef: DatabaseReference? { get }
-    var childrenCount: UInt { get }
-    func exists() -> Bool
-    func hasChildren() -> Bool
-    func hasChild(_ childPathString: String) -> Bool
-    func child(forPath path: String) -> FireDataProtocol
-    func map<T>(_ transform: (FireDataProtocol) throws -> T) rethrows -> [T]
-    func compactMap<ElementOfResult>(_ transform: (FireDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult]
-    func forEach(_ body: (FireDataProtocol) throws -> Swift.Void) rethrows
-}
-extension Sequence where Self: FireDataProtocol {
-    public func makeIterator() -> AnyIterator<FireDataProtocol> {
-        let childs = children
-        return AnyIterator {
-            return unsafeBitCast(childs.nextObject(), to: FireDataProtocol.self)
-        }
-    }
-}
-
-extension DataSnapshot: FireDataProtocol, Sequence {
-    public var dataKey: String? {
-        return key
-    }
-
-    public var dataRef: DatabaseReference? {
-        return ref
-    }
-
-    public func child(forPath path: String) -> FireDataProtocol {
-        return childSnapshot(forPath: path)
-    }
-}
-extension MutableData: FireDataProtocol, Sequence {
-    public var dataKey: String? {
-        return key
-    }
-
-    public var dataRef: DatabaseReference? {
-        return nil
-    }
-
-    public func exists() -> Bool {
-        return value.map { !($0 is NSNull) } ?? false
-    }
-
-    public func child(forPath path: String) -> FireDataProtocol {
-        return childData(byAppendingPath: path)
-    }
-    
-    public func hasChild(_ childPathString: String) -> Bool {
-        return hasChild(atPath: childPathString)
-    }
-}
-
-public protocol FireDataRepresented {
-    init(fireData: FireDataProtocol) throws
-}
-public protocol FireDataValueRepresented {
-    var fireValue: FireDataValue { get }
-}
-
 public protocol DatabaseKeyRepresentable {
     var dbKey: String! { get }
 }
 
 // MARK: RealtimeValue
+
+typealias InternalPayload = (version: Int?, raw: FireDataValue?)
 
 public struct RealtimeValueOption: Hashable {
     let rawValue: String
@@ -97,12 +33,33 @@ public struct RealtimeValueOption: Hashable {
         self.rawValue = rawValue
     }
 }
-extension RealtimeValueOption {
-    static var payload: RealtimeValueOption = RealtimeValueOption("realtime.value.payload")
+public extension RealtimeValueOption {
+    static let payload: RealtimeValueOption = RealtimeValueOption("realtime.value.payload")
+    internal static let internalPayload: RealtimeValueOption = RealtimeValueOption("realtime.value.internalPayload")
+}
+public extension Dictionary where Key == RealtimeValueOption {
+    var version: Int? {
+        return (self[.internalPayload] as? InternalPayload)?.version
+    }
+    var rawValue: FireDataValue? {
+        return (self[.internalPayload] as? InternalPayload)?.raw
+    }
+}
+public extension FireDataProtocol {
+    var version: Int? {
+        return InternalKeys.modelVersion.map(from: self)
+    }
+    var rawValue: FireDataValue? {
+        return InternalKeys.raw.map(from: self)
+    }
 }
 
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
+    /// Current version of value.
+    var version: Int? { get }
+    /// Indicates specific representation of this value, e.g. subclass or enum associated value
+    var raw: FireDataValue? { get }
     /// Some data associated with value
     var payload: [String: FireDataValue]? { get }
     /// Node location in database

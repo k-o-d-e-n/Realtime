@@ -22,37 +22,58 @@ extension RealtimeValueOption {
 /// -----------------------------------------
 
 // TODO: May be need use format as: [__linkID: linkID, __i: index, __pl: [...]]
+// TODO: For Value of RealtimeDictionary is not defined payloads
 struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireDataValueRepresented {
     let dbKey: String!
     let linkID: String
     let index: Int
+    let internalPayload: (mv: Int?, raw: FireDataValue?)
     let payload: [String: FireDataValue]?
 
-    init(dbKey: String, linkID: String, index: Int, payload: [String: FireDataValue]? = nil) {
-        self.dbKey = dbKey
+    init<T: RealtimeValue>(element: T, key: String, linkID: String, index: Int) {
+        self.dbKey = key
         self.linkID = linkID
         self.index = index
-        self.payload = payload
+        self.payload = element.payload
+        self.internalPayload = (element.version, element.raw)
+    }
+
+    init<T: RealtimeValue>(element: T, linkID: String, index: Int) {
+        self.dbKey = element.dbKey
+        self.linkID = linkID
+        self.index = index
+        self.payload = element.payload
+        self.internalPayload = (element.version, element.raw)
     }
 
     init(fireData: FireDataProtocol) throws {
         guard case let value as FireDataProtocol = fireData.children.nextObject() else {
             throw RCError(type: .failedServerData)
         }
-        guard let index: Int = value.flatMap() ?? InternalKeys.index.map(from: value) else {
+        guard let index: Int = InternalKeys.index.map(from: value) else {
+            throw RCError(type: .failedServerData)
+        }
+        guard let key = fireData.dataKey, let linkID = value.dataKey else {
             throw RCError(type: .failedServerData)
         }
 
-        self.dbKey = fireData.dataKey
-        self.linkID = value.dataKey!
+        self.dbKey = key
+        self.linkID = linkID
         self.index = index
         self.payload = InternalKeys.payload.map(from: value)
+        self.internalPayload = (InternalKeys.modelVersion.map(from: fireData), InternalKeys.raw.map(from: fireData))
     }
 
     var fireValue: FireDataValue {
         var value: [String: FireDataValue] = [:]
         let link: [String: FireDataValue] = [InternalKeys.index.rawValue: index]
         value[linkID] = link
+        if let mv = internalPayload.mv {
+            value[InternalKeys.modelVersion.rawValue] = mv
+        }
+        if let raw = internalPayload.raw {
+            value[InternalKeys.raw.rawValue] = raw
+        }
         if let p = payload {
             value[InternalKeys.payload.rawValue] = p
         }

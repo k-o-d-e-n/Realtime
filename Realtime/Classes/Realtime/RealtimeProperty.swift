@@ -42,9 +42,9 @@ public extension RawRepresentable where Self.RawValue == String {
         return RealtimeProperty(in: Node(key: rawValue, parent: node),
                                 options: [.representer: AnyRVRepresenter(serializer: LinkableValueSerializer<V>.self)])
     }
-    func relation<V: RealtimeObject>(from node: Node?, ownerLevelsUp: Int = 1, _ property: String) -> RealtimeRelation<V> {
+    func relation<V: RealtimeObject, Property: RawRepresentable>(from node: Node?, ownerLevelsUp: Int = 1, _ property: Property) -> RealtimeRelation<V> where Property.RawValue == String {
         return RealtimeRelation(in: Node(key: rawValue, parent: node),
-                                options: [.relation: RealtimeRelation<V>.Options(ownerLevelsUp: ownerLevelsUp, property: property)])
+                                options: [.relation: RealtimeRelation<V>.Options(ownerLevelsUp: ownerLevelsUp, property: property.rawValue)])
     }
     
     func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V> {
@@ -161,6 +161,10 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     let representer: AnyRVRepresenter<T>
     public var insider: Insider<T>
     public var lastError: Property<Error?>
+
+    public override var version: Int? { return nil }
+    public override var raw: FireDataValue? { return nil }
+    public override var payload: [String : FireDataValue]? { return nil }
     
     // MARK: Initializers, deinitializer
     
@@ -212,7 +216,10 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
         }
     }
 
+    /// Property does not respond for versions and raw value, and also payload.
+    /// To change value version/raw can use enum, but use modified representer.
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
+//        super.write(to: transaction, by: node)
         do {
             transaction.addValue(try representer.encode(localPropertyValue.get()), by: node)
         } catch let e {
@@ -351,14 +358,28 @@ public extension SharedProperty {
     }
 }
 
-public final class MutationPoint<T> where T: FireDataValue {
+public final class MutationPoint<T> {
     public let node: Node
     public required init(in node: Node) throws {
         guard node.isRooted else { throw RealtimeError("Node should be rooted") }
         self.node = node
     }
 }
-public extension MutationPoint {
+public extension MutationPoint where T: FireDataRepresented & FireDataValueRepresented {
+    func set(value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        let transaction = transaction ?? RealtimeTransaction()
+        transaction.addValue(value.fireValue, by: node)
+
+        return transaction
+    }
+    func mutate(by key: String? = nil, use value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        let transaction = transaction ?? RealtimeTransaction()
+        transaction.addValue(value.fireValue, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+
+        return transaction
+    }
+}
+public extension MutationPoint where T: FireDataValue {
     func set(value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
         transaction.addValue(value, by: node)
@@ -371,6 +392,8 @@ public extension MutationPoint {
 
         return transaction
     }
+}
+extension MutationPoint {
     func removeValue(for key: String, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
         transaction.addValue(nil, by: node.child(with: key))

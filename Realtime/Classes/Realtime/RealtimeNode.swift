@@ -15,6 +15,8 @@ enum InternalKeys: String {
     case items = "__itms"
     case index = "__i"
     case payload = "__pl"
+    /// Indicates raw value of enum, or subclass
+    case raw = "__raw"
 }
 
 public class Node: Equatable {
@@ -112,8 +114,8 @@ public class Node: Equatable {
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
 public extension Node {
-    static func root(_ path: String) -> Node {
-        return Node.root.child(with: path)
+    static func root<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
+        return Node.root.child(with: path.rawValue)
     }
     static func from(_ snapshot: FireDataProtocol) -> Node? {
         return snapshot.dataRef.map(Node.from)

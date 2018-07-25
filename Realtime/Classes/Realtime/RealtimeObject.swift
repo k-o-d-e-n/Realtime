@@ -14,8 +14,10 @@ import FirebaseDatabase
 /// Base class for any database value
 open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
     public var dbRef: DatabaseReference?
-    public internal(set) var node: Node?
-    public internal(set) var payload: [String : FireDataValue]?
+    public fileprivate(set) var node: Node?
+    public fileprivate(set) var version: Int?
+    public fileprivate(set) var raw: FireDataValue?
+    public fileprivate(set) var payload: [String : FireDataValue]?
     private var observing: (token: UInt, counter: Int)?
     public var isObserved: Bool { return observing != nil }
     public var canObserve: Bool { return isRooted }
@@ -24,6 +26,10 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
         self.dbRef = node.flatMap { $0.isRooted ? $0.reference : nil }
         if case let pl as [String: FireDataValue] = options[.payload] {
             self.payload = pl
+        }
+        if case let ipl as InternalPayload = options[.internalPayload] {
+            self.version = ipl.version
+            self.raw = ipl.raw
         }
     }
 
@@ -145,7 +151,15 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
     }
 
     public func write(to transaction: RealtimeTransaction, by node: Node) {
-        fatalError("You should implement in your subclass")
+        if let mv = version {
+            transaction.addValue(mv, by: Node(key: InternalKeys.modelVersion, parent: node))
+        }
+        if let rw = raw {
+            transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
+        }
+        if let pl = payload {
+            transaction.addValue(pl, by: Node(key: InternalKeys.payload, parent: node))
+        }
     }
     
     public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \("TODO:");\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
@@ -249,6 +263,7 @@ open class RealtimeObject: _RealtimeValue {
     }
 
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
+        super.write(to: transaction, by: node)
         reflect { (mirror) in
             mirror.children.forEach({ (child) in
                 guard var label = child.label else { return }

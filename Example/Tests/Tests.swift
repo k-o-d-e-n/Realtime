@@ -888,13 +888,15 @@ extension Tests {
 
 
     enum ValueWithPayload: RealtimeValue, RealtimeValueActions {
-        var node: Node? { return value.node }
-        var payload: [String : FireDataValue]? {
+        var version: Int? { return value.version }
+        var raw: FireDataValue? {
             switch self {
-            case .one: return nil
-            case .two: return ["__raw": 1]
+            case .two: return 1
+            default: return nil
             }
         }
+        var node: Node? { return value.node }
+        var payload: [String : FireDataValue]? { return value.payload }
         var value: RealtimeObject {
             switch self {
             case .one(let v): return v
@@ -906,19 +908,18 @@ extension Tests {
         case two(TestObject)
 
         init(in node: Node?, options: [RealtimeValueOption : Any]) {
-            let payload = options[.payload] as? [String:Int]
-            let type = payload?["__raw"] ?? 0
+            let raw = options.rawValue as? Int ?? 0
 
-            switch type {
+            switch raw {
             case 1: self = .two(TestObject(in: node, options: options))
             default: self = .one(TestObject(in: node, options: options))
             }
         }
 
         init(fireData: FireDataProtocol) throws {
-            let type: CShort = "__raw".map(from: fireData) ?? 0
+            let raw: CShort = fireData.rawValue as? CShort ?? 0
 
-            switch type {
+            switch raw {
             case 1: self = .two(try TestObject(fireData: fireData))
             default: self = .one(try TestObject(fireData: fireData))
             }
@@ -1141,6 +1142,10 @@ extension Tests {
         case .common(let n):
             XCTAssertTrue(n.date == news.date)
         }
+    }
+
+    func testEnumStringInterpolation() {
+        XCTAssertNotEqual("__raw/__mv", "\(InternalKeys.raw)/\(InternalKeys.modelVersion)")
     }
 }
 

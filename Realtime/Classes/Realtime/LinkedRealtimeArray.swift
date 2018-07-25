@@ -27,6 +27,9 @@ public extension RealtimeValueOption {
 }
 
 public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue {
+    public override var version: Int? { return nil }
+    public override var raw: FireDataValue? { return nil }
+    public override var payload: [String : FireDataValue]? { return nil }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
@@ -86,7 +89,10 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
         }
     }
 
+    /// Collection does not respond for versions and raw value, and also payload.
+    /// To change value version/raw can use enum, but use modified representer.
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
+//        super.write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
         writeChanges(to: transaction, by: node)
     }
@@ -154,9 +160,7 @@ public extension LinkedRealtimeArray {
                 by location: Node, in transaction: RealtimeTransaction) {
         let itemNode = location.child(with: element.dbKey)
         let link = element.node!.generate(linkTo: itemNode)
-        let item = RCItem(dbKey: element.dbKey,
-                          linkID: link.link.id,
-                          index: index)
+        let item = RCItem(element: element, linkID: link.link.id, index: index)
 
         var reversion: () -> Void {
             let sourceRevers = _view.source.hasChanges ?

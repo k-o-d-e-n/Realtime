@@ -43,6 +43,9 @@ public extension RealtimeArray {
 /// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
 /// Comment writing guide
 public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue & RealtimeValueEvents {
+    public override var version: Int? { return nil }
+    public override var raw: FireDataValue? { return nil }
+    public override var payload: [String : FireDataValue]? { return nil }
     override public var hasChanges: Bool { return !storage.localElements.isEmpty }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
@@ -167,10 +170,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
         let elementNode = element.node.map { $0.moveTo(location.storage); return $0 } ?? location.storage.childByAutoId()
         let itemNode = location.itms.child(with: elementNode.key)
         let link = elementNode.generate(linkTo: itemNode)
-        let item = RCItem(dbKey: elementNode.key,
-                          linkID: link.link.id,
-                          index: index,
-                          payload: element.payload)
+        let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, index: index)
 
         var reversion: () -> Void {
             let sourceRevers = _view.source.hasChanges ?
@@ -186,11 +186,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
         storage.store(value: element, by: item)
         transaction.addValue(item.fireValue, by: itemNode)
         transaction.addValue(link.link.fireValue, by: link.node)
-        if let elem = element as? RealtimeObject { // TODO: Fix it
-            transaction._update(elem, by: elementNode)
-        } else {
-            transaction._set(element, by: elementNode)
-        }
+        transaction._set(element, by: elementNode)
     }
 
     @discardableResult
@@ -276,7 +272,10 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
         }
     }
 
+    /// Collection does not respond for versions and raw value, and also payload.
+    /// To change value version/raw can use enum, but use modified representer.
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
+//        super.write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
         writeChanges(to: transaction, by: node)
     }
