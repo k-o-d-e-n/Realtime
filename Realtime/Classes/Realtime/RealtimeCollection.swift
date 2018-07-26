@@ -157,13 +157,13 @@ protocol KeyValueAccessableCollection {
 extension Array: KeyValueAccessableCollection {
     subscript(for key: Int) -> Element? {
         get { return self[key] }
-        set(newValue) { self[key] = newValue! }
+        set { self[key] = newValue! }
     }
 }
 extension Dictionary: KeyValueAccessableCollection {
     subscript(for key: Key) -> Value? {
         get { return self[key] }
-        set(newValue) { self[key] = newValue }
+        set { self[key] = newValue }
     }
 }
 
@@ -240,9 +240,9 @@ public extension RealtimeCollection {
     /// RealtimeCollection actions
 
     func filtered<ValueGetter: InsiderOwner & ValueWrapper & RealtimeValueActions>(map values: @escaping (Iterator.Element) -> ValueGetter,
-                                                                                   fetchIf: ((ValueGetter.T) -> Bool)? = nil,
-                                                                                   predicate: @escaping (ValueGetter.T) -> Bool,
-                                                                                   onCompleted: @escaping ([Iterator.Element]) -> ()) where ValueGetter.OutData == ValueGetter.T {
+                                                                                   fetchIf: ((ValueGetter.V) -> Bool)? = nil,
+                                                                                   predicate: @escaping (ValueGetter.V) -> Bool,
+                                                                                   onCompleted: @escaping ([Iterator.Element]) -> ()) where ValueGetter.OutData == ValueGetter.V {
         var filteredElements: [Iterator.Element] = []
         let count = endIndex
         let completeIfNeeded = { (releasedCount: Index) in
@@ -280,11 +280,11 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     public typealias Value = V
     var sourceNode: Node!
     let elementBuilder: RCElementBuilder<V>
-    var elements: [RCItem: Value] = [:]
+    var elements: [String: Value] = [:]
     var localElements: [V] = []
 
-    mutating func store(value: Value, by key: RCItem) { elements[for: key] = value }
-    func storedValue(by key: RCItem) -> Value? { return elements[for: key] }
+    mutating func store(value: Value, by key: RCItem) { elements[for: key.dbKey] = value }
+    func storedValue(by key: RCItem) -> Value? { return elements[for: key.dbKey] }
 
     func buildElement(with key: RCItem) -> V {
         return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.payload: $0] } ?? [:])
@@ -295,11 +295,16 @@ public struct AnyArrayStorage: RealtimeCollectionStorage {
     public typealias Value = Any
 }
 
-public final class AnyRealtimeCollectionView<Source>: RCView where Source: ValueWrapper & RealtimeValueActions, Source.T: BidirectionalCollection {
-    var source: Source
+public final class AnyRealtimeCollectionView<Source>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
+    let source: RealtimeProperty<Source>
+
+    var value: Source {
+        return source.value ?? Source()
+    }
+
     public internal(set) var isPrepared: Bool = false
 
-    init(_ source: Source) {
+    init(_ source: RealtimeProperty<Source>) {
         self.source = source
     }
 
@@ -318,10 +323,27 @@ public final class AnyRealtimeCollectionView<Source>: RCView where Source: Value
         // TODO:
     }
 
-    public var startIndex: Source.T.Index { return source.value.startIndex }
-    public var endIndex: Source.T.Index { return source.value.endIndex }
-    public func index(after i: Source.T.Index) -> Source.T.Index { return source.value.index(after: i) }
-    public func index(before i: Source.T.Index) -> Source.T.Index { return source.value.index(before: i) }
-    public subscript(position: Source.T.Index) -> Source.T.Element { return source.value[position] }
+    public var startIndex: Source.Index { return value.startIndex }
+    public var endIndex: Source.Index { return value.endIndex }
+    public func index(after i: Source.Index) -> Source.Index { return value.index(after: i) }
+    public func index(before i: Source.Index) -> Source.Index { return value.index(before: i) }
+    public subscript(position: Source.Index) -> Source.Element { return value[position] }
+}
+
+extension AnyRealtimeCollectionView where Source == Array<RCItem> {
+    func append(_ element: RCItem) {
+        insert(element, at: count)
+    }
+    func insert(_ element: RCItem, at index: Int) {
+        var value = self.value
+        value.insert(element, at: index)
+        source.value = value
+    }
+    func remove(at index: Int) -> RCItem {
+        var value = self.value
+        let removed = value.remove(at: index)
+        source.value = value
+        return removed
+    }
 }
 

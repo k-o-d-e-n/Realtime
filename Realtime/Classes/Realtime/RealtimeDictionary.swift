@@ -69,7 +69,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<RealtimeProperty<[RCItem]>>
+    let _view: AnyRealtimeCollectionView<[RCItem]>
 
     public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         guard case let keysNode as Node = options[.keysNode] else { fatalError("Skipped required options") }
@@ -104,7 +104,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public subscript(position: Int) -> Element { return storage.element(by: _view[position].dbKey) }
     public subscript(key: Key) -> Value? { return contains(valueBy: key) ? storage.object(for: key) : nil }
 
-    public func contains(valueBy key: Key) -> Bool { _view.checkPreparation(); return _view.source.value.contains(where: { $0.dbKey == key.dbKey }) }
+    public func contains(valueBy key: Key) -> Bool { _view.checkPreparation(); return _view.contains(where: { $0.dbKey == key.dbKey }) }
 
     public func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
@@ -187,7 +187,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
             }
         }
         transaction.addReversion(reversion)
-        _view.source.value.append(item)
+        _view.append(item)
         storage.store(value: element, by: key)
 
         if needLink {
@@ -215,7 +215,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
             return transaction
         }
 
-        guard let index = _view.source.value.index(where: { $0.dbKey == key.dbKey }) else { return transaction }
+        guard let index = _view.index(where: { $0.dbKey == key.dbKey }) else { return transaction }
 
         let transaction = transaction ?? RealtimeTransaction()
 
@@ -225,7 +225,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         if !_view.source.hasChanges {
             transaction.addReversion(_view.source.currentReversion())
         }
-        let item = _view.source.value.remove(at: index)
+        let item = _view.remove(at: index)
         transaction.addReversion { [weak self] in
             self?.storage.elements[key] = element
         }
@@ -264,7 +264,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
             return
         }
         _snapshot = nil
-        _view.source.value.forEach { key in
+        _view.forEach { key in
             guard data.hasChild(key.dbKey) else {
                 if strongly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }
                 return

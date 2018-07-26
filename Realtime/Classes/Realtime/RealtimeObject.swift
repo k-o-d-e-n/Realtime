@@ -219,13 +219,16 @@ open class RealtimeObject: _RealtimeValue {
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
-        let links: Links = Links(in: node!.linksNode, options: [.representer: AnyRVRepresenter(serializer: SourceLinkArraySerializer.self)])
+        let links: Links = Links(in: node!.linksNode, options: [.representer: AnyRepresenter(serializer: SourceLinkArraySerializer.self)])
         transaction.addPrecondition { [unowned transaction] (promise) in
-            links.loadValue(completion: Assign.just({ err, refs in
-                refs.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.addValue(nil, by: $0) }
-                transaction.delete(links)
-                promise.fulfill(err)
-            }))
+            links.loadValue(
+                completion: .just({ refs in
+                    refs.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.addValue(nil, by: $0) }
+                    transaction.delete(links)
+                    promise.fulfill(nil)
+                }),
+                fail: .just(promise.fulfill)
+            )
         }
     }
     

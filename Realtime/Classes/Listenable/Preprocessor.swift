@@ -295,34 +295,34 @@ public struct OwnedOnReceiveMapPreprocessor<Owner: InsiderOwner, Result, I, O>: 
     }
 }
 public struct OwnedPreprocessor<Owner: InsiderOwner>: InsiderAccessor, FilteringEntity, _ListeningMaker, Listenable {
-    typealias Data = Owner.T
-    public typealias OutData = Owner.T
+    typealias Data = Owner.InsiderValue
+    public typealias OutData = Owner.InsiderValue
     weak var insiderOwner: Owner!
-    internal var dataSource: () -> Owner.T {
+    internal var dataSource: () -> Owner.InsiderValue {
         return insiderOwner.insider.dataSource
     }
-    internal let bridgeMaker = SimpleBridgeMaker<Owner.T>()
+    internal let bridgeMaker = SimpleBridgeMaker<Owner.InsiderValue>()
 
-    public func filter(_ predicate: @escaping (Owner.T) -> Bool) -> OwnedFilteredPreprocessor<Owner, Owner.T> {
+    public func filter(_ predicate: @escaping (Owner.InsiderValue) -> Bool) -> OwnedFilteredPreprocessor<Owner, Owner.InsiderValue> {
         return OwnedFilteredPreprocessor(insiderOwner: insiderOwner, dataSource: insiderOwner.insider.dataSource, bridgeMaker: .init(bridge: AnyFilter.wrap(predicate: predicate)))
     }
 
-    public func map<U>(_ transform: @escaping (Owner.T) -> U) -> OwnedTransformedPreprocessor<Owner, U> {
+    public func map<U>(_ transform: @escaping (Owner.InsiderValue) -> U) -> OwnedTransformedPreprocessor<Owner, U> {
         return OwnedTransformedPreprocessor<Owner, U>(insiderOwner: insiderOwner, dataSource: AnyModificator.make(modificator: transform, with: dataSource))
     }
 
-    public func onReceive(_ event: @escaping (Owner.T, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, Owner.T, Owner.T> {
+    public func onReceive(_ event: @escaping (Owner.InsiderValue, Promise) -> Void) -> OwnedOnReceivePreprocessor<Owner, Owner.InsiderValue, Owner.InsiderValue> {
         return OwnedOnReceivePreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveBridge(event: event, bridge: { i, assign in assign(i) }))
     }
 
-    public func onReceiveMap<O>(_ event: @escaping (Owner.T, ResultPromise<O>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, O, Owner.T, Owner.T> {
+    public func onReceiveMap<O>(_ event: @escaping (Owner.InsiderValue, ResultPromise<O>) -> Void) -> OwnedOnReceiveMapPreprocessor<Owner, O, Owner.InsiderValue, Owner.InsiderValue> {
         return OwnedOnReceiveMapPreprocessor(insiderOwner: insiderOwner, dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: { i, assign in assign(i) }))
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<Owner.T>) -> Disposable {
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<Owner.InsiderValue>) -> Disposable {
         return _listening(as: config, assign)
     }
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<Owner.T>) -> ListeningItem {
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<Owner.InsiderValue>) -> ListeningItem {
         return _listeningItem(as: config, assign)
     }
 }
@@ -531,19 +531,19 @@ public struct OwnedFilteredPreprocessor<Owner: InsiderOwner, V>: InsiderAccessor
 }
 
 public extension InsiderOwner {
-    func filter(_ predicate: @escaping (T) -> Bool) -> OwnedFilteredPreprocessor<Self, T> {
+    func filter(_ predicate: @escaping (InsiderValue) -> Bool) -> OwnedFilteredPreprocessor<Self, InsiderValue> {
         let out = OwnedPreprocessor(insiderOwner: self)
         return out.filter(predicate)
     }
-    func map<U>(_ transform: @escaping (T) -> U) -> OwnedTransformedPreprocessor<Self, U> {
+    func map<U>(_ transform: @escaping (InsiderValue) -> U) -> OwnedTransformedPreprocessor<Self, U> {
         let out = OwnedPreprocessor(insiderOwner: self)
         return out.map(transform)
     }
-    func onReceive(_ event: @escaping (T, Promise) -> Void) -> OwnedOnReceivePreprocessor<Self, T, T> {
+    func onReceive(_ event: @escaping (InsiderValue, Promise) -> Void) -> OwnedOnReceivePreprocessor<Self, InsiderValue, InsiderValue> {
         let out = OwnedPreprocessor(insiderOwner: self)
         return out.onReceive(event)
     }
-    func onReceiveMap<Result>(_ event: @escaping (T, ResultPromise<Result>) -> Void) -> OwnedOnReceiveMapPreprocessor<Self, Result, T, T> {
+    func onReceiveMap<Result>(_ event: @escaping (InsiderValue, ResultPromise<Result>) -> Void) -> OwnedOnReceiveMapPreprocessor<Self, Result, InsiderValue, InsiderValue> {
         let out = OwnedPreprocessor(insiderOwner: self)
         return out.onReceiveMap(event)
     }

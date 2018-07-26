@@ -16,7 +16,7 @@ enum Global {
 }
 
 class RealtimeGroup: RealtimeObject {
-    lazy var name: RealtimeProperty<String?> = "name".property(from: self.node)
+    lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
     //    @objc dynamic var cover: File?
     lazy var users: LinkedRealtimeArray<RealtimeUser> = "users".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var conversations: RealtimeDictionary<RealtimeUser, RealtimeUser> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
@@ -34,7 +34,7 @@ class RealtimeGroup: RealtimeObject {
 }
 
 class RealtimeUser: RealtimeObject {
-    lazy var name: RealtimeProperty<String?> = "name".property(from: self.node)
+    lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
     lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
     //    lazy var gender: String?
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
@@ -70,7 +70,7 @@ class RealtimeUser: RealtimeObject {
 }
 
 class RealtimeUser2: RealtimeUser {
-    lazy var human: RealtimeProperty<[String: Any?]?> = "human".property(from: self.node)
+    lazy var human: RealtimeProperty<[String: Any?]> = "human".property(from: self.node)
 
     override class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {

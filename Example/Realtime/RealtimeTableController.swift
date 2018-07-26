@@ -40,12 +40,12 @@ class RealtimeTableController: UIViewController {
         }
         delegate.register(UITableViewCell.self) { (item, user) in
             item.bind(user.name) { (cell, val) in
-                cell.textLabel?.text = val
+                cell.textLabel!.text =? val
             }
         }
         delegate.register(TableCell.self) { (item, user) in
             item.bind(user.name) { (cell, name) in
-                cell.label.text = name
+                cell.label.text =? name
             }
         }
         delegate.bind(tableView)
