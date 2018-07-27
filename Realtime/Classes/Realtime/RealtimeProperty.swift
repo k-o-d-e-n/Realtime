@@ -10,41 +10,51 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where Self.RawValue == String {
-    func readonlyProperty<T>(from node: Node?, options: [RealtimeValueOption: Any] = [.representer: AnyRepresenter<T>.any]) -> ReadonlyRealtimeProperty<T> {
+    func readonlyProperty<T>(from node: Node?, options: [RealtimeValueOption: Any] = [.representer: Representer<T>.any]) -> ReadonlyRealtimeProperty<T> {
         return ReadonlyRealtimeProperty(in: Node(key: rawValue, parent: node), options: options)
     }
-    func property<T>(from node: Node?, options: [RealtimeValueOption: Any] = [.representer: AnyRepresenter<T>.any]) -> RealtimeProperty<T> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node), options: options)
+    func property<T>(from node: Node?, representer: Representer<T> = .any) -> RealtimeProperty<T> {
+        return RealtimeProperty(in: Node(key: rawValue, parent: node), options: [.representer: representer])
+    }
+    func optionalProperty<T>(from node: Node?, representer: Representer<T> = .any) -> RealtimeProperty<T?> {
+        return property(from: node, representer: representer.optional())
     }
 
-    func primitive<V: FireDataValue>(from node: Node?) -> RealtimeProperty<V> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node))
-    }
     func `enum`<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node),
-                                options: [.representer: AnyRepresenter<V>.default(AnyRepresenter<V.RawValue>.any)])
+        return property(from: node, representer: Representer<V>.default(Representer<V.RawValue>.any))
+    }
+    func optionalEnum<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V?> {
+        return property(from: node, representer: Representer<V>.default(Representer<V.RawValue>.any).optional())
     }
     func date(from node: Node?, strategy: DateCodingStrategy = .secondsSince1970) -> RealtimeProperty<Date> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node),
-                                options: [.representer: AnyRepresenter<Date>.date(strategy)])
+        return property(from: node, representer: Representer<Date>.date(strategy))
+    }
+    func optionalDate(from node: Node?, strategy: DateCodingStrategy = .secondsSince1970) -> RealtimeProperty<Date?> {
+        return property(from: node, representer: Representer<Date>.date(strategy).optional())
     }
     func url(from node: Node?) -> RealtimeProperty<URL> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node),
-                                options: [.representer: AnyRepresenter<URL>.default])
+        return property(from: node, representer: Representer<URL>.default)
+    }
+    func optionalUrl(from node: Node?) -> RealtimeProperty<URL?> {
+        return property(from: node, representer: Representer<URL>.default.optional())
     }
     func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node),
-                                options: [.representer: AnyRepresenter<V>.json])
+        return property(from: node, representer: Representer<V>.json)
+    }
+    func optionalCodable<V: Codable>(from node: Node?) -> RealtimeProperty<V?> {
+        return property(from: node, representer: Representer<V>.json.optional())
     }
 
     func reference<V: RealtimeValue>(from node: Node?, mode: RealtimeReference<V>.Mode) -> RealtimeReference<V> {
+        return RealtimeReference(in: Node(key: rawValue, parent: node), options: [.reference: mode])
+    }
+    func optionalReference<V: RealtimeValue>(from node: Node?, mode: RealtimeReference<V>.Mode) -> RealtimeReference<V> {
         return RealtimeReference(in: Node(key: rawValue, parent: node), options: [.reference: mode])
     }
     func relation<V: RealtimeObject, Property: RawRepresentable>(from node: Node?, ownerLevelsUp: Int = 1, _ property: Property) -> RealtimeRelation<V> where Property.RawValue == String {
         return RealtimeRelation(in: Node(key: rawValue, parent: node),
                                 options: [.relation: RealtimeRelation<V>.Options(ownerLevelsUp: ownerLevelsUp, property: property.rawValue)])
     }
-
 
     func nested<Type: RealtimeObject>(in object: RealtimeObject) -> Type {
         let property = Type(in: Node(key: rawValue, parent: object.node))
@@ -67,7 +77,7 @@ public final class RealtimeReference<Referenced: RealtimeValue>: RealtimePropert
 
     public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
         let mode: Mode = options[.reference] as? Mode ?? .fullPath
-        super.init(in: node, options: [.representer: AnyRepresenter.reference(mode)])
+        super.init(in: node, options: [.representer: Representer.reference(mode)])
     }
 
     override func _write(to transaction: RealtimeTransaction, by node: Node) {
@@ -92,7 +102,7 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
         guard case let relation as Options = options[.relation] else { fatalError("Skipped required options") }
 
         self.options = relation
-        super.init(in: node, options: [.representer: AnyRepresenter<Related>.relation(relation.property).optional()])
+        super.init(in: node, options: [.representer: Representer<Related>.relation(relation.property)])
     }
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
@@ -217,6 +227,14 @@ public extension ListenValue {
 }
 
 public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
+    internal var _changedValue: T? {
+        switch localPropertyValue.get() {
+        case .local(let v): return v
+        case .remote, .error, .initial, .removed: return nil
+        }
+    }
+    override var _hasChanges: Bool { return _changedValue != nil }
+
     public func revert() {
         guard hasChanges else { return }
 
@@ -228,14 +246,6 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
             self?.revert()
         }
     }
-
-    internal var _changedValue: T? {
-        switch localPropertyValue.get() {
-        case .local(let v): return v
-        case .remote, .error, .initial, .removed: return nil
-        }
-    }
-    override var _hasChanges: Bool { return _changedValue != nil }
 
     @discardableResult
     public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
@@ -293,7 +303,7 @@ public extension RealtimeProperty {
 public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     fileprivate var localPropertyValue: PropertyValue<ListenValue<T>>
     fileprivate var oldValue: ListenValue<T> = .initial
-    let representer: AnyRepresenter<T>
+    let representer: Representer<T>
     public var insider: Insider<ListenValue<T>>
 
     public override var version: Int? { return nil }
@@ -305,9 +315,13 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     internal var _payload: [String : FireDataValue]? { return super.payload }
     
     // MARK: Initializers, deinitializer
+
+    convenience init(in node: Node?, representer: Representer<T>) {
+        self.init(in: node, options: [.representer: representer])
+    }
     
-    public required init(in node: Node?, options: [RealtimeValueOption: Any] = [.representer: AnyRepresenter<T>.any]) {
-        guard case let representer as AnyRepresenter<T> = options[.representer] else { fatalError("Bad options") }
+    public required init(in node: Node?, options: [RealtimeValueOption: Any] = [.representer: Representer<T>.any]) {
+        guard case let representer as Representer<T> = options[.representer] else { fatalError("Bad options") }
 
         self.localPropertyValue = PropertyValue((options[.initialValue] as? T).map { .local($0) } ?? .initial)
         self.insider = Insider(source: localPropertyValue.get)
@@ -444,7 +458,7 @@ public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: Fire
     private var localPropertyValue: PropertyValue<T>
     public var value: T { return localPropertyValue.get() }
     public var insider: Insider<T>
-    let representer: AnyRepresenter<T> = .any
+    let representer: Representer<T> = .any
 
     // MARK: Initializers, deinitializer
 

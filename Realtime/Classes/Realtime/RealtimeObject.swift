@@ -18,9 +18,11 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     public fileprivate(set) var version: Int?
     public fileprivate(set) var raw: FireDataValue?
     public fileprivate(set) var payload: [String : FireDataValue]?
-    private var observing: (token: UInt, counter: Int)?
     public var isObserved: Bool { return observing != nil }
     public var canObserve: Bool { return isRooted }
+
+    private var observing: (token: UInt, counter: Int)?
+
     public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self.node = node
         self.dbRef = node.flatMap { $0.isRooted ? $0.reference() : nil }
@@ -236,7 +238,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
-        let links: Links = Links(in: node!.linksNode, options: [.representer: AnyRepresenter(serializer: SourceLinkArraySerializer.self)])
+        let links: Links = Links(in: node!.linksNode, options: [.representer: Representer(serializer: SourceLinkArraySerializer.self)])
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(
                 completion: .just({ refs in

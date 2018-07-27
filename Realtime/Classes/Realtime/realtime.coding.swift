@@ -153,18 +153,25 @@ extension Dictionary: HasDefaultLiteral {}
 
 // MARK: Representer --------------------------------------------------------------------------
 
-public protocol Representer {
+public protocol RepresenterProtocol {
     associatedtype V
     func encode(_ value: V) throws -> Any?
     func decode(_ data: FireDataProtocol) throws -> V
 }
-extension Representer {
-    func optional() -> AnyRepresenter<V?> {
-        return AnyRepresenter(optional: self)
+public extension RepresenterProtocol {
+    func optional() -> Representer<V?> {
+        return Representer(optional: self)
+    }
+    func encode(_ value: V?) throws -> Any? {
+        return try value.map(encode)
+    }
+    func decode(_ data: FireDataProtocol) throws -> V? {
+        guard data.exists() else { return nil }
+        return try decode(data)
     }
 }
 
-public struct AnyRepresenter<V>: Representer {
+public struct Representer<V>: RepresenterProtocol {
     fileprivate let encoding: (V) throws -> Any?
     fileprivate let decoding: (FireDataProtocol) throws -> V
     public func decode(_ data: FireDataProtocol) throws -> V {
@@ -178,12 +185,12 @@ public struct AnyRepresenter<V>: Representer {
         self.decoding = decoding
     }
 }
-public extension AnyRepresenter {
-    init<R: Representer>(_ base: R) where V == R.V {
+public extension Representer {
+    init<R: RepresenterProtocol>(_ base: R) where V == R.V {
         self.encoding = base.encode
         self.decoding = base.decode
     }
-    init<R: Representer>(optional base: R) where V == R.V? {
+    init<R: RepresenterProtocol>(optional base: R) where V == R.V? {
         self.encoding = { (v) -> Any? in
             return try v.map(base.encode)
         }
@@ -197,9 +204,9 @@ public extension AnyRepresenter {
         self.decoding = base.deserialize
     }
 }
-public extension AnyRepresenter where V: RealtimeValue {
-    static func relation(_ property: String) -> AnyRepresenter<V> {
-        return AnyRepresenter<V>(
+public extension Representer where V: RealtimeValue {
+    static func relation(_ property: String) -> Representer<V> {
+        return Representer<V>(
             encoding: { v in
                 guard let node = v.node else { return nil }
 
@@ -211,8 +218,8 @@ public extension AnyRepresenter where V: RealtimeValue {
         })
     }
 
-    static func reference(_ mode: RealtimeReference<V>.Mode) -> AnyRepresenter<V> {
-        return AnyRepresenter<V>(
+    static func reference(_ mode: RealtimeReference<V>.Mode) -> Representer<V> {
+        return Representer<V>(
             encoding: { v in
                 switch mode {
                 case .fullPath:
@@ -240,15 +247,15 @@ public extension AnyRepresenter where V: RealtimeValue {
         )
     }
 }
-public extension AnyRepresenter {
-    static var any: AnyRepresenter<V> {
-        return AnyRepresenter<V>(encoding: { $0 }, decoding: { try $0.unbox(as: V.self) })
+public extension Representer {
+    static var any: Representer<V> {
+        return Representer<V>(encoding: { $0 }, decoding: { try $0.unbox(as: V.self) })
     }
 }
 
-public extension AnyRepresenter where V: RawRepresentable {
-    static func `default`<R: Representer>(_ rawRepresenter: R) -> AnyRepresenter<V> where R.V == V.RawValue {
-        return AnyRepresenter(
+public extension Representer where V: RawRepresentable {
+    static func `default`<R: RepresenterProtocol>(_ rawRepresenter: R) -> Representer<V> where R.V == V.RawValue {
+        return Representer(
             encoding: { try rawRepresenter.encode($0.rawValue) },
             decoding: { d in
                 guard let v = V(rawValue: try rawRepresenter.decode(d)) else {
@@ -260,18 +267,18 @@ public extension AnyRepresenter where V: RawRepresentable {
     }
 }
 
-public extension AnyRepresenter where V == URL {
-    static var `default`: AnyRepresenter<URL> {
-        return AnyRepresenter(
+public extension Representer where V == URL {
+    static var `default`: Representer<URL> {
+        return Representer(
             encoding: { $0.absoluteString },
             decoding: URL.init
         )
     }
 }
 
-public extension AnyRepresenter where V: Codable {
-    static var json: AnyRepresenter<V> {
-        return AnyRepresenter(
+public extension Representer where V: Codable {
+    static var json: Representer<V> {
+        return Representer(
             encoding: { v -> Any? in
                 let data = try JSONEncoder().encode(v)
                 return try JSONSerialization.jsonObject(with: data, options: .allowFragments)
@@ -288,9 +295,9 @@ public enum DateCodingStrategy {
     case iso8601(ISO8601DateFormatter)
     case formatted(DateFormatter)
 }
-public extension AnyRepresenter where V == Date {
-    static func date(_ strategy: DateCodingStrategy) -> AnyRepresenter<Date> {
-        return AnyRepresenter<Date>(
+public extension Representer where V == Date {
+    static func date(_ strategy: DateCodingStrategy) -> Representer<Date> {
+        return Representer<Date>(
             encoding: { date -> Any? in
                 switch strategy {
                 case .secondsSince1970:
