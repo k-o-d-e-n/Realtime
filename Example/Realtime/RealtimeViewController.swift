@@ -217,7 +217,7 @@ class RealtimeViewController: UIViewController {
         let gu = try! g.users.write(element: u)
 
         let transaction = RealtimeTransaction()
-        u.ownedGroup.setValue(group, in: transaction)
+        u.ownedGroup.setValue(g, in: transaction)
         transaction.merge(ug)
         transaction.merge(gu)
         transaction.commit { _, errs in

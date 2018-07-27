@@ -207,15 +207,15 @@ extension RealtimeTransaction {
     }
 
     public func addValue(_ value: Any, by node: Realtime.Node) {
-        addValue(value, by: node)
+        _addValue(value, by: node)
     }
 
     public func removeValue(by node: Realtime.Node) {
-        addValue(nil, by: node)
+        _addValue(nil, by: node)
     }
 
     /// registers new single value for specified reference
-    func addValue(_ value: Any?/*FireDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
+    func _addValue(_ value: Any?/*FireDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
         let nodes = node.reversed().dropFirst()
         var current = updateNode
         var iterator = nodes.makeIterator()
@@ -344,7 +344,7 @@ public extension RealtimeTransaction {
         guard let node = value.node, node.isRooted else { fatalError() }
 
         value.willRemove(in: self)
-        addValue(nil, by: node)
+        removeValue(by: node)
     }
 
     internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) {

@@ -245,8 +245,8 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
         transaction.addReversion { [weak self] in
             self?.storage.elements[item.dbKey] = element
         }
-        transaction.addValue(nil, by: _view.source.node!.child(with: item.dbKey)) // remove item element
-        transaction.addValue(nil, by: storage.sourceNode.child(with: item.dbKey)) // remove element
+        transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) // remove item element
+        transaction.removeValue(by: storage.sourceNode.child(with: item.dbKey)) // remove element
         transaction.addCompletion { [weak self] result in
             if result {
                 element.didRemove()
@@ -319,7 +319,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {  // TODO: Elements don't receive willRemove event
         super.willRemove(in: transaction, from: ancestor)
         if ancestor == node?.parent {
-            transaction.addValue(nil, by: node!.linksNode)
+            transaction.removeValue(by: node!.linksNode)
         }
     }
     override public func didRemove(from node: Node) {

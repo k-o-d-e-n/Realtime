@@ -239,10 +239,10 @@ func prepareElementsRecursive<RC: Collection>(_ collection: RC, completion: @esc
 public extension RealtimeCollection {
     /// RealtimeCollection actions
 
-    func filtered<ValueGetter: InsiderOwner & ValueWrapper & RealtimeValueActions>(map values: @escaping (Iterator.Element) -> ValueGetter,
-                                                                                   fetchIf: ((ValueGetter.V) -> Bool)? = nil,
-                                                                                   predicate: @escaping (ValueGetter.V) -> Bool,
-                                                                                   onCompleted: @escaping ([Iterator.Element]) -> ()) where ValueGetter.OutData == ValueGetter.V {
+    func filtered<ValueGetter: InsiderOwner & RealtimeValueActions>(map values: @escaping (Iterator.Element) -> ValueGetter,
+                                                                    fetchIf: ((ValueGetter) -> Bool)? = nil,
+                                                                    predicate: @escaping (ValueGetter.OutData) -> Bool,
+                                                                    onCompleted: @escaping ([Iterator.Element]) -> ()) {
         var filteredElements: [Iterator.Element] = []
         let count = endIndex
         let completeIfNeeded = { (releasedCount: Index) in
@@ -264,9 +264,9 @@ public extension RealtimeCollection {
 
                 filteredElements.append(element)
                 completeIfNeeded(released)
-                })
+            })
 
-            if fetchIf == nil || fetchIf!(value.value) {
+            if fetchIf?(value) ?? true {
                 value.load(completion: nil)
             } else {
                 listeningItem.notify()
@@ -299,7 +299,7 @@ public final class AnyRealtimeCollectionView<Source>: RCView where Source: Bidir
     let source: RealtimeProperty<Source>
 
     var value: Source {
-        return source.value ?? Source()
+        return source._value ?? Source()
     }
 
     public internal(set) var isPrepared: Bool = false
@@ -337,12 +337,12 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
     func insert(_ element: RCItem, at index: Int) {
         var value = self.value
         value.insert(element, at: index)
-        source.value = value
+        source._setValue(value)
     }
     func remove(at index: Int) -> RCItem {
         var value = self.value
         let removed = value.remove(at: index)
-        source.value = value
+        source._setValue(value)
         return removed
     }
 }

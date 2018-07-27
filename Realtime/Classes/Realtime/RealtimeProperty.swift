@@ -73,7 +73,7 @@ public final class RealtimeReference<Referenced: RealtimeValue>: RealtimePropert
     }
 }
 
-public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<Related> {
+public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<Related?> {
     let options: Options
     public override var version: Int? { return _version }
     public override var raw: FireDataValue? { return _raw }
@@ -84,16 +84,16 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
         guard case let relation as Options = options[.relation] else { fatalError("Skipped required options") }
 
         self.options = relation
-        super.init(in: node, options: [.representer: AnyRepresenter<Related>.relation(relation.property)])
+        super.init(in: node, options: [.representer: AnyRepresenter<Related>.relation(relation.property).optional()])
     }
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
         transaction.addPrecondition { [unowned transaction] (promise) in
             self.loadValue(
-                completion: Assign<Related>.just({ (val) in
-                    if let node = val.node?.child(with: self.options.property) {
-                        transaction.addValue(nil, by: node)
+                completion: .just({ (val) in
+                    if let node = val?.node?.child(with: self.options.property) {
+                        transaction.removeValue(by: node)
                     }
                     promise.fulfill(nil)
                 }),
@@ -104,14 +104,14 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
 
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
         super.write(to: transaction, by: node)
-        if let backwardNode = value?.node?.child(with: options.property) {
+        if let backwardNode = unwrapped?.node?.child(with: options.property) {
             let ownerNode = node.ancestor(on: options.ownerLevelsUp)!
             let thisProperty = node.path(from: ownerNode)
             let backwardRelation = Relation(path: ownerNode.rootPath, property: thisProperty)
             transaction.addValue(backwardRelation.fireValue, by: backwardNode)
         }
-        if let previousNode = oldValue.value?.node?.child(with: options.property) {
-            transaction.addValue(nil, by: previousNode)
+        if let previousNode = oldValue.unwrapped?.node?.child(with: options.property) {
+            transaction.removeValue(by: previousNode)
         }
     }
 
@@ -131,7 +131,8 @@ public extension RealtimeValueOption {
 }
 
 public enum ListenValue<T> {
-    case none // none(reverted: Bool)
+    case initial // none(reverted: Bool)
+    case removed
     case local(T)
     case remote(T) // remote(T, reverted: Bool)
     indirect case error(Error, last: ListenValue<T>)
@@ -139,15 +140,54 @@ public enum ListenValue<T> {
 
     public var value: T? {
         switch self {
-        case .none: return nil
+        case .removed, .initial: return nil
         case .local(let v): return v
         case .remote(let v): return v
         case .error(_, let v): return v.value
         }
     }
 }
+extension ListenValue: _Optional {
+    public func map<U>(_ f: (T) throws -> U) rethrows -> U? {
+        return try value.map(f)
+    }
+
+    public func flatMap<U>(_ f: (T) throws -> U?) rethrows -> U? {
+        return try value.flatMap(f)
+    }
+
+    public var isNone: Bool {
+        fatalError()
+    }
+
+    public var isSome: Bool {
+        fatalError()
+    }
+
+    public var unsafelyUnwrapped: T {
+        return value!
+    }
+
+    public typealias Wrapped = T
+
+    public init(nilLiteral: ()) {
+        self = .initial
+    }
+}
+
+extension ListenValue where T: _Optional {
+    public var unwrapped: T.Wrapped? {
+        switch self {
+        case .removed, .initial: return nil
+        case .local(let v): return v.unsafelyUnwrapped
+        case .remote(let v): return v.unsafelyUnwrapped
+        case .error(_, let v): return v.unwrapped
+        }
+    }
+}
 
 infix operator =?
+infix operator =!
 public extension ListenValue {
     static func =?(_ value: inout T, _ prop: ListenValue) {
         if let v = prop.value {
@@ -162,9 +202,12 @@ public extension ListenValue {
     static func <=(_ value: inout T?, _ prop: ListenValue) {
         value = prop.value
     }
+    static func =!(_ value: inout T, _ prop: ListenValue) {
+        value = prop.value!
+    }
 }
 
-public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Reverting {
+public class RealtimeProperty<T>: _RealtimeValue, InsiderOwner, Reverting {
     public func revert() {
         guard hasChanges else { return }
 
@@ -178,24 +221,14 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     }
 
     override public var hasChanges: Bool {
-        guard case .local = localPropertyValue.get() else {
-            return false
+        switch localPropertyValue.get() {
+        case .local: return true
+        case .remote, .error, .initial, .removed: return false
         }
-
-        return true
     }
 
     private var localPropertyValue: PropertyValue<ListenValue<T>>
-    fileprivate var oldValue: ListenValue<T> = .none
-    public var value: T? {
-        get { return localPropertyValue.get().value }
-        set {
-            if !hasChanges {
-                oldValue = localPropertyValue.get()
-            }
-            setValue(newValue.map { .local($0) } ?? .none)
-        }
-    }
+    fileprivate var oldValue: ListenValue<T> = .initial
     let representer: AnyRepresenter<T>
     public var insider: Insider<ListenValue<T>>
 
@@ -212,23 +245,15 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     public required init(in node: Node?, options: [RealtimeValueOption: Any] = [.representer: AnyRepresenter<T>.any]) {
         guard case let representer as AnyRepresenter<T> = options[.representer] else { fatalError("Bad options") }
 
-        self.localPropertyValue = PropertyValue((options[.initialValue] as? T).map { .local($0) } ?? .none)
+        self.localPropertyValue = PropertyValue((options[.initialValue] as? T).map { .local($0) } ?? .initial)
         self.insider = Insider(source: localPropertyValue.get)
         self.representer = representer
         super.init(in: node, options: options)
     }
 
     @discardableResult
-    public func setValue(_ value: T?, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        self.value = value
-        let transaction = transaction ?? RealtimeTransaction()
-        transaction.set(self)
-        return transaction
-    }
-
-    @discardableResult
-    public func changeValue(use changing: (inout T?) -> (), in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        changing(&value)
+    public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        _setValue(value)
         let transaction = transaction ?? RealtimeTransaction()
         transaction.set(self)
         return transaction
@@ -245,7 +270,7 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
         super.load(completion: .just { (err, _) in
             if let e = err {
                 failing.assign(e)
-            } else if let v = self.value {
+            } else if let v = self._value {
                 completion.assign(v)
             } else {
                 failing.assign(RealtimeError("Fail"))
@@ -266,12 +291,18 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     /// To change value version/raw can use enum, but use modified representer.
     public override func write(to transaction: RealtimeTransaction, by node: Node) {
         super.write(to: transaction, by: node)
-        if let val = localPropertyValue.get().value {
-            do {
-                transaction.addValue(try representer.encode(val), by: node)
-            } catch let e {
-                fatalError(e.localizedDescription)
+        do {
+            switch localPropertyValue.get() {
+            case .initial: break
+//                if  {
+//                    throw RealtimeError("Required property has not been set")
+//                }
+            case .error, .removed: break
+            case .local(let v): transaction._addValue(try representer.encode(v), by: node)
+            case .remote(let v): transaction._addValue(try representer.encode(v), by: node)
             }
+        } catch let e {
+            fatalError(e.localizedDescription)
         }
     }
     
@@ -280,13 +311,13 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
         if case .local(let v) = localPropertyValue.get() {
-            setValue(.remote(v))
+            _setListenValue(.remote(v))
         }
     }
     
     override public func didRemove(from node: Node) {
         super.didRemove(from: node)
-        setValue(.none)
+        _setListenValue(.removed)
     }
     
     // MARK: Changeable
@@ -299,13 +330,13 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     override public func apply(_ data: FireDataProtocol, strongly: Bool) {
         super.apply(data, strongly: strongly)
         do {
-            setValue(.remote(try representer.decode(data)))
+            _setListenValue(.remote(try representer.decode(data)))
         } catch let e {
             setError(e)
         }
     }
 
-    private func setValue(_ value: ListenValue<T>) {
+    fileprivate func _setListenValue(_ value: ListenValue<T>) {
         localPropertyValue.set(value)
         insider.dataDidChange()
     }
@@ -313,6 +344,69 @@ public class RealtimeProperty<T>: _RealtimeValue, ValueWrapper, InsiderOwner, Re
     private func setError(_ error: Error) {
         localPropertyValue.set(.error(error, last: localPropertyValue.get()))
         insider.dataDidChange()
+    }
+}
+
+public extension RealtimeProperty {
+    var lastEvent: ListenValue<T> {
+        return localPropertyValue.get()
+    }
+
+    func value() throws -> T {
+        switch localPropertyValue.get() {
+        case .initial: throw RealtimeError("Value has not been recevied yet")
+        case .local(let v): return v
+        case .remote(let v): return v
+        case .error(let e, _): throw e
+        case .removed: throw RealtimeError("Value has been removed")
+        }
+    }
+
+    internal var _value: T? {
+        return localPropertyValue.get().value
+    }
+
+    internal func _setValue(_ value: T) {
+        if !hasChanges {
+            oldValue = localPropertyValue.get()
+        }
+        _setListenValue(.local(value))
+    }
+}
+extension RealtimeProperty {
+    public func then(_ f: (T) -> Void) {
+        if let v = localPropertyValue.get().value {
+            f(v)
+        }
+    }
+}
+public extension RealtimeProperty {
+    static func <=(_ prop: inout RealtimeProperty, _ value: T) {
+        prop._setValue(value)
+    }
+    static func =?(_ value: inout T, _ prop: RealtimeProperty) {
+        if let v = prop._value {
+            value = v
+        }
+    }
+    static func <=(_ value: inout T?, _ prop: RealtimeProperty) {
+        value = prop._value
+    }
+}
+public extension RealtimeProperty {
+    func mapValue<U>(_ transform: (T) throws -> U) rethrows -> U? {
+        return try _value.map(transform)
+    }
+    func flatMapValue<U>(_ transform: (T) throws -> U?) rethrows -> U? {
+        return try _value.flatMap(transform)
+    }
+}
+public extension RealtimeProperty where T: _Optional {
+    var unwrapped: T.Wrapped? {
+        return lastEvent.unwrapped
+    }
+    static func <=(_ value: inout T.Wrapped?, _ prop: RealtimeProperty) {
+        value = prop.unwrapped
     }
 }
 
@@ -440,7 +534,7 @@ public extension MutationPoint where T: FireDataValue {
 extension MutationPoint {
     func removeValue(for key: String, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
-        transaction.addValue(nil, by: node.child(with: key))
+        transaction.removeValue(by: node.child(with: key))
 
         return transaction
     }

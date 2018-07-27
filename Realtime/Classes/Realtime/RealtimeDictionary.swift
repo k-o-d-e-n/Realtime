@@ -229,9 +229,9 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         transaction.addReversion { [weak self] in
             self?.storage.elements[key] = element
         }
-        transaction.addValue(nil, by: _view.source.node!.child(with: key.dbKey)) // remove item element
-        transaction.addValue(nil, by: storage.sourceNode.child(with: key.dbKey)) // remove element
-        transaction.addValue(nil, by: key.node!.linksNode.child(with: item.linkID)) // remove link from key object
+        transaction.removeValue(by: _view.source.node!.child(with: key.dbKey)) // remove item element
+        transaction.removeValue(by: storage.sourceNode.child(with: key.dbKey)) // remove element
+        transaction.removeValue(by: key.node!.linksNode.child(with: item.linkID)) // remove link from key object
         transaction.addCompletion { [weak self] result in
             if result {
                 element.didRemove()
@@ -315,7 +315,7 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {  // TODO: Elements don't receive willRemove event
         super.willRemove(in: transaction, from: ancestor)
         if ancestor == node?.parent {
-            transaction.addValue(nil, by: node!.linksNode)
+            transaction.removeValue(by: node!.linksNode)
         }
     }
     override public func didRemove(from node: Node) {

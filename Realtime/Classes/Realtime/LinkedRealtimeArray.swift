@@ -233,11 +233,11 @@ public extension LinkedRealtimeArray {
         transaction.addReversion { [weak self] in
             self?.storage.elements[item.dbKey] = element
         }
-        transaction.addValue(nil, by: _view.source.node!.child(with: item.dbKey))
+        transaction.removeValue(by: _view.source.node!.child(with: item.dbKey))
         let elementLinksNode = storage.sourceNode.linksNode.child(
             with: item.dbKey.subpath(with: item.linkID)
         )
-        transaction.addValue(nil, by: elementLinksNode)
+        transaction.removeValue(by: elementLinksNode)
         transaction.addCompletion { [weak self] (result) in
             if result {
                 self?.didSave()

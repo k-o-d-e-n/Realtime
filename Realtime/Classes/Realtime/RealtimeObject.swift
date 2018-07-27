@@ -223,7 +223,7 @@ open class RealtimeObject: _RealtimeValue {
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(
                 completion: .just({ refs in
-                    refs.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.addValue(nil, by: $0) }
+                    refs.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.removeValue(by: $0) }
                     transaction.delete(links)
                     promise.fulfill(nil)
                 }),
