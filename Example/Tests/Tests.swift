@@ -824,6 +824,60 @@ extension Tests {
         elementTransaction.revert()
     }
 
+    func testCollectionOnRootObject() {
+        let testObject = TestObject(in: .root)
+
+        let transaction = RealtimeTransaction()
+
+        let linkedObject = TestObject(in: Node.root.child(with: "linked"))
+        linkedObject.property <= "#1"
+        testObject.linkedArray._view.isPrepared = true
+        XCTAssertNoThrow(try testObject.linkedArray.write(element: linkedObject, in: transaction))
+
+        let object = TestObject(in: Node(key: "elem_1"))
+        object.property <= "prop"
+        testObject.array._view.isPrepared = true
+        XCTAssertNoThrow(try testObject.array.write(element: object, in: transaction))
+
+        let element = TestObject()
+        element.property <= "element #1"
+        testObject.dictionary._view.isPrepared = true
+        XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
+
+        let value = transaction.updateNode.updateValue
+
+        let linkedItem = value["/linked_array/linked"] as? [String: Any]
+        XCTAssertTrue(linkedItem != nil)
+        XCTAssertTrue(value["/array/elem_1/prop"] as? String == "prop")
+        XCTAssertTrue(value["/dict/linked/prop"] as? String == "element #1")
+        transaction.revert()
+    }
+
+    func testCollectionOnStandaloneObject() {
+        let testObject = TestObject(in: Node(key: "test_obj"))
+
+        let linkedObject = TestObject(in: Node.root.child(with: "linked"))
+        linkedObject.property <= "#1"
+        testObject.linkedArray.insert(element: linkedObject)
+
+        let object = TestObject(in: Node(key: "elem_1"))
+        object.property <= "prop"
+        testObject.array.insert(element: object)
+
+        let element = TestObject()
+        element.property <= "element #1"
+        testObject.dictionary.set(element: element, for: linkedObject)
+
+        let transaction = testObject.save(in: .root)
+        let value = transaction.updateNode.updateValue
+
+        let linkedItem = value["/test_obj/linked_array/linked"] as? [String: Any]
+        XCTAssertTrue(linkedItem != nil)
+        XCTAssertTrue(value["/test_obj/array/elem_1/prop"] as? String == "prop")
+        XCTAssertTrue(value["/test_obj/dict/linked/prop"] as? String == "element #1")
+        transaction.revert()
+    }
+
     func testNode() {
         let first = Node(key: "first", parent: .root)
 
@@ -890,8 +944,7 @@ extension Tests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
     }
 
-
-    enum ValueWithPayload: RealtimeValue, RealtimeValueActions {
+    enum ValueWithPayload: WritableRealtimeValue, RealtimeValueActions {
         var version: Int? { return value.version }
         var raw: FireDataValue? {
             switch self {

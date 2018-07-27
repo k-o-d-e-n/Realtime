@@ -76,14 +76,8 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
     ///   - strongly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
     ///               Pass `false` if snapshot represents part of data (for example filtered list).
     func apply(_ data: FireDataProtocol, strongly: Bool)
-
-    /// Writes all local stored data to transaction as is. You shouldn't call it directly.
-    ///
-    /// - Parameters:
-    ///   - transaction: Current transaction
-    ///   - node: Database node where data will be store
-    func write(to transaction: RealtimeTransaction, by node: Node)
 }
+
 public extension RealtimeValue {
     var dbKey: String! { return node?.key }
     func dbRef(_ database: Database = Database.database()) -> DatabaseReference? {
@@ -122,6 +116,23 @@ public extension Hashable where Self: RealtimeValue {
     static func ==(lhs: Self, rhs: Self) -> Bool {
         return lhs.node == rhs.node
     }
+}
+
+// MARK: Extended Realtime Value
+
+public protocol RealtimeValueActions: RealtimeValueEvents {
+    /// Single loading of value. Returns error if object hasn't rooted node.
+    ///
+    /// - Parameter completion: Closure that called on end loading or error
+    func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?)
+    /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
+    var canObserve: Bool { get }
+    /// Runs observing value, if
+    ///
+    /// - Returns: True if running was successful or observing already run, otherwise false
+    @discardableResult func runObserving() -> Bool
+    /// Stops observing, if observers no more.
+    func stopObserving()
 }
 public protocol RealtimeValueEvents {
     /// Must call always before save(update) action
@@ -184,8 +195,17 @@ extension RealtimeValueEvents where Self: RealtimeValue {
     }
 }
 
-// MARK: Extended Realtime Value
+/// Values that can writes as single values
+public protocol WritableRealtimeValue: RealtimeValue {
+    /// Writes all local stored data to transaction as is. You shouldn't call it directly.
+    ///
+    /// - Parameters:
+    ///   - transaction: Current transaction
+    ///   - node: Database node where data will be store
+    func write(to transaction: RealtimeTransaction, by node: Node)
+}
 
+/// Values that can be changed partially
 public protocol ChangeableRealtimeValue: RealtimeValue {
     /// Indicates that value was changed
     var hasChanges: Bool { get }
@@ -198,17 +218,3 @@ public protocol ChangeableRealtimeValue: RealtimeValue {
     func writeChanges(to transaction: RealtimeTransaction, by node: Node)
 }
 
-public protocol RealtimeValueActions: RealtimeValueEvents {
-    /// Single loading of value. Returns error if object hasn't rooted node.
-    ///
-    /// - Parameter completion: Closure that called on end loading or error
-    func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?)
-    /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
-    var canObserve: Bool { get }
-    /// Runs observing value, if
-    ///
-    /// - Returns: True if running was successful or observing already run, otherwise false
-    @discardableResult func runObserving() -> Bool
-    /// Stops observing, if observers no more.
-    func stopObserving()
-}

@@ -300,13 +300,13 @@ extension RealtimeTransaction: CustomStringConvertible {
 }
 public extension RealtimeTransaction {
     /// adds operation of save RealtimeValue as single value
-    func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node? = nil) {
-        guard let savedNode = node ?? value.node, savedNode.isRooted else { fatalError() }
+    func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) {
+        guard node.isRooted else { fatalError() }
 
-        _set(value, by: savedNode)
+        _set(value, by: node)
         addCompletion { (result) in
             if result {
-                value.didSave(in: savedNode.parent!, by: savedNode.key)
+                value.didSave(in: node.parent!, by: node.key)
             }
         }
     }
@@ -333,7 +333,7 @@ public extension RealtimeTransaction {
         }
     }
 
-    internal func _set<T: RealtimeValue>(_ value: T, by node: Realtime.Node) {
+    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Realtime.Node) {
         guard node.isRooted else { fatalError() }
 
         value.write(to: self, by: node)

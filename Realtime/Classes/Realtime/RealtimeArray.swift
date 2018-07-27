@@ -42,11 +42,11 @@ public extension RealtimeArray {
 /// # Realtime Array
 /// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
 /// Comment writing guide
-public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue & RealtimeValueEvents {
+public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeValue, RC where Element: WritableRealtimeValue & RealtimeValueEvents {
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
     public override var payload: [String : FireDataValue]? { return nil }
-    override public var hasChanges: Bool { return !storage.localElements.isEmpty }
+    override var _hasChanges: Bool { return !storage.localElements.isEmpty }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
@@ -138,7 +138,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
         return try _insert(element, at: index, in: transaction)
     }
 
-    public func insert(element: Element, at index: Int? = nil) throws {
+    public func insert(element: Element, at index: Int? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard !element.isReferred || element.node!.parent == storage.sourceNode
             else { fatalError("Element must not be referred in other location") }
@@ -283,24 +283,22 @@ public final class RealtimeArray<Element>: _RealtimeValue, RC where Element: Rea
         }
     }
 
-    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
-        if hasChanges {
-            for (index, element) in storage.localElements.enumerated() {
-                _write(element,
-                       at: index,
-                       by: (storage: node,
-                            itms: Node(key: InternalKeys.items, parent: node.linksNode)),
-                       in: transaction)
-            }
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+        for (index, element) in storage.localElements.enumerated() {
+            _write(element,
+                   at: index,
+                   by: (storage: node,
+                        itms: Node(key: InternalKeys.items, parent: node.linksNode)),
+                   in: transaction)
         }
     }
 
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
-    public override func write(to transaction: RealtimeTransaction, by node: Node) {
-//        super.write(to: transaction, by: node)
+    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+//        super._write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
-        writeChanges(to: transaction, by: node)
+        _writeChanges(to: transaction, by: node)
     }
 
 //    override public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {

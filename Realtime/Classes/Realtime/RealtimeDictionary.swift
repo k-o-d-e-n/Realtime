@@ -59,12 +59,12 @@ extension RealtimeValueOption {
 }
 
 public typealias RealtimeDictionaryKey = Hashable & RealtimeValue
-public final class RealtimeDictionary<Key, Value>: _RealtimeValue, RC
-where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
+public final class RealtimeDictionary<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RC
+where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
     public override var payload: [String : FireDataValue]? { return nil }
-    override public var hasChanges: Bool { return !storage.localElements.isEmpty }
+    override var _hasChanges: Bool { return storage.localElements.count > 0 }
     public var view: RealtimeCollectionView { return _view }
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
@@ -279,24 +279,22 @@ where Value: RealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
         }
     }
 
-    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
-        if hasChanges {
-            storage.localElements.forEach { (key, value) in
-                _write(value,
-                       for: key,
-                       by: (storage: node,
-                            itms: Node(key: InternalKeys.items, parent: node.linksNode)),
-                       in: transaction)
-            }
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+        storage.localElements.forEach { (key, value) in
+            _write(value,
+                   for: key,
+                   by: (storage: node,
+                        itms: Node(key: InternalKeys.items, parent: node.linksNode)),
+                   in: transaction)
         }
     }
 
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
-    public override func write(to transaction: RealtimeTransaction, by node: Node) {
-//        super.write(to: transaction, by: node)
+    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+//        super._write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
-        writeChanges(to: transaction, by: node)
+        _writeChanges(to: transaction, by: node)
     }
 
 //    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {

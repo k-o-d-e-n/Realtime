@@ -26,10 +26,11 @@ public extension RealtimeValueOption {
     static let elementsNode = RealtimeValueOption("realtime.linkedarray.elements")
 }
 
-public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Element: RealtimeValue {
+public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeValue, RC where Element: RealtimeValue {
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
     public override var payload: [String : FireDataValue]? { return nil }
+    override var _hasChanges: Bool { return storage.localElements.count > 0 }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
@@ -81,20 +82,18 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, RC where Elemen
         _view.isPrepared = true
     }
 
-    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
-        if hasChanges {
-            for (index, element) in storage.localElements.enumerated() {
-                _write(element, at: index, by: node, in: transaction)
-            }
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+        for (index, element) in storage.localElements.enumerated() {
+            _write(element, at: index, by: node, in: transaction)
         }
     }
 
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
-    public override func write(to transaction: RealtimeTransaction, by node: Node) {
-//        super.write(to: transaction, by: node)
+    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+//        super._write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
-        writeChanges(to: transaction, by: node)
+        _writeChanges(to: transaction, by: node)
     }
 
 //    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {

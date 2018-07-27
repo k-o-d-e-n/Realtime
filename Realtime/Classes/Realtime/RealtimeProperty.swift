@@ -10,6 +10,9 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where Self.RawValue == String {
+    func readonlyProperty<T>(from node: Node?, options: [RealtimeValueOption: Any] = [.representer: AnyRepresenter<T>.any]) -> ReadonlyRealtimeProperty<T> {
+        return ReadonlyRealtimeProperty(in: Node(key: rawValue, parent: node), options: options)
+    }
     func property<T>(from node: Node?, options: [RealtimeValueOption: Any] = [.representer: AnyRepresenter<T>.any]) -> RealtimeProperty<T> {
         return RealtimeProperty(in: Node(key: rawValue, parent: node), options: options)
     }
@@ -67,6 +70,11 @@ public final class RealtimeReference<Referenced: RealtimeValue>: RealtimePropert
         super.init(in: node, options: [.representer: AnyRepresenter.reference(mode)])
     }
 
+    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+        _write_RealtimeValue(to: transaction, by: node)
+        super.write(to: transaction, by: node)
+    }
+
     public enum Mode {
         case fullPath
         case key(from: Node)
@@ -102,8 +110,9 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
         }
     }
 
-    public override func write(to transaction: RealtimeTransaction, by node: Node) {
-        super.write(to: transaction, by: node)
+    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+        _write_RealtimeValue(to: transaction, by: node)
+        super._write(to: transaction, by: node)
         if let backwardNode = unwrapped?.node?.child(with: options.property) {
             let ownerNode = node.ancestor(on: options.ownerLevelsUp)!
             let thisProperty = node.path(from: ownerNode)
@@ -207,7 +216,7 @@ public extension ListenValue {
     }
 }
 
-public class RealtimeProperty<T>: _RealtimeValue, InsiderOwner, Reverting {
+public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
     public func revert() {
         guard hasChanges else { return }
 
@@ -220,14 +229,69 @@ public class RealtimeProperty<T>: _RealtimeValue, InsiderOwner, Reverting {
         }
     }
 
-    override public var hasChanges: Bool {
+    internal var _changedValue: T? {
         switch localPropertyValue.get() {
-        case .local: return true
-        case .remote, .error, .initial, .removed: return false
+        case .local(let v): return v
+        case .remote, .error, .initial, .removed: return nil
+        }
+    }
+    override var _hasChanges: Bool { return _changedValue != nil }
+
+    @discardableResult
+    public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        guard let node = self.node, node.isRooted else { fatalError("Mutation cannot be do. Value is not rooted") }
+
+        _setValue(value)
+        let transaction = transaction ?? RealtimeTransaction()
+        _writeChanges(to: transaction, by: node)
+        return transaction
+    }
+
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+        if let changed = _changedValue {
+//            super._writeChanges(to: transaction, by: node)
+            transaction.addReversion(currentReversion())
+            do { transaction._addValue(try representer.encode(changed), by: node) }
+            catch let e { fatalError(e.localizedDescription) }
         }
     }
 
-    private var localPropertyValue: PropertyValue<ListenValue<T>>
+    /// Property does not respond for versions and raw value, and also payload.
+    /// To change value version/raw can use enum, but use modified representer.
+    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+//        super._write(to: transaction, by: node)
+        do {
+            switch localPropertyValue.get() {
+            case .initial: break
+//                if  {
+//                    throw RealtimeError("Required property has not been set")
+//                }
+            case .error, .removed: break
+            case .local(let v): transaction._addValue(try representer.encode(v), by: node)
+            case .remote(let v): transaction._addValue(try representer.encode(v), by: node)
+            }
+        } catch let e {
+            fatalError(e.localizedDescription)
+        }
+    }
+
+    internal func _setValue(_ value: T) {
+        if !hasChanges {
+            oldValue = localPropertyValue.get()
+        }
+        _setListenValue(.local(value))
+    }
+}
+public extension RealtimeProperty {
+    static func <=(_ prop: inout RealtimeProperty, _ value: T) {
+        prop._setValue(value)
+    }
+}
+
+// TODO: Need to make as wrapper
+@available(*, introduced: 0.4.3)
+public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
+    fileprivate var localPropertyValue: PropertyValue<ListenValue<T>>
     fileprivate var oldValue: ListenValue<T> = .initial
     let representer: AnyRepresenter<T>
     public var insider: Insider<ListenValue<T>>
@@ -250,20 +314,13 @@ public class RealtimeProperty<T>: _RealtimeValue, InsiderOwner, Reverting {
         self.representer = representer
         super.init(in: node, options: options)
     }
-
-    @discardableResult
-    public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        _setValue(value)
-        let transaction = transaction ?? RealtimeTransaction()
-        transaction.set(self)
-        return transaction
-    }
     
     public override func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) {
         super.load(completion: completion?.with(work: { (val) in
             val.error.map(self.setError)
         }))
     }
+
     @discardableResult
     public func loadValue(completion: Assign<T>, fail: Assign<Error>) -> Self {
         let failing = fail.with(work: setError)
@@ -280,30 +337,12 @@ public class RealtimeProperty<T>: _RealtimeValue, InsiderOwner, Reverting {
         return self
     }
 
-    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
-        if hasChanges {
-            transaction.addReversion(currentReversion())
-            super.writeChanges(to: transaction, by: node)
-        }
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+        /// readonly property cannot have changes
     }
 
-    /// Property does not respond for versions and raw value, and also payload.
-    /// To change value version/raw can use enum, but use modified representer.
-    public override func write(to transaction: RealtimeTransaction, by node: Node) {
-        super.write(to: transaction, by: node)
-        do {
-            switch localPropertyValue.get() {
-            case .initial: break
-//                if  {
-//                    throw RealtimeError("Required property has not been set")
-//                }
-            case .error, .removed: break
-            case .local(let v): transaction._addValue(try representer.encode(v), by: node)
-            case .remote(let v): transaction._addValue(try representer.encode(v), by: node)
-            }
-        } catch let e {
-            fatalError(e.localizedDescription)
-        }
+    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+        /// readonly property cannot write something
     }
     
     // MARK: Events
@@ -347,7 +386,7 @@ public class RealtimeProperty<T>: _RealtimeValue, InsiderOwner, Reverting {
     }
 }
 
-public extension RealtimeProperty {
+public extension ReadonlyRealtimeProperty {
     var lastEvent: ListenValue<T> {
         return localPropertyValue.get()
     }
@@ -365,35 +404,25 @@ public extension RealtimeProperty {
     internal var _value: T? {
         return localPropertyValue.get().value
     }
-
-    internal func _setValue(_ value: T) {
-        if !hasChanges {
-            oldValue = localPropertyValue.get()
-        }
-        _setListenValue(.local(value))
-    }
 }
-extension RealtimeProperty {
+extension ReadonlyRealtimeProperty {
     public func then(_ f: (T) -> Void) {
         if let v = localPropertyValue.get().value {
             f(v)
         }
     }
 }
-public extension RealtimeProperty {
-    static func <=(_ prop: inout RealtimeProperty, _ value: T) {
-        prop._setValue(value)
-    }
-    static func =?(_ value: inout T, _ prop: RealtimeProperty) {
+public extension ReadonlyRealtimeProperty {
+    static func =?(_ value: inout T, _ prop: ReadonlyRealtimeProperty) {
         if let v = prop._value {
             value = v
         }
     }
-    static func <=(_ value: inout T?, _ prop: RealtimeProperty) {
+    static func <=(_ value: inout T?, _ prop: ReadonlyRealtimeProperty) {
         value = prop._value
     }
 }
-public extension RealtimeProperty {
+public extension ReadonlyRealtimeProperty {
     func mapValue<U>(_ transform: (T) throws -> U) rethrows -> U? {
         return try _value.map(transform)
     }
@@ -401,11 +430,11 @@ public extension RealtimeProperty {
         return try _value.flatMap(transform)
     }
 }
-public extension RealtimeProperty where T: _Optional {
+public extension ReadonlyRealtimeProperty where T: _Optional {
     var unwrapped: T.Wrapped? {
         return lastEvent.unwrapped
     }
-    static func <=(_ value: inout T.Wrapped?, _ prop: RealtimeProperty) {
+    static func <=(_ value: inout T.Wrapped?, _ prop: ReadonlyRealtimeProperty) {
         value = prop.unwrapped
     }
 }
@@ -423,10 +452,6 @@ public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: Fire
         self.localPropertyValue = PropertyValue(T())
         self.insider = Insider(source: localPropertyValue.get)
         super.init(in: node, options: options)
-    }
-
-    public override func write(to transaction: RealtimeTransaction, by node: Node) {
-        /// shared property cannot change in transaction
     }
 
     // MARK: Events

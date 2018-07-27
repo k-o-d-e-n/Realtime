@@ -9,10 +9,10 @@
 import Foundation
 import FirebaseDatabase
 
-// TODO: Add caching mechanism, for reuse entities
+// TODO: Add caching mechanism, for reuse entities (Can use root global element describing all database)
 
 /// Base class for any database value
-open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
+open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
     public var dbRef: DatabaseReference?
     public fileprivate(set) var node: Node?
     public fileprivate(set) var version: Int?
@@ -130,27 +130,17 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
         self.dbRef = parent.isRooted ? self.node?.reference() : nil
     }
     
-    // MARK: Changeable
-    
-    public var hasChanges: Bool { return false }
+    // MARK: Changeable & Writable
 
-    // MARK: Realtime Value
+    internal var _hasChanges: Bool { return false }
 
-    public required init(fireData: FireDataProtocol) throws {
-        self.node = Node.root.child(with: fireData.dataRef!.rootPath)
-        self.dbRef = fireData.dataRef
-        apply(fireData)
-    }
-    
-    open func apply(_ data: FireDataProtocol, strongly: Bool) {}
-
-    public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
-        if hasChanges {
-            write(to: transaction, by: node)
+    internal func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+        if _hasChanges {
+            _write(to: transaction, by: node)
         }
     }
 
-    public func write(to transaction: RealtimeTransaction, by node: Node) {
+    internal final func _write_RealtimeValue(to transaction: RealtimeTransaction, by node: Node) {
         if let mv = version {
             transaction.addValue(mv, by: Node(key: InternalKeys.modelVersion, parent: node))
         }
@@ -161,8 +151,35 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
             transaction.addValue(pl, by: Node(key: InternalKeys.payload, parent: node))
         }
     }
+
+    internal func _write(to transaction: RealtimeTransaction, by node: Node) {
+        _write_RealtimeValue(to: transaction, by: node)
+    }
+
+    // MARK: Realtime Value
+
+    public required init(fireData: FireDataProtocol) throws {
+        self.node = Node.root.child(with: fireData.dataRef!.rootPath)
+        self.dbRef = fireData.dataRef
+        apply(fireData)
+    }
+    
+    open func apply(_ data: FireDataProtocol, strongly: Bool) {}
     
     public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \("TODO:");\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
+}
+extension WritableRealtimeValue where Self: _RealtimeValue {
+    public func write(to transaction: RealtimeTransaction, by node: Node) {
+        _write(to: transaction, by: node)
+    }
+}
+extension ChangeableRealtimeValue where Self: _RealtimeValue {
+    public var hasChanges: Bool { return _hasChanges }
+    public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+        if hasChanges {
+            _write(to: transaction, by: node)
+        }
+    }
 }
 
 /// Main class to define Realtime models objects.
@@ -189,8 +206,8 @@ open class _RealtimeValue: ChangeableRealtimeValue, RealtimeValueActions, Hashab
 ///         }
 ///     }
 ///
-open class RealtimeObject: _RealtimeValue {
-    override public var hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val.hasChanges }) }
+open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue {
+    override var _hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
     open var parent: RealtimeObject?
 
@@ -254,7 +271,7 @@ open class RealtimeObject: _RealtimeValue {
             }
 
             if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
-                if case let value as RealtimeValue = self[keyPath: keyPath] {
+                if case let value as _RealtimeValue = self[keyPath: keyPath] {
                     value.apply(parentDataIfNeeded: data, strongly: strongly)
                 }
             }
@@ -265,8 +282,8 @@ open class RealtimeObject: _RealtimeValue {
         fatalError("You should implement class func keyPath(for:)")
     }
 
-    public override func write(to transaction: RealtimeTransaction, by node: Node) {
-        super.write(to: transaction, by: node)
+    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+        super._write(to: transaction, by: node)
         reflect { (mirror) in
             mirror.children.forEach({ (child) in
                 guard var label = child.label else { return }
@@ -279,7 +296,7 @@ open class RealtimeObject: _RealtimeValue {
                 if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
                     if case let value as _RealtimeValue = self[keyPath: keyPath] {
                         if let valNode = value.node {
-                            value.write(to: transaction, by: node.child(with: valNode.key))
+                            value._write(to: transaction, by: node.child(with: valNode.key))
                         } else {
                             fatalError("There is not specified child node in \(self)")
                         }
@@ -289,7 +306,7 @@ open class RealtimeObject: _RealtimeValue {
         }
     }
 
-    override public func writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
         reflect { (mirror) in
             mirror.children.forEach({ (child) in
                 guard var label = child.label else { return }
@@ -302,7 +319,7 @@ open class RealtimeObject: _RealtimeValue {
                 if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
                     if case let value as _RealtimeValue = self[keyPath: keyPath] {
                         if let valNode = value.node {
-                            value.writeChanges(to: transaction, by: node.child(with: valNode.key))
+                            value._writeChanges(to: transaction, by: node.child(with: valNode.key))
                         } else {
                             fatalError("There is not specified child node in \(self)")
                         }
@@ -396,9 +413,11 @@ extension RealtimeObject: Reverting {
 
 extension RealtimeObject {
     /// writes RealtimeObject in transaction like as single value
-    public func save(in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+    public func save(in parent: Node, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+        guard let key = self.dbKey else { fatalError("Object has not key. If you cannot set key manually use RealtimeTransaction.set(_:by:) method instead") }
+
         let transaction = transaction ?? RealtimeTransaction()
-        transaction.set(self)
+        transaction.set(self, by: Node(key: key, parent: parent))
         return transaction
     }
 

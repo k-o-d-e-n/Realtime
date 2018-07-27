@@ -37,7 +37,6 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(after i: Int) -> Int { fatalError() }
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
-    func write(to transaction: RealtimeTransaction, by node: Node) { fatalError() }
     func apply(_ data: FireDataProtocol, strongly: Bool) { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
@@ -76,7 +75,6 @@ where C.Index == Int {
     override func index(before i: Int) -> Int { return base.index(before: i) }
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
-    override func write(to transaction: RealtimeTransaction, by node: Node) { base.write(to: transaction, by: node) }
     override func apply(_ data: FireDataProtocol, strongly: Bool) { base.apply(data, strongly: strongly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
@@ -119,7 +117,6 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public func stopObserving() { base.stopObserving() }
     public convenience required init(fireData: FireDataProtocol) throws { fatalError() }
     public func apply(_ data: FireDataProtocol, strongly: Bool) { base.apply(data, strongly: strongly) }
-    public func write(to transaction: RealtimeTransaction, by node: Node) { base.write(to: transaction, by: node) }
 }
 
 // TODO: Create wrapper that would sort array (sorting by default) (example array from tournament table)
@@ -144,8 +141,6 @@ public extension RealtimeDictionary {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
     }
 }
-
-// TODO: Create lazy flatMap collection with keyPath access
 
 struct AnySharedCollection<Element>: Collection {
     let _startIndex: () -> Int
@@ -187,7 +182,7 @@ public struct KeyedCollectionStorage<V>: MutableRCStorage {
     }
 }
 
-// TODO: Need update keyed storage when to parent view changed to operate actual data
+@available(*, deprecated: 0.3.7, message: "Use MapRealtimeCollection instead")
 public final class KeyedRealtimeCollection<Element, BaseElement>: RealtimeCollection
 where Element: RealtimeValue {
     public typealias Index = Int
@@ -242,10 +237,6 @@ where Element: RealtimeValue {
 
     public func apply(_ data: FireDataProtocol, strongly: Bool) {
         base.apply(data, strongly: strongly)
-    }
-
-    public func write(to transaction: RealtimeTransaction, by node: Node) {
-        base.write(to: transaction, by: node)
     }
 }
 
@@ -307,9 +298,5 @@ where Base.Index == Int {
 
     public func apply(_ data: FireDataProtocol, strongly: Bool) {
         base.apply(data, strongly: strongly)
-    }
-
-    public func write(to transaction: RealtimeTransaction, by node: Node) {
-        base.write(to: transaction, by: node)
     }
 }
