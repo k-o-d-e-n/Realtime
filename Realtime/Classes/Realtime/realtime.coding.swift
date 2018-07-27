@@ -199,6 +199,14 @@ public extension Representer {
             return try base.decode(data)
         }
     }
+    init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleByArrayLiteral, V.ArrayLiteralElement == V.Element {
+        self.encoding = { (v) -> Any? in
+            return try v.map(base.encode)
+        }
+        self.decoding = { (data) -> V in
+            return try data.map(base.decode) as! V
+        }
+    }
     init<S: _Serializer>(serializer base: S.Type) where V == S.Entity {
         self.encoding = base.serialize
         self.decoding = base.deserialize
@@ -250,6 +258,11 @@ public extension Representer where V: RealtimeValue {
 public extension Representer {
     static var any: Representer<V> {
         return Representer<V>(encoding: { $0 }, decoding: { try $0.unbox(as: V.self) })
+    }
+}
+public extension Representer where V: FireDataRepresented & FireDataValueRepresented {
+    static var fireData: Representer<V> {
+        return Representer<V>(encoding: { $0.fireValue }, decoding: V.init)
     }
 }
 

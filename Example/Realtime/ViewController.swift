@@ -9,11 +9,17 @@
 import UIKit
 import Realtime
 
+enum Some: Int {
+    case first
+}
+
 class Object: RealtimeObject {
     lazy var id: RealtimeProperty<String?> = "id".property(from: self.node)
     lazy var array: RealtimeArray<Object> = "array".array(from: self.node)
 
     lazy var name: RealtimeProperty<String?> = "human/name/firstname".property(from: self.node)
+
+    lazy var some: RealtimeProperty<Some?> = "some".enum(from: self.node)
 }
 
 class ViewController: UIViewController {

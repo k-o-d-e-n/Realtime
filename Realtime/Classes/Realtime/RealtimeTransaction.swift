@@ -23,7 +23,7 @@ extension Reverting where Self: ChangeableRealtimeValue {
     }
 }
 
-public protocol UpdateNode {
+public protocol UpdateNode: FireDataProtocol {
     var node: Node { get }
     var value: Any? { get }
     func fill(from ancestor: Node, into container: inout [String: Any?])
@@ -72,6 +72,21 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
 }
 
 extension ObjectNode {
+    func child(by path: [String]) -> UpdateNode? {
+        guard !path.isEmpty else { return self }
+
+        var path = path
+        let first = path.remove(at: 0)
+        guard let f = childs.first(where: { $0.node.key == first }) else {
+            return nil
+        }
+
+        if case let o as ObjectNode = f {
+            return o.child(by: path)
+        } else {
+            return path.isEmpty ? f : nil
+        }
+    }
     func merge(with other: ObjectNode, conflictResolver: (UpdateNode, UpdateNode) -> Any?) {
         other.childs.forEach { (child) in
             if let currentChild = childs.first(where: { $0.node == child.node }) {
@@ -87,6 +102,85 @@ extension ObjectNode {
             }
         }
     }
+}
+
+class Enumerator: NSEnumerator {
+    var base: AnyIterator<Any>
+
+    init<I: IteratorProtocol>(_ base: I) where I.Element == Any {
+        self.base = AnyIterator(base)
+        super.init()
+    }
+
+    override func nextObject() -> Any? {
+        return base.next()
+    }
+
+    override var debugDescription: String { return super.debugDescription }
+}
+
+extension UpdateNode where Self: FireDataProtocol {
+    public var dataRef: DatabaseReference? { return node.reference() }
+    public var dataKey: String? { return node.key }
+    public var priority: Any? { return nil }
+}
+
+extension ValueNode: FireDataProtocol {
+    var priority: Any? { return nil }
+    var children: NSEnumerator { return Enumerator(EmptyIterator()) }
+    var childrenCount: UInt { return 0 }
+    func exists() -> Bool { return value != nil }
+    func hasChildren() -> Bool { return false }
+    func hasChild(_ childPathString: String) -> Bool { return false }
+    func child(forPath path: String) -> FireDataProtocol { return ValueNode(node: Node(key: path, parent: node), value: nil) }
+    func compactMap<ElementOfResult>(_ transform: (FireDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
+        return []
+    }
+    func forEach(_ body: (FireDataProtocol) throws -> Void) rethrows {}
+    func map<T>(_ transform: (FireDataProtocol) throws -> T) rethrows -> [T] { return [] }
+    var debugDescription: String { return String(describing: self) }
+    var description: String { return debugDescription }
+}
+
+/// Cache in future
+extension ObjectNode: FireDataProtocol {
+    public var childrenCount: UInt {
+        return UInt(childs.count)
+    }
+
+    public var children: NSEnumerator {
+        return Enumerator(childs.lazy.map { $0 as Any }.makeIterator())
+    }
+
+    public func exists() -> Bool {
+        return true
+    }
+
+    public func hasChildren() -> Bool {
+        return childs.count > 0
+    }
+
+    public func hasChild(_ childPathString: String) -> Bool {
+        return child(by: childPathString.split(separator: "/").lazy.map(String.init)) != nil
+    }
+
+    public func child(forPath path: String) -> FireDataProtocol {
+        return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: node), value: nil)
+    }
+
+    public func map<T>(_ transform: (FireDataProtocol) throws -> T) rethrows -> [T] {
+        return try childs.map(transform)
+    }
+
+    public func compactMap<ElementOfResult>(_ transform: (FireDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
+        return try childs.compactMap(transform)
+    }
+
+    public func forEach(_ body: (FireDataProtocol) throws -> Void) rethrows {
+        return try childs.forEach(body)
+    }
+
+    public var debugDescription: String { return description }
 }
 
 /// Helps to make complex write transactions.

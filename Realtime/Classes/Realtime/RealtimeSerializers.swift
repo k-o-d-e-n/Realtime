@@ -11,7 +11,7 @@ import FirebaseDatabase
 
 // MARK: Serializer
 
-@available(*, deprecated: 0.3.7, message: "Use RealtimeValueRepresenter instead")
+@available(*, deprecated: 0.3.7, message: "Use Representer instead")
 public protocol _Serializer {
     associatedtype Entity: HasDefaultLiteral
     associatedtype SerializationResult

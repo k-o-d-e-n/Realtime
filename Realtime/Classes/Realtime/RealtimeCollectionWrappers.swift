@@ -110,6 +110,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public subscript(position: Int) -> Element { return base[position] }
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
+    public func didPrepare() {}
     public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { base.load(completion: completion) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     public var canObserve: Bool { return base.canObserve }
@@ -238,6 +239,8 @@ where Element: RealtimeValue {
     public func apply(_ data: FireDataProtocol, strongly: Bool) {
         base.apply(data, strongly: strongly)
     }
+
+    public func didPrepare() { fatalError() }
 }
 
 public extension RealtimeCollection {
@@ -298,5 +301,9 @@ where Base.Index == Int {
 
     public func apply(_ data: FireDataProtocol, strongly: Bool) {
         base.apply(data, strongly: strongly)
+    }
+
+    public func didPrepare() {
+        fatalError()
     }
 }

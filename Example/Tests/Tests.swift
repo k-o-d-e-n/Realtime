@@ -756,7 +756,7 @@ class Tests: XCTestCase {
 class TestObject: RealtimeObject {
     lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node)
     lazy var linkedArray: LinkedRealtimeArray<RealtimeObject> = "linked_array".linkedArray(from: self.node, elements: .root)
-    lazy var array: RealtimeArray<RealtimeObject> = "array".array(from: self.node)
+    lazy var array: RealtimeArray<TestObject> = "array".array(from: self.node)
     lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
 
@@ -875,6 +875,34 @@ extension Tests {
         XCTAssertTrue(linkedItem != nil)
         XCTAssertTrue(value["/test_obj/array/elem_1/prop"] as? String == "prop")
         XCTAssertTrue(value["/test_obj/dict/linked/prop"] as? String == "element #1")
+        transaction.revert()
+    }
+
+    func testDecoding() {
+        let transaction = RealtimeTransaction()
+
+        do {
+            let element = TestObject(in: Node.root.child(with: "element_1"))
+            element.property <= "element #1"
+            element.nestedObject.property <= "value"
+            let child = TestObject()
+            child.property <= "element #1"
+            element.array._view.isPrepared = true
+            try element.array.write(element: child, in: transaction)
+
+            let data = element.update(in: transaction).updateNode
+
+            let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), strongly: false)
+            object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath))
+            
+            XCTAssertEqual(object.property._value, element.property._value)
+            XCTAssertEqual(object.nestedObject.property._value, element.nestedObject.property._value)
+            XCTAssertTrue(object.array.isPrepared)
+            XCTAssertEqual(object.array.first?.property._value, element.array.first?.property._value) // fails because RCItem writes as single value.
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+
         transaction.revert()
     }
 
@@ -1109,8 +1137,8 @@ extension Tests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: AnyRepresenter<[Int]>.any, .initialValue: [0]])
-        let one = AnyRealtimeCollectionView(source)//SharedCollection([1])
+        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any, .initialValue: [0]])
+        let one = AnyRealtimeCollectionView<[Int], RealtimeArray<RealtimeObject>>(source)//SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)
         _ = lazyOne.first

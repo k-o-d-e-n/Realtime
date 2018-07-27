@@ -10,38 +10,41 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where Self.RawValue == String {
-    func readonlyProperty<T>(from node: Node?, options: [RealtimeValueOption: Any] = [.representer: Representer<T>.any]) -> ReadonlyRealtimeProperty<T> {
-        return ReadonlyRealtimeProperty(in: Node(key: rawValue, parent: node), options: options)
+    func readonlyProperty<T>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyRealtimeProperty<T> {
+        return ReadonlyRealtimeProperty(in: Node(key: rawValue, parent: node), options: [.representer: representer])
+    }
+    func readonlyProperty<T>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyRealtimeProperty<T?> {
+        return readonlyProperty(from: node, representer: representer.optional())
     }
     func property<T>(from node: Node?, representer: Representer<T> = .any) -> RealtimeProperty<T> {
         return RealtimeProperty(in: Node(key: rawValue, parent: node), options: [.representer: representer])
     }
-    func optionalProperty<T>(from node: Node?, representer: Representer<T> = .any) -> RealtimeProperty<T?> {
+    func property<T: _Optional>(from node: Node?, representer: Representer<T> = .any) -> RealtimeProperty<T?> {
         return property(from: node, representer: representer.optional())
     }
 
     func `enum`<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V> {
         return property(from: node, representer: Representer<V>.default(Representer<V.RawValue>.any))
     }
-    func optionalEnum<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V?> {
+    func `enum`<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V?> {
         return property(from: node, representer: Representer<V>.default(Representer<V.RawValue>.any).optional())
     }
     func date(from node: Node?, strategy: DateCodingStrategy = .secondsSince1970) -> RealtimeProperty<Date> {
         return property(from: node, representer: Representer<Date>.date(strategy))
     }
-    func optionalDate(from node: Node?, strategy: DateCodingStrategy = .secondsSince1970) -> RealtimeProperty<Date?> {
+    func date(from node: Node?, strategy: DateCodingStrategy = .secondsSince1970) -> RealtimeProperty<Date?> {
         return property(from: node, representer: Representer<Date>.date(strategy).optional())
     }
     func url(from node: Node?) -> RealtimeProperty<URL> {
         return property(from: node, representer: Representer<URL>.default)
     }
-    func optionalUrl(from node: Node?) -> RealtimeProperty<URL?> {
+    func url(from node: Node?) -> RealtimeProperty<URL?> {
         return property(from: node, representer: Representer<URL>.default.optional())
     }
     func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V> {
         return property(from: node, representer: Representer<V>.json)
     }
-    func optionalCodable<V: Codable>(from node: Node?) -> RealtimeProperty<V?> {
+    func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V?> {
         return property(from: node, representer: Representer<V>.json.optional())
     }
 
@@ -70,14 +73,14 @@ public extension RealtimeValueOption {
     static let reference = RealtimeValueOption("realtime.reference")
 }
 
-public final class RealtimeReference<Referenced: RealtimeValue>: RealtimeProperty<Referenced> {
+public final class RealtimeReference<Referenced: RealtimeValue>: RealtimeProperty<Referenced?> {
     public override var version: Int? { return _version }
     public override var raw: FireDataValue? { return _raw }
     public override var payload: [String : FireDataValue]? { return _payload }
 
     public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
         let mode: Mode = options[.reference] as? Mode ?? .fullPath
-        super.init(in: node, options: [.representer: Representer.reference(mode)])
+        super.init(in: node, options: [.representer: Representer.reference(mode).optional()])
     }
 
     override func _write(to transaction: RealtimeTransaction, by node: Node) {
@@ -102,7 +105,7 @@ public final class RealtimeRelation<Related: RealtimeObject>: RealtimeProperty<R
         guard case let relation as Options = options[.relation] else { fatalError("Skipped required options") }
 
         self.options = relation
-        super.init(in: node, options: [.representer: Representer<Related>.relation(relation.property)])
+        super.init(in: node, options: [.representer: Representer<Related>.relation(relation.property).optional()])
     }
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
@@ -153,7 +156,7 @@ public enum ListenValue<T> {
     case initial // none(reverted: Bool)
     case removed
     case local(T)
-    case remote(T) // remote(T, reverted: Bool)
+    case remote(T, strong: Bool) // remote(T, reverted: Bool)
     indirect case error(Error, last: ListenValue<T>)
 //    case reverted(T)
 
@@ -161,7 +164,7 @@ public enum ListenValue<T> {
         switch self {
         case .removed, .initial: return nil
         case .local(let v): return v
-        case .remote(let v): return v
+        case .remote(let v, _): return v
         case .error(_, let v): return v.value
         }
     }
@@ -199,7 +202,7 @@ extension ListenValue where T: _Optional {
         switch self {
         case .removed, .initial: return nil
         case .local(let v): return v.unsafelyUnwrapped
-        case .remote(let v): return v.unsafelyUnwrapped
+        case .remote(let v, _): return v.unsafelyUnwrapped
         case .error(_, let v): return v.unwrapped
         }
     }
@@ -278,7 +281,7 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
 //                }
             case .error, .removed: break
             case .local(let v): transaction._addValue(try representer.encode(v), by: node)
-            case .remote(let v): transaction._addValue(try representer.encode(v), by: node)
+            case .remote(let v, _): transaction._addValue(try representer.encode(v), by: node)
             }
         } catch let e {
             fatalError(e.localizedDescription)
@@ -364,7 +367,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
         if case .local(let v) = localPropertyValue.get() {
-            _setListenValue(.remote(v))
+            _setListenValue(.remote(v, strong: true))
         }
     }
     
@@ -383,7 +386,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     override public func apply(_ data: FireDataProtocol, strongly: Bool) {
         super.apply(data, strongly: strongly)
         do {
-            _setListenValue(.remote(try representer.decode(data)))
+            _setListenValue(.remote(try representer.decode(data), strong: strongly))
         } catch let e {
             setError(e)
         }
@@ -409,7 +412,7 @@ public extension ReadonlyRealtimeProperty {
         switch localPropertyValue.get() {
         case .initial: throw RealtimeError("Value has not been recevied yet")
         case .local(let v): return v
-        case .remote(let v): return v
+        case .remote(let v, _): return v
         case .error(let e, _): throw e
         case .removed: throw RealtimeError("Value has been removed")
         }

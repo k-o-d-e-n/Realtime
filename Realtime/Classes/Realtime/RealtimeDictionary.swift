@@ -69,7 +69,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<[RCItem]>
+    let _view: AnyRealtimeCollectionView<[RCItem], RealtimeDictionary>
 
     public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         guard case let keysNode as Node = options[.keysNode] else { fatalError("Skipped required options") }
@@ -78,8 +78,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         let builder = options[.elementBuilder] as? RCElementBuilder<Value> ?? Value.init
         self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: builder, elements: [:], localElements: [:])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: Node(key: InternalKeys.items, parent: viewParentNode)))
+        self._view = AnyRealtimeCollectionView(InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData)))
         super.init(in: node, options: options)
+        self._view.collection = self
     }
 
     // MARK: Implementation
@@ -295,6 +296,10 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 //        super._write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
         _writeChanges(to: transaction, by: node)
+    }
+
+    public func didPrepare() {
+        _snapshot.map(apply)
     }
 
 //    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {

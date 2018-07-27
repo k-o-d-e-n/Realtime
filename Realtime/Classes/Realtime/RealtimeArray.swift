@@ -51,14 +51,14 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<[RCItem]>
+    let _view: AnyRealtimeCollectionView<[RCItem], RealtimeArray>
 
     public convenience required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         self.init(
             in: node,
             options: options,
-            viewSource: RealtimeProperty(in: Node(key: InternalKeys.items, parent: viewParentNode))
+            viewSource: InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData))
         )
     }
 
@@ -69,6 +69,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         self.storage = RCArrayStorage(sourceNode: node, elementBuilder: builder, elements: [:], localElements: [])
         self._view = AnyRealtimeCollectionView(viewSource)
         super.init(in: node, options: options)
+        self._view.collection = self
     }
 
     // Implementation
@@ -82,22 +83,13 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
-        return _view.source.listeningItem(.guarded(self) { _, this in
-            this._view.isPrepared = true
-            handler()
-        })
+        return _view.source.map { _ in }.listeningItem(handler)
     }
     @discardableResult
     override public func runObserving() -> Bool { return _view.source.runObserving() }
     override public func stopObserving() { _view.source.stopObserving() }
     override public var debugDescription: String { return _view.source.debugDescription }
-    public func prepare(forUse completion: Assign<(Error?)>) {
-        _view.prepare(forUse: completion.with(work: .weak(self) { err, `self` in
-            if err == nil {
-                self.map { $0._snapshot.map($0.apply) }
-            }
-        }))
-    }
+    public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
     
     // TODO: Create Realtime wrapper for DatabaseQuery
     // TODO: Check filter with difficult values aka dictionary
@@ -299,6 +291,10 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 //        super._write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
         _writeChanges(to: transaction, by: node)
+    }
+
+    public func didPrepare() {
+        _snapshot.map(apply)
     }
 
 //    override public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {

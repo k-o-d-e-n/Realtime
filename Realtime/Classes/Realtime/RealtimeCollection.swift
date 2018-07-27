@@ -47,13 +47,32 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
     }
 
     init(fireData: FireDataProtocol) throws {
+        guard let key = fireData.dataKey else {
+            throw RCError(type: .failedServerData)
+        }
+        guard fireData.hasChildren() else { // TODO: For test, remove!
+            guard let val = fireData.value as? [String: FireDataValue],
+                let value = val.first,
+                let linkValue = value.value as? [String: Any],
+                let index = linkValue[InternalKeys.index.rawValue] as? Int
+            else {
+                throw RCError(type: .failedServerData)
+            }
+
+            self.dbKey = key
+            self.linkID = value.key
+            self.index = index
+            self.payload = linkValue[InternalKeys.payload.rawValue] as? [String: FireDataValue]
+            self.internalPayload = (linkValue[InternalKeys.modelVersion.rawValue] as? Int, linkValue[InternalKeys.raw.rawValue] as? FireDataValue)
+            return
+        }
         guard case let value as FireDataProtocol = fireData.children.nextObject() else {
             throw RCError(type: .failedServerData)
         }
-        guard let index: Int = InternalKeys.index.map(from: value) else {
+        guard let linkID = value.dataKey else {
             throw RCError(type: .failedServerData)
         }
-        guard let key = fireData.dataKey, let linkID = value.dataKey else {
+        guard let index: Int = InternalKeys.index.map(from: fireData) else {
             throw RCError(type: .failedServerData)
         }
 
@@ -171,6 +190,7 @@ public protocol RequiresPreparation {
     var isPrepared: Bool { get }
     func prepare(forUse completion: Assign<(Error?)>)
     func prepareRecursive(forUse completion: @escaping (Error?) -> Void)
+    func didPrepare()
 }
 
 public extension RequiresPreparation {
@@ -295,17 +315,32 @@ public struct AnyArrayStorage: RealtimeCollectionStorage {
     public typealias Value = Any
 }
 
-public final class AnyRealtimeCollectionView<Source>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
+public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyObject>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
     let source: RealtimeProperty<Source>
+    weak var collection: Viewed?
+    var listening: Disposable!
 
     var value: Source {
         return source._value ?? Source()
     }
 
-    public internal(set) var isPrepared: Bool = false
+    public internal(set) var isPrepared: Bool = false {
+        didSet {
+            if isPrepared, oldValue == false {
+                didPrepare()
+            }
+        }
+    }
 
     init(_ source: RealtimeProperty<Source>) {
         self.source = source
+        let isPrepared: () -> Bool = { [unowned self] in !self.isPrepared }
+        self.listening = source.listening(as: { $0.if(isPrepared) }, .guarded(self) { event, view in
+            switch event {
+            case .remote(_, strong: let s): view.isPrepared = s
+            default: break
+            }
+        })
     }
 
     public func prepare(forUse completion: Assign<(Error?)>) {
@@ -321,6 +356,10 @@ public final class AnyRealtimeCollectionView<Source>: RCView where Source: Bidir
     }
     public func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
         // TODO:
+    }
+
+    public func didPrepare() {
+        collection?.didPrepare()
     }
 
     public var startIndex: Source.Index { return value.startIndex }

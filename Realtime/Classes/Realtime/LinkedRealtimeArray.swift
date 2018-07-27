@@ -35,7 +35,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<[RCItem]>
+    let _view: AnyRealtimeCollectionView<[RCItem], LinkedRealtimeArray>
 
     public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
@@ -45,8 +45,9 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
                                       elementBuilder: builder,
                                       elements: [:],
                                       localElements: [])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node))
+        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node, representer: Representer<[RCItem]>(collection: Representer.fireData)))
         super.init(in: node, options: options)
+        self._view.collection = self
     }
 
     // MARK: Realtime
@@ -79,7 +80,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
     override public func apply(_ data: FireDataProtocol, strongly: Bool) {
         super.apply(data, strongly: strongly)
         _view.source.apply(data, strongly: strongly)
-        _view.isPrepared = true
+        _view.isPrepared = strongly
     }
 
     override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
@@ -95,6 +96,8 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
         // writes changes because after save collection can use only transaction mutations
         _writeChanges(to: transaction, by: node)
     }
+
+    public func didPrepare() {}
 
 //    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
 

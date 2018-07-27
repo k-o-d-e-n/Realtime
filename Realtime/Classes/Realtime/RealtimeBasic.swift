@@ -54,6 +54,21 @@ public extension FireDataProtocol {
     }
 }
 
+//protocol Representable {
+//    associatedtype Represented
+//    var representer: Representer<Represented> { get }
+//}
+//extension Representable {
+//    var customRepresenter: Representer<Self> {
+//        return representer
+//    }
+//}
+//
+//public protocol CustomRepresentable {
+//    associatedtype Represented
+//    var customRepresenter: Representer<Represented> { get }
+//}
+
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
     /// Current version of value.
