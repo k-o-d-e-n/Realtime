@@ -54,21 +54,6 @@ public extension FireDataProtocol {
     }
 }
 
-//protocol Representable {
-//    associatedtype Represented
-//    var representer: Representer<Represented> { get }
-//}
-//extension Representable {
-//    var customRepresenter: Representer<Self> {
-//        return representer
-//    }
-//}
-//
-//public protocol CustomRepresentable {
-//    associatedtype Represented
-//    var customRepresenter: Representer<Represented> { get }
-//}
-
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
     /// Current version of value.
@@ -91,6 +76,28 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
     ///   - strongly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
     ///               Pass `false` if snapshot represents part of data (for example filtered list).
     func apply(_ data: FireDataProtocol, strongly: Bool)
+}
+
+extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: RealtimeValue {
+    public var version: Int? { return self?.version }
+    public var raw: FireDataValue? { return self?.raw }
+    public var payload: [String : FireDataValue]? { return self?.payload }
+    public var node: Node? { return self?.node }
+    public init(in node: Node?, options: [RealtimeValueOption : Any]) {
+        self = .some(Wrapped(in: node, options: options))
+    }
+    public func apply(_ data: FireDataProtocol, strongly: Bool) {
+        self?.apply(data, strongly: strongly)
+    }
+}
+extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
+    public init(fireData: FireDataProtocol) throws {
+        if fireData.exists() {
+            self = .some(try Wrapped(fireData: fireData))
+        } else {
+            self = .none
+        }
+    }
 }
 
 public extension RealtimeValue {

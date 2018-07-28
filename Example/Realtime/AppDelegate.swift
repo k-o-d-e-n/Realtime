@@ -15,12 +15,25 @@ enum Global {
     static let rtGroups: RealtimeArray<RealtimeGroup> = "___tests/_groups".array(from: .root)
 }
 
+class Conversation: RealtimeObject {
+    lazy var chairman: RealtimeReference<RealtimeUser> = "chairman".reference(from: self.node, mode: .fullPath)
+    lazy var secretary: RealtimeReference<RealtimeUser?> = "secretary".reference(from: self.node, mode: .fullPath)
+
+    override open class func keyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "chairman": return \Conversation.chairman
+        case "secretary": return \Conversation.secretary
+        default: return nil
+        }
+    }
+}
+
 class RealtimeGroup: RealtimeObject {
     lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
     //    @objc dynamic var cover: File?
     lazy var users: LinkedRealtimeArray<RealtimeUser> = "users".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var conversations: RealtimeDictionary<RealtimeUser, RealtimeUser> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
-    lazy var manager: RealtimeRelation<RealtimeUser> = "manager".relation(from: self.node, "ownedGroup")
+    lazy var manager: RealtimeRelation<RealtimeUser?> = "manager".relation(from: self.node, "ownedGroup")
 
     override open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -47,8 +60,9 @@ class RealtimeUser: RealtimeObject {
     //    @objc dynamic var type: UserType = .first
     //    @objc dynamic var testItems: Set<String> = []
     lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
+    lazy var scheduledConversations: RealtimeArray<Conversation> = "scheduledConversations".array(from: self.node)
 
-    lazy var ownedGroup: RealtimeRelation<RealtimeGroup> = "ownedGroup".relation(from: self.node, "manager")
+    lazy var ownedGroup: RealtimeRelation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, "manager")
 
 
     //    override class var keyPaths: [String: AnyKeyPath] {
@@ -64,6 +78,7 @@ class RealtimeUser: RealtimeObject {
         case "groups": return \RealtimeUser.groups
         case "followers": return \RealtimeUser.followers
         case "ownedGroup": return \RealtimeUser.ownedGroup
+        case "scheduledConversations": return \RealtimeUser.scheduledConversations
         default: return nil
         }
     }

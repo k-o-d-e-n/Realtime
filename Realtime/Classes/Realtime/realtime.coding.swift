@@ -95,7 +95,7 @@ extension FireDataValue {
     }
 }
 
-extension Optional: FireDataValue, FireDataRepresented where Wrapped: FireDataValue {
+extension Optional: FireDataValue where Wrapped: FireDataValue {
     public init(fireData: FireDataProtocol) throws {
         self = fireData.value as? Wrapped
     }
@@ -153,6 +153,21 @@ extension Dictionary: HasDefaultLiteral {}
 
 // MARK: Representer --------------------------------------------------------------------------
 
+//protocol Representable {
+//    associatedtype Represented
+//    var representer: Representer<Represented> { get }
+//}
+//extension Representable {
+//    var customRepresenter: Representer<Self> {
+//        return representer
+//    }
+//}
+//
+//public protocol CustomRepresentable {
+//    associatedtype Represented
+//    var customRepresenter: Representer<Represented> { get }
+//}
+
 public protocol RepresenterProtocol {
     associatedtype V
     func encode(_ value: V) throws -> Any?
@@ -162,10 +177,19 @@ public extension RepresenterProtocol {
     func optional() -> Representer<V?> {
         return Representer(optional: self)
     }
-    func encode(_ value: V?) throws -> Any? {
+//    func encode(_ value: V?) throws -> Any? {
+//        return try value.map(encode)
+//    }
+//    func decode(_ data: FireDataProtocol) throws -> V? {
+//        guard data.exists() else { return nil }
+//        return try decode(data)
+//    }
+}
+public extension Representer {
+    func encode<T: _Optional>(_: T.Type = T.self, _ value: V) throws -> Any? where V == Optional<T.Wrapped> {
         return try value.map(encode)
     }
-    func decode(_ data: FireDataProtocol) throws -> V? {
+    func decode<T: _Optional>(_: T.Type = T.self, _ data: FireDataProtocol) throws -> V where V == Optional<T.Wrapped> {
         guard data.exists() else { return nil }
         return try decode(data)
     }
@@ -180,9 +204,18 @@ public struct Representer<V>: RepresenterProtocol {
     public func encode(_ value: V) throws -> Any? {
         return try encoding(value)
     }
-    public init(encoding: @escaping (V) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> V) {
+    public init(_: V.Type = V.self, encoding: @escaping (V) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> V) {
         self.encoding = encoding
         self.decoding = decoding
+    }
+    public init<T: _Optional>(_: T.Type = T.self, encoding: @escaping (T.Wrapped) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> T.Wrapped) where V == Optional<T.Wrapped> {
+        self.encoding = { v -> Any? in
+            return try v.map(encoding)
+        }
+        self.decoding = { d -> V.Wrapped? in
+            guard d.exists() else { return nil }
+            return try decoding(d)
+        }
     }
 }
 public extension Representer {
@@ -194,7 +227,7 @@ public extension Representer {
         self.encoding = { (v) -> Any? in
             return try v.map(base.encode)
         }
-        self.decoding = { (data) -> R.V? in
+        self.decoding = { (data) in
             guard data.exists() else { return nil }
             return try base.decode(data)
         }
@@ -216,7 +249,7 @@ public extension Representer where V: RealtimeValue {
     static func relation(_ property: String) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
-                guard let node = v.node else { return nil }
+                guard let node = v.node else { throw RealtimeError("Failed value: node is nil") }
 
                 return Relation(path: node.rootPath, property: property).fireValue
         },
@@ -226,7 +259,7 @@ public extension Representer where V: RealtimeValue {
         })
     }
 
-    static func reference(_ mode: RealtimeReference<V>.Mode) -> Representer<V> {
+    static func reference(_ mode: ReferenceMode) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 switch mode {

@@ -1,6 +1,7 @@
 import UIKit
 import XCTest
 @testable import Realtime
+@testable import Realtime_Example
 
 extension XCTestCase {
     func XCTAssertThrows(block: () throws -> (), catchBlock: (Error?) -> Void) {
@@ -898,12 +899,89 @@ extension Tests {
             XCTAssertEqual(object.property._value, element.property._value)
             XCTAssertEqual(object.nestedObject.property._value, element.nestedObject.property._value)
             XCTAssertTrue(object.array.isPrepared)
-            XCTAssertEqual(object.array.first?.property._value, element.array.first?.property._value) // fails because RCItem writes as single value.
+            XCTAssertEqual(object.array.first?.property._value, element.array.first?.property._value)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
 
         transaction.revert()
+    }
+
+    func testRelation() {
+        let transaction = RealtimeTransaction()
+
+        do {
+            let user = RealtimeUser(in: Node(key: "user", parent: .root))
+            let group = RealtimeGroup(in: Node(key: "group", parent: .root))
+            user.ownedGroup <= group
+
+            let data = user.update(in: transaction).updateNode
+
+            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
+
+            XCTAssertTrue(user.ownedGroup._value??.dbKey == group.dbKey)
+            XCTAssertTrue(userCopy.ownedGroup._value??.dbKey == group.dbKey)
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+
+        transaction.revert()
+    }
+
+    func testOptionalRelation() {
+        let transaction = RealtimeTransaction()
+
+        do {
+            let user = RealtimeUser(in: Node(key: "user", parent: .root))
+            user.ownedGroup <= nil
+
+            let data = user.update(in: transaction).updateNode
+
+            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
+
+            if case .error(let e, _) = userCopy.ownedGroup.lastEvent {
+                XCTFail(e.localizedDescription)
+            } else {
+                XCTAssertTrue(userCopy.ownedGroup._value?.dbKey == userCopy.ownedGroup._value?.dbKey)
+            }
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+
+        transaction.revert()
+    }
+
+    func testOptionalReference() {
+        let transaction = RealtimeTransaction()
+
+        do {
+            let conversation = Conversation(in: Node(key: "conv_1", parent: .root))
+            conversation.secretary <= nil
+
+            let data = conversation.update(in: transaction).updateNode
+
+            let conversationCopy = try Conversation(fireData: data.child(forPath: conversation.node!.rootPath), strongly: false)
+
+            if case .error(let e, _) = conversation.chairman.lastEvent {
+                XCTFail(e.localizedDescription)
+            } else {
+                XCTAssertTrue(conversationCopy.secretary._value?.dbKey == conversation.secretary._value?.dbKey)
+            }
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+
+        transaction.revert()
+    }
+
+    func testRepresenterOptional() {
+        let representer = Representer<TestObject>.relation("prop").optional()
+        do {
+            let object = try representer.decode(ValueNode(node: Node(key: ""), value: nil))
+            XCTAssertNil(object)
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
     }
 
     func testNode() {

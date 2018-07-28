@@ -165,8 +165,16 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         self.dbRef = fireData.dataRef
         apply(fireData)
     }
-    
-    open func apply(_ data: FireDataProtocol, strongly: Bool) {}
+
+
+    func _apply_RealtimeValue(_ data: FireDataProtocol, strongly: Bool) {
+        version = data.version
+        raw = data.rawValue
+        payload = InternalKeys.payload.map(from: data)
+    }
+    open func apply(_ data: FireDataProtocol, strongly: Bool) {
+        _apply_RealtimeValue(data, strongly: strongly)
+    }
     
     public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \("TODO:");\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
 }

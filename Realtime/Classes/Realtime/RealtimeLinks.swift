@@ -9,6 +9,11 @@ import Foundation
 
 /// Link value describing reference to some location of database.
 
+public enum ReferenceMode {
+    case fullPath
+    case key(from: Node)
+}
+
 struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
     let ref: String
 
@@ -62,6 +67,18 @@ struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
     }
 
     init(fireData: FireDataProtocol) throws {
+        guard fireData.hasChildren() else { // TODO: For test, remove!
+            guard let val = fireData.value as? [String: String],
+                let path = val[CodingKeys.targetPath.rawValue],
+                let prop = val[CodingKeys.relatedProperty.rawValue]
+            else {
+                    throw RealtimeError("failedServerData")
+            }
+
+            self.targetPath = path
+            self.relatedProperty = prop
+            return
+        }
         guard
             let path: String = CodingKeys.targetPath.map(from: fireData),
             let property: String = CodingKeys.relatedProperty.map(from: fireData)

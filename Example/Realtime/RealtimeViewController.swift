@@ -271,7 +271,7 @@ class RealtimeViewController: UIViewController {
     @objc func addConversation() {
         guard let u = user ?? Global.rtUsers.first, let g = group ?? Global.rtGroups.first else { fatalError() }
 
-        var conversationUser = RealtimeUser()
+        let conversationUser = RealtimeUser()
         conversationUser.name <= "Conversation #"
         let transaction = try! g.conversations.write(element: conversationUser, for: u)
 
