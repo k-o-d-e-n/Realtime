@@ -13,10 +13,10 @@ import FirebaseDatabase
 public protocol FireDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
     var value: Any? { get }
     var priority: Any? { get }
-    var children: NSEnumerator { get }
     var dataKey: String? { get }
     var dataRef: DatabaseReference? { get }
     var childrenCount: UInt { get }
+    func makeIterator() -> AnyIterator<FireDataProtocol>
     func exists() -> Bool
     func hasChildren() -> Bool
     func hasChild(_ childPathString: String) -> Bool
@@ -24,14 +24,6 @@ public protocol FireDataProtocol: Decoder, CustomDebugStringConvertible, CustomS
     func map<T>(_ transform: (FireDataProtocol) throws -> T) rethrows -> [T]
     func compactMap<ElementOfResult>(_ transform: (FireDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult]
     func forEach(_ body: (FireDataProtocol) throws -> Swift.Void) rethrows
-}
-extension Sequence where Self: FireDataProtocol {
-    public func makeIterator() -> AnyIterator<FireDataProtocol> {
-        let childs = children
-        return AnyIterator {
-            return unsafeBitCast(childs.nextObject(), to: FireDataProtocol.self)
-        }
-    }
 }
 
 extension DataSnapshot: FireDataProtocol, Sequence {
@@ -45,6 +37,13 @@ extension DataSnapshot: FireDataProtocol, Sequence {
 
     public func child(forPath path: String) -> FireDataProtocol {
         return childSnapshot(forPath: path)
+    }
+
+    public func makeIterator() -> AnyIterator<FireDataProtocol> {
+        let childs = children
+        return AnyIterator {
+            return childs.nextObject() as? DataSnapshot
+        }
     }
 }
 extension MutableData: FireDataProtocol, Sequence {
@@ -66,6 +65,13 @@ extension MutableData: FireDataProtocol, Sequence {
 
     public func hasChild(_ childPathString: String) -> Bool {
         return hasChild(atPath: childPathString)
+    }
+
+    public func makeIterator() -> AnyIterator<FireDataProtocol> {
+        let childs = children
+        return AnyIterator {
+            return childs.nextObject() as? MutableData
+        }
     }
 }
 
@@ -461,11 +467,11 @@ fileprivate struct DataSnapshotSingleValueContainer: SingleValueDecodingContaine
 
 fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContainer {
     let snapshot: FireDataProtocol
-    let enumerator: NSEnumerator
+    let iterator: AnyIterator<FireDataProtocol>
 
     init(snapshot: FireDataProtocol & Decoder) {
         self.snapshot = snapshot
-        self.enumerator = snapshot.children
+        self.iterator = snapshot.makeIterator()
         self.currentIndex = 0
     }
 
@@ -482,7 +488,7 @@ fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContaine
     }
 
     private mutating func nextDecoder() throws -> FireDataProtocol {
-        guard case let next as FireDataProtocol = enumerator.nextObject() else {
+        guard let next = iterator.next() else {
             throw DecodingError.dataCorruptedError(in: self, debugDescription: snapshot.debugDescription)
         }
         currentIndex += 1

@@ -66,7 +66,7 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
             self.internalPayload = (linkValue[InternalKeys.modelVersion.rawValue] as? Int, linkValue[InternalKeys.raw.rawValue] as? FireDataValue)
             return
         }
-        guard case let value as FireDataProtocol = fireData.children.nextObject() else {
+        guard let value = fireData.makeIterator().next() else {
             throw RCError(type: .failedServerData)
         }
         guard let linkID = value.dataKey else {
@@ -321,7 +321,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
     var listening: Disposable!
 
     var value: Source {
-        return source._value ?? Source()
+        return source.wrapped ?? Source()
     }
 
     public internal(set) var isPrepared: Bool = false {

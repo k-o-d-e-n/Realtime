@@ -44,9 +44,6 @@ public extension RawRepresentable where Self.RawValue == String {
     func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V> {
         return property(from: node, representer: Representer<V>.json)
     }
-    func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V?> {
-        return property(from: node, representer: Representer<V>.json.optional())
-    }
 
     func reference<V: RealtimeObject>(from node: Node?, mode: ReferenceMode) -> RealtimeReference<V> {
         return RealtimeReference(in: Node(key: rawValue, parent: node), options: [.reference: RealtimeReference<V>.Options(mode: mode)])
@@ -138,7 +135,7 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
     override func _write(to transaction: RealtimeTransaction, by node: Node) {
         _write_RealtimeValue(to: transaction, by: node)
         super._write(to: transaction, by: node)
-        if let backwardNode = _value?.node?.child(with: options.property) {
+        if let backwardNode = wrapped?.node?.child(with: options.property) {
             let ownerNode = node.ancestor(on: options.ownerLevelsUp)!
             let thisProperty = node.path(from: ownerNode)
             let backwardRelation = Relation(path: ownerNode.rootPath, property: thisProperty)
@@ -220,6 +217,8 @@ extension ListenValue: _Optional {
         return value!
     }
 
+    public var wrapped: T? { return value }
+
     public typealias Wrapped = T
 
     public init(nilLiteral: ()) {
@@ -227,14 +226,17 @@ extension ListenValue: _Optional {
     }
 }
 
-extension ListenValue where T: _Optional {
-    public var unwrapped: T.Wrapped? {
+public extension ListenValue where T: _Optional {
+    var wrapped: T.Wrapped? {
         switch self {
         case .removed, .initial: return nil
-        case .local(let v): return v.unsafelyUnwrapped
-        case .remote(let v, _): return v.unsafelyUnwrapped
-        case .error(_, let v): return v.unwrapped
+        case .local(let v): return v.wrapped
+        case .remote(let v, _): return v.wrapped
+        case .error(_, let v): return v.wrapped
         }
+    }
+    static func <=(_ value: inout T.Wrapped?, _ prop: ListenValue) {
+        value = prop.wrapped
     }
 }
 
@@ -332,8 +334,8 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
     }
 }
 public extension RealtimeProperty {
-    static func <=(_ prop: RealtimeProperty, _ value: T) {
-        prop._setValue(value)
+    static func <= (_ prop: RealtimeProperty, _ value: @autoclosure () throws -> T) rethrows {
+        prop._setValue(try value())
     }
 }
 
@@ -380,7 +382,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
         super.load(completion: .just { (err, _) in
             if let e = err {
                 failing.assign(e)
-            } else if let v = self._value {
+            } else if let v = self.wrapped {
                 completion.assign(v)
             } else {
                 failing.assign(RealtimeError("Fail"))
@@ -444,57 +446,93 @@ public extension ReadonlyRealtimeProperty {
         return localPropertyValue.get()
     }
 
-    func value() throws -> T {
-        switch localPropertyValue.get() {
-        case .initial: throw RealtimeError("Value has not been recevied yet")
-        case .local(let v): return v
-        case .remote(let v, _): return v
-        case .error(let e, _): throw e
-        case .removed: throw RealtimeError("Value has been removed")
-        }
-    }
-
-    internal var _value: T? {
+    var wrapped: T? {
         return localPropertyValue.get().value
     }
 }
-extension ReadonlyRealtimeProperty {
-    public func then(_ f: (T) -> Void) {
+public extension ReadonlyRealtimeProperty {
+    public func then(_ f: (T) -> Void, else e: (() -> Void)? = nil) -> ReadonlyRealtimeProperty {
         if let v = localPropertyValue.get().value {
             f(v)
+        } else {
+            e?()
+        }
+        return self
+    }
+    public func `else`(_ f: () -> Void) {
+        if nil == localPropertyValue.get().value {
+            f()
         }
     }
 }
 public extension ReadonlyRealtimeProperty {
     static func ?? (optional: ReadonlyRealtimeProperty, defaultValue: @autoclosure () throws -> T) rethrows -> T {
-        return try optional._value ?? defaultValue()
+        return try optional.wrapped ?? defaultValue()
     }
     static func ?? (optional: ReadonlyRealtimeProperty, defaultValue: @autoclosure () throws -> T?) rethrows -> T? {
-        return try optional._value ?? defaultValue()
+        return try optional.wrapped ?? defaultValue()
     }
     static func =?(_ value: inout T, _ prop: ReadonlyRealtimeProperty) {
-        if let v = prop._value {
+        if let v = prop.wrapped {
             value = v
         }
     }
     static func <=(_ value: inout T?, _ prop: ReadonlyRealtimeProperty) {
-        value = prop._value
+        value = prop.wrapped
     }
+}
+func <= <T>(_ value: inout T?, _ prop: ReadonlyRealtimeProperty<T>?) {
+    value = prop?.wrapped
 }
 public extension ReadonlyRealtimeProperty {
     func mapValue<U>(_ transform: (T) throws -> U) rethrows -> U? {
-        return try _value.map(transform)
+        return try wrapped.map(transform)
     }
     func flatMapValue<U>(_ transform: (T) throws -> U?) rethrows -> U? {
-        return try _value.flatMap(transform)
+        return try wrapped.flatMap(transform)
     }
 }
 public extension ReadonlyRealtimeProperty where T: _Optional {
     var unwrapped: T.Wrapped? {
-        return lastEvent.unwrapped
+        return lastEvent.wrapped
+    }
+    static func ?? (optional: T.Wrapped?, property: ReadonlyRealtimeProperty<T>) -> T.Wrapped? {
+        return optional ?? property.unwrapped
     }
     static func <=(_ value: inout T.Wrapped?, _ prop: ReadonlyRealtimeProperty) {
         value = prop.unwrapped
+    }
+    public func then(_ f: (T.Wrapped) -> Void, else e: (() -> Void)? = nil) -> ReadonlyRealtimeProperty {
+        if let v = unwrapped {
+            f(v)
+        } else {
+            e?()
+        }
+        return self
+    }
+    public func `else`(_ f: () -> Void) {
+        if nil == localPropertyValue.get().value {
+            f()
+        }
+    }
+}
+func <= <T>(_ value: inout T.Wrapped?, _ prop: ReadonlyRealtimeProperty<T>?) where T: _Optional {
+    value = prop?.unwrapped
+}
+public extension ReadonlyRealtimeProperty where T: HasDefaultLiteral {
+    static func <=(_ value: inout T, _ prop: ReadonlyRealtimeProperty) {
+        value = prop.wrapped ?? T()
+    }
+}
+public extension ReadonlyRealtimeProperty where T: _Optional, T.Wrapped: HasDefaultLiteral {
+    static func <=(_ value: inout T.Wrapped, _ prop: ReadonlyRealtimeProperty) {
+        value = prop.unwrapped ?? T.Wrapped()
+    }
+}
+infix operator ==~
+public extension ReadonlyRealtimeProperty where T: Equatable {
+    static func ==~(lhs: T, rhs: ReadonlyRealtimeProperty<T>) -> Bool {
+        return rhs.mapValue { $0 == lhs } ?? false
     }
 }
 

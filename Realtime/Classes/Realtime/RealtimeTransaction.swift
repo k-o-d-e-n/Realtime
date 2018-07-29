@@ -104,31 +104,16 @@ extension ObjectNode {
     }
 }
 
-class Enumerator: NSEnumerator {
-    var base: AnyIterator<Any>
-
-    init<I: IteratorProtocol>(_ base: I) where I.Element == Any {
-        self.base = AnyIterator(base)
-        super.init()
-    }
-
-    override func nextObject() -> Any? {
-        return base.next()
-    }
-
-    override var debugDescription: String { return super.debugDescription }
-}
-
 extension UpdateNode where Self: FireDataProtocol {
     public var dataRef: DatabaseReference? { return node.reference() }
     public var dataKey: String? { return node.key }
     public var priority: Any? { return nil }
 }
 
-extension ValueNode: FireDataProtocol {
+extension ValueNode: FireDataProtocol, Sequence {
     var priority: Any? { return nil }
-    var children: NSEnumerator { return Enumerator(EmptyIterator()) }
     var childrenCount: UInt { return 0 }
+    func makeIterator() -> AnyIterator<FireDataProtocol> { return AnyIterator(EmptyIterator()) }
     func exists() -> Bool { return value != nil }
     func hasChildren() -> Bool { return false }
     func hasChild(_ childPathString: String) -> Bool { return false }
@@ -143,13 +128,13 @@ extension ValueNode: FireDataProtocol {
 }
 
 /// Cache in future
-extension ObjectNode: FireDataProtocol {
+extension ObjectNode: FireDataProtocol, Sequence {
     public var childrenCount: UInt {
         return UInt(childs.count)
     }
 
-    public var children: NSEnumerator {
-        return Enumerator(childs.lazy.map { $0 as Any }.makeIterator())
+    public func makeIterator() -> AnyIterator<FireDataProtocol> {
+        return AnyIterator(childs.lazy.map { $0 as FireDataProtocol }.makeIterator())
     }
 
     public func exists() -> Bool {

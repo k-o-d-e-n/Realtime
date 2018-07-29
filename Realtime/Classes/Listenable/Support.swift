@@ -62,8 +62,10 @@ public protocol _Optional: ExpressibleByNilLiteral {
     var isSome: Bool { get }
 
     var unsafelyUnwrapped: Wrapped { get }
+    var wrapped: Wrapped? { get }
 }
 extension Optional: _Optional {
+    public var wrapped: Wrapped? { return self }
     @available(*, deprecated: 0.1.0)
     public var isNone: Bool {
         if case .none = self { return true }
