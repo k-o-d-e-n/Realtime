@@ -42,14 +42,26 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         }
     }
 
-    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) {
+    public func load(completion: Assign<Error?>?) {
         guard let ref = dbRef else {
             debugFatalError(condition: true, "Couldn`t get reference")
-            completion?.assign((RealtimeError("Couldn`t get reference"), .root()))
+            completion?.assign(RealtimeError("Couldn`t get reference"))
             return
         }
 
-        ref.observeSingleEvent(of: .value, with: { self.apply($0); completion?.assign((nil, ref)) }, withCancel: { completion?.assign(($0, ref)) })
+        ref.observeSingleEvent(
+            of: .value,
+            with: { d in
+                do {
+                    try self.apply(d, strongly: true)
+                    completion?.assign(nil)
+                } catch let e {
+                    completion?.assign(e)
+                }
+        },
+            withCancel: { e in
+                completion?.assign(e)
+        })
     }
 
     @discardableResult
@@ -77,13 +89,25 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         }
     }
     
-    func observe(type: DataEventType = .value, onUpdate: Database.TransactionCompletion? = nil) -> UInt? {
+    func observe(type: DataEventType = .value, onUpdate: ((Error?) -> Void)? = nil) -> UInt? {
         guard let ref = dbRef else {
             debugFatalError(condition: true, "Couldn`t get reference")
-            onUpdate?(RealtimeError("Couldn`t get reference"), .root())
+            onUpdate?(RealtimeError("Couldn`t get reference"))
             return nil
         }
-        return ref.observe(type, with: { self.apply($0); onUpdate?(nil, $0.ref) }, withCancel: { onUpdate?($0, ref) })
+        return ref.observe(
+            type,
+            with: { d in
+                do {
+                    try self.apply(d, strongly: type == .value)
+                    onUpdate?(nil)
+                } catch let e {
+                    onUpdate?(e)
+                }
+        },
+            withCancel: { e in
+                onUpdate?(e)
+        })
     }
 
     func endObserve(for token: UInt) {
@@ -163,16 +187,15 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     public required init(fireData: FireDataProtocol) throws {
         self.node = Node.root.child(with: fireData.dataRef!.rootPath)
         self.dbRef = fireData.dataRef
-        apply(fireData)
+        try apply(fireData, strongly: true)
     }
-
 
     func _apply_RealtimeValue(_ data: FireDataProtocol, strongly: Bool) {
         version = data.version
         raw = data.rawValue
         payload = InternalKeys.payload.map(from: data)
     }
-    open func apply(_ data: FireDataProtocol, strongly: Bool) {
+    open func apply(_ data: FireDataProtocol, strongly: Bool) throws {
         _apply_RealtimeValue(data, strongly: strongly)
     }
     
@@ -266,14 +289,14 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         super.didRemove(from: node)
     }
     
-    override open func apply(_ data: FireDataProtocol, strongly: Bool) {
-        super.apply(data, strongly: strongly)
-        reflect { (mirror) in
-            apply(data, strongly: strongly, to: mirror)
+    override open func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+        try super.apply(data, strongly: strongly)
+        try reflect { (mirror) in
+            try apply(data, strongly: strongly, to: mirror)
         }
     }
-    private func apply(_ data: FireDataProtocol, strongly: Bool, to mirror: Mirror) {
-        mirror.children.forEach { (child) in
+    private func apply(_ data: FireDataProtocol, strongly: Bool, to mirror: Mirror) throws {
+        try mirror.children.forEach { (child) in
             guard var label = child.label else { return }
 
             if label.hasSuffix(lazyStoragePath) {
@@ -281,8 +304,8 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
             }
 
             if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
-                if case let value as _RealtimeValue = self[keyPath: keyPath] {
-                    value.apply(parentDataIfNeeded: data, strongly: strongly)
+                if case var value as _RealtimeValue = self[keyPath: keyPath] {
+                    try value.apply(parentDataIfNeeded: data, strongly: strongly)
                 }
             }
         }
@@ -394,11 +417,11 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         }
         return contains
     }
-    private func reflect(to type: Any.Type = RealtimeObject.self, _ block: (Mirror) -> Void) {
+    private func reflect(to type: Any.Type = RealtimeObject.self, _ block: (Mirror) throws -> Void) rethrows {
         var mirror = Mirror(reflecting: self)
-        block(mirror)
+        try block(mirror)
         while let _mirror = mirror.superclassMirror, _mirror.subjectType != type {
-            block(_mirror)
+            try block(_mirror)
             mirror = _mirror
         }
     }

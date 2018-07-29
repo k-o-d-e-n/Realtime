@@ -115,9 +115,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         checkPreparation()
 
         query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
-            self.apply(data, strongly: false)
-
-            completion(self.filter { data.hasChild($0.key.dbKey) }, nil)
+            do {
+                try self.apply(data, strongly: false)
+                completion(self.filter { data.hasChild($0.key.dbKey) }, nil)
+            } catch let e {
+                completion(self.filter { data.hasChild($0.key.dbKey) }, e)
+            }
         }) { (error) in
             completion([], error)
         }
@@ -255,24 +258,24 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
     public convenience init(fireData: FireDataProtocol, keysNode: Node) throws {
         self.init(in: fireData.dataRef.map(Node.from), options: [.keysNode: keysNode])
-        apply(fireData)
+        try apply(fireData, strongly: true)
     }
 
     var _snapshot: (FireDataProtocol, Bool)?
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) {
+    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
         guard _view.isPrepared else {
             _snapshot = (data, strongly)
             return
         }
         _snapshot = nil
-        _view.forEach { key in
+        try _view.forEach { key in
             guard data.hasChild(key.dbKey) else {
                 if strongly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
-            if let element = storage.elements.first(where: { $0.0.dbKey == key.dbKey })?.value {
-                element.apply(childData, strongly: strongly)
+            if var element = storage.elements.first(where: { $0.0.dbKey == key.dbKey })?.value {
+                try element.apply(childData, strongly: strongly)
             } else {
                 let keyEntity = Key(in: storage.keysNode.child(with: key.dbKey))
                 storage.elements[keyEntity] = try! Value(fireData: childData, strongly: strongly)
@@ -299,7 +302,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     }
 
     public func didPrepare() {
-        _snapshot.map(apply)
+        try? _snapshot.map(apply)
     }
 
 //    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {

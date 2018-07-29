@@ -82,7 +82,7 @@ public extension InsiderOwner where InsiderValue: RealtimeValueActions {
 	/// adds loading action on receive new value
     func loadOnReceive() -> OwnedOnReceivePreprocessor<Self, InsiderValue, InsiderValue> {
         return onReceive({ (v, p) in
-            v.load(completion: .just { (_, _) in p.fulfill() })
+            v.load(completion: .just { _ in p.fulfill() })
         })
     }
 }
@@ -90,12 +90,12 @@ public extension InsiderOwner where InsiderValue: RealtimeValueActions {
 public extension InsiderOwner {
     func asyncMap<U: RealtimeValueActions>(_ transform: @escaping (InsiderValue) -> U) -> OwnedOnReceivePreprocessor<Self, U, U> {
         return map(transform).onReceive({ (v, p) in
-            v.load(completion: .just { (_, _) in p.fulfill() })
+            v.load(completion: .just { _ in p.fulfill() })
         })
     }
     func loadRelated<Loaded: RealtimeValueActions>(_ transform: @escaping (InsiderValue) -> Loaded?) -> OwnedOnReceivePreprocessor<Self, InsiderValue, InsiderValue> {
         return onReceive({ (v, p) in
-            transform(v)?.load(completion: .just { (_, _) in p.fulfill() })
+            transform(v)?.load(completion: .just { _ in p.fulfill() })
         })
     }
 }
@@ -109,7 +109,7 @@ public extension InsiderOwner where InsiderValue: _Optional {
     }
     func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (InsiderValue.Wrapped) -> U) -> OwnedOnReceivePreprocessor<Self, InsiderValue, U> {
         return flatMap(transform).onReceive({ (v, p) in
-            v.load(completion: .just { (_, _) in p.fulfill() })
+            v.load(completion: .just { _ in p.fulfill() })
         })
     }
 }

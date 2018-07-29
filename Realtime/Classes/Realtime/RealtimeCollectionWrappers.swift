@@ -37,19 +37,19 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(after i: Int) -> Int { fatalError() }
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
-    func apply(_ data: FireDataProtocol, strongly: Bool) { fatalError() }
+    func apply(_ data: FireDataProtocol, strongly: Bool) throws { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
     func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
     public func prepare(forUse completion: Assign<Error?>) { fatalError() }
     var debugDescription: String { return "" }
-    func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { fatalError() }
+    func load(completion: Assign<Error?>?) { fatalError() }
     var canObserve: Bool { fatalError() }
 }
 
 internal final class __AnyRealtimeCollection<C: RealtimeCollection>: _AnyRealtimeCollectionBase<C.Iterator.Element>
 where C.Index == Int {
-    let base: C
+    var base: C
     required init(base: C) {
         self.base = base
     }
@@ -75,12 +75,12 @@ where C.Index == Int {
     override func index(before i: Int) -> Int { return base.index(before: i) }
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
-    override func apply(_ data: FireDataProtocol, strongly: Bool) { base.apply(data, strongly: strongly) }
+    override func apply(_ data: FireDataProtocol, strongly: Bool) throws { try base.apply(data, strongly: strongly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving() -> Bool { return base.runObserving() }
     override func stopObserving() { base.stopObserving() }
-    override func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { base.load(completion: completion) }
+    override func load(completion: Assign<Error?>?) { base.load(completion: completion) }
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     override var canObserve: Bool { return base.canObserve }
 }
@@ -111,13 +111,13 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
     public func didPrepare() {}
-    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { base.load(completion: completion) }
+    public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     public var canObserve: Bool { return base.canObserve }
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
     public convenience required init(fireData: FireDataProtocol) throws { fatalError() }
-    public func apply(_ data: FireDataProtocol, strongly: Bool) { base.apply(data, strongly: strongly) }
+    public func apply(_ data: FireDataProtocol, strongly: Bool) throws { try base.apply(data, strongly: strongly) }
 }
 
 // TODO: Create wrapper that would sort array (sorting by default) (example array from tournament table)
@@ -219,7 +219,7 @@ where Element: RealtimeValue {
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
 
-    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { base.load(completion: completion) }
+    public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
     public var canObserve: Bool { return base.canObserve }
 
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
@@ -236,8 +236,8 @@ where Element: RealtimeValue {
         fatalError("Cannot use this initializer")
     }
 
-    public func apply(_ data: FireDataProtocol, strongly: Bool) {
-        base.apply(data, strongly: strongly)
+    public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+        try base.apply(data, strongly: strongly)
     }
 
     public func didPrepare() { fatalError() }
@@ -282,7 +282,7 @@ where Base.Index == Int {
     public var debugDescription: String { return base.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
 
-    public func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) { base.load(completion: completion) }
+    public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
     public var canObserve: Bool { return base.canObserve }
 
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
@@ -299,8 +299,8 @@ where Base.Index == Int {
         fatalError("Cannot use this initializer")
     }
 
-    public func apply(_ data: FireDataProtocol, strongly: Bool) {
-        base.apply(data, strongly: strongly)
+    public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+        try base.apply(data, strongly: strongly)
     }
 
     public func didPrepare() {

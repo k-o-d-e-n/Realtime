@@ -141,14 +141,14 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
             let backwardRelation = Relation(path: ownerNode.rootPath, property: thisProperty)
             transaction.addValue(backwardRelation.fireValue, by: backwardNode)
         }
-        if let previousNode = oldValue.value?.node?.child(with: options.property) {
+        if let previousNode = oldValue.wrapped?.node?.child(with: options.property) {
             transaction.removeValue(by: previousNode)
         }
     }
 
-    public override func apply(_ data: FireDataProtocol, strongly: Bool) {
+    public override func apply(_ data: FireDataProtocol, strongly: Bool) throws {
         _apply_RealtimeValue(data, strongly: strongly)
-        super.apply(data, strongly: strongly)
+        try super.apply(data, strongly: strongly)
     }
 
     struct Options {
@@ -186,23 +186,14 @@ public enum ListenValue<T> {
     case remote(T, strong: Bool) // remote(T, reverted: Bool)
     indirect case error(Error, last: ListenValue<T>)
 //    case reverted(T)
-
-    var value: T? {
-        switch self {
-        case .removed, .initial: return nil
-        case .local(let v): return v
-        case .remote(let v, _): return v
-        case .error(_, let v): return v.value
-        }
-    }
 }
 extension ListenValue: _Optional {
     public func map<U>(_ f: (T) throws -> U) rethrows -> U? {
-        return try value.map(f)
+        return try wrapped.map(f)
     }
 
     public func flatMap<U>(_ f: (T) throws -> U?) rethrows -> U? {
-        return try value.flatMap(f)
+        return try wrapped.flatMap(f)
     }
 
     public var isNone: Bool {
@@ -214,10 +205,17 @@ extension ListenValue: _Optional {
     }
 
     public var unsafelyUnwrapped: T {
-        return value!
+        return wrapped!
     }
 
-    public var wrapped: T? { return value }
+    public var wrapped: T? {
+        switch self {
+        case .removed, .initial: return nil
+        case .local(let v): return v
+        case .remote(let v, _): return v
+        case .error(_, let v): return v.wrapped
+        }
+    }
 
     public typealias Wrapped = T
 
@@ -244,26 +242,26 @@ infix operator =?
 infix operator =!
 public extension ListenValue {
     static func ?? (optional: ListenValue, defaultValue: @autoclosure () throws -> T) rethrows -> T {
-        return try optional.value ?? defaultValue()
+        return try optional.wrapped ?? defaultValue()
     }
     static func ?? (optional: ListenValue, defaultValue: @autoclosure () throws -> T?) rethrows -> T? {
-        return try optional.value ?? defaultValue()
+        return try optional.wrapped ?? defaultValue()
     }
     static func =?(_ value: inout T, _ prop: ListenValue) {
-        if let v = prop.value {
+        if let v = prop.wrapped {
             value = v
         }
     }
     static func =?(_ value: inout T?, _ prop: ListenValue) {
-        if let v = prop.value {
+        if let v = prop.wrapped {
             value = v
         }
     }
     static func <=(_ value: inout T?, _ prop: ListenValue) {
-        value = prop.value
+        value = prop.wrapped
     }
     static func =!(_ value: inout T, _ prop: ListenValue) {
-        value = prop.value!
+        value = prop.wrapped!
     }
 }
 
@@ -370,22 +368,24 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
         super.init(in: node, options: options)
     }
     
-    public override func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) {
+    public override func load(completion: Assign<Error?>?) {
         super.load(completion: completion?.with(work: { (val) in
-            val.error.map(self.setError)
+            val.map(self.setError)
         }))
     }
 
     @discardableResult
     public func loadValue(completion: Assign<T>, fail: Assign<Error>) -> Self {
         let failing = fail.with(work: setError)
-        super.load(completion: .just { (err, _) in
+        super.load(completion: .just { err in
             if let e = err {
                 failing.assign(e)
-            } else if let v = self.wrapped {
+            } else if case .remote(let v, _) = self.lastEvent {
                 completion.assign(v)
+            } else if case .error(let e, _) = self.lastEvent {
+                failing.assign(e)
             } else {
-                failing.assign(RealtimeError("Fail"))
+                failing.assign(RealtimeError("Undefined error"))
             }
         })
 
@@ -418,10 +418,10 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
 
     public convenience required init(fireData: FireDataProtocol) throws {
         self.init(in: fireData.dataRef.map(Node.from))
-        apply(fireData)
+        try apply(fireData, strongly: true)
     }
 
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) {
+    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
 //        super.apply(data, strongly: strongly)
         do {
             _setListenValue(.remote(try representer.decode(data), strong: strongly))
@@ -440,19 +440,18 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
         insider.dataDidChange()
     }
 }
-
 public extension ReadonlyRealtimeProperty {
     var lastEvent: ListenValue<T> {
         return localPropertyValue.get()
     }
 
     var wrapped: T? {
-        return localPropertyValue.get().value
+        return localPropertyValue.get().wrapped
     }
 }
 public extension ReadonlyRealtimeProperty {
     public func then(_ f: (T) -> Void, else e: (() -> Void)? = nil) -> ReadonlyRealtimeProperty {
-        if let v = localPropertyValue.get().value {
+        if let v = wrapped {
             f(v)
         } else {
             e?()
@@ -460,7 +459,7 @@ public extension ReadonlyRealtimeProperty {
         return self
     }
     public func `else`(_ f: () -> Void) {
-        if nil == localPropertyValue.get().value {
+        if nil == wrapped {
             f()
         }
     }
@@ -511,7 +510,7 @@ public extension ReadonlyRealtimeProperty where T: _Optional {
         return self
     }
     public func `else`(_ f: () -> Void) {
-        if nil == localPropertyValue.get().value {
+        if nil == wrapped {
             f()
         }
     }
@@ -566,16 +565,12 @@ public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: Fire
 
     public convenience required init(fireData: FireDataProtocol) throws {
         self.init(in: fireData.dataRef.map(Node.from))
-        apply(fireData)
+        try apply(fireData, strongly: true)
     }
 
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) {
-        super.apply(data, strongly: strongly)
-        do {
-            setValue(try representer.decode(data))
-        } catch let e {
-            debugFatalError(e.localizedDescription)
-        }
+    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+        try super.apply(data, strongly: strongly)
+        setValue(try representer.decode(data))
     }
 
     fileprivate func setValue(_ value: T) {

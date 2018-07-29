@@ -894,12 +894,12 @@ extension Tests {
             let data = element.update(in: transaction).updateNode
 
             let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), strongly: false)
-            object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath))
+            try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), strongly: true)
             
-            XCTAssertEqual(object.property._value, element.property._value)
-            XCTAssertEqual(object.nestedObject.property._value, element.nestedObject.property._value)
+            XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
+            XCTAssertEqual(object.nestedObject.property.unwrapped, element.nestedObject.property.unwrapped)
             XCTAssertTrue(object.array.isPrepared)
-            XCTAssertEqual(object.array.first?.property._value, element.array.first?.property._value)
+            XCTAssertEqual(object.array.first?.property.unwrapped, element.array.first?.property.unwrapped)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -919,8 +919,8 @@ extension Tests {
 
             let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
 
-            XCTAssertTrue(user.ownedGroup._value??.dbKey == group.dbKey)
-            XCTAssertTrue(userCopy.ownedGroup._value??.dbKey == group.dbKey)
+            XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == group.dbKey)
+            XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == group.dbKey)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -942,7 +942,7 @@ extension Tests {
             if case .error(let e, _) = userCopy.ownedGroup.lastEvent {
                 XCTFail(e.localizedDescription)
             } else {
-                XCTAssertTrue(userCopy.ownedGroup._value?.dbKey == userCopy.ownedGroup._value?.dbKey)
+                XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == userCopy.ownedGroup.unwrapped?.dbKey)
             }
         } catch let e {
             XCTFail(e.localizedDescription)
@@ -965,7 +965,7 @@ extension Tests {
             if case .error(let e, _) = conversation.chairman.lastEvent {
                 XCTFail(e.localizedDescription)
             } else {
-                XCTAssertTrue(conversationCopy.secretary._value?.dbKey == conversation.secretary._value?.dbKey)
+                XCTAssertTrue(conversationCopy.secretary.unwrapped?.dbKey == conversation.secretary.unwrapped?.dbKey)
             }
         } catch let e {
             XCTFail(e.localizedDescription)
@@ -1088,11 +1088,11 @@ extension Tests {
             }
         }
 
-        func apply(_ data: FireDataProtocol, strongly: Bool) {
-            value.apply(data, strongly: strongly)
+        func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+            try value.apply(data, strongly: strongly)
         }
 
-        func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?) {
+        func load(completion: Assign<Error?>?) {
             value.load(completion: completion)
         }
 

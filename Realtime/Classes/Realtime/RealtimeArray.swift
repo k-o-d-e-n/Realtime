@@ -101,9 +101,12 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         checkPreparation()
 
         query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
-            self.apply(data, strongly: false)
-            
-            completion(self.filter { data.hasChild($0.dbKey) }, nil)
+            do {
+                try self.apply(data, strongly: false)
+                completion(self.filter { data.hasChild($0.dbKey) }, nil)
+            } catch let e {
+                completion(self.filter { data.hasChild($0.dbKey) }, e)
+            }
         }) { (error) in
             completion([], error)
         }
@@ -251,24 +254,24 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 
     public required convenience init(fireData: FireDataProtocol) throws {
         self.init(in: fireData.dataRef.map(Node.from))
-        apply(fireData)
+        try apply(fireData, strongly: true)
     }
 
     var _snapshot: (FireDataProtocol, Bool)?
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) {
+    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
         guard _view.isPrepared else {
             _snapshot = (data, strongly)
             return
         }
         _snapshot = nil
-        _view.forEach { key in
+        try _view.forEach { key in
             guard data.hasChild(key.dbKey) else {
                 if strongly { storage.elements.removeValue(forKey: key.dbKey) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
-            if let element = storage.elements[key.dbKey] {
-                element.apply(childData, strongly: strongly)
+            if var element = storage.elements[key.dbKey] {
+                try element.apply(childData, strongly: strongly)
             } else {
                 storage.elements[key.dbKey] = try! Element(fireData: childData, strongly: strongly)
             }
@@ -294,7 +297,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
     }
 
     public func didPrepare() {
-        _snapshot.map(apply)
+        try? _snapshot.map(apply)
     }
 
 //    override public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {

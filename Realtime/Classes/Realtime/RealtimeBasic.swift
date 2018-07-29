@@ -69,13 +69,6 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
     ///
     /// - Parameter node: Node location for value
     init(in node: Node?, options: [RealtimeValueOption: Any])
-    /// Applies value of data snapshot
-    ///
-    /// - Parameters:
-    ///   - snapshot: Snapshot value
-    ///   - strongly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
-    ///               Pass `false` if snapshot represents part of data (for example filtered list).
-    func apply(_ data: FireDataProtocol, strongly: Bool)
 }
 
 extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: RealtimeValue {
@@ -86,8 +79,8 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: Realt
     public init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))
     }
-    public func apply(_ data: FireDataProtocol, strongly: Bool) {
-        self?.apply(data, strongly: strongly)
+    public mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+        try self?.apply(data, strongly: strongly)
     }
 }
 extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
@@ -118,17 +111,14 @@ public extension RealtimeValue {
             try self.init(fireData: fireData)
         } else {
             self.init(in: fireData.dataRef.map(Node.from))
-            apply(fireData, strongly: false)
+            try apply(fireData, strongly: false)
         }
     }
 
-    func apply(_ data: FireDataProtocol) {
-        apply(data, strongly: true)
-    }
-    func apply(parentDataIfNeeded parent: FireDataProtocol, strongly: Bool) {
+    mutating func apply(parentDataIfNeeded parent: FireDataProtocol, strongly: Bool) throws {
         guard strongly || dbKey.has(in: parent) else { return }
 
-        apply(dbKey.child(from: parent), strongly: strongly)
+        try apply(dbKey.child(from: parent), strongly: strongly)
     }
 }
 extension HasDefaultLiteral where Self: RealtimeValue {}
@@ -146,7 +136,7 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
     /// - Parameter completion: Closure that called on end loading or error
-    func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?)
+    func load(completion: Assign<Error?>?)
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
     /// Runs observing value, if

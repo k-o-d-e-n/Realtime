@@ -141,7 +141,7 @@ public protocol RealtimeCollectionActions {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
     /// - Parameter completion: Closure that called on end loading or error
-    func load(completion: Assign<(error: Error?, ref: DatabaseReference)>?)
+    func load(completion: Assign<Error?>?)
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
     /// Runs observing value, if
@@ -347,11 +347,9 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
         guard !isPrepared else { completion.assign(nil); return }
 
         source.load(completion:
-            completion
-                .with(work: { (err) in
-                    self.isPrepared = err == nil
-                })
-                .map({ $0.error })
+            completion.with(work: { err in
+                self.isPrepared = err == nil
+            })
         )
     }
     public func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {

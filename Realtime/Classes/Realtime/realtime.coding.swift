@@ -76,7 +76,23 @@ extension MutableData: FireDataProtocol, Sequence {
 }
 
 public protocol FireDataRepresented {
-    init(fireData: FireDataProtocol) throws
+    init(fireData: FireDataProtocol) throws // TODO: May be need remove from protocol declaration and add as extension.
+
+    /// Applies value of data snapshot
+    ///
+    /// - Parameters:
+    ///   - snapshot: Snapshot value
+    ///   - strongly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
+    ///               Pass `false` if snapshot represents part of data (for example filtered list).
+    mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws
+}
+extension FireDataRepresented {
+    mutating public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+        self = try Self.init(fireData: data)
+    }
+    mutating func apply(_ data: FireDataProtocol) throws {
+        try apply(data, strongly: true)
+    }
 }
 public protocol FireDataValueRepresented {
     var fireValue: FireDataValue { get } // TODO: Instead add variable that will return representer, or method `func represented()`
@@ -86,6 +102,14 @@ public protocol FireDataValueRepresented {
 
 public protocol HasDefaultLiteral {
     init()
+}
+public protocol _ComparableWithDefaultLiteral {
+    static func _isDefaultLiteral(_ lhs: Self) -> Bool
+}
+extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatable {
+    public static func _isDefaultLiteral(_ lhs: Self) -> Bool {
+        return lhs == Self()
+    }
 }
 
 /// Protocol for values that only valid for Realtime Database, e.g. `(NS)Array`, `(NS)Dictionary` and etc.
@@ -137,25 +161,39 @@ extension Dictionary: FireDataValue, FireDataRepresented where Key: FireDataValu
     }
 }
 
-extension Optional  : HasDefaultLiteral { public init() { self = .none } }
-extension Bool      : HasDefaultLiteral, FireDataValue {}
-extension Int       : HasDefaultLiteral, FireDataValue {}
-extension Double    : HasDefaultLiteral, FireDataValue {}
-extension Float     : HasDefaultLiteral, FireDataValue {}
-extension Int8      : HasDefaultLiteral, FireDataValue {}
-extension Int16     : HasDefaultLiteral, FireDataValue {}
-extension Int32     : HasDefaultLiteral, FireDataValue {}
-extension Int64     : HasDefaultLiteral, FireDataValue {}
-extension UInt      : HasDefaultLiteral, FireDataValue {}
-extension UInt8     : HasDefaultLiteral, FireDataValue {}
-extension UInt16    : HasDefaultLiteral, FireDataValue {}
-extension UInt32    : HasDefaultLiteral, FireDataValue {}
-extension UInt64    : HasDefaultLiteral, FireDataValue {}
-extension String    : HasDefaultLiteral, FireDataValue {}
-extension Data      : HasDefaultLiteral {}
+extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral {
+    public init() { self = .none }
+    public static func _isDefaultLiteral(_ lhs: Optional<Wrapped>) -> Bool {
+        return lhs == nil
+    }
+}
+extension Bool      : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension Int       : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension Double    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension Float     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension Int8      : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension Int16     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension Int32     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension Int64     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension UInt      : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension UInt8     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension UInt16    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension UInt32    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension UInt64    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension String    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension Data      : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
 extension Array     : HasDefaultLiteral {}
 extension Dictionary: HasDefaultLiteral {}
-
+extension Array: _ComparableWithDefaultLiteral {
+    public static func _isDefaultLiteral(_ lhs: Array<Element>) -> Bool {
+        return lhs.isEmpty
+    }
+}
+extension Dictionary: _ComparableWithDefaultLiteral {
+    public static func _isDefaultLiteral(_ lhs: Dictionary<Key, Value>) -> Bool {
+        return lhs.isEmpty
+    }
+}
 
 // MARK: Representer --------------------------------------------------------------------------
 
@@ -190,6 +228,11 @@ public extension RepresenterProtocol {
 //        guard data.exists() else { return nil }
 //        return try decode(data)
 //    }
+}
+extension RepresenterProtocol where V: HasDefaultLiteral & _ComparableWithDefaultLiteral {
+    func defaultOnEmpty() -> Representer<V> {
+        return Representer(defaultOnEmpty: self)
+    }
 }
 public extension Representer {
     func encode<T: _Optional>(_: T.Type = T.self, _ value: V) throws -> Any? where V == Optional<T.Wrapped> {
@@ -244,6 +287,19 @@ public extension Representer {
         }
         self.decoding = { (data) -> V in
             return try data.map(base.decode) as! V
+        }
+    }
+    init<R: RepresenterProtocol>(defaultOnEmpty base: R) where R.V: HasDefaultLiteral & _ComparableWithDefaultLiteral, V == R.V {
+        self.encoding = { (v) -> Any? in
+            if V._isDefaultLiteral(v) {
+                return nil
+            } else {
+                return try base.encode(v)
+            }
+        }
+        self.decoding = { (data) -> V in
+            guard data.exists() else { return V() }
+            return try base.decode(data)
         }
     }
     init<S: _Serializer>(serializer base: S.Type) where V == S.Entity {
