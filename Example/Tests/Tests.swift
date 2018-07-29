@@ -795,12 +795,16 @@ extension Tests {
         testObject.property <= "string"
         testObject.nestedObject.property <= "nested_string"
 
-        let trans = testObject.update()
-        let value = trans.updateNode.updateValue
-        let expectedValue = ["/prop":"string", "/nestedObject/prop":"nested_string"] as [String: Any?]
+        do {
+            let trans = try testObject.update()
+            let value = trans.updateNode.updateValue
+            let expectedValue = ["/prop":"string", "/nestedObject/prop":"nested_string"] as [String: Any?]
 
-        XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
-        trans.revert()
+            XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
+            trans.revert()
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
     }
 
     func testMergeTransactions() {
@@ -813,16 +817,20 @@ extension Tests {
         element.property <= "element #1"
         element.nestedObject.property <= "value"
 
-        let elementTransaction = element.update()
-        let objectTransaction = testObject.update()
-        elementTransaction.merge(objectTransaction)
+        do {
+            let elementTransaction = try element.update()
+            let objectTransaction = try testObject.update()
+            elementTransaction.merge(objectTransaction)
 
-        let value = elementTransaction.updateNode.updateValue
-        let expectedValue = ["/prop":"string", "/nestedObject/prop":"nested_string",
-                             "/element_1/prop":"element #1", "/element_1/nestedObject/prop":"value"] as [String: Any?]
+            let value = elementTransaction.updateNode.updateValue
+            let expectedValue = ["/prop":"string", "/nestedObject/prop":"nested_string",
+                                 "/element_1/prop":"element #1", "/element_1/nestedObject/prop":"value"] as [String: Any?]
 
-        XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
-        elementTransaction.revert()
+            XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
+            elementTransaction.revert()
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
     }
 
     func testCollectionOnRootObject() {
@@ -869,14 +877,18 @@ extension Tests {
         element.property <= "element #1"
         testObject.dictionary.set(element: element, for: linkedObject)
 
-        let transaction = testObject.save(in: .root)
-        let value = transaction.updateNode.updateValue
+        do {
+            let transaction = try testObject.save(in: .root)
+            let value = transaction.updateNode.updateValue
 
-        let linkedItem = value["/test_obj/linked_array/linked"] as? [String: Any]
-        XCTAssertTrue(linkedItem != nil)
-        XCTAssertTrue(value["/test_obj/array/elem_1/prop"] as? String == "prop")
-        XCTAssertTrue(value["/test_obj/dict/linked/prop"] as? String == "element #1")
-        transaction.revert()
+            let linkedItem = value["/test_obj/linked_array/linked"] as? [String: Any]
+            XCTAssertTrue(linkedItem != nil)
+            XCTAssertTrue(value["/test_obj/array/elem_1/prop"] as? String == "prop")
+            XCTAssertTrue(value["/test_obj/dict/linked/prop"] as? String == "element #1")
+            transaction.revert()
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
     }
 
     func testDecoding() {
@@ -891,7 +903,7 @@ extension Tests {
             element.array._view.isPrepared = true
             try element.array.write(element: child, in: transaction)
 
-            let data = element.update(in: transaction).updateNode
+            let data = try element.update(in: transaction).updateNode
 
             let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), strongly: false)
             try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), strongly: true)
@@ -915,7 +927,7 @@ extension Tests {
             let group = RealtimeGroup(in: Node(key: "group", parent: .root))
             user.ownedGroup <= group
 
-            let data = user.update(in: transaction).updateNode
+            let data = try user.update(in: transaction).updateNode
 
             let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
 
@@ -935,7 +947,7 @@ extension Tests {
             let user = RealtimeUser(in: Node(key: "user", parent: .root))
             user.ownedGroup <= nil
 
-            let data = user.update(in: transaction).updateNode
+            let data = try user.update(in: transaction).updateNode
 
             let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
 
@@ -958,7 +970,7 @@ extension Tests {
             let conversation = Conversation(in: Node(key: "conv_1", parent: .root))
             conversation.secretary <= nil
 
-            let data = conversation.update(in: transaction).updateNode
+            let data = try conversation.update(in: transaction).updateNode
 
             let conversationCopy = try Conversation(fireData: data.child(forPath: conversation.node!.rootPath), strongly: false)
 
@@ -1050,7 +1062,7 @@ extension Tests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
     }
 
-    enum ValueWithPayload: WritableRealtimeValue, RealtimeValueActions {
+    enum ValueWithPayload: WritableRealtimeValue, FireDataRepresented, RealtimeValueActions {
         var version: Int? { return value.version }
         var raw: FireDataValue? {
             switch self {
@@ -1060,7 +1072,7 @@ extension Tests {
         }
         var node: Node? { return value.node }
         var payload: [String : FireDataValue]? { return value.payload }
-        var value: RealtimeObject {
+        var value: TestObject {
             switch self {
             case .one(let v): return v
             case .two(let v): return v
@@ -1088,8 +1100,15 @@ extension Tests {
             }
         }
 
-        func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+        mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws {
             try value.apply(data, strongly: strongly)
+            let r = data.rawValue as? Int ?? 0
+            if raw as? Int != r {
+                switch r {
+                case 1: self = .two(value)
+                default: self = .one(value)
+                }
+            }
         }
 
         func load(completion: Assign<Error?>?) {
@@ -1122,8 +1141,8 @@ extension Tests {
             value.willRemove(in: transaction, from: ancestor)
         }
 
-        func write(to transaction: RealtimeTransaction, by node: Node) {
-            value.write(to: transaction, by: node)
+        func write(to transaction: RealtimeTransaction, by node: Node) throws {
+            try value.write(to: transaction, by: node)
         }
     }
 

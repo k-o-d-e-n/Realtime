@@ -155,7 +155,7 @@ class RealtimeViewController: UIViewController {
             }
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
-            u.delete().commit { _, errs in
+            try! u.delete().commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -194,7 +194,7 @@ class RealtimeViewController: UIViewController {
             }
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
-            grp.delete().commit { _, errs in
+            try! grp.delete().commit { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -217,7 +217,7 @@ class RealtimeViewController: UIViewController {
         let gu = try! g.users.write(element: u)
 
         let transaction = RealtimeTransaction()
-        u.ownedGroup.setValue(g, in: transaction)
+        try! u.ownedGroup.setValue(g, in: transaction)
         transaction.merge(ug)
         transaction.merge(gu)
         transaction.commit { _, errs in
@@ -239,7 +239,7 @@ class RealtimeViewController: UIViewController {
 
         controller.addAction(UIAlertAction(title: "User", style: .default) { (_) in
             let transaction = g.users.remove(element: u)
-            u.ownedGroup.setValue(nil, in: transaction)
+            try! u.ownedGroup.setValue(nil, in: transaction)
 
             transaction?.commit { _, errs in
                 if let errors = errs {
@@ -253,7 +253,7 @@ class RealtimeViewController: UIViewController {
         })
         controller.addAction(UIAlertAction(title: "Group", style: .default) { (_) in
             let transaction = u.groups.remove(element: g)
-            g.manager.setValue(nil, in: transaction)
+            try! g.manager.setValue(nil, in: transaction)
 
             transaction?.commit { _, errs in
                 if let errors = errs {
@@ -315,7 +315,7 @@ class RealtimeViewController: UIViewController {
                     return
                 }
 
-                convers.first?.value.delete().commit { _, errs in
+                try! convers.first?.value.delete().commit { _, errs in
                     if let errors = errs {
                         print(errors)
                     } else {
