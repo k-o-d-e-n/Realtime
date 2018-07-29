@@ -83,18 +83,18 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
         _view.isPrepared = strongly
     }
 
-    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
         for (index, element) in storage.localElements.enumerated() {
-            _write(element, at: index, by: node, in: transaction)
+            try _write(element, at: index, by: node, in: transaction)
         }
     }
 
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
-    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
 //        super._write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
-        _writeChanges(to: transaction, by: node)
+        try _writeChanges(to: transaction, by: node)
     }
 
     public func didPrepare() {}
@@ -138,7 +138,7 @@ public extension LinkedRealtimeArray {
         guard !contains(element) else { throw RCError(type: .alreadyInserted) }
 
         let transaction = transaction ?? RealtimeTransaction()
-        _write(element, at: index ?? count, by: node!, in: transaction)
+        try _write(element, at: index ?? count, by: node!, in: transaction)
         transaction.addCompletion { [weak self] (result) in
             if result {
                 self?.didSave()
@@ -159,7 +159,7 @@ public extension LinkedRealtimeArray {
     }
 
     func _write(_ element: Element, at index: Int,
-                by location: Node, in transaction: RealtimeTransaction) {
+                by location: Node, in transaction: RealtimeTransaction) throws {
         let itemNode = location.child(with: element.dbKey)
         let link = element.node!.generate(linkTo: itemNode)
         let item = RCItem(element: element, linkID: link.link.id, index: index)

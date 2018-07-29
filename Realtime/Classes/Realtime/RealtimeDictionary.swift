@@ -164,8 +164,8 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
             fatalError("Value by key \(key) already exists. Replacing is not supported yet.")
         }
 
-        _write(element, for: key,
-               by: (storage: node!, itms: _view.source.node!), in: transaction)
+        try _write(element, for: key,
+                   by: (storage: node!, itms: _view.source.node!), in: transaction)
         transaction.addCompletion { [weak self] result in
             if result {
                 self?.didSave()
@@ -174,7 +174,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     }
 
     func _write(_ element: Value, for key: Key,
-                by location: (storage: Node, itms: Node), in transaction: RealtimeTransaction) {
+                by location: (storage: Node, itms: Node), in transaction: RealtimeTransaction) throws {
         let needLink = shouldLinking
         let itemNode = location.itms.child(with: key.dbKey)
         let elementNode = location.storage.child(with: key.dbKey)
@@ -201,7 +201,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
             transaction.addValue(valueLink.link.fireValue, by: valueLink.node)
         }
         transaction.addValue(item.fireValue, by: itemNode)
-        transaction._set(element, by: elementNode)
+        try transaction._set(element, by: elementNode)
     }
 
     @discardableResult
@@ -283,22 +283,22 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         }
     }
 
-    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
-        storage.localElements.forEach { (key, value) in
-            _write(value,
-                   for: key,
-                   by: (storage: node,
-                        itms: Node(key: InternalKeys.items, parent: node.linksNode)),
-                   in: transaction)
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
+        try storage.localElements.forEach { (key, value) in
+            try _write(value,
+                       for: key,
+                       by: (storage: node,
+                            itms: Node(key: InternalKeys.items, parent: node.linksNode)),
+                       in: transaction)
         }
     }
 
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
-    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
 //        super._write(to: transaction, by: node)
         // writes changes because after save collection can use only transaction mutations
-        _writeChanges(to: transaction, by: node)
+        try _writeChanges(to: transaction, by: node)
     }
 
     public func didPrepare() {

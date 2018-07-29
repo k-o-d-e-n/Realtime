@@ -379,10 +379,10 @@ extension RealtimeTransaction: CustomStringConvertible {
 }
 public extension RealtimeTransaction {
     /// adds operation of save RealtimeValue as single value
-    func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) {
+    func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) throws {
         guard node.isRooted else { fatalError() }
 
-        _set(value, by: node)
+        try _set(value, by: node)
         addCompletion { (result) in
             if result {
                 value.didSave(in: node.parent!, by: node.key)
@@ -391,8 +391,8 @@ public extension RealtimeTransaction {
     }
 
     /// adds operation of delete RealtimeValue
-    func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
-        _delete(value)
+    func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) throws {
+        try _delete(value)
         addCompletion { (result) in
             if result {
                 value.didRemove()
@@ -401,10 +401,10 @@ public extension RealtimeTransaction {
     }
 
     /// adds operation of update RealtimeValue
-    func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) {
+    func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) throws {
         guard let updatedNode = value.node else { fatalError() }
 
-        _update(value, by: updatedNode)
+        try _update(value, by: updatedNode)
         addCompletion { (result) in
             if result {
                 value.didSave(in: updatedNode.parent!, by: updatedNode.key)
@@ -412,25 +412,25 @@ public extension RealtimeTransaction {
         }
     }
 
-    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Realtime.Node) {
+    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Realtime.Node) throws {
         guard node.isRooted else { fatalError() }
 
-        value.write(to: self, by: node)
+        try value.write(to: self, by: node)
     }
 
     /// adds operation of delete RealtimeValue
-    internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
+    internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) throws {
         guard let node = value.node, node.isRooted else { fatalError() }
 
         value.willRemove(in: self)
         removeValue(by: node)
     }
 
-    internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) {
+    internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) throws {
         guard value.hasChanges else { debugFatalError("Value has not changes"); return }
         guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
 
-        value.writeChanges(to: self, by: updatedNode)
+        try value.writeChanges(to: self, by: updatedNode)
         revertion(for: value)
     }
 

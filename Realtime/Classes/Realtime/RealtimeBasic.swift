@@ -214,7 +214,7 @@ public protocol WritableRealtimeValue: RealtimeValue {
     /// - Parameters:
     ///   - transaction: Current transaction
     ///   - node: Database node where data will be store
-    func write(to transaction: RealtimeTransaction, by node: Node)
+    func write(to transaction: RealtimeTransaction, by node: Node) throws
 }
 
 /// Values that can be changed partially
@@ -227,6 +227,6 @@ public protocol ChangeableRealtimeValue: RealtimeValue {
     /// - Parameters:
     ///   - transaction: Current transaction
     ///   - node: Node for this value
-    func writeChanges(to transaction: RealtimeTransaction, by node: Node)
+    func writeChanges(to transaction: RealtimeTransaction, by node: Node) throws
 }
 

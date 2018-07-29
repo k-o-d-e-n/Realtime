@@ -84,9 +84,16 @@ public final class RealtimeReference<Referenced: RealtimeValue>: RealtimePropert
         super.init(in: node, options: [.representer: o.representer])
     }
 
-    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+    @discardableResult
+    public override func setValue(_ value: Referenced, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+        guard value.isRooted else { fatalError("Value must with rooted node") }
+
+        return try super.setValue(value, in: transaction)
+    }
+
+    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
         _write_RealtimeValue(to: transaction, by: node)
-        super._write(to: transaction, by: node)
+        try super._write(to: transaction, by: node)
     }
 
     public struct Options {
@@ -117,6 +124,13 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
         super.init(in: node, options: [.representer: relation.representer])
     }
 
+    @discardableResult
+    public override func setValue(_ value: Related, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+        guard value.isRooted else { fatalError("Value must with rooted node") }
+
+        return try super.setValue(value, in: transaction)
+    }
+
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
         transaction.addPrecondition { [unowned transaction] (promise) in
@@ -132,9 +146,9 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
         }
     }
 
-    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
         _write_RealtimeValue(to: transaction, by: node)
-        super._write(to: transaction, by: node)
+        try super._write(to: transaction, by: node)
         if let backwardNode = wrapped?.node?.child(with: options.property) {
             let ownerNode = node.ancestor(on: options.ownerLevelsUp)!
             let thisProperty = node.path(from: ownerNode)
@@ -287,40 +301,35 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
     }
 
     @discardableResult
-    public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+    public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         guard let node = self.node, node.isRooted else { fatalError("Mutation cannot be do. Value is not rooted") }
 
         _setValue(value)
         let transaction = transaction ?? RealtimeTransaction()
-        _writeChanges(to: transaction, by: node)
+        try _writeChanges(to: transaction, by: node)
         return transaction
     }
 
-    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
         if let changed = _changedValue {
 //            super._writeChanges(to: transaction, by: node)
             transaction.addReversion(currentReversion())
-            do { transaction._addValue(try representer.encode(changed), by: node) }
-            catch let e { fatalError(e.localizedDescription) }
+            transaction._addValue(try representer.encode(changed), by: node)
         }
     }
 
     /// Property does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
-    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
 //        super._write(to: transaction, by: node)
-        do {
-            switch localPropertyValue.get() {
-            case .initial: break
+        switch localPropertyValue.get() {
+        case .initial: break
 //                if  {
 //                    throw RealtimeError("Required property has not been set")
 //                }
-            case .error, .removed: break
-            case .local(let v): transaction._addValue(try representer.encode(v), by: node)
-            case .remote(let v, _): transaction._addValue(try representer.encode(v), by: node)
-            }
-        } catch let e {
-            fatalError(e.localizedDescription)
+        case .error, .removed: break
+        case .local(let v): transaction._addValue(try representer.encode(v), by: node)
+        case .remote(let v, _): transaction._addValue(try representer.encode(v), by: node)
         }
     }
 
@@ -392,11 +401,11 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
         return self
     }
 
-    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) {
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
         /// readonly property cannot have changes
     }
 
-    override func _write(to transaction: RealtimeTransaction, by node: Node) {
+    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
         /// readonly property cannot write something
     }
     
