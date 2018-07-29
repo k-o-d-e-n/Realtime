@@ -274,8 +274,12 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
             links.loadValue(
                 completion: .just({ refs in
                     refs.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.removeValue(by: $0) }
-                    transaction.delete(links)
-                    promise.fulfill(nil)
+                    do {
+                        try transaction.delete(links)
+                        promise.fulfill(nil)
+                    } catch let e {
+                        promise.fulfill(e)
+                    }
                 }),
                 fail: .just(promise.fulfill)
             )
