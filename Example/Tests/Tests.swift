@@ -761,6 +761,8 @@ class TestObject: RealtimeObject {
     lazy var array: RealtimeArray<TestObject> = "array".array(from: self.node)
     lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
+    lazy var readonlyFile: ReadonlyStorageProperty<UIImage> = ReadonlyStorageProperty(in: Node(key: "readonlyFile", parent: self.node), representer: .png)
+    lazy var file: StorageProperty<UIImage> = StorageProperty(in: Node(key: "file", parent: self.node), representer: .jpeg())
 
     override open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -770,6 +772,8 @@ class TestObject: RealtimeObject {
         case "array": return \TestObject.array
         case "dictionary": return \TestObject.dictionary
         case "nestedObject": return \TestObject.nestedObject
+        case "readonlyFile": return \TestObject.readonlyFile
+        case "file": return \TestObject.file
         default: return nil
         }
     }
@@ -920,12 +924,19 @@ extension Tests {
             element.array._view.isPrepared = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
+            let imgData = UIImagePNGRepresentation(#imageLiteral(resourceName: "pw"))!
+            transaction.addFile(imgData, by: element.readonlyFile.node!)
+            element.file <= #imageLiteral(resourceName: "pw")
 
             let data = try element.update(in: transaction).updateNode
 
             let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), strongly: false)
             try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), strongly: true)
 
+            XCTAssertNotNil(object.file.wrapped)
+//            XCTAssertEqual(object.file.wrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
+            XCTAssertNotNil(object.readonlyFile.wrapped)
+            XCTAssertEqual(object.readonlyFile.wrapped.flatMap(UIImagePNGRepresentation), imgData)
             XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)

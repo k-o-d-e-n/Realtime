@@ -314,7 +314,7 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
         if let changed = _changedValue {
 //            super._writeChanges(to: transaction, by: node)
             transaction.addReversion(currentReversion())
-            transaction._addValue(try representer.encode(changed), by: node)
+            transaction._addValue(updateType, try representer.encode(changed), by: node)
         }
     }
 
@@ -328,8 +328,8 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
 //                    throw RealtimeError("Required property has not been set")
 //                }
         case .error, .removed: break
-        case .local(let v): transaction._addValue(try representer.encode(v), by: node)
-        case .remote(let v, _): transaction._addValue(try representer.encode(v), by: node)
+        case .local(let v): transaction._addValue(updateType, try representer.encode(v), by: node)
+        case .remote(let v, _): transaction._addValue(updateType, try representer.encode(v), by: node)
         }
     }
 
@@ -364,7 +364,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     
     // MARK: Initializers, deinitializer
 
-    convenience init(in node: Node?, representer: Representer<T>) {
+    public convenience init(in node: Node?, representer: Representer<T>) {
         self.init(in: node, options: [.representer: representer])
     }
     
@@ -400,6 +400,8 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
 
         return self
     }
+
+    internal var updateType: ValueNode.Type { return ValueNode.self }
 
     override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
         /// readonly property cannot have changes
@@ -439,12 +441,12 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
         }
     }
 
-    fileprivate func _setListenValue(_ value: ListenValue<T>) {
+    internal func _setListenValue(_ value: ListenValue<T>) {
         localPropertyValue.set(value)
         insider.dataDidChange()
     }
 
-    private func setError(_ error: Error) {
+    internal func setError(_ error: Error) {
         localPropertyValue.set(.error(error, last: localPropertyValue.get()))
         insider.dataDidChange()
     }

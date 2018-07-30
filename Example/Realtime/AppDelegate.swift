@@ -49,6 +49,7 @@ class RealtimeGroup: RealtimeObject {
 class RealtimeUser: RealtimeObject {
     lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
     lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
+    lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png.optional())
     //    lazy var gender: String?
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
     //    @objc dynamic var items: [String] = []
@@ -75,6 +76,7 @@ class RealtimeUser: RealtimeObject {
         switch label {
         case "name": return \RealtimeUser.name
         case "age": return \RealtimeUser.age
+        case "photo": return \RealtimeUser.photo
         case "groups": return \RealtimeUser.groups
         case "followers": return \RealtimeUser.followers
         case "ownedGroup": return \RealtimeUser.ownedGroup
