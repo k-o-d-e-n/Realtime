@@ -544,6 +544,9 @@ public extension ReadonlyRealtimeProperty where T: Equatable {
     }
 }
 public extension ReadonlyRealtimeProperty where T: HasDefaultLiteral & _ComparableWithDefaultLiteral {
+    static func <=(_ value: inout T, _ prop: ReadonlyRealtimeProperty) {
+        value = prop.wrapped ?? T()
+    }
     func defaultOnEmpty() -> Self {
         self.representer = self.representer.defaultOnEmpty()
         return self
