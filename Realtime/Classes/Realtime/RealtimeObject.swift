@@ -240,14 +240,14 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///     }
 ///
 open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue {
-    override var _hasChanges: Bool { return containChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
+    override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
     open var parent: RealtimeObject?
 
     public override func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
         super.willSave(in: transaction, in: parent, by: key)
         let node = parent.child(with: key)
-        enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
+        enumerateLoadedChilds { (_, value: RealtimeValue & RealtimeValueEvents) in
             value.willSave(in: transaction, in: node, by: value.node!.key)
         }
     }
@@ -255,7 +255,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
         if let node = self.node {
-            enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValue & RealtimeValueEvents) in
+            enumerateLoadedChilds { (_, value: RealtimeValue & RealtimeValueEvents) in
                 value.didSave(in: node)
             }
         } else {
@@ -266,7 +266,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     typealias Links = RealtimeProperty<[SourceLink]>
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
-        enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
+        forceEnumerateAllChilds { (_, value: RealtimeValueEvents & RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
         let links: Links = Links(in: node!.linksNode, options: [.representer: Representer(serializer: SourceLinkArraySerializer.self)])
@@ -287,7 +287,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     }
     
     override public func didRemove(from node: Node) {
-        enumerateKeyPathChilds(from: RealtimeObject.self) { (_, value: RealtimeValueEvents & RealtimeValue) in
+        enumerateLoadedChilds { (_, value: RealtimeValueEvents & RealtimeValue) in
             value.didRemove(from: node)
         }
         super.didRemove(from: node)
@@ -301,20 +301,19 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     }
     private func apply(_ data: FireDataProtocol, strongly: Bool, to mirror: Mirror) throws {
         try mirror.children.forEach { (child) in
-            guard var label = child.label else { return }
-
-            if label.hasSuffix(lazyStoragePath) {
-                label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
-            }
-
-            if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
-                if case var value as _RealtimeValue = self[keyPath: keyPath] {
-                    try value.apply(parentDataIfNeeded: data, strongly: strongly)
-                }
+            if var value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
+                try value.apply(parentDataIfNeeded: data, strongly: strongly)
             }
         }
     }
 
+    /// Returns key path for lazy properties to force access.
+    /// Method should not call super method.
+    /// If object has not lazy properies, it is recommended override anyway to avoid calls
+    /// super class implementation and conflicts with private properties of super class.
+    ///
+    /// - Parameter label: Label of property
+    /// - Returns: Key path to access property
     open class func keyPath(for label: String) -> AnyKeyPath? {
         fatalError("You should implement class func keyPath(for:)")
     }
@@ -323,20 +322,11 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         try super._write(to: transaction, by: node)
         try reflect { (mirror) in
             try mirror.children.forEach({ (child) in
-                guard var label = child.label else { return }
-
-                if label.hasSuffix(lazyStoragePath) {
-                    guard !((child.value as AnyObject) is NSNull) else { return }
-
-                    label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
-                }
-                if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
-                    if case let value as _RealtimeValue = self[keyPath: keyPath] {
-                        if let valNode = value.node {
-                            try value._write(to: transaction, by: node.child(with: valNode.key))
-                        } else {
-                            fatalError("There is not specified child node in \(self)")
-                        }
+                if let value: _RealtimeValue = realtimeValue(from: child.value) {
+                    if let valNode = value.node {
+                        try value._write(to: transaction, by: node.child(with: valNode.key))
+                    } else {
+                        fatalError("There is not specified child node in \(self)")
                     }
                 }
             })
@@ -347,20 +337,11 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
 //        super._writeChanges(to: transaction, by: node)
         try reflect { (mirror) in
             try mirror.children.forEach({ (child) in
-                guard var label = child.label else { return }
-
-                if label.hasSuffix(lazyStoragePath) {
-                    guard !((child.value as AnyObject) is NSNull) else { return }
-                    
-                    label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
-                }
-                if let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) {
-                    if case let value as _RealtimeValue = self[keyPath: keyPath] {
-                        if let valNode = value.node {
-                            try value._writeChanges(to: transaction, by: node.child(with: valNode.key))
-                        } else {
-                            fatalError("There is not specified child node in \(self)")
-                        }
+                if let value: _RealtimeValue = realtimeValue(from: child.value) {
+                    if let valNode = value.node {
+                        try value._writeChanges(to: transaction, by: node.child(with: valNode.key))
+                    } else {
+                        fatalError("There is not specified child node in \(self)")
                     }
                 }
             })
@@ -369,52 +350,54 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
 
     // MARK: RealtimeObject
 
-    private func keyedValues(use maping: (_RealtimeValue) -> Any?) -> [String: Any]? {
-        var keyedValues: [String: Any]? = nil
-        enumerateChilds { (_, value: _RealtimeValue) in
-            guard let mappedValue = maping(value) else { return }
+    private func realtimeValue<T>(from value: Any) -> T? {
+        guard case let child as T = value else { return nil }
 
-            if keyedValues == nil { keyedValues = [String: Any]() }
-            keyedValues![value.dbKey] = mappedValue
-        }
-        return keyedValues
+        return child
     }
-    fileprivate func enumerateKeyPathChilds<As>(from type: Any.Type = _RealtimeValue.self, _ block: (String, As) -> Void) {
+    private func forceValue<T>(from mirrorChild: (label: String?, value: Any), mirror: Mirror) -> T? {
+        guard let value: T = realtimeValue(from: mirrorChild.value) else {
+            guard
+                var label = mirrorChild.label,
+                label.hasSuffix(lazyStoragePath)
+            else { return nil }
+
+            label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
+
+            guard let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) else {
+                return nil
+            }
+            guard case let value as T = self[keyPath: keyPath] else {
+                return nil
+            }
+
+            return value
+        }
+        return value
+    }
+    fileprivate func forceEnumerateAllChilds<As>(from type: Any.Type = RealtimeObject.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
-                guard mirror.subjectType != RealtimeObject.self && (child.value as AnyObject) !== parent else { return }
-                guard var label = child.label else { return }
+                guard let value: As = forceValue(from: child, mirror: mirror) else { return }
 
-                if label.hasSuffix(lazyStoragePath) {
-                    label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
-                }
-
-                guard
-                    let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label),
-                    case let value as As = self[keyPath: keyPath]
-                else
-                    { return }
-
-                block(label, value)
+                block(child.label, value)
             })
         }
     }
-    fileprivate func enumerateChilds<As>(from type: Any.Type = _RealtimeValue.self, _ block: (String?, As) -> Void) {
+    fileprivate func enumerateLoadedChilds<As>(from type: Any.Type = RealtimeObject.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
-                guard mirror.subjectType != RealtimeObject.self && (child.value as AnyObject) !== parent else { return }
                 guard case let value as As = child.value else { return }
 
                 block(child.label, value)
             })
         }
     }
-    private func containChild<As>(from type: Any.Type = _RealtimeValue.self, where block: (String?, As) -> Bool) -> Bool {
+    private func containsInLoadedChild<As>(from type: Any.Type = RealtimeObject.self, where block: (String?, As) -> Bool) -> Bool {
         var contains = false
         reflect(to: type) { (mirror) in
             guard !contains else { return }
             contains = mirror.children.contains(where: { (child) -> Bool in
-                guard mirror.subjectType != RealtimeObject.self && (child.value as AnyObject) !== parent else { return false }
                 guard case let value as As = child.value else { return false }
 
                 return block(child.label, value)
@@ -436,13 +419,13 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
 
 extension RealtimeObject: Reverting {
     public func revert() {
-        enumerateChilds { (_, value: Reverting) in
+        enumerateLoadedChilds { (_, value: Reverting) in
             value.revert()
         }
     }
     public func currentReversion() -> () -> Void {
         var revertions: [() -> Void] = []
-        enumerateChilds { (_, value: Reverting) in
+        enumerateLoadedChilds { (_, value: Reverting) in
             revertions.insert(value.currentReversion(), at: 0)
         }
         return { revertions.forEach { $0() } }

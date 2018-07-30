@@ -351,7 +351,7 @@ public extension RealtimeProperty {
 public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     fileprivate var localPropertyValue: PropertyValue<ListenValue<T>>
     fileprivate var oldValue: ListenValue<T> = .initial
-    let representer: Representer<T>
+    fileprivate(set) var representer: Representer<T>
     public var insider: Insider<ListenValue<T>>
 
     public override var version: Int? { return nil }
@@ -541,6 +541,12 @@ infix operator ==~
 public extension ReadonlyRealtimeProperty where T: Equatable {
     static func ==~(lhs: T, rhs: ReadonlyRealtimeProperty<T>) -> Bool {
         return rhs.mapValue { $0 == lhs } ?? false
+    }
+}
+public extension ReadonlyRealtimeProperty where T: HasDefaultLiteral & _ComparableWithDefaultLiteral {
+    func defaultOnEmpty() -> ReadonlyRealtimeProperty {
+        self.representer = self.representer.defaultOnEmpty()
+        return self
     }
 }
 

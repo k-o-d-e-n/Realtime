@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'Realtime'
-  s.version          = '0.4.7'
+  s.version          = '0.4.8'
   s.summary          = 'A short description of Realtime.'
 
 # This description is used to generate tags and improve search results.

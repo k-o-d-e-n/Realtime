@@ -756,6 +756,7 @@ class Tests: XCTestCase {
 
 class TestObject: RealtimeObject {
     lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node)
+    lazy var readonlyProperty: ReadonlyRealtimeProperty<Int> = "readonlyProp".readonlyProperty(from: self.node).defaultOnEmpty()
     lazy var linkedArray: LinkedRealtimeArray<RealtimeObject> = "linked_array".linkedArray(from: self.node, elements: .root)
     lazy var array: RealtimeArray<TestObject> = "array".array(from: self.node)
     lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
@@ -764,6 +765,7 @@ class TestObject: RealtimeObject {
     override open class func keyPath(for label: String) -> AnyKeyPath? {
         switch label {
         case "property": return \TestObject.property
+        case "readonlyProperty": return \TestObject.readonlyProperty
         case "linkedArray": return \TestObject.linkedArray
         case "array": return \TestObject.array
         case "dictionary": return \TestObject.dictionary
@@ -776,12 +778,27 @@ class TestObject: RealtimeObject {
         return [\TestObject.property, \TestObject.linkedArray, \TestObject.array, \TestObject.dictionary, \TestObject.nestedObject]
     }
 
-    class NestedObject: RealtimeObject {
-        lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node)
+    class NestedObject: TestObject {
+        lazy var lazyProperty: RealtimeProperty<String?> = "lazyprop".property(from: self.node)
+        var usualProperty: RealtimeProperty<String?>?
+
+        required init(in node: Node?, options: [RealtimeValueOption : Any]) {
+            self.usualProperty = "usualprop".property(from: node)
+            super.init(in: node, options: options)
+        }
+
+        required convenience init(fireData: FireDataProtocol) throws {
+            self.init(in: fireData.dataRef.map(Node.from))
+            try apply(fireData, strongly: true)
+        }
+
+        override func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+            try super.apply(data, strongly: strongly)
+        }
 
         override open class func keyPath(for label: String) -> AnyKeyPath? {
             switch label {
-            case "property": return \NestedObject.property
+            case "lazyProperty": return \NestedObject.lazyProperty
             default: return nil
             }
         }
@@ -793,12 +810,12 @@ extension Tests {
         let testObject = TestObject(in: .root)
 
         testObject.property <= "string"
-        testObject.nestedObject.property <= "nested_string"
+        testObject.nestedObject.lazyProperty <= "nested_string"
 
         do {
             let trans = try testObject.update()
             let value = trans.updateNode.updateValue
-            let expectedValue = ["/prop":"string", "/nestedObject/prop":"nested_string"] as [String: Any?]
+            let expectedValue = ["/prop":"string", "/nestedObject/lazyprop":"nested_string"] as [String: Any?]
 
             XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
             trans.revert()
@@ -811,11 +828,11 @@ extension Tests {
         let testObject = TestObject(in: .root)
 
         testObject.property <= "string"
-        testObject.nestedObject.property <= "nested_string"
+        testObject.nestedObject.lazyProperty <= "nested_string"
 
         let element = TestObject(in: Node.root.child(with: "element_1"))
         element.property <= "element #1"
-        element.nestedObject.property <= "value"
+        element.nestedObject.lazyProperty <= "value"
 
         do {
             let elementTransaction = try element.update()
@@ -823,8 +840,8 @@ extension Tests {
             elementTransaction.merge(objectTransaction)
 
             let value = elementTransaction.updateNode.updateValue
-            let expectedValue = ["/prop":"string", "/nestedObject/prop":"nested_string",
-                                 "/element_1/prop":"element #1", "/element_1/nestedObject/prop":"value"] as [String: Any?]
+            let expectedValue = ["/prop":"string", "/nestedObject/lazyprop":"nested_string",
+                                 "/element_1/prop":"element #1", "/element_1/nestedObject/lazyprop":"value"] as [String: Any?]
 
             XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
             elementTransaction.revert()
@@ -897,19 +914,21 @@ extension Tests {
         do {
             let element = TestObject(in: Node.root.child(with: "element_1"))
             element.property <= "element #1"
-            element.nestedObject.property <= "value"
+            element.nestedObject.lazyProperty <= "value"
             let child = TestObject()
             child.property <= "element #1"
             element.array._view.isPrepared = true
             try element.array.write(element: child, in: transaction)
+            transaction.removeValue(by: element.readonlyProperty.node!)
 
             let data = try element.update(in: transaction).updateNode
 
             let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), strongly: false)
             try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), strongly: true)
-            
+
+            XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
-            XCTAssertEqual(object.nestedObject.property.unwrapped, element.nestedObject.property.unwrapped)
+            XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
             XCTAssertTrue(object.array.isPrepared)
             XCTAssertEqual(object.array.first?.property.unwrapped, element.array.first?.property.unwrapped)
         } catch let e {

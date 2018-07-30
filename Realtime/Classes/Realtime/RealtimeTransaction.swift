@@ -8,6 +8,7 @@
 import Foundation
 import FirebaseDatabase
 
+/// TODO: Reconsider it
 public protocol Reverting: class {
     /// reverts last change
     func revert()
