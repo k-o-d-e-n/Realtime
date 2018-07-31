@@ -370,7 +370,10 @@ extension RealtimeTransaction {
         while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
             nearest = next
         }
-        nearest.node.reference(for: database).update(use: nearest.updateValue, completion: completion)
+        let updateValue = nearest.updateValue
+        if updateValue.count > 0 {
+            nearest.node.reference(for: database).update(use: nearest.updateValue, completion: completion)
+        }
     }
 
     func updateFiles(_ completion: @escaping ([(StorageMetadata?, Error?)]) -> Void) {
@@ -392,6 +395,7 @@ extension RealtimeTransaction {
             lock.lock()
             completions.append((md, err))
             lock.unlock()
+            group.leave()
         }
         files.indices.forEach { _ in group.enter() }
         files.forEach { (file) in

@@ -113,7 +113,11 @@ class RealtimeViewController: UIViewController {
                 return
             }
 
-            self.label.text = error?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
+            if let err = error?.reduce("", { $0 + $1.localizedDescription }) {
+                self.setError(err)
+            } else {
+                self.setSuccess()
+            }
         })
     }
 
@@ -346,13 +350,13 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
         picker.dismiss(animated: true, completion: nil)
         guard let u = user ?? Global.rtUsers.first else {
-            self.label.text = "Cannot retrieve user"
+            setError("Cannot retrieve user")
             return
         }
 
 //        type = (info[UIImagePickerControllerMediaType] as! CFString).mediaFilter
         guard let originalImage = info[UIImagePickerControllerOriginalImage] as? UIImage else {
-            self.label.text = "Image picking is failed"
+            setError("Image picking is failed")
             return
         }
 //        editedImage = info[UIImagePickerControllerEditedImage] as? UIImage
@@ -363,11 +367,27 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
 
         try! u.update().commit(with: { _,_  in }, filesCompletion: { (results) in
             let errs = results.compactMap({ $0.1 })
-            if errs.isEmpty {
-                self.label.text = errs.reduce("", { $0 + $1.localizedDescription })
+            if !errs.isEmpty {
+                self.setError(errs.reduce("", { $0 + $1.localizedDescription }))
             } else {
-                self.label.text = "Success! Show your firebase console"
+                self.setSuccess()
             }
         })
+    }
+}
+
+extension RealtimeViewController {
+    func setError(_ text: String) {
+        label.textColor = UIColor.red.withAlphaComponent(0.5)
+        label.text = text
+    }
+    static let succesText = "Success! Show your firebase console"
+    func setSuccess() {
+        label.textColor = UIColor.green.withAlphaComponent(0.5)
+        if label.text?.hasPrefix(RealtimeViewController.succesText) ?? false {
+            label.text = label.text?.appending(" !")
+        } else {
+            label.text = RealtimeViewController.succesText
+        }
     }
 }
