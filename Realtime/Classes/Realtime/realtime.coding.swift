@@ -396,6 +396,45 @@ public extension Representer where V: Codable {
     }
 }
 
+import UIKit.UIImage
+
+public extension Representer where V: UIImage {
+    static var png: Representer<UIImage> {
+        let base = Representer<Data>.any
+        return Representer<UIImage>(
+            encoding: { img -> Any? in
+                guard let data = UIImagePNGRepresentation(img) else {
+                    throw RealtimeError("Fail")
+                }
+                return data
+            },
+            decoding: { d in
+                guard let img = UIImage(data: try base.decode(d)) else {
+                    throw RealtimeError("Fail")
+                }
+                return img
+            }
+        )
+    }
+    static func jpeg(quality: CGFloat = 1.0) -> Representer<UIImage> {
+        let base = Representer<Data>.any
+        return Representer<UIImage>(
+            encoding: { img -> Any? in
+                guard let data = UIImageJPEGRepresentation(img, quality) else {
+                    throw RealtimeError("Fail")
+                }
+                return data
+            },
+            decoding: { d in
+                guard let img = UIImage(data: try base.decode(d)) else {
+                    throw RealtimeError("Fail")
+                }
+                return img
+            }
+        )
+    }
+}
+
 public enum DateCodingStrategy {
     case secondsSince1970
     case millisecondsSince1970

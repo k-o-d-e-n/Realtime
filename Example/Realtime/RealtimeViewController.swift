@@ -57,6 +57,10 @@ class RealtimeViewController: UIViewController {
         $0.frame = CGRect(x: view.bounds.width / 2, y: 90, width: view.bounds.width / 2, height: 30)
         $0.setTitle("Unlink group and user", for: .normal)
     }
+    lazy var loadPhoto: UIButton = UIButton(type: .system).add(to: view) {
+        $0.frame = CGRect(x: 0, y: 120, width: view.bounds.width / 2, height: 30)
+        $0.setTitle("Load photo", for: .normal)
+    }
 
     lazy var label: UILabel! = UILabel().add(to: view) {
         $0.frame = CGRect(x: 20, y: view.bounds.height - 100, width: view.bounds.width, height: 30)
@@ -89,6 +93,7 @@ class RealtimeViewController: UIViewController {
         removeConversationButton.addTarget(self, action: #selector(removeConversation), for: .touchUpInside)
         linkButton.addTarget(self, action: #selector(linkUserGroup), for: .touchUpInside)
         unlinkButton.addTarget(self, action: #selector(unlinkUserGroup), for: .touchUpInside)
+        loadPhoto.addTarget(self, action: #selector(loadUserPhoto), for: .touchUpInside)
     }
 
     @objc func addUser() {
@@ -108,7 +113,11 @@ class RealtimeViewController: UIViewController {
                 return
             }
 
-            self.label.text = error?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
+            if let err = error?.reduce("", { $0 + $1.localizedDescription }) {
+                self.setError(err)
+            } else {
+                self.setSuccess()
+            }
         })
     }
 
@@ -141,7 +150,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtUsers.remove(element: u)
 
-            transaction?.commit { _, errs in
+            transaction?.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -152,10 +161,10 @@ class RealtimeViewController: UIViewController {
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-            }
+            })
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
-            try! u.delete().commit { _, errs in
+            try! u.delete().commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -166,7 +175,7 @@ class RealtimeViewController: UIViewController {
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-            }
+            })
         })
         present(controller, animated: true, completion: nil)
     }
@@ -180,7 +189,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtGroups.remove(element: grp)
 
-            transaction?.commit { _, errs in
+            transaction?.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -191,10 +200,10 @@ class RealtimeViewController: UIViewController {
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-            }
+            })
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
-            try! grp.delete().commit { _, errs in
+            try! grp.delete().commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -205,7 +214,7 @@ class RealtimeViewController: UIViewController {
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-            }
+            })
         })
         present(controller, animated: true, completion: nil)
     }
@@ -220,7 +229,7 @@ class RealtimeViewController: UIViewController {
         try! u.ownedGroup.setValue(g, in: transaction)
         transaction.merge(ug)
         transaction.merge(gu)
-        transaction.commit { _, errs in
+        transaction.commit(with: { _, errs in
             if let errors = errs {
                 print(errors)
             } else {
@@ -229,7 +238,7 @@ class RealtimeViewController: UIViewController {
             }
 
             self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-        }
+        })
     }
 
     @objc func unlinkUserGroup() {
@@ -241,7 +250,7 @@ class RealtimeViewController: UIViewController {
             let transaction = g.users.remove(element: u)
             try! u.ownedGroup.setValue(nil, in: transaction)
 
-            transaction?.commit { _, errs in
+            transaction?.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -249,13 +258,13 @@ class RealtimeViewController: UIViewController {
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-            }
+            })
         })
         controller.addAction(UIAlertAction(title: "Group", style: .default) { (_) in
             let transaction = u.groups.remove(element: g)
             try! g.manager.setValue(nil, in: transaction)
 
-            transaction?.commit { _, errs in
+            transaction?.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -263,7 +272,7 @@ class RealtimeViewController: UIViewController {
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-            }
+            })
         })
         present(controller, animated: true, completion: nil)
     }
@@ -275,7 +284,7 @@ class RealtimeViewController: UIViewController {
         conversationUser.name <= "Conversation #"
         let transaction = try! g.conversations.write(element: conversationUser, for: u)
 
-        transaction.commit { _, errs in
+        transaction.commit(with: { _, errs in
             if let errors = errs {
                 print(errors)
             } else {
@@ -283,7 +292,7 @@ class RealtimeViewController: UIViewController {
             }
 
             self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-        }
+        })
     }
 
     @objc func removeConversation() {
@@ -294,7 +303,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = g.conversations.remove(for: u)
 
-            transaction?.commit { _, errs in
+            transaction?.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -302,7 +311,7 @@ class RealtimeViewController: UIViewController {
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-            }
+            })
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
             g.conversations.runObserving()
@@ -315,7 +324,7 @@ class RealtimeViewController: UIViewController {
                     return
                 }
 
-                try! convers.first?.value.delete().commit { _, errs in
+                try! convers.first?.value.delete().commit(with: { _, errs in
                     if let errors = errs {
                         print(errors)
                     } else {
@@ -323,9 +332,62 @@ class RealtimeViewController: UIViewController {
                     }
 
                     self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-                }
+                })
             })
         })
         present(controller, animated: true, completion: nil)
+    }
+
+    @objc func loadUserPhoto() {
+        let picker = UIImagePickerController()
+        picker.delegate = self
+
+        present(picker, animated: true, completion: nil)
+    }
+}
+
+extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        picker.dismiss(animated: true, completion: nil)
+        guard let u = user ?? Global.rtUsers.first else {
+            setError("Cannot retrieve user")
+            return
+        }
+
+//        type = (info[UIImagePickerControllerMediaType] as! CFString).mediaFilter
+        guard let originalImage = info[UIImagePickerControllerOriginalImage] as? UIImage else {
+            setError("Image picking is failed")
+            return
+        }
+//        editedImage = info[UIImagePickerControllerEditedImage] as? UIImage
+//        cropRect = info[UIImagePickerControllerCropRect] as? CGRect
+//        metaData = info[UIImagePickerControllerMediaMetadata] as? NSDictionary
+
+        u.photo <= originalImage
+
+        try! u.update().commit(with: { _,_  in }, filesCompletion: { (results) in
+            let errs = results.compactMap({ $0.1 })
+            if !errs.isEmpty {
+                self.setError(errs.reduce("", { $0 + $1.localizedDescription }))
+            } else {
+                self.setSuccess()
+            }
+        })
+    }
+}
+
+extension RealtimeViewController {
+    func setError(_ text: String) {
+        label.textColor = UIColor.red.withAlphaComponent(0.5)
+        label.text = text
+    }
+    static let succesText = "Success! Show your firebase console"
+    func setSuccess() {
+        label.textColor = UIColor.green.withAlphaComponent(0.5)
+        if label.text?.hasPrefix(RealtimeViewController.succesText) ?? false {
+            label.text = label.text?.appending(" !")
+        } else {
+            label.text = RealtimeViewController.succesText
+        }
     }
 }

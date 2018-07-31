@@ -209,9 +209,7 @@ extension WritableRealtimeValue where Self: _RealtimeValue {
 extension ChangeableRealtimeValue where Self: _RealtimeValue {
     public var hasChanges: Bool { return _hasChanges }
     public func writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
-        if hasChanges {
-            try _write(to: transaction, by: node)
-        }
+        try _writeChanges(to: transaction, by: node)
     }
 }
 
@@ -247,7 +245,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     public override func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
         super.willSave(in: transaction, in: parent, by: key)
         let node = parent.child(with: key)
-        enumerateLoadedChilds { (_, value: RealtimeValue & RealtimeValueEvents) in
+        enumerateLoadedChilds { (_, value: _RealtimeValue) in
             value.willSave(in: transaction, in: node, by: value.node!.key)
         }
     }
@@ -255,7 +253,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
         if let node = self.node {
-            enumerateLoadedChilds { (_, value: RealtimeValue & RealtimeValueEvents) in
+            enumerateLoadedChilds { (_, value: _RealtimeValue) in
                 value.didSave(in: node)
             }
         } else {
@@ -266,7 +264,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     typealias Links = RealtimeProperty<[SourceLink]>
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
-        forceEnumerateAllChilds { (_, value: RealtimeValueEvents & RealtimeValue) in
+        forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
         let links: Links = Links(in: node!.linksNode, options: [.representer: Representer(serializer: SourceLinkArraySerializer.self)])
@@ -287,7 +285,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     }
     
     override public func didRemove(from node: Node) {
-        enumerateLoadedChilds { (_, value: RealtimeValueEvents & RealtimeValue) in
+        enumerateLoadedChilds { (_, value: _RealtimeValue) in
             value.didRemove(from: node)
         }
         super.didRemove(from: node)

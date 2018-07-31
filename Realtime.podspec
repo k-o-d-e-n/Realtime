@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'Realtime'
-  s.version          = '0.4.8'
+  s.version          = '0.4.8' + 1
   s.summary          = 'A short description of Realtime.'
 
 # This description is used to generate tags and improve search results.
@@ -42,6 +42,7 @@ TODO: Add long description of the pod here.
   s.static_framework = true
   s.dependency 'Firebase/Core'
   s.dependency 'Firebase/Database'
+  s.dependency 'Firebase/Storage'
   s.xcconfig = {
       "FRAMEWORK_SEARCH_PATHS" => "'$(PODS_ROOT)/FirebaseDatabase'"
   }

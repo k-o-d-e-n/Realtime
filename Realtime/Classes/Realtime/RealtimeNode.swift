@@ -8,6 +8,7 @@
 
 import Foundation
 import FirebaseDatabase
+import FirebaseStorage
 
 enum InternalKeys: String {
     case modelVersion = "__mv"
@@ -112,6 +113,9 @@ public class Node: Equatable {
 
     public func reference(for database: Database = Database.database()) -> DatabaseReference {
         return .fromRoot(rootPath, of: database)
+    }
+    public func file(for storage: Storage = Storage.storage()) -> StorageReference {
+        return storage.reference(withPath: rootPath)
     }
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}

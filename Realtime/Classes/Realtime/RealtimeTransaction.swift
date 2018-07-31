@@ -7,6 +7,7 @@
 
 import Foundation
 import FirebaseDatabase
+import FirebaseStorage
 
 /// TODO: Reconsider it
 public protocol Reverting: class {
@@ -38,10 +39,14 @@ class ValueNode: UpdateNode {
         container[node.path(from: ancestor)] = value
     }
 
-    init(node: Node, value: Any?) {
+    required init(node: Node, value: Any?) {
         self.node = node
         self.value = value
     }
+}
+
+class FileNode: ValueNode {
+    override func fill(from ancestor: Node, into container: inout [String: Any?]) {}
 }
 
 class ObjectNode: UpdateNode, CustomStringConvertible {
@@ -55,6 +60,15 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
         var val: [String: Any?] = [:]
         fill(from: node, into: &val)
         return val
+    }
+    var files: [FileNode] {
+        return childs.reduce(into: [], { (res, node) in
+            if case let objNode as ObjectNode = node {
+                res.append(contentsOf: objNode.files)
+            } else if case let fileNode as FileNode = node {
+                res.append(fileNode)
+            }
+        })
     }
 
     func fill(from ancestor: Node, into container: inout [String: Any?]) {
@@ -124,7 +138,7 @@ extension ValueNode: FireDataProtocol, Sequence {
     }
     func forEach(_ body: (FireDataProtocol) throws -> Void) rethrows {}
     func map<T>(_ transform: (FireDataProtocol) throws -> T) rethrows -> [T] { return [] }
-    var debugDescription: String { return String(describing: self) }
+    var debugDescription: String { return "\(node.rootPath): \(value as Any)" }
     var description: String { return debugDescription }
 }
 
@@ -173,6 +187,7 @@ extension ObjectNode: FireDataProtocol, Sequence {
 /// Provides addition of operations with completion handler, cancelation, and async preconditions.
 public class RealtimeTransaction {
     let database: Database
+    let storage: Storage
     internal var updateNode: ObjectNode = .root()
     fileprivate var preconditions: [(ResultPromise<Error?>) -> Void] = []
     fileprivate var completions: [(Bool) -> Void] = []
@@ -197,8 +212,9 @@ public class RealtimeTransaction {
         case reverted
     }
 
-    public init(database: Database = Database.database()) {
+    public init(database: Database = Database.database(), storage: Storage = Storage.storage()) {
         self.database = database
+        self.storage = storage
     }
 
     fileprivate func runPreconditions(_ completion: @escaping ([Error]) -> Void) {
@@ -257,15 +273,16 @@ extension RealtimeTransaction {
     public typealias CommitState = (state: State, substate: Substate)
     // TODO: Add configuration commit as single value or update value
     public func commit(revertOnError: Bool = true,
-                       with completion: ((CommitState, [Error]?) -> Void)? = nil) {
+                       with completion: @escaping (CommitState, [Error]?) -> Void,
+                       filesCompletion: (([(StorageMetadata?, Error?)]) -> Void)? = nil) {
         runPreconditions { (errors) in
             guard errors.isEmpty else {
                 if revertOnError {
                     self.revert()
                 }
-                debugFatalError(errors.description);
+                debugFatalError(errors.description)
                 self.invalidate(false)
-                completion?((self.state, self.substate), errors);
+                completion((self.state, self.substate), errors);
                 return
             }
             self.scheduledMerges?.forEach { self.merge($0) }
@@ -281,21 +298,33 @@ extension RealtimeTransaction {
                     }
                 }
                 self.invalidate(result)
-                completion?((self.state, self.substate), err.map { errors + [$0] })
+                completion((self.state, self.substate), err.map { errors + [$0] })
+            })
+
+            self.updateFiles({ (res) in
+                filesCompletion?(res)
             })
         }
     }
 
+    public func addFile(_ value: Any, by node: Realtime.Node) {
+        _addValue(FileNode.self, value, by: node)
+    }
+
+    public func removeFile(by node: Realtime.Node) {
+        _addValue(FileNode.self, nil, by: node)
+    }
+
     public func addValue(_ value: Any, by node: Realtime.Node) {
-        _addValue(value, by: node)
+        _addValue(ValueNode.self, value, by: node)
     }
 
     public func removeValue(by node: Realtime.Node) {
-        _addValue(nil, by: node)
+        _addValue(ValueNode.self, nil, by: node)
     }
 
     /// registers new single value for specified reference
-    func _addValue(_ value: Any?/*FireDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
+    func _addValue(_ valueType: ValueNode.Type = ValueNode.self, _ value: Any?/*FireDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
         let nodes = node.reversed().dropFirst()
         var current = updateNode
         var iterator = nodes.makeIterator()
@@ -307,14 +336,22 @@ extension RealtimeTransaction {
                     } else {
                         current = u
                     }
-                } else if case let u as ValueNode = update, n === node {
+                } else if case let u as FileNode = update, n === node {
                     u.value = value
+                    debugLog("Replaced file by node: \(node) with value: \(value as Any) in transaction: \(self)")
+                } else if case let u as ValueNode = update, n === node {
+                    if ValueNode.self == valueType {
+                        u.value = value
+                        debugLog("Replaced value by node: \(node) with value: \(value as Any) in transaction: \(self)")
+                    } else {
+                        fatalError("Tries to insert database value to storage node")
+                    }
                 } else {
                     fatalError("Tries insert value lower than earlier writed single value")
                 }
             } else {
                 if node === n {
-                    current.childs.append(ValueNode(node: node, value: value))
+                    current.childs.append(valueType.init(node: node, value: value))
                 } else {
                     let child = ObjectNode(node: n)
                     current.childs.append(child)
@@ -333,7 +370,41 @@ extension RealtimeTransaction {
         while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
             nearest = next
         }
-        nearest.node.reference(for: database).update(use: nearest.updateValue, completion: completion)
+        let updateValue = nearest.updateValue
+        if updateValue.count > 0 {
+            nearest.node.reference(for: database).update(use: nearest.updateValue, completion: completion)
+        }
+    }
+
+    func updateFiles(_ completion: @escaping ([(StorageMetadata?, Error?)]) -> Void) {
+        guard updateNode.childs.count > 0 else {
+            fatalError("Try commit empty transaction")
+        }
+
+        var nearest = updateNode
+        while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
+            nearest = next
+        }
+        let files = nearest.files
+        guard !files.isEmpty else { return completion([]) }
+
+        let group = DispatchGroup()
+        let lock = NSRecursiveLock()
+        var completions: [(StorageMetadata?, Error?)] = []
+        let addCompletion: (StorageMetadata?, Error?) -> Void = { md, err in
+            lock.lock()
+            completions.append((md, err))
+            lock.unlock()
+            group.leave()
+        }
+        files.indices.forEach { _ in group.enter() }
+        files.forEach { (file) in
+            guard case let data as Data = file.value else { fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.node)") }
+            file.node.file(for: storage).putData(data, metadata: nil, completion: addCompletion)
+        }
+        group.notify(queue: .main) {
+            completion(completions)
+        }
     }
 
     /// registers new cancelation of made changes
