@@ -9,16 +9,16 @@ import Foundation
 import FirebaseStorage
 
 public extension RawRepresentable where Self.RawValue == String {
-    func readonlyFile<T>(from node: Node?, representer: Representer<T>) -> ReadonlyRealtimeProperty<T> {
+    func readonlyFile<T>(from node: Node?, representer: Representer<T>) -> ReadonlyStorageProperty<T> {
         return ReadonlyStorageProperty(in: Node(key: rawValue, parent: node), options: [.representer: representer])
     }
-    func readonlyFile<T>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyRealtimeProperty<T?> {
+    func readonlyFile<T>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyStorageProperty<T?> {
         return readonlyFile(from: node, representer: representer.optional())
     }
-    func file<T>(from node: Node?, representer: Representer<T>) -> RealtimeProperty<T> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node), options: [.representer: representer])
+    func file<T>(from node: Node?, representer: Representer<T>) -> StorageProperty<T> {
+        return StorageProperty(in: Node(key: rawValue, parent: node), options: [.representer: representer])
     }
-    func file<T>(from node: Node?, representer: Representer<T>) -> RealtimeProperty<T?> {
+    func file<T>(from node: Node?, representer: Representer<T>) -> StorageProperty<T?> {
         return file(from: node, representer: representer.optional())
     }
 }

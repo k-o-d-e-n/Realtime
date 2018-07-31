@@ -273,7 +273,7 @@ extension RealtimeTransaction {
     public typealias CommitState = (state: State, substate: Substate)
     // TODO: Add configuration commit as single value or update value
     public func commit(revertOnError: Bool = true,
-                       with completion: @escaping (CommitState, [Error]?) -> Void,
+                       with completion: ((CommitState, [Error]?) -> Void)?,
                        filesCompletion: (([(StorageMetadata?, Error?)]) -> Void)? = nil) {
         runPreconditions { (errors) in
             guard errors.isEmpty else {
@@ -282,7 +282,7 @@ extension RealtimeTransaction {
                 }
                 debugFatalError(errors.description)
                 self.invalidate(false)
-                completion((self.state, self.substate), errors);
+                completion?((self.state, self.substate), errors);
                 return
             }
             self.scheduledMerges?.forEach { self.merge($0) }
@@ -298,7 +298,7 @@ extension RealtimeTransaction {
                     }
                 }
                 self.invalidate(result)
-                completion((self.state, self.substate), err.map { errors + [$0] })
+                completion?((self.state, self.substate), err.map { errors + [$0] })
             })
 
             self.updateFiles({ (res) in

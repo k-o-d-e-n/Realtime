@@ -7,7 +7,9 @@
 //
 
 import FirebaseDatabase
+import FirebaseStorage
 
+public typealias StorageMetadata = FirebaseStorage.StorageMetadata
 public typealias DataSnapshot = FirebaseDatabase.DataSnapshot
 public typealias DatabaseReference = FirebaseDatabase.DatabaseReference
 

@@ -123,8 +123,13 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    try! collection._insert(element, at: index, in: transaction)
-                    promise.fulfill(err)
+                    guard err == nil else { return promise.fulfill(err) }
+                    do {
+                        try collection._insert(element, at: index, in: transaction)
+                        promise.fulfill(nil)
+                    } catch let e {
+                        promise.fulfill(e)
+                    }
                 })
             }
             return transaction
@@ -273,7 +278,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
             if var element = storage.elements[key.dbKey] {
                 try element.apply(childData, strongly: strongly)
             } else {
-                storage.elements[key.dbKey] = try! Element(fireData: childData, strongly: strongly)
+                storage.elements[key.dbKey] = try Element(fireData: childData, strongly: strongly)
             }
         }
     }

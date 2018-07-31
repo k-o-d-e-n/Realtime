@@ -129,22 +129,19 @@ public extension LinkedRealtimeArray {
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    try! collection.write(element: element, at: index, in: transaction)
-                    promise.fulfill(err)
+                    guard err == nil else { return promise.fulfill(err) }
+                    do {
+                        try collection._write(element, at: index, in: transaction)
+                        promise.fulfill(nil)
+                    } catch let e {
+                        promise.fulfill(e)
+                    }
                 })
             }
             return transaction
         }
-        guard !contains(element) else { throw RCError(type: .alreadyInserted) }
 
-        let transaction = transaction ?? RealtimeTransaction()
-        try _write(element, at: index ?? count, by: node!, in: transaction)
-        transaction.addCompletion { [weak self] (result) in
-            if result {
-                self?.didSave()
-            }
-        }
-        return transaction
+        return try _write(element, at: index, in: transaction)
     }
 
     func insert(element: Element, at index: Int? = nil) {
@@ -156,6 +153,20 @@ public extension LinkedRealtimeArray {
         }
 
         storage.localElements.insert(element, at: index ?? storage.localElements.count)
+    }
+
+    @discardableResult
+    func _write(_ element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+        guard !contains(element) else { throw RCError(type: .alreadyInserted) }
+
+        let transaction = transaction ?? RealtimeTransaction()
+        try _write(element, at: index ?? count, by: node!, in: transaction)
+        transaction.addCompletion { [weak self] (result) in
+            if result {
+                self?.didSave()
+            }
+        }
+        return transaction
     }
 
     func _write(_ element: Element, at index: Int,

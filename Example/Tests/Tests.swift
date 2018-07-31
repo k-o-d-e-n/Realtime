@@ -1185,8 +1185,12 @@ extension Tests {
             XCTAssertNil(err)
             XCTAssertTrue(a.isPrepared)
 
-            try! a.write(element: .one(TestObject()), in: transaction)
-            try! a.write(element: .two(TestObject()), in: transaction)
+            do {
+                try a.write(element: .one(TestObject()), in: transaction)
+                try a.write(element: .two(TestObject()), in: transaction)
+            } catch let e {
+                XCTFail(e.localizedDescription)
+            }
 
             exp.fulfill()
         })
@@ -1341,18 +1345,22 @@ extension Tests {
             }
         }
 
-        let news = News(date: 0.0)
-        let feed: Feed = .common(news)
+        do {
+            let news = News(date: 0.0)
+            let feed: Feed = .common(news)
 
-        let data = try! JSONEncoder().encode(feed)
+            let data = try JSONEncoder().encode(feed)
 
-        let json = try! JSONSerialization.jsonObject(with: data, options: .allowFragments) as! NSDictionary
-        let decodedFeed = try! JSONDecoder().decode(Feed.self, from: data)
+            let json = try JSONSerialization.jsonObject(with: data, options: .allowFragments) as! NSDictionary
+            let decodedFeed = try JSONDecoder().decode(Feed.self, from: data)
 
-        XCTAssertTrue(["raw": 0, "date": 0.0] as NSDictionary == json)
-        switch decodedFeed {
-        case .common(let n):
-            XCTAssertTrue(n.date == news.date)
+            XCTAssertTrue(["raw": 0, "date": 0.0] as NSDictionary == json)
+            switch decodedFeed {
+            case .common(let n):
+                XCTAssertTrue(n.date == news.date)
+            }
+        } catch let e {
+            XCTFail(e.localizedDescription)
         }
     }
 

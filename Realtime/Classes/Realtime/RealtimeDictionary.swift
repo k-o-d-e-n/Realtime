@@ -148,8 +148,13 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    try! collection._write(element, for: key, in: transaction)
-                    promise.fulfill(err)
+                    guard err == nil else { return promise.fulfill(err) }
+                    do {
+                        try collection._write(element, for: key, in: transaction)
+                        promise.fulfill(nil)
+                    } catch let e {
+                        promise.fulfill(e)
+                    }
                 })
             }
             return transaction
@@ -278,7 +283,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
                 try element.apply(childData, strongly: strongly)
             } else {
                 let keyEntity = Key(in: storage.keysNode.child(with: key.dbKey))
-                storage.elements[keyEntity] = try! Value(fireData: childData, strongly: strongly)
+                storage.elements[keyEntity] = try Value(fireData: childData, strongly: strongly)
             }
         }
     }
