@@ -28,15 +28,15 @@ extension Reverting where Self: ChangeableRealtimeValue {
 public protocol UpdateNode: FireDataProtocol {
     var node: Node { get }
     var value: Any? { get }
-    func fill(from ancestor: Node, into container: inout [String: Any?])
+    func fill(from ancestor: Node, into container: inout [String: Any])
 }
 
 class ValueNode: UpdateNode {
     let node: Node
     var value: Any?
 
-    func fill(from ancestor: Node, into container: inout [String: Any?]) {
-        container[node.path(from: ancestor)] = value
+    func fill(from ancestor: Node, into container: inout [String: Any]) {
+        container[node.path(from: ancestor)] = value as Any
     }
 
     required init(node: Node, value: Any?) {
@@ -46,7 +46,7 @@ class ValueNode: UpdateNode {
 }
 
 class FileNode: ValueNode {
-    override func fill(from ancestor: Node, into container: inout [String: Any?]) {}
+    override func fill(from ancestor: Node, into container: inout [String: Any]) {}
 }
 
 class ObjectNode: UpdateNode, CustomStringConvertible {
@@ -56,8 +56,8 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     var value: Any? {
         return updateValue
     }
-    var updateValue: [String: Any?] {
-        var val: [String: Any?] = [:]
+    var updateValue: [String: Any] {
+        var val: [String: Any] = [:]
         fill(from: node, into: &val)
         return val
     }
@@ -71,7 +71,7 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
         })
     }
 
-    func fill(from ancestor: Node, into container: inout [String: Any?]) {
+    func fill(from ancestor: Node, into container: inout [String: Any]) {
         childs.forEach { $0.fill(from: ancestor, into: &container) }
     }
 
@@ -107,10 +107,14 @@ extension ObjectNode {
             if let currentChild = childs.first(where: { $0.node == child.node }) {
                 if let objectChild = currentChild as? ObjectNode {
                     objectChild.merge(with: child as! ObjectNode, conflictResolver: conflictResolver)
-                } else if let c = currentChild as? ValueNode {
-                    c.value = conflictResolver(currentChild, child)
+                } else if case let c as ValueNode = currentChild {
+                    if type(of: c) == type(of: child) {
+                        c.value = conflictResolver(currentChild, child)
+                    } else {
+                        fatalError("Database value and storage value located in the same node.")
+                    }
                 } else {
-                    fatalError()
+                    fatalError("Undefined node")
                 }
             } else {
                 childs.append(child)
@@ -377,9 +381,9 @@ extension RealtimeTransaction {
     }
 
     func updateFiles(_ completion: @escaping ([(StorageMetadata?, Error?)]) -> Void) {
-        guard updateNode.childs.count > 0 else {
-            fatalError("Try commit empty transaction")
-        }
+//        guard updateNode.childs.count > 0 else {
+//            fatalError("Try commit empty transaction")
+//        }
 
         var nearest = updateNode
         while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
@@ -452,8 +456,6 @@ extension RealtimeTransaction: CustomStringConvertible {
 public extension RealtimeTransaction {
     /// adds operation of save RealtimeValue as single value
     func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) throws {
-        guard node.isRooted else { fatalError() }
-
         try _set(value, by: node)
         addCompletion { (result) in
             if result {
@@ -474,7 +476,7 @@ public extension RealtimeTransaction {
 
     /// adds operation of update RealtimeValue
     func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) throws {
-        guard let updatedNode = value.node else { fatalError() }
+        guard let updatedNode = value.node else { fatalError("Value must be rooted") }
 
         try _update(value, by: updatedNode)
         addCompletion { (result) in
@@ -485,22 +487,22 @@ public extension RealtimeTransaction {
     }
 
     internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Realtime.Node) throws {
-        guard node.isRooted else { fatalError() }
+        guard node.isRooted else { fatalError("Node to set must be rooted") }
 
         try value.write(to: self, by: node)
     }
 
     /// adds operation of delete RealtimeValue
     internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) throws {
-        guard let node = value.node, node.isRooted else { fatalError() }
+        guard let node = value.node, node.isRooted else { fatalError("Value must be rooted") }
 
         value.willRemove(in: self)
         removeValue(by: node)
     }
 
     internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) throws {
-        guard value.hasChanges else { debugFatalError("Value has not changes"); return }
         guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
+        guard value.hasChanges else { return debugFatalError("Value has not changes") }
 
         try value.writeChanges(to: self, by: updatedNode)
         revertion(for: value)
@@ -512,8 +514,8 @@ public extension RealtimeTransaction {
     }
 
     /// method to merge actions of other transaction
-    func merge(_ other: RealtimeTransaction, conflictResolver: (UpdateNode, UpdateNode) -> Any? = { f, s in f.value }) {
-        guard other !== self else { debugFatalError("Attemption merge the same transaction"); return }
+    public func merge(_ other: RealtimeTransaction, conflictResolver: (UpdateNode, UpdateNode) -> Any? = { f, s in f.value }) {
+        guard other !== self else { return debugFatalError("Attemption merge the same transaction") }
         guard other.preconditions.isEmpty else {
             other.preconditions.forEach(addPrecondition)
             other.preconditions.removeAll()

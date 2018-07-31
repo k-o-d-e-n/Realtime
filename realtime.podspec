@@ -8,8 +8,8 @@
 
 Pod::Spec.new do |s|
   s.name             = 'Realtime'
-  s.version          = '0.4.9'
-  s.summary          = 'A short description of Realtime.'
+  s.version          = '0.5'
+  s.summary          = 'Firebase Realtime Database framework.'
 
 # This description is used to generate tags and improve search results.
 #   * Think: What does it do? Why did you write it? What is the focus?
@@ -18,27 +18,18 @@ Pod::Spec.new do |s|
 #   * Finally, don't worry about the indent, CocoaPods strips it!
 
   s.description      = <<-DESC
-TODO: Add long description of the pod here.
+  Realtime is database framework based on Firebase that makes the creation of complex database structures is simple. :exclamation:
+  Realtime can help you to create app quicker than if use clear Firebase API herewith to apply complex structures to store data in Firebase database, to update UI using reactive behaviors.
+  Realtime provides lightweight data traffic, lazy initialization of data, good distribution of data
                        DESC
 
   s.homepage         = 'https://github.com/k-o-d-e-n/Realtime'
-  # s.screenshots     = 'www.example.com/screenshots_1', 'www.example.com/screenshots_2'
   s.license          = { :type => 'MIT', :file => 'LICENSE' }
   s.author           = { 'k-o-d-e-n' => 'koden.u8800@gmail.com' }
   s.source           = { :git => 'https://github.com/k-o-d-e-n/Realtime.git', :tag => s.version.to_s }
-  # s.social_media_url = 'https://twitter.com/<TWITTER_USERNAME>'
-
+  s.social_media_url = 'https://twitter.com/K_o_D_e_N'
   s.ios.deployment_target = '8.0'
-
   s.source_files = 'Realtime/Classes/**/*'
-  
-  # s.resource_bundles = {
-  #   'Realtime' => ['Realtime/Assets/*.png']
-  # }
-
-  # s.public_header_files = 'Pod/Classes/**/*.h'
-  # s.frameworks = 'UIKit'
-  # s.libraries = ['c++', 'icucore']
   s.static_framework = true
   s.dependency 'Firebase/Core'
   s.dependency 'Firebase/Database'

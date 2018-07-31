@@ -28,9 +28,7 @@ public class ReadonlyStorageProperty<T>: ReadonlyRealtimeProperty<T> {
 
     public override func load(completion: Assign<Error?>?) {
         guard let node = self.node, node.isRooted else {
-            debugFatalError(condition: true, "Couldn`t get reference")
-            completion?.assign(RealtimeError("Couldn`t get reference"))
-            return
+            fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
 
         node.file().getData(maxSize: .max) { (data, err) in
@@ -55,9 +53,7 @@ public class StorageProperty<T>: RealtimeProperty<T> {
 
     public override func load(completion: Assign<Error?>?) {
         guard let node = self.node, node.isRooted else {
-            debugFatalError(condition: true, "Couldn`t get reference")
-            completion?.assign(RealtimeError("Couldn`t get reference"))
-            return
+            fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
 
         node.file().getData(maxSize: .max) { (data, err) in

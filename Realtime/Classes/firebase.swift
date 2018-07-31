@@ -32,23 +32,13 @@ public extension DatabaseReference {
         return self === ref || url == ref.url
     }
 
-    func update(use keyValuePairs: [String: Any?], completion: Database.TransactionCompletion?) {
-        if completion == nil {
-            updateChildValues(keyValuePairs as Any as! [AnyHashable : Any])
-        } else {
-            updateChildValues(keyValuePairs as Any as! [String: Any], withCompletionBlock: completion!)
-        }
-    }
-}
-
-public extension Database {
-    public typealias UpdateItem = (ref: DatabaseReference, value: Any?)
     public typealias TransactionCompletion = (Error?, DatabaseReference) -> Void
-    func update(use refValuePairs: [UpdateItem],
-                      completion: TransactionCompletion?) {
-        let root = reference()
-        let childValues = Dictionary<String, Any?>(keyValues: refValuePairs, mapKey: { $0.path(from: root) })
-        root.update(use: childValues, completion: completion)
+    func update(use keyValuePairs: [String: Any], completion: TransactionCompletion?) {
+        if let completion = completion {
+            updateChildValues(keyValuePairs, withCompletionBlock: completion)
+        } else {
+            updateChildValues(keyValuePairs)
+        }
     }
 }
 

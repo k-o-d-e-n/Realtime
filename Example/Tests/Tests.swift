@@ -764,7 +764,7 @@ class TestObject: RealtimeObject {
     lazy var readonlyFile: ReadonlyStorageProperty<UIImage> = ReadonlyStorageProperty(in: Node(key: "readonlyFile", parent: self.node), representer: .png)
     lazy var file: StorageProperty<UIImage> = StorageProperty(in: Node(key: "file", parent: self.node), representer: .jpeg())
 
-    override open class func keyPath(for label: String) -> AnyKeyPath? {
+    override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
         case "property": return \TestObject.property
         case "readonlyProperty": return \TestObject.readonlyProperty
@@ -800,7 +800,7 @@ class TestObject: RealtimeObject {
             try super.apply(data, strongly: strongly)
         }
 
-        override open class func keyPath(for label: String) -> AnyKeyPath? {
+        override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
             switch label {
             case "lazyProperty": return \NestedObject.lazyProperty
             default: return nil

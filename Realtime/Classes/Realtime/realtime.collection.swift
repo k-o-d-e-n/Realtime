@@ -7,14 +7,6 @@
 
 import Foundation
 
-struct RCError: Error {
-    enum Kind {
-        case alreadyInserted
-        case failedServerData
-    }
-    let type: Kind
-}
-
 extension RealtimeValueOption {
     static let elementBuilder = RealtimeValueOption("realtime.collection.builder")
 }
@@ -48,7 +40,7 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
 
     init(fireData: FireDataProtocol) throws {
         guard let key = fireData.dataKey else {
-            throw RCError(type: .failedServerData)
+            throw RealtimeError(initialization: RCItem.self, fireData)
         }
         guard fireData.hasChildren() else { // TODO: For test, remove!
             guard let val = fireData.value as? [String: FireDataValue],
@@ -56,7 +48,7 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
                 let linkValue = value.value as? [String: Any],
                 let index = linkValue[InternalKeys.index.rawValue] as? Int
             else {
-                throw RCError(type: .failedServerData)
+                throw RealtimeError(initialization: RCItem.self, fireData)
             }
 
             self.dbKey = key
@@ -67,13 +59,13 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
             return
         }
         guard let value = fireData.makeIterator().next() else {
-            throw RCError(type: .failedServerData)
+            throw RealtimeError(initialization: RCItem.self, fireData)
         }
         guard let linkID = value.dataKey else {
-            throw RCError(type: .failedServerData)
+            throw RealtimeError(initialization: RCItem.self, fireData)
         }
         guard let index: Int = InternalKeys.index.map(from: fireData) else {
-            throw RCError(type: .failedServerData)
+            throw RealtimeError(initialization: RCItem.self, fireData)
         }
 
         self.dbKey = key

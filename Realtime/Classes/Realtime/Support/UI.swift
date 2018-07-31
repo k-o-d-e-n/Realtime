@@ -256,7 +256,7 @@ open class RealtimeTableView<RC: RealtimeCollection>: UITableView where RC.Index
 
     override open func didMoveToWindow() {
         super.didMoveToWindow()
-        guard window.isSome else { return }
+        guard window != nil else { return }
 
         adapter.reloadTable()
     }

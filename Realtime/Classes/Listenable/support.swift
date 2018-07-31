@@ -56,26 +56,11 @@ public protocol _Optional: ExpressibleByNilLiteral {
     func map<U>(_ f: (Wrapped) throws -> U) rethrows -> U?
     func flatMap<U>(_ f: (Wrapped) throws -> U?) rethrows -> U?
 
-    @available(*, deprecated: 0.1.0)
-    var isNone: Bool { get }
-    @available(*, deprecated: 0.1.0)
-    var isSome: Bool { get }
-
     var unsafelyUnwrapped: Wrapped { get }
     var wrapped: Wrapped? { get }
 }
 extension Optional: _Optional {
     public var wrapped: Wrapped? { return self }
-    @available(*, deprecated: 0.1.0)
-    public var isNone: Bool {
-        if case .none = self { return true }
-        return false
-    }
-    @available(*, deprecated: 0.1.0)
-    public var isSome: Bool {
-        if case .some = self { return true }
-        return false
-    }
 }
 
 public extension InsiderOwner where InsiderValue: RealtimeValueActions {

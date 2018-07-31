@@ -8,11 +8,30 @@
 import Foundation
 import FirebaseDatabase
 
-struct RealtimeError: Error {
+public struct RealtimeError: Error {
     let localizedDescription: String
+    let source: Source
 
-    init(_ descr: String) {
-        self.localizedDescription = descr
+    init(source: Source, description: String) {
+        self.source = source
+        self.localizedDescription = description
+    }
+
+    enum Source {
+        case value
+        case coding
+        case transaction([Error])
+        case collection
+    }
+
+    init<T>(initialization type: T.Type, _ data: Any) {
+        self.init(source: .coding, description: "Failed initialization type: \(T.self) with data: \(data)")
+    }
+    init<T>(decoding type: T.Type, _ data: Any, reason: String) {
+        self.init(source: .coding, description: "Failed decoding data: \(data) to type: \(T.self). Reason: \(reason)")
+    }
+    init<T>(encoding value: T, reason: String) {
+        self.init(source: .coding, description: "Failed encoding value: \(value). Reason: \(reason)")
     }
 }
 

@@ -19,7 +19,7 @@ class Conversation: RealtimeObject {
     lazy var chairman: RealtimeReference<RealtimeUser> = "chairman".reference(from: self.node, mode: .fullPath)
     lazy var secretary: RealtimeReference<RealtimeUser?> = "secretary".reference(from: self.node, mode: .fullPath)
 
-    override open class func keyPath(for label: String) -> AnyKeyPath? {
+    override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
         case "chairman": return \Conversation.chairman
         case "secretary": return \Conversation.secretary
@@ -35,7 +35,7 @@ class RealtimeGroup: RealtimeObject {
     lazy var conversations: RealtimeDictionary<RealtimeUser, RealtimeUser> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
     lazy var manager: RealtimeRelation<RealtimeUser?> = "manager".relation(from: self.node, "ownedGroup")
 
-    override open class func keyPath(for label: String) -> AnyKeyPath? {
+    override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
         case "name": return \RealtimeGroup.name
         case "users": return \RealtimeGroup.users
@@ -72,7 +72,7 @@ class RealtimeUser: RealtimeObject {
     //        })
     //    }
 
-    override class func keyPath(for label: String) -> AnyKeyPath? {
+    override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
         case "name": return \RealtimeUser.name
         case "age": return \RealtimeUser.age
@@ -89,7 +89,7 @@ class RealtimeUser: RealtimeObject {
 class RealtimeUser2: RealtimeUser {
     lazy var human: RealtimeProperty<[String: Any?]> = "human".property(from: self.node)
 
-    override class func keyPath(for label: String) -> AnyKeyPath? {
+    override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
         case "human": return \RealtimeUser2.human
         default: return nil

@@ -118,7 +118,7 @@ public protocol FireDataValue: FireDataRepresented {}
 extension FireDataValue {
     public init(fireData: FireDataProtocol) throws {
         guard let v = fireData.value as? Self else {
-            throw RealtimeError("Failed data for type: \(Self.self)")
+            throw RealtimeError(initialization: Self.self, fireData.value as Any)
         }
 
         self = v
@@ -133,7 +133,7 @@ extension Optional: FireDataValue where Wrapped: FireDataValue {
 extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue {
     public init(fireData: FireDataProtocol) throws {
         guard let v = fireData.value as? Array<Element> else {
-            throw RealtimeError("Failed data for type: \(Array<Element>.self)")
+            throw RealtimeError(initialization: Array<Element>.self, fireData.value as Any)
         }
 
         self = v
@@ -154,7 +154,7 @@ extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue
 extension Dictionary: FireDataValue, FireDataRepresented where Key: FireDataValue, Value == FireDataValue {
     public init(fireData: FireDataProtocol) throws {
         guard let v = fireData.value as? [Key: Value] else {
-            throw RealtimeError("Failed data for type: \([Key: Value].self)")
+            throw RealtimeError(initialization: [Key: Value].self, fireData.value as Any)
         }
 
         self = v
@@ -311,7 +311,7 @@ public extension Representer where V: RealtimeValue {
     static func relation(_ property: String) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
-                guard let node = v.node else { throw RealtimeError("Failed value: node is nil") }
+                guard let node = v.node else { throw RealtimeError(encoding: V.self, reason: "Can`t get object node.") }
 
                 return Relation(path: node.rootPath, property: property).fireValue
         },
@@ -329,13 +329,13 @@ public extension Representer where V: RealtimeValue {
                     if let ref = v.reference() {
                         return ref.fireValue
                     } else {
-                        throw RealtimeError("Fail")
+                        throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
                     }
                 case .key(from: let n):
                     if let ref = v.reference(from: n) {
                         return ref.fireValue
                     } else {
-                        throw RealtimeError("Fail")
+                        throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
                     }
                 }
         },
@@ -366,8 +366,9 @@ public extension Representer where V: RawRepresentable {
         return Representer(
             encoding: { try rawRepresenter.encode($0.rawValue) },
             decoding: { d in
-                guard let v = V(rawValue: try rawRepresenter.decode(d)) else {
-                    throw RealtimeError("Fail")
+                let raw = try rawRepresenter.decode(d)
+                guard let v = V(rawValue: raw) else {
+                    throw RealtimeError(decoding: V.self, d, reason: "Can`t get value using raw value: \(raw), using initializer: .init(rawValue:)")
                 }
                 return v
             }
@@ -404,13 +405,14 @@ public extension Representer where V: UIImage {
         return Representer<UIImage>(
             encoding: { img -> Any? in
                 guard let data = UIImagePNGRepresentation(img) else {
-                    throw RealtimeError("Fail")
+                    throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .png representation")
                 }
                 return data
             },
             decoding: { d in
-                guard let img = UIImage(data: try base.decode(d)) else {
-                    throw RealtimeError("Fail")
+                let data = try base.decode(d)
+                guard let img = UIImage(data: data) else {
+                    throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
                 }
                 return img
             }
@@ -421,13 +423,13 @@ public extension Representer where V: UIImage {
         return Representer<UIImage>(
             encoding: { img -> Any? in
                 guard let data = UIImageJPEGRepresentation(img, quality) else {
-                    throw RealtimeError("Fail")
+                    throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .jpeg representation with compression quality: \(quality)")
                 }
                 return data
             },
             decoding: { d in
                 guard let img = UIImage(data: try base.decode(d)) else {
-                    throw RealtimeError("Fail")
+                    throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
                 }
                 return img
             }
@@ -468,13 +470,13 @@ public extension Representer where V == Date {
                 case .iso8601(let formatter):
                     let string = try data.unbox(as: String.self)
                     guard let date = formatter.date(from: string) else {
-                        throw RealtimeError("Expected date string to be ISO8601-formatted.")
+                        throw RealtimeError(decoding: V.self, string, reason: "Expected date string to be ISO8601-formatted.")
                     }
                     return date
                 case .formatted(let formatter):
                     let string = try data.unbox(as: String.self)
                     guard let date = formatter.date(from: string) else {
-                        throw RealtimeError("Date string does not match format expected by formatter.")
+                        throw RealtimeError(decoding: V.self, string, reason: "Date string does not match format expected by formatter.")
                     }
                     return date
                 }
@@ -488,7 +490,7 @@ public extension Representer where V == Date {
 public extension FireDataProtocol {
     func unbox<T>(as type: T.Type) throws -> T {
         guard case let v as T = value else {
-            throw RealtimeError("Fail")
+            throw RealtimeError(decoding: T.self, self, reason: "Mismatch type")
         }
         return v
     }

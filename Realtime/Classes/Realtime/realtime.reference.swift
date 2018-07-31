@@ -26,7 +26,7 @@ struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
         return v
     }
     init(fireData: FireDataProtocol) throws {
-        guard let ref: String = CodingKeys.ref.stringValue.map(from: fireData) else { throw RealtimeError("Fail") }
+        guard let ref: String = CodingKeys.ref.stringValue.map(from: fireData) else { throw RealtimeError(initialization: Reference.self, fireData) }
         self.ref = ref
     }
 }
@@ -72,7 +72,7 @@ struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
                 let path = val[CodingKeys.targetPath.rawValue],
                 let prop = val[CodingKeys.relatedProperty.rawValue]
             else {
-                    throw RealtimeError("failedServerData")
+                    throw RealtimeError(initialization: Relation.self, fireData)
             }
 
             self.targetPath = path
@@ -82,7 +82,7 @@ struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
         guard
             let path: String = CodingKeys.targetPath.map(from: fireData),
             let property: String = CodingKeys.relatedProperty.map(from: fireData)
-        else { throw RealtimeError("Fail") }
+        else { throw RealtimeError(initialization: Relation.self, fireData) }
 
         self.targetPath = path
         self.relatedProperty = property
@@ -103,9 +103,26 @@ struct SourceLink: FireDataRepresented, FireDataValueRepresented, Codable {
         guard
             let id = fireData.dataKey,
             let links: [String] = fireData.flatMap()
-        else { throw RealtimeError("Fail") }
+        else { throw RealtimeError(initialization: SourceLink.self, fireData) }
         
         self.id = id
         self.links = links
+    }
+}
+
+extension Representer where V == [SourceLink] {
+    static var links: Representer<V> {
+        return Representer(
+            encoding: { (items) -> Any? in
+                return items.reduce([:], { (res, link) -> [String: Any] in
+                    var res = res
+                    res[link.id] = link.fireValue
+                    return res
+                })
+            },
+            decoding: { (data) -> [SourceLink] in
+                return try data.map(SourceLink.init)
+            }
+        )
     }
 }

@@ -58,7 +58,11 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
     }
 
     public required init(fireData: FireDataProtocol) throws {
-        fatalError("init(snapshot:) has not been implemented")
+        #if DEBUG
+            fatalError("LinkedRealtimeArray does not supported init(fireData:) yet.")
+        #else
+            throw RealtimeError(source: .collection, description: "LinkedRealtimeArray does not supported init(fireData:) yet.")
+        #endif
     }
 
     // Implementation
@@ -157,7 +161,7 @@ public extension LinkedRealtimeArray {
 
     @discardableResult
     func _write(_ element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        guard !contains(element) else { throw RCError(type: .alreadyInserted) }
+        guard !contains(element) else { throw RealtimeError(source: .collection, description: "Element already contains. Element: \(element)") }
 
         let transaction = transaction ?? RealtimeTransaction()
         try _write(element, at: index ?? count, by: node!, in: transaction)

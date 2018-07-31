@@ -44,9 +44,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
     public func load(completion: Assign<Error?>?) {
         guard let ref = dbRef else {
-            debugFatalError(condition: true, "Couldn`t get reference")
-            completion?.assign(RealtimeError("Couldn`t get reference"))
-            return
+            fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
 
         ref.observeSingleEvent(
@@ -66,7 +64,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
     @discardableResult
     public func runObserving() -> Bool {
-        debugFatalError(condition: node.map { !$0.isRooted } ?? true, "Try observe not rooted value")
+        guard node.map({ !$0.isRooted }) ?? true else { fatalError("Tries observe not rooted value") }
         guard let o = observing else {
             observing = observe(type: .value, onUpdate: nil).map { ($0, 1) }
             return observing != nil
@@ -91,9 +89,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     
     func observe(type: DataEventType = .value, onUpdate: ((Error?) -> Void)? = nil) -> UInt? {
         guard let ref = dbRef else {
-            debugFatalError(condition: true, "Couldn`t get reference")
-            onUpdate?(RealtimeError("Couldn`t get reference"))
-            return nil
+            fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
         return ref.observe(
             type,
@@ -220,7 +216,8 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 /// - RealtimeProperty;
 /// - LinkedRealtimeArray, RealtimeArray, RealtimeDictionary;
 ///
-/// Also for auto decoding you need implement class function **keyPath(for:)**.
+/// If you use lazy properties, you need implement class function function **lazyPropertyKeyPath(for:)**.
+/// Show it description for details.
 ///
 /// This function called for each subclass, therefore you don`t need call super implementation.
 ///
@@ -229,7 +226,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///     class User: RealtimeObject {
 ///         lazy var name: RealtimeProperty<String?> = "user_name".property(from: self.node)
 ///     
-///         open class func keyPath(for label: String) -> AnyKeyPath? {
+///         open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
 ///             switch label {
 ///                 case "name": return \User.name
 ///                 default: return nil
@@ -267,11 +264,11 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
-        let links: Links = Links(in: node!.linksNode, options: [.representer: Representer(serializer: SourceLinkArraySerializer.self)])
+        let links: Links = Links(in: node!.linksNode, options: [.representer: Representer<[SourceLink]>.links])
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(
                 completion: .just({ refs in
-                    refs.flatMap { $0.links.map(Node.root.child) }.forEach { transaction.removeValue(by: $0) }
+                    refs.flatMap { $0.links.map(Node.root.child) }.forEach(transaction.removeValue)
                     do {
                         try transaction.delete(links)
                         promise.fulfill(nil)
@@ -312,7 +309,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     ///
     /// - Parameter label: Label of property
     /// - Returns: Key path to access property
-    open class func keyPath(for label: String) -> AnyKeyPath? {
+    open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         fatalError("You should implement class func keyPath(for:)")
     }
 
@@ -362,7 +359,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
 
             label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
 
-            guard let keyPath = (mirror.subjectType as! RealtimeObject.Type).keyPath(for: label) else {
+            guard let keyPath = (mirror.subjectType as! RealtimeObject.Type).lazyPropertyKeyPath(for: label) else {
                 return nil
             }
             guard case let value as T = self[keyPath: keyPath] else {

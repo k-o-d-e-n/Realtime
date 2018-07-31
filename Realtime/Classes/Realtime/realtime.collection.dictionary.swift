@@ -166,7 +166,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
     func _write(_ element: Value, for key: Key, in transaction: RealtimeTransaction) throws {
         if contains(valueBy: key) {
-            fatalError("Value by key \(key) already exists. Replacing is not supported yet.")
+            throw RealtimeError(source: .collection, description: "Value by key \(key) already exists. Replacing is not supported yet.")
         }
 
         try _write(element, for: key,
@@ -258,7 +258,11 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     }
 
     public required convenience init(fireData: FireDataProtocol) throws {
-        fatalError("Realtime dictionary cannot be initialized with init(snapshot:) initializer")
+        #if DEBUG
+        fatalError("RealtimeDictionary does not supported init(fireData:) yet.")
+        #else
+        throw RealtimeError(source: .collection, description: "RealtimeDictionary does not supported init(fireData:) yet.")
+        #endif
     }
 
     public convenience init(fireData: FireDataProtocol, keysNode: Node) throws {

@@ -210,14 +210,6 @@ extension ListenValue: _Optional {
         return try wrapped.flatMap(f)
     }
 
-    public var isNone: Bool {
-        fatalError()
-    }
-
-    public var isSome: Bool {
-        fatalError()
-    }
-
     public var unsafelyUnwrapped: T {
         return wrapped!
     }
@@ -394,7 +386,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
             } else if case .error(let e, _) = self.lastEvent {
                 failing.assign(e)
             } else {
-                failing.assign(RealtimeError("Undefined error"))
+                failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
             }
         })
 
@@ -601,42 +593,45 @@ public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: Fire
 
 public extension SharedProperty {
     public func changeValue(use changing: @escaping (T) throws -> T, completion: ((Bool, T) -> Void)? = nil) {
-        debugFatalError(condition: dbRef == nil, "")
-        
-        if let ref = dbRef {
-            ref.runTransactionBlock({ data in
-                do {
-                    let dataValue = data.exists() ? try T.init(fireData: data) : T()
-                    data.value = try changing(dataValue)
-                } catch let e {
-                    debugFatalError(e.localizedDescription)
-
-                    return .abort()
-                }
-                return .success(withValue: data)
-            }, andCompletionBlock: { [unowned self] error, commited, snapshot in
-                guard error == nil else {
-                    completion?(false, self.value)
-                    return
-                }
-
-                if let s = snapshot {
-                    self.setValue(Serializer.deserialize(s))
-                    completion?(true, self.value)
-                } else {
-                    debugFatalError("Transaction completed without error, but snapshot does not exist")
-
-                    completion?(false, self.value)
-                }
-            })
+        guard let ref = dbRef else  {
+            fatalError("Can`t get database reference")
         }
+        ref.runTransactionBlock({ data in
+            do {
+                let dataValue = data.exists() ? try T.init(fireData: data) : T()
+                data.value = try changing(dataValue)
+            } catch let e {
+                debugFatalError(e.localizedDescription)
+
+                return .abort()
+            }
+            return .success(withValue: data)
+        }, andCompletionBlock: { [unowned self] error, commited, snapshot in
+            guard error == nil else {
+                completion?(false, self.value)
+                return
+            }
+
+            if let s = snapshot {
+                do {
+                    self.setValue(try self.representer.decode(s))
+                    completion?(true, self.value)
+                } catch {
+                    completion?(false, self.value)
+                }
+            } else {
+                debugFatalError("Transaction completed without error, but snapshot does not exist")
+
+                completion?(false, self.value)
+            }
+        })
     }
 }
 
 public final class MutationPoint<T> {
     public let node: Node
-    public required init(in node: Node) throws {
-        guard node.isRooted else { throw RealtimeError("Node should be rooted") }
+    public required init(in node: Node) {
+        guard node.isRooted else { fatalError("Node must be rooted") }
         self.node = node
     }
 }

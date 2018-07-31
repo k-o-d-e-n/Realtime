@@ -256,7 +256,7 @@ where Base.Index == Int {
     private let base: _AnyRealtimeCollectionBase<Base.Element>
 
     public required init(base: Base, transform: @escaping (Base.Element) -> Element) {
-        guard base.isRooted else { fatalError("Only rooted collections can use in keyed collection") }
+        guard base.isRooted else { fatalError("Only rooted collections can use in map collection") }
         self.base = __AnyRealtimeCollection<Base>(base: base)
         self.storage = AnyArrayStorage()
         self.transform = transform
