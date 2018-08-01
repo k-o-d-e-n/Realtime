@@ -136,8 +136,8 @@ do {
     let transaction = RealtimeTransaction()
     ...
     let element = Element() // you should take new element from target collection location
-    try! dictionary.write(element: element, key: key, in: transaction)
-    try! otherDictionary.remove(by: key, in: transaction)
+    try dictionary.write(element: element, key: key, in: transaction)
+    try otherDictionary.remove(by: key, in: transaction)
 
     transaction.commit { (err) in
         // process error

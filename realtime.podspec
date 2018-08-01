@@ -26,16 +26,17 @@ Pod::Spec.new do |s|
   s.homepage         = 'https://github.com/k-o-d-e-n/Realtime'
   s.license          = { :type => 'MIT', :file => 'LICENSE' }
   s.author           = { 'k-o-d-e-n' => 'koden.u8800@gmail.com' }
-  s.source           = { :git => 'https://github.com/k-o-d-e-n/Realtime.git', :tag => s.version.to_s }
+  s.source           = { :git => 'https://github.com/k-o-d-e-n/Realtime.git', :tag => 0.5 }
   s.social_media_url = 'https://twitter.com/K_o_D_e_N'
   s.ios.deployment_target = '8.0'
+  s.swift_version = '4.1'
   s.source_files = 'Realtime/Classes/**/*'
   s.static_framework = true
   s.dependency 'Firebase/Core'
   s.dependency 'Firebase/Database'
   s.dependency 'Firebase/Storage'
   s.xcconfig = {
-      "FRAMEWORK_SEARCH_PATHS" => "'$(PODS_ROOT)/FirebaseDatabase'"
+      "FRAMEWORK_SEARCH_PATHS" => "'$(PODS_ROOT)'"
   }
-  s.vendored_frameworks = ["${PODS_ROOT}/FirebaseDatabase/Frameworks/FirebaseDatabase.framework"]
+  s.ios.vendored_frameworks = "Example/Pods/FirebaseDatabase/Frameworks/FirebaseDatabase.framework", "Example/Pods/FirebaseStorage/Frameworks/FirebaseStorage.framework"
 end
