@@ -65,7 +65,6 @@ class RealtimeUser: RealtimeObject {
 
     lazy var ownedGroup: RealtimeRelation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, "manager")
 
-
     //    override class var keyPaths: [String: AnyKeyPath] {
     //        return super.keyPaths.merging(["name": \RealtimeUser.name, "age": \RealtimeUser.age], uniquingKeysWith: { (_, new) -> AnyKeyPath in
     //            return new

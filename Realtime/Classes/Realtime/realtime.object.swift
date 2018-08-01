@@ -64,7 +64,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
     @discardableResult
     public func runObserving() -> Bool {
-        guard node.map({ !$0.isRooted }) ?? true else { fatalError("Tries observe not rooted value") }
+        guard isRooted else { fatalError("Tries observe not rooted value") }
         guard let o = observing else {
             observing = observe(type: .value, onUpdate: nil).map { ($0, 1) }
             return observing != nil

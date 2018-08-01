@@ -58,7 +58,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         self.init(
             in: node,
             options: options,
-            viewSource: InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData))
+            viewSource: InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty())
         )
     }
 

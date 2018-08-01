@@ -13,7 +13,6 @@ extension RealtimeValueOption {
 
 /// -----------------------------------------
 
-// TODO: May be need use format as: [__linkID: linkID, __i: index, __pl: [...]]
 // TODO: For Value of RealtimeDictionary is not defined payloads
 struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireDataValueRepresented {
     let dbKey: String!
@@ -64,7 +63,7 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
         guard let linkID = value.dataKey else {
             throw RealtimeError(initialization: RCItem.self, fireData)
         }
-        guard let index: Int = InternalKeys.index.map(from: fireData) else {
+        guard let index: Int = InternalKeys.index.map(from: value) else {
             throw RealtimeError(initialization: RCItem.self, fireData)
         }
 

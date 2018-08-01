@@ -44,6 +44,9 @@ public extension RawRepresentable where Self.RawValue == String {
     func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V> {
         return property(from: node, representer: Representer<V>.json)
     }
+    func optionalCodable<V: Codable>(from node: Node?) -> RealtimeProperty<V?> {
+        return property(from: node, representer: Representer<V>.json.optional())
+    }
 
     func reference<V: RealtimeObject>(from node: Node?, mode: ReferenceMode) -> RealtimeReference<V> {
         return RealtimeReference(in: Node(key: rawValue, parent: node), options: [.reference: RealtimeReference<V>.Options(mode: mode)])
@@ -430,6 +433,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
             _setListenValue(.remote(try representer.decode(data), strong: strongly))
         } catch let e {
             setError(e)
+            throw e
         }
     }
 

@@ -45,7 +45,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
                                       elementBuilder: builder,
                                       elements: [:],
                                       localElements: [])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node, representer: Representer<[RCItem]>(collection: Representer.fireData)))
+        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty()))
         super.init(in: node, options: options)
         self._view.collection = self
     }
