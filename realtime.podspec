@@ -38,5 +38,4 @@ Pod::Spec.new do |s|
   s.xcconfig = {
       "FRAMEWORK_SEARCH_PATHS" => "'$(PODS_ROOT)'"
   }
-  s.ios.vendored_frameworks = "Example/Pods/FirebaseDatabase/Frameworks/FirebaseDatabase.framework", "Example/Pods/FirebaseStorage/Frameworks/FirebaseStorage.framework"
 end
