@@ -33,7 +33,9 @@ class RealtimeGroup: RealtimeObject {
     //    @objc dynamic var cover: File?
     lazy var users: LinkedRealtimeArray<RealtimeUser> = "users".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var conversations: RealtimeDictionary<RealtimeUser, RealtimeUser> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
-    lazy var manager: RealtimeRelation<RealtimeUser?> = "manager".relation(from: self.node, "ownedGroup")
+    lazy var manager: RealtimeRelation<RealtimeUser?> = "manager".relation(from: self.node, .oneToOne("ownedGroup"))
+
+    lazy var _manager: RealtimeRelation<RealtimeUser> = "_manager".relation(from: self.node, rootLevelsUp: nil, .oneToMany("ownedGroups"))
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -41,6 +43,7 @@ class RealtimeGroup: RealtimeObject {
         case "users": return \RealtimeGroup.users
         case "conversations": return \RealtimeGroup.conversations
         case "manager": return \RealtimeGroup.manager
+        case "_manager": return \RealtimeGroup._manager
         default: return nil
         }
     }
@@ -63,7 +66,9 @@ class RealtimeUser: RealtimeObject {
     lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var scheduledConversations: RealtimeArray<Conversation> = "scheduledConversations".array(from: self.node)
 
-    lazy var ownedGroup: RealtimeRelation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, "manager")
+    lazy var ownedGroup: RealtimeRelation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, .oneToOne("manager"))
+
+//    lazy var ownedGroups: 
 
     //    override class var keyPaths: [String: AnyKeyPath] {
     //        return super.keyPaths.merging(["name": \RealtimeUser.name, "age": \RealtimeUser.age], uniquingKeysWith: { (_, new) -> AnyKeyPath in

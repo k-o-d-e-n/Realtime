@@ -7,13 +7,13 @@
 
 import Foundation
 
-/// Link value describing reference to some location of database.
 
 public enum ReferenceMode {
     case fullPath
     case key(from: Node)
 }
 
+/// Link value describing reference to some location of database.
 struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
     let ref: String
 
@@ -41,6 +41,18 @@ extension RealtimeValue {
     }
     func relation(use property: String) -> Relation? {
         return node.map { Relation(path: $0.rootPath, property: property) }
+    }
+}
+
+public enum RelationMode {
+    case oneToOne(String)
+    case oneToMany(String)
+
+    func path(for relatedValueNode: Node) -> String {
+        switch self {
+        case .oneToOne(let p): return p
+        case .oneToMany(let p): return p + "/" + relatedValueNode.key
+        }
     }
 }
 

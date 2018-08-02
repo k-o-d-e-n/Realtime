@@ -54,13 +54,13 @@ public extension RawRepresentable where Self.RawValue == String {
     func reference<V: RealtimeObject>(from node: Node?, mode: ReferenceMode) -> RealtimeReference<V?> {
         return RealtimeReference(in: Node(key: rawValue, parent: node), options: [.reference: RealtimeReference<V?>.Options(V?.self, mode: mode)])
     }
-    func relation<V: RealtimeObject, Property: RawRepresentable>(from node: Node?, ownerLevelsUp: Int = 1, _ property: Property) -> RealtimeRelation<V> where Property.RawValue == String {
+    func relation<V: RealtimeObject>(from node: Node?, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> RealtimeRelation<V> {
         return RealtimeRelation(in: Node(key: rawValue, parent: node),
-                                options: [.relation: RealtimeRelation<V>.Options(ownerLevelsUp: ownerLevelsUp, property: property.rawValue)])
+                                options: [.relation: RealtimeRelation<V>.Options(rootLevelsUp: rootLevelsUp, ownerLevelsUp: ownerLevelsUp, property: property)])
     }
-    func relation<V: RealtimeObject, Property: RawRepresentable>(from node: Node?, ownerLevelsUp: Int = 1, _ property: Property) -> RealtimeRelation<V?> where Property.RawValue == String {
+    func relation<V: RealtimeObject>(from node: Node?, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> RealtimeRelation<V?> {
         return RealtimeRelation(in: Node(key: rawValue, parent: node),
-                                options: [.relation: RealtimeRelation.Options(V?.self, ownerLevelsUp: ownerLevelsUp, property: property.rawValue)])
+                                options: [.relation: RealtimeRelation.Options(V?.self, rootLevelsUp: rootLevelsUp, ownerLevelsUp: ownerLevelsUp, property: property)])
     }
 
     func nested<Type: RealtimeObject>(in object: RealtimeObject) -> Type {
@@ -114,7 +114,7 @@ public final class RealtimeReference<Referenced: RealtimeValue>: RealtimePropert
 }
 
 public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Related> {
-    let options: Options
+    var options: Options
     public override var version: Int? { return super._version }
     public override var raw: FireDataValue? { return super._raw }
     public override var payload: [String : FireDataValue]? { return super._payload }
@@ -136,30 +136,31 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
-        transaction.addPrecondition { [unowned transaction] (promise) in
-            self.loadValue(
-                completion: .just({ (val) in
-                    if let node = val.node?.child(with: self.options.property) {
-                        transaction.removeValue(by: node)
-                    }
-                    promise.fulfill(nil)
-                }),
-                fail: .just(promise.fulfill)
-            )
+        guard let node = self.node, node.isRooted else {
+            fatalError("Cannot get node")
         }
+        removeOldValueIfExists(in: transaction, by: node)
     }
 
     override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
         _write_RealtimeValue(to: transaction, by: node)
         try super._write(to: transaction, by: node)
-        if let backwardNode = wrapped?.node?.child(with: options.property) {
-            let ownerNode = node.ancestor(on: options.ownerLevelsUp)!
-            let thisProperty = node.path(from: ownerNode)
-            let backwardRelation = Relation(path: ownerNode.rootPath, property: thisProperty)
-            transaction.addValue(backwardRelation.fireValue, by: backwardNode)
+        if let backwardValueNode = wrapped?.node {
+            if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
+                let backwardPropertyNode = backwardValueNode.child(with: options.property.path(for: backwardValueNode))
+                let thisProperty = node.path(from: ownerNode)
+                let backwardRelation = Relation(path: ownerNode.rootPath, property: thisProperty)
+                transaction.addValue(backwardRelation.fireValue, by: backwardPropertyNode)
+            } else {
+                throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
+            }
         }
-        if let previousNode = oldValue.wrapped?.node?.child(with: options.property) {
-            transaction.removeValue(by: previousNode)
+    }
+
+    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
+        if hasChanges {
+            try _write(to: transaction, by: node)
+            removeOldValueIfExists(in: transaction, by: node)
         }
     }
 
@@ -168,23 +169,41 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
         try super.apply(data, strongly: strongly)
     }
 
+    private func removeOldValueIfExists(in transaction: RealtimeTransaction, by node: Node) {
+        transaction.addPrecondition { [unowned transaction] (promise) in
+            node.reference().observeSingleEvent(of: .value, with: { (data) in
+                do {
+                    let relation = try Relation(fireData: data)
+                    transaction.removeValue(by: Node.root.child(with: relation.targetPath).child(with: relation.relatedProperty))
+                    promise.fulfill(nil)
+                } catch let e {
+                    promise.fulfill(e)
+                }
+            }, withCancel: promise.fulfill)
+        }
+    }
+
     struct Options {
         /// Levels up by hierarchy to relation owner of this property
         let ownerLevelsUp: Int
         /// String path from related object to his relation property
-        let property: String
+        let property: RelationMode
+        /// Levels up by hierarchy to the same node for both related values. Default nil, that means root node
+        let rootLevelsUp: Int?
         let representer: Representer<Related>
 
-        public init(ownerLevelsUp: Int, property: String) {
+        public init(rootLevelsUp: Int?, ownerLevelsUp: Int, property: RelationMode) {
+            self.rootLevelsUp = rootLevelsUp
             self.ownerLevelsUp = ownerLevelsUp
             self.property = property
-            self.representer = Representer<Related>.relation(property)
+            self.representer = Representer<Related>.relation(property, rootLevelsUp: rootLevelsUp)
         }
 
-        public init<U: _Optional>(_: U.Type = U.self, ownerLevelsUp: Int, property: String) where Related == Optional<U.Wrapped> {
+        public init<U: _Optional>(_: U.Type = U.self, rootLevelsUp: Int?, ownerLevelsUp: Int, property: RelationMode) where Related == Optional<U.Wrapped> {
+            self.rootLevelsUp = rootLevelsUp
             self.ownerLevelsUp = ownerLevelsUp
             self.property = property
-            self.representer = Representer(optional: Representer<U.Wrapped>.relation(property))
+            self.representer = Representer(optional: Representer<U.Wrapped>.relation(property, rootLevelsUp: rootLevelsUp))
         }
     }
 }

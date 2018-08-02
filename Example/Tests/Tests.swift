@@ -949,7 +949,7 @@ extension Tests {
         transaction.revert()
     }
 
-    func testRelation() {
+    func testRelationOneToOne() {
         let transaction = RealtimeTransaction()
 
         do {
@@ -961,8 +961,36 @@ extension Tests {
 
             let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
 
+            try group.apply(data.child(forPath: group.node!.rootPath), strongly: false)
+
+            XCTAssertTrue(group.manager.unwrapped.dbKey == user.dbKey)
             XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == group.dbKey)
             XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == group.dbKey)
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+
+        transaction.revert()
+    }
+
+    func testRelationOneToMany() {
+        let transaction = RealtimeTransaction()
+
+        do {
+            let user = RealtimeUser(in: Node(key: "user", parent: .root))
+            let group = RealtimeGroup(in: Node(key: "group", parent: .root))
+            group._manager <= user
+
+            let data = try group.update(in: transaction).updateNode
+
+            let groupCopy = try RealtimeGroup(fireData: data.child(forPath: group.node!.rootPath), strongly: false)
+
+            let groupBackwardRelation: RealtimeRelation<RealtimeGroup> = group._manager.options.property.path(for: user.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
+            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), strongly: false)
+
+            XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
+            XCTAssertTrue(group._manager.wrapped?.dbKey == user.dbKey)
+            XCTAssertTrue(groupCopy._manager.wrapped?.dbKey == user.dbKey)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -1017,7 +1045,7 @@ extension Tests {
     }
 
     func testRepresenterOptional() {
-        let representer = Representer<TestObject>.relation("prop").optional()
+        let representer = Representer<TestObject>.relation(.oneToOne("prop"), rootLevelsUp: nil).optional()
         do {
             let object = try representer.decode(ValueNode(node: Node(key: ""), value: nil))
             XCTAssertNil(object)
