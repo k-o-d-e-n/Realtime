@@ -404,21 +404,15 @@ public protocol ValueWrapper {
     var value: V { get set }
 }
 
-postfix operator ~
 public extension ValueWrapper {
-    static func <=(_ prop: inout Self, _ value: V) {
+    static func <==(_ prop: inout Self, _ value: V) {
         prop.value = value
     }
-    static func <=(_ value: inout V, _ prop: Self) {
+    static func <==(_ value: inout V, _ prop: Self) {
         value = prop.value
     }
-    static func <=(_ value: inout V?, _ prop: Self) {
+    static func <==(_ value: inout V?, _ prop: Self) {
         value = prop.value
-    }
-
-    @available(*, deprecated: 0.3.0)
-    postfix static func ~(_ prop: inout Self) -> V {
-        return prop.value
     }
 }
 public extension ValueWrapper {
@@ -427,7 +421,7 @@ public extension ValueWrapper {
     }
 }
 public extension ValueWrapper where V: _Optional {
-    static func <=(_ value: inout V?, _ prop: Self) {
+    static func <==(_ value: inout V?, _ prop: Self) {
         value = prop.value
     }
     func mapValue<U>(_ transform: (V.Wrapped) -> U) -> U? {

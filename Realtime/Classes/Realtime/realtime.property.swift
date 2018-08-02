@@ -10,42 +10,46 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where Self.RawValue == String {
+    internal func _property<T>(from node: Node?, representer: Representer<T>) -> RealtimeProperty<T> {
+        return RealtimeProperty(in: Node(key: rawValue, parent: node), options: [.representer: representer])
+    }
+
     func readonlyProperty<T>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyRealtimeProperty<T> {
         return ReadonlyRealtimeProperty(in: Node(key: rawValue, parent: node), options: [.representer: representer])
     }
     func readonlyProperty<T>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyRealtimeProperty<T?> {
         return readonlyProperty(from: node, representer: representer.optional())
     }
-    func property<T>(from node: Node?, representer: Representer<T> = .any) -> RealtimeProperty<T> {
-        return RealtimeProperty(in: Node(key: rawValue, parent: node), options: [.representer: representer])
+    func property<T: FireDataValue>(from node: Node?) -> RealtimeProperty<T> {
+        return _property(from: node, representer: .any)
     }
-    func property<T: _Optional>(from node: Node?, representer: Representer<T> = .any) -> RealtimeProperty<T?> {
-        return property(from: node, representer: representer.optional())
+    func property<T: FireDataValue>(from node: Node?) -> RealtimeProperty<T?> {
+        return RealtimeProperty(in: Node(key: rawValue, parent: node), options: [.representer: Representer<T>.any.optional()])
     }
 
     func `enum`<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V> {
-        return property(from: node, representer: Representer<V>.default(Representer<V.RawValue>.any))
+        return _property(from: node, representer: Representer<V>.default(Representer<V.RawValue>.any))
     }
     func `enum`<V: RawRepresentable>(from node: Node?) -> RealtimeProperty<V?> {
-        return property(from: node, representer: Representer<V>.default(Representer<V.RawValue>.any).optional())
+        return _property(from: node, representer: Representer<V>.default(Representer<V.RawValue>.any).optional())
     }
     func date(from node: Node?, strategy: DateCodingStrategy = .secondsSince1970) -> RealtimeProperty<Date> {
-        return property(from: node, representer: Representer<Date>.date(strategy))
+        return _property(from: node, representer: Representer<Date>.date(strategy))
     }
     func date(from node: Node?, strategy: DateCodingStrategy = .secondsSince1970) -> RealtimeProperty<Date?> {
-        return property(from: node, representer: Representer<Date>.date(strategy).optional())
+        return _property(from: node, representer: Representer<Date>.date(strategy).optional())
     }
     func url(from node: Node?) -> RealtimeProperty<URL> {
-        return property(from: node, representer: Representer<URL>.default)
+        return _property(from: node, representer: Representer<URL>.default)
     }
     func url(from node: Node?) -> RealtimeProperty<URL?> {
-        return property(from: node, representer: Representer<URL>.default.optional())
+        return _property(from: node, representer: Representer<URL>.default.optional())
     }
     func codable<V: Codable>(from node: Node?) -> RealtimeProperty<V> {
-        return property(from: node, representer: Representer<V>.json)
+        return _property(from: node, representer: Representer<V>.json)
     }
     func optionalCodable<V: Codable>(from node: Node?) -> RealtimeProperty<V?> {
-        return property(from: node, representer: Representer<V>.json.optional())
+        return _property(from: node, representer: Representer<V>.json.optional())
     }
 
     func reference<V: RealtimeObject>(from node: Node?, mode: ReferenceMode) -> RealtimeReference<V> {
@@ -149,7 +153,7 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
             if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
                 let backwardPropertyNode = backwardValueNode.child(with: options.property.path(for: backwardValueNode))
                 let thisProperty = node.path(from: ownerNode)
-                let backwardRelation = Relation(path: ownerNode.rootPath, property: thisProperty)
+                let backwardRelation = Relation(path: options.rootLevelsUp.map(ownerNode.path) ?? ownerNode.rootPath, property: thisProperty)
                 transaction.addValue(backwardRelation.fireValue, by: backwardPropertyNode)
             } else {
                 throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
@@ -261,7 +265,7 @@ public extension ListenValue where T: _Optional {
         case .error(_, let v): return v.wrapped
         }
     }
-    static func <=(_ value: inout T.Wrapped?, _ prop: ListenValue) {
+    static func <==(_ value: inout T.Wrapped?, _ prop: ListenValue) {
         value = prop.wrapped
     }
 }
@@ -285,7 +289,7 @@ public extension ListenValue {
             value = v
         }
     }
-    static func <=(_ value: inout T?, _ prop: ListenValue) {
+    static func <==(_ value: inout T?, _ prop: ListenValue) {
         value = prop.wrapped
     }
     static func =!(_ value: inout T, _ prop: ListenValue) {
@@ -354,8 +358,10 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
         _setListenValue(.local(value))
     }
 }
+
+infix operator <==: AssignmentPrecedence
 public extension RealtimeProperty {
-    static func <= (_ prop: RealtimeProperty, _ value: @autoclosure () throws -> T) rethrows {
+    static func <== (_ prop: RealtimeProperty, _ value: @autoclosure () throws -> T) rethrows {
         prop._setValue(try value())
     }
 }
@@ -502,11 +508,11 @@ public extension ReadonlyRealtimeProperty {
             value = v
         }
     }
-    static func <=(_ value: inout T?, _ prop: ReadonlyRealtimeProperty) {
+    static func <==(_ value: inout T?, _ prop: ReadonlyRealtimeProperty) {
         value = prop.wrapped
     }
 }
-func <= <T>(_ value: inout T?, _ prop: ReadonlyRealtimeProperty<T>?) {
+func <== <T>(_ value: inout T?, _ prop: ReadonlyRealtimeProperty<T>?) {
     value = prop?.wrapped
 }
 public extension ReadonlyRealtimeProperty {
@@ -524,7 +530,7 @@ public extension ReadonlyRealtimeProperty where T: _Optional {
     static func ?? (optional: T.Wrapped?, property: ReadonlyRealtimeProperty<T>) -> T.Wrapped? {
         return optional ?? property.unwrapped
     }
-    static func <=(_ value: inout T.Wrapped?, _ prop: ReadonlyRealtimeProperty) {
+    static func <==(_ value: inout T.Wrapped?, _ prop: ReadonlyRealtimeProperty) {
         value = prop.unwrapped
     }
     public func then(_ f: (T.Wrapped) -> Void, else e: (() -> Void)? = nil) -> ReadonlyRealtimeProperty {
@@ -541,16 +547,16 @@ public extension ReadonlyRealtimeProperty where T: _Optional {
         }
     }
 }
-func <= <T>(_ value: inout T.Wrapped?, _ prop: ReadonlyRealtimeProperty<T>?) where T: _Optional {
+func <== <T>(_ value: inout T.Wrapped?, _ prop: ReadonlyRealtimeProperty<T>?) where T: _Optional {
     value = prop?.unwrapped
 }
 public extension ReadonlyRealtimeProperty where T: HasDefaultLiteral {
-    static func <=(_ value: inout T, _ prop: ReadonlyRealtimeProperty) {
+    static func <==(_ value: inout T, _ prop: ReadonlyRealtimeProperty) {
         value = prop.wrapped ?? T()
     }
 }
 public extension ReadonlyRealtimeProperty where T: _Optional, T.Wrapped: HasDefaultLiteral {
-    static func <=(_ value: inout T.Wrapped, _ prop: ReadonlyRealtimeProperty) {
+    static func <==(_ value: inout T.Wrapped, _ prop: ReadonlyRealtimeProperty) {
         value = prop.unwrapped ?? T.Wrapped()
     }
 }
@@ -561,7 +567,7 @@ public extension ReadonlyRealtimeProperty where T: Equatable {
     }
 }
 public extension ReadonlyRealtimeProperty where T: HasDefaultLiteral & _ComparableWithDefaultLiteral {
-    static func <=(_ value: inout T, _ prop: ReadonlyRealtimeProperty) {
+    static func <==(_ value: inout T, _ prop: ReadonlyRealtimeProperty) {
         value = prop.wrapped ?? T()
     }
     func defaultOnEmpty() -> Self {

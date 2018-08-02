@@ -150,24 +150,24 @@ class Tests: XCTestCase {
         })
 
         XCTAssertTrue(bgToken.token == Int.min)
-        backgroundProperty <= .red
+        backgroundProperty <== .red
         XCTAssertTrue(view.backgroundColor == .red)
-        backgroundProperty <= .green
+        backgroundProperty <== .green
         XCTAssertTrue(view.backgroundColor == .green)
 
         weakowner = nil
 
         var copyBgProperty = backgroundProperty
-        copyBgProperty <= .yellow
+        copyBgProperty <== .yellow
         XCTAssertTrue(view.backgroundColor == .yellow)
 
         var otherColor: UIColor = .black
         _ = backgroundProperty.insider.listen(.just { otherColor = $0 })
-        copyBgProperty <= .red
+        copyBgProperty <== .red
         XCTAssertFalse(otherColor == .red)
 
         backgroundProperty.insider.disconnect(with: bgToken.token)
-        backgroundProperty <= .black
+        backgroundProperty <== .black
         XCTAssertTrue(view.backgroundColor == .red)
     }
 
@@ -200,12 +200,12 @@ class Tests: XCTestCase {
         let bgToken = backgroundProperty.insider.listen(as: { $0.once() }, .just {
             view.backgroundColor = $0
         })
-        backgroundProperty <= .red
+        backgroundProperty <== .red
 
         XCTAssertTrue(view.backgroundColor == .red)
         XCTAssertFalse(backgroundProperty.insider.has(token: bgToken.token))
 
-        backgroundProperty <= .green
+        backgroundProperty <== .green
         XCTAssertTrue(view.backgroundColor == .red)
     }
 
@@ -216,12 +216,12 @@ class Tests: XCTestCase {
         let _ = backgroundProperty.insider.listen(as: { $0.if(!view.isHidden) }, .just {
             view.backgroundColor = $0
         })
-        backgroundProperty <= .red
+        backgroundProperty <== .red
 
         XCTAssertTrue(view.backgroundColor == .red)
         view.isHidden = true
 
-        backgroundProperty <= .green
+        backgroundProperty <== .green
         XCTAssertTrue(view.backgroundColor == .red)
     }
 
@@ -236,12 +236,12 @@ class Tests: XCTestCase {
         }, .just {
             view.backgroundColor = $0
         })
-        backgroundProperty <= .red
+        backgroundProperty <== .red
 
         XCTAssertTrue(view.backgroundColor == .red)
         XCTAssertFalse(backgroundProperty.insider.has(token: bgToken.token))
 
-        backgroundProperty <= .green
+        backgroundProperty <== .green
         XCTAssertTrue(view.backgroundColor == .red)
     }
 
@@ -258,7 +258,7 @@ class Tests: XCTestCase {
                 exp.fulfill()
             })
 
-            stringProperty <= assignedValue as NSString
+            stringProperty <== assignedValue as NSString
         }
     }
 
@@ -280,14 +280,14 @@ class Tests: XCTestCase {
                 counter += 1
             })
 
-            stringProperty <= beforeDeadlineValue
+            stringProperty <== beforeDeadlineValue
 
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
-                stringProperty <= inTimeValue
+                stringProperty <== inTimeValue
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
-                stringProperty <= afterDeadlineValue
+                stringProperty <== afterDeadlineValue
                 XCTAssertTrue(token.listening.isInvalidated)
                 XCTAssertFalse(stringProperty.insider.has(token: token.token))
                 XCTAssertTrue(counter == 2)
@@ -316,15 +316,15 @@ class Tests: XCTestCase {
                 counter += 1
             })
 
-            stringProperty <= beforeDeadlineValue
+            stringProperty <== beforeDeadlineValue
 
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
-                stringProperty <= inTimeValue
+                stringProperty <== inTimeValue
                 living = nil
             }
 
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
-                stringProperty <= afterDeadlineValue
+                stringProperty <== afterDeadlineValue
                 XCTAssertTrue(token.listening.isInvalidated)
                 XCTAssertFalse(stringProperty.insider.has(token: token.token))
                 XCTAssertTrue(counter == 2)
@@ -486,11 +486,11 @@ class Tests: XCTestCase {
             stringValueLength = $0
         })
 
-        property <= 0 // "0.0".length == 3
+        property <== 0 // "0.0".length == 3
         XCTAssertTrue(stringValueLength == 3)
-        property <= 21 // "21.0".length == 4
+        property <== 21 // "21.0".length == 4
         XCTAssertTrue(stringValueLength == 4)
-        property <= -100.5 // filtered
+        property <== -100.5 // filtered
         XCTAssertTrue(stringValueLength == 4)
         XCTAssertTrue(property.value == -100.5)
     }
@@ -504,16 +504,16 @@ class Tests: XCTestCase {
             counter += 1
         })
 
-        property <= 0
+        property <== 0
         XCTAssertTrue(counter == 1)
-        property <= 0
+        property <== 0
         XCTAssertTrue(counter == 1)
-        property <= -100.5
+        property <== -100.5
         XCTAssertTrue(counter == 2)
         XCTAssertTrue(property.value == -100.5)
-        property <= .pi
+        property <== .pi
         XCTAssertTrue(counter == 3)
-        property <= .pi
+        property <== .pi
         XCTAssertTrue(counter == 3)
     }
 
@@ -526,13 +526,13 @@ class Tests: XCTestCase {
             exponentValue = $0
         })
 
-        property <= 0
+        property <== 0
         XCTAssertTrue(property.value == 0)
         XCTAssertTrue(exponentValue == 1)
-        property <= 21 // 21.5.exponent == 4
+        property <== 21 // 21.5.exponent == 4
         XCTAssertTrue(exponentValue == 4)
         XCTAssertTrue(property.value == 21)
-        property <= -100.5 // filtered
+        property <== -100.5 // filtered
         XCTAssertTrue(exponentValue == 4)
         XCTAssertTrue(property.value == -100.5)
     }
@@ -552,15 +552,15 @@ class Tests: XCTestCase {
         })
 
         let exp = expectation(description: "")
-        property <= 0
+        property <== 0
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
             XCTAssertTrue(property.value == 0)
             XCTAssertTrue(exponentValue == property.value.exponent)
-            property <= 21
+            property <== 21
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
                 XCTAssertTrue(exponentValue == property.value.exponent)
                 XCTAssertTrue(property.value == 21)
-                property <= -100.5
+                property <== -100.5
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
                     XCTAssertTrue(exponentValue == property.value.exponent)
                     XCTAssertTrue(property.value == -100.5)
@@ -638,7 +638,7 @@ class Tests: XCTestCase {
 //        XCTAssertTrue(textField.text == "Some text")
 //        XCTAssertTrue(realtimeTF.text~ == "Some text")
 //
-//        realtimeTF.text <= "new text"
+//        realtimeTF.text <== "new text"
 //        XCTAssertTrue(textField.text == "new text")
 //    }
 
@@ -666,7 +666,7 @@ class Tests: XCTestCase {
         XCTAssertTrue(valueWrapper.value == -1)
         valueWrapper.value = 1
         XCTAssertTrue(valueWrapper.value == 1)
-        valueWrapper <= 20
+        valueWrapper <== 20
         XCTAssertTrue(valueWrapper.value == 20)
     }
 
@@ -710,23 +710,23 @@ class Tests: XCTestCase {
      XCTAssertTrue(bgToken.token == Int.min)
      frameProperty.value = CGRect(x: 50, y: 20, width: 0, height: 10)
      XCTAssertTrue(view.frame == CGRect(x: 50, y: 20, width: 0, height: 10))
-     frameProperty <= CGRect(x: 50, y: 20, width: 100, height: 10)
+     frameProperty <== CGRect(x: 50, y: 20, width: 100, height: 10)
      XCTAssertTrue(view.frame == CGRect(x: 50, y: 20, width: 100, height: 10))
 
      weakowner = nil
 
      var copyFrameProperty = frameProperty
-     copyFrameProperty <= CGRect(origin: .zero, size: CGSize(width: 10, height: 10))
+     copyFrameProperty <== CGRect(origin: .zero, size: CGSize(width: 10, height: 10))
      XCTAssertTrue(view.frame == CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
      XCTAssertTrue(frameProperty.value == CGRect(x: 50, y: 20, width: 100, height: 10))
 
      var otherFrame: CGRect = .zero
      _ = frameProperty.insider.listening(with: { otherFrame = $0 })
-     copyFrameProperty <= CGRect(x: 1, y: 2, width: 3, height: 4)
+     copyFrameProperty <== CGRect(x: 1, y: 2, width: 3, height: 4)
      XCTAssertFalse(otherFrame == .zero)
 
      frameProperty.insider.disconnect(with: bgToken.token)
-     frameProperty <= CGRect(x: 4, y: 3, width: 2, height: 1)
+     frameProperty <== CGRect(x: 4, y: 3, width: 2, height: 1)
      XCTAssertTrue(view.frame == CGRect(x: 1, y: 2, width: 3, height: 4))
      }
      */
@@ -736,7 +736,7 @@ class Tests: XCTestCase {
         var otherBackgroundProperty = Property<UIColor>(value: .black)
         _ = otherBackgroundProperty.bind(to: &backgroundProperty)
 
-        backgroundProperty <= .red
+        backgroundProperty <== .red
 
         XCTAssertTrue(otherBackgroundProperty.value == .red)
     }
@@ -746,7 +746,7 @@ class Tests: XCTestCase {
         var otherBackgroundProperty = ReadonlyProperty<UIColor>(getter: { .red })
         _ = otherBackgroundProperty.bind(to: &backgroundProperty)
 
-        backgroundProperty <= .white
+        backgroundProperty <== .white
 
         XCTAssertTrue(otherBackgroundProperty.value == .white)
     }
@@ -813,8 +813,8 @@ extension Tests {
     func testNestedObjectChanges() {
         let testObject = TestObject(in: .root)
 
-        testObject.property <= "string"
-        testObject.nestedObject.lazyProperty <= "nested_string"
+        testObject.property <== "string"
+        testObject.nestedObject.lazyProperty <== "nested_string"
 
         do {
             let trans = try testObject.update()
@@ -831,12 +831,12 @@ extension Tests {
     func testMergeTransactions() {
         let testObject = TestObject(in: .root)
 
-        testObject.property <= "string"
-        testObject.nestedObject.lazyProperty <= "nested_string"
+        testObject.property <== "string"
+        testObject.nestedObject.lazyProperty <== "nested_string"
 
         let element = TestObject(in: Node.root.child(with: "element_1"))
-        element.property <= "element #1"
-        element.nestedObject.lazyProperty <= "value"
+        element.property <== "element #1"
+        element.nestedObject.lazyProperty <== "value"
 
         do {
             let elementTransaction = try element.update()
@@ -860,17 +860,17 @@ extension Tests {
         let transaction = RealtimeTransaction()
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
-        linkedObject.property <= "#1"
+        linkedObject.property <== "#1"
         testObject.linkedArray._view.isPrepared = true
         XCTAssertNoThrow(try testObject.linkedArray.write(element: linkedObject, in: transaction))
 
         let object = TestObject(in: Node(key: "elem_1"))
-        object.property <= "prop"
+        object.property <== "prop"
         testObject.array._view.isPrepared = true
         XCTAssertNoThrow(try testObject.array.write(element: object, in: transaction))
 
         let element = TestObject()
-        element.property <= "element #1"
+        element.property <== "element #1"
         testObject.dictionary._view.isPrepared = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
 
@@ -887,15 +887,15 @@ extension Tests {
         let testObject = TestObject(in: Node(key: "test_obj"))
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
-        linkedObject.property <= "#1"
+        linkedObject.property <== "#1"
         testObject.linkedArray.insert(element: linkedObject)
 
         let object = TestObject(in: Node(key: "elem_1"))
-        object.property <= "prop"
+        object.property <== "prop"
         testObject.array.insert(element: object)
 
         let element = TestObject()
-        element.property <= "element #1"
+        element.property <== "element #1"
         testObject.dictionary.set(element: element, for: linkedObject)
 
         do {
@@ -917,16 +917,16 @@ extension Tests {
 
         do {
             let element = TestObject(in: Node.root.child(with: "element_1"))
-            element.property <= "element #1"
-            element.nestedObject.lazyProperty <= "value"
+            element.property <== "element #1"
+            element.nestedObject.lazyProperty <== "value"
             let child = TestObject()
-            child.property <= "element #1"
+            child.property <== "element #1"
             element.array._view.isPrepared = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
             let imgData = UIImagePNGRepresentation(#imageLiteral(resourceName: "pw"))!
             transaction.addFile(imgData, by: element.readonlyFile.node!)
-            element.file <= #imageLiteral(resourceName: "pw")
+            element.file <== #imageLiteral(resourceName: "pw")
 
             let data = try element.update(in: transaction).updateNode
 
@@ -955,7 +955,7 @@ extension Tests {
         do {
             let user = RealtimeUser(in: Node(key: "user", parent: .root))
             let group = RealtimeGroup(in: Node(key: "group", parent: .root))
-            user.ownedGroup <= group
+            user.ownedGroup <== group
 
             let data = try user.update(in: transaction).updateNode
 
@@ -979,7 +979,7 @@ extension Tests {
         do {
             let user = RealtimeUser(in: Node(key: "user", parent: .root))
             let group = RealtimeGroup(in: Node(key: "group", parent: .root))
-            group._manager <= user
+            group._manager <== user
 
             let data = try group.update(in: transaction).updateNode
 
@@ -1003,7 +1003,7 @@ extension Tests {
 
         do {
             let user = RealtimeUser(in: Node(key: "user", parent: .root))
-            user.ownedGroup <= nil
+            user.ownedGroup <== nil
 
             let data = try user.update(in: transaction).updateNode
 
@@ -1026,7 +1026,7 @@ extension Tests {
 
         do {
             let conversation = Conversation(in: Node(key: "conv_1", parent: .root))
-            conversation.secretary <= nil
+            conversation.secretary <== nil
 
             let data = try conversation.update(in: transaction).updateNode
 

@@ -100,8 +100,8 @@ class RealtimeViewController: UIViewController {
         let transaction = RealtimeTransaction()
 
         let user = RealtimeUser()
-        user.name <= "userName"
-        user.age <= 100
+        user.name <== "userName"
+        user.age <== 100
 
         try! Global.rtUsers.write(element: user, in: transaction)
 
@@ -125,7 +125,7 @@ class RealtimeViewController: UIViewController {
         let transaction = RealtimeTransaction()
 
         let group = RealtimeGroup()
-        group.name <= "groupName"
+        group.name <== "groupName"
 
         try! Global.rtGroups.write(element: group, in: transaction)
 
@@ -281,7 +281,7 @@ class RealtimeViewController: UIViewController {
         guard let u = user ?? Global.rtUsers.first, let g = group ?? Global.rtGroups.first else { fatalError() }
 
         let conversationUser = RealtimeUser()
-        conversationUser.name <= "Conversation #"
+        conversationUser.name <== "Conversation #"
         let transaction = try! g.conversations.write(element: conversationUser, for: u)
 
         transaction.commit(with: { _, errs in
@@ -363,7 +363,7 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
 //        cropRect = info[UIImagePickerControllerCropRect] as? CGRect
 //        metaData = info[UIImagePickerControllerMediaMetadata] as? NSDictionary
 
-        u.photo <= originalImage
+        u.photo <== originalImage
 
         try! u.update().commit(with: { _,_  in }, filesCompletion: { (results) in
             let errs = results.compactMap({ $0.1 })

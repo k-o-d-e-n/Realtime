@@ -239,6 +239,10 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
 
     open var parent: RealtimeObject?
 
+    open var ignoredLabels: [String] {
+        return []
+    }
+
     public override func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
         super.willSave(in: transaction, in: parent, by: key)
         let node = parent.child(with: key)
@@ -296,6 +300,8 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     }
     private func apply(_ data: FireDataProtocol, strongly: Bool, to mirror: Mirror) throws {
         try mirror.children.forEach { (child) in
+            guard isNotIgnoredLabel(child.label) else { return }
+
             if var value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
                 try value.apply(parentDataIfNeeded: data, strongly: strongly)
             }
@@ -317,6 +323,8 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         try super._write(to: transaction, by: node)
         try reflect { (mirror) in
             try mirror.children.forEach({ (child) in
+                guard isNotIgnoredLabel(child.label) else { return }
+
                 if let value: _RealtimeValue = realtimeValue(from: child.value) {
                     if let valNode = value.node {
                         try value._write(to: transaction, by: node.child(with: valNode.key))
@@ -332,6 +340,8 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
 //        super._writeChanges(to: transaction, by: node)
         try reflect { (mirror) in
             try mirror.children.forEach({ (child) in
+                guard isNotIgnoredLabel(child.label) else { return }
+
                 if let value: _RealtimeValue = realtimeValue(from: child.value) {
                     if let valNode = value.node {
                         try value._writeChanges(to: transaction, by: node.child(with: valNode.key))
@@ -373,6 +383,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     fileprivate func forceEnumerateAllChilds<As>(from type: Any.Type = RealtimeObject.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
+                guard isNotIgnoredLabel(child.label) else { return }
                 guard let value: As = forceValue(from: child, mirror: mirror) else { return }
 
                 block(child.label, value)
@@ -382,6 +393,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     fileprivate func enumerateLoadedChilds<As>(from type: Any.Type = RealtimeObject.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
+                guard isNotIgnoredLabel(child.label) else { return }
                 guard case let value as As = child.value else { return }
 
                 block(child.label, value)
@@ -393,6 +405,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         reflect(to: type) { (mirror) in
             guard !contains else { return }
             contains = mirror.children.contains(where: { (child) -> Bool in
+                guard isNotIgnoredLabel(child.label) else { return false }
                 guard case let value as As = child.value else { return false }
 
                 return block(child.label, value)
@@ -407,6 +420,14 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
             try block(_mirror)
             mirror = _mirror
         }
+    }
+    private func isNotIgnoredLabel(_ label: String?) -> Bool {
+        guard var l = label else { return true }
+
+        if l.hasPrefix(lazyStoragePath) {
+            l = String(l.prefix(upTo: l.index(l.endIndex, offsetBy: -lazyStoragePath.count)))
+        }
+        return !ignoredLabels.contains(l)
     }
     
 //    override public var debugDescription: String { return "\n{\n\tref: \(dbRef.pathFromRoot);" }//_allProps.reduce("\n{\n\tref: \(dbRef.pathFromRoot);") { $0 + "\n\"\($1.dbKey)\":" + $1.debugDescription } + "\n}" }

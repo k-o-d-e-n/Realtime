@@ -91,7 +91,7 @@ class RealtimeUser: RealtimeObject {
 }
 
 class RealtimeUser2: RealtimeUser {
-    lazy var human: RealtimeProperty<[String: Any?]> = "human".property(from: self.node)
+    lazy var human: RealtimeProperty<[String: FireDataValue]> = "human".property(from: self.node)
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {

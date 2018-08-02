@@ -57,8 +57,8 @@ class User: RealtimeObject {
 }
 
 let user = User(in: Node(key: "user_1"))
-user.name <= "User name"
-user.photo <= UIImage(named: "img")
+user.name <== "User name"
+user.photo <== UIImage(named: "img")
 
 let transaction = user.save(in: .root)
 transaction.commit(with: { state, err in

@@ -125,11 +125,15 @@ extension FireDataValue {
     }
 }
 
-extension Optional: FireDataValue where Wrapped: FireDataValue {
-    public init(fireData: FireDataProtocol) throws {
-        self = fireData.value as? Wrapped
-    }
-}
+//extension Optional: FireDataValue where Wrapped: FireDataValue {
+//    public init(fireData: FireDataProtocol) throws {
+//        if fireData.exists() {
+//            self = try Wrapped(fireData: fireData)
+//        } else {
+//            self = .none
+//        }
+//    }
+//}
 extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue {
     public init(fireData: FireDataProtocol) throws {
         guard let v = fireData.value as? Array<Element> else {

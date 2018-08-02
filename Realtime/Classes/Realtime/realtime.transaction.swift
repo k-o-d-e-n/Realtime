@@ -345,8 +345,8 @@ extension RealtimeTransaction {
                     debugLog("Replaced file by node: \(node) with value: \(value as Any) in transaction: \(self)")
                 } else if case let u as ValueNode = update, n === node {
                     if ValueNode.self == valueType {
-                        u.value = value
                         debugLog("Replaced value by node: \(node) with value: \(value as Any) in transaction: \(self)")
+                        u.value = value
                     } else {
                         fatalError("Tries to insert database value to storage node")
                     }

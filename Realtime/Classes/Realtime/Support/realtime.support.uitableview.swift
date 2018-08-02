@@ -223,6 +223,14 @@ extension SingleSectionTableViewDelegate {
         override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
             delegate.tableDelegate?.tableView?(tableView, didSelectRowAt: indexPath)
         }
+
+        override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+            return delegate.tableDelegate?.tableView?(tableView, editingStyleForRowAt: indexPath) ?? .delete
+        }
+
+        override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+            delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
+        }
     }
 }
 
