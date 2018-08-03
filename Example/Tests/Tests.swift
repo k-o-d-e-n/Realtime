@@ -985,7 +985,7 @@ extension Tests {
 
             let groupCopy = try RealtimeGroup(fireData: data.child(forPath: group.node!.rootPath), strongly: false)
 
-            let groupBackwardRelation: RealtimeRelation<RealtimeGroup> = group._manager.options.property.path(for: user.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
+            let groupBackwardRelation: RealtimeRelation<RealtimeGroup> = group._manager.options.property.path(for: group.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
             try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), strongly: false)
 
             XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
@@ -1045,7 +1045,8 @@ extension Tests {
     }
 
     func testRepresenterOptional() {
-        let representer = Representer<TestObject>.relation(.oneToOne("prop"), rootLevelsUp: nil).optional()
+        let options = RealtimeRelation<TestObject>.Options(rootLevelsUp: nil, ownerLevelsUp: 1, property: .oneToOne("prop"))
+        let representer = Representer<TestObject>.relation(options.property, rootLevelsUp: options.rootLevelsUp, ownerNode: options.ownerNode).optional()
         do {
             let object = try representer.decode(ValueNode(node: Node(key: ""), value: nil))
             XCTAssertNil(object)

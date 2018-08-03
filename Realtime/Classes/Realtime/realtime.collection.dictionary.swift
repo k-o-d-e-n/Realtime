@@ -105,7 +105,14 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     public subscript(position: Int) -> Element { return storage.element(by: _view[position].dbKey) }
     public subscript(key: Key) -> Value? { return contains(valueBy: key) ? storage.object(for: key) : nil }
 
-    public func contains(valueBy key: Key) -> Bool { _view.checkPreparation(); return _view.contains(where: { $0.dbKey == key.dbKey }) }
+    public func contains(valueBy key: Key) -> Bool {
+        if isStandalone {
+            return storage.localElements[key] != nil
+        } else {
+            _view.checkPreparation()
+            return _view.contains(where: { $0.dbKey == key.dbKey })
+        }
+    }
 
     public func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)

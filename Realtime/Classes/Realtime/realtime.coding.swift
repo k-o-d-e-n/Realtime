@@ -312,12 +312,13 @@ public extension Representer {
     }
 }
 public extension Representer where V: RealtimeValue {
-    static func relation(_ property: RelationMode, rootLevelsUp: Int?) -> Representer<V> {
+    static func relation(_ property: RelationMode, rootLevelsUp: Int?, ownerNode: Property<Node?>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
-                guard let node = v.node else { throw RealtimeError(encoding: V.self, reason: "Can`t get object node.") }
+                guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
+                guard let node = v.node else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation value node.") }
 
-                return Relation(path: rootLevelsUp.map(node.path) ?? node.rootPath, property: property.path(for: node)).fireValue
+                return Relation(path: rootLevelsUp.map(owner.path) ?? node.rootPath, property: property.path(for: owner)).fireValue
         },
             decoding: { d in
                 let relation = try Relation(fireData: d)

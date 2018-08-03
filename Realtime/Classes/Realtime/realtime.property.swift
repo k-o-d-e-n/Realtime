@@ -148,16 +148,17 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
 
     override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
         _write_RealtimeValue(to: transaction, by: node)
-        try super._write(to: transaction, by: node)
-        if let backwardValueNode = wrapped?.node {
-            if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
-                let backwardPropertyNode = backwardValueNode.child(with: options.property.path(for: backwardValueNode))
+        if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
+            options.ownerNode.value = ownerNode
+            try super._write(to: transaction, by: node)
+            if let backwardValueNode = wrapped?.node {
+                let backwardPropertyNode = backwardValueNode.child(with: options.property.path(for: ownerNode))
                 let thisProperty = node.path(from: ownerNode)
                 let backwardRelation = Relation(path: options.rootLevelsUp.map(ownerNode.path) ?? ownerNode.rootPath, property: thisProperty)
                 transaction.addValue(backwardRelation.fireValue, by: backwardPropertyNode)
-            } else {
-                throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
             }
+        } else {
+            throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
         }
     }
 
@@ -195,20 +196,22 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
         let property: RelationMode
         /// Levels up by hierarchy to the same node for both related values. Default nil, that means root node
         let rootLevelsUp: Int?
+
+        var ownerNode: Property<Node?> = Property(value: nil)
         let representer: Representer<Related>
 
         public init(rootLevelsUp: Int?, ownerLevelsUp: Int, property: RelationMode) {
             self.rootLevelsUp = rootLevelsUp
             self.ownerLevelsUp = ownerLevelsUp
             self.property = property
-            self.representer = Representer<Related>.relation(property, rootLevelsUp: rootLevelsUp)
+            self.representer = Representer<Related>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: self.ownerNode)
         }
 
         public init<U: _Optional>(_: U.Type = U.self, rootLevelsUp: Int?, ownerLevelsUp: Int, property: RelationMode) where Related == Optional<U.Wrapped> {
             self.rootLevelsUp = rootLevelsUp
             self.ownerLevelsUp = ownerLevelsUp
             self.property = property
-            self.representer = Representer(optional: Representer<U.Wrapped>.relation(property, rootLevelsUp: rootLevelsUp))
+            self.representer = Representer(optional: Representer<U.Wrapped>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: self.ownerNode))
         }
     }
 }
@@ -472,6 +475,15 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
         localPropertyValue.set(.error(error, last: localPropertyValue.get()))
         insider.dataDidChange()
     }
+
+    public override var debugDescription: String {
+        return """
+        {
+            ref: \(node?.debugDescription ?? "not referred")
+            value: \(lastEvent)
+        }
+        """
+    }
 }
 public extension ReadonlyRealtimeProperty {
     var lastEvent: ListenValue<T> {
@@ -561,10 +573,38 @@ public extension ReadonlyRealtimeProperty where T: _Optional, T.Wrapped: HasDefa
         value = prop.unwrapped ?? T.Wrapped()
     }
 }
-infix operator ==~
+infix operator ====: ComparisonPrecedence
+infix operator !===: ComparisonPrecedence
 public extension ReadonlyRealtimeProperty where T: Equatable {
-    static func ==~(lhs: T, rhs: ReadonlyRealtimeProperty<T>) -> Bool {
-        return rhs.mapValue { $0 == lhs } ?? false
+    static func ====(lhs: T, rhs: ReadonlyRealtimeProperty) -> Bool {
+        return rhs.wrapped == lhs
+    }
+    static func ====(lhs: ReadonlyRealtimeProperty, rhs: T) -> Bool {
+        return lhs.wrapped == rhs
+    }
+    static func ====(lhs: ReadonlyRealtimeProperty, rhs: ReadonlyRealtimeProperty) -> Bool {
+        return rhs.wrapped == lhs.wrapped
+    }
+    static func !===(lhs: T, rhs: ReadonlyRealtimeProperty) -> Bool {
+        return !(lhs ==== rhs)
+    }
+    static func !===(lhs: ReadonlyRealtimeProperty, rhs: T) -> Bool {
+        return !(lhs ==== rhs)
+    }
+    static func !===(lhs: ReadonlyRealtimeProperty, rhs: ReadonlyRealtimeProperty) -> Bool {
+        return !(lhs ==== rhs)
+    }
+    static func ====(lhs: T?, rhs: ReadonlyRealtimeProperty) -> Bool {
+        return rhs.wrapped == lhs
+    }
+    static func ====(lhs: ReadonlyRealtimeProperty, rhs: T?) -> Bool {
+        return lhs.wrapped == rhs
+    }
+    static func !===(lhs: T?, rhs: ReadonlyRealtimeProperty) -> Bool {
+        return !(lhs ==== rhs)
+    }
+    static func !===(lhs: ReadonlyRealtimeProperty, rhs: T?) -> Bool {
+        return !(lhs ==== rhs)
     }
 }
 public extension ReadonlyRealtimeProperty where T: HasDefaultLiteral & _ComparableWithDefaultLiteral {

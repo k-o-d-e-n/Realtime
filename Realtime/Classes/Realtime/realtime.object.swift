@@ -237,7 +237,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
-    open var parent: RealtimeObject?
+    open weak var parent: RealtimeObject?
 
     open var ignoredLabels: [String] {
         return []
@@ -285,11 +285,14 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         }
     }
     
-    override public func didRemove(from node: Node) {
+    override public func didRemove(from ancestor: Node) {
         enumerateLoadedChilds { (_, value: _RealtimeValue) in
-            value.didRemove(from: node)
+            value.didRemove(from: ancestor)
         }
-        super.didRemove(from: node)
+        if ancestor == self.node?.parent {
+            parent = nil
+        }
+        super.didRemove(from: ancestor)
     }
     
     override open func apply(_ data: FireDataProtocol, strongly: Bool) throws {
