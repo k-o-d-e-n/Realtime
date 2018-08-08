@@ -51,6 +51,16 @@ extension Closure {
     }
 }
 
+extension Closure where O == Void {
+    func filter(_ predicate: @escaping (I) -> Bool) -> Closure<I, O> {
+        return Closure<I, O>(closure: { (input) -> O in
+            if predicate(input) {
+                return self.closure(input)
+            }
+        })
+    }
+}
+
 /// Configurable wrapper for closure that receive listening value.
 public struct Assign<A> {
     internal let assign: (A) -> Void

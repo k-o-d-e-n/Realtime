@@ -334,6 +334,10 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
         })
     }
 
+    deinit {
+        listening.dispose()
+    }
+
     public func prepare(forUse completion: Assign<(Error?)>) {
         guard !isPrepared else { completion.assign(nil); return }
 

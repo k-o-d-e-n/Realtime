@@ -318,7 +318,7 @@ public extension Representer where V: RealtimeValue {
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
                 guard let node = v.node else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation value node.") }
 
-                return Relation(path: rootLevelsUp.map(owner.path) ?? node.rootPath, property: property.path(for: owner)).fireValue
+                return Relation(path: rootLevelsUp.map(node.path) ?? node.rootPath, property: property.path(for: owner)).fireValue
         },
             decoding: { d in
                 let relation = try Relation(fireData: d)
