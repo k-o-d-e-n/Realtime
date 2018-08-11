@@ -12,9 +12,11 @@
 		607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
 		607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDC1AFB9204008FA782 /* Images.xcassets */; };
 		607FACE01AFB9204008FA782 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDE1AFB9204008FA782 /* LaunchScreen.xib */; };
-		607FACEC1AFB9204008FA782 /* Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACEB1AFB9204008FA782 /* Tests.swift */; };
+		607FACEC1AFB9204008FA782 /* realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACEB1AFB9204008FA782 /* realtime.swift */; };
 		93E913A37D41EF851BEEC922 /* Pods_Realtime_Example.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FE0F23E937789AA0391B457F /* Pods_Realtime_Example.framework */; };
 		A41BC0132040098800D1A9E8 /* RealtimeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41BC0122040098800D1A9E8 /* RealtimeViewController.swift */; };
+		A41FD587211EF800006DC3F7 /* listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41FD586211EF800006DC3F7 /* listenable.swift */; };
+		A41FD589211EF890006DC3F7 /* other.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41FD588211EF890006DC3F7 /* other.swift */; };
 		A44331B62020E9E900BA2FDE /* Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44331B52020E9E900BA2FDE /* Auth.swift */; };
 		A4773C3120DFEAB2002D182A /* RealtimeTableController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */; };
 		A4E054522008D3B100E95A49 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A4E054512008D3B100E95A49 /* GoogleService-Info.plist */; };
@@ -44,12 +46,14 @@
 		607FACDF1AFB9204008FA782 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/LaunchScreen.xib; sourceTree = "<group>"; };
 		607FACE51AFB9204008FA782 /* Realtime_Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Realtime_Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		607FACEA1AFB9204008FA782 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		607FACEB1AFB9204008FA782 /* Tests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests.swift; sourceTree = "<group>"; };
+		607FACEB1AFB9204008FA782 /* realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = realtime.swift; sourceTree = "<group>"; };
 		6C5D9DE5D4BA5FA219039E24 /* Pods-Realtime_Tests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Realtime_Tests.release.xcconfig"; path = "Pods/Target Support Files/Pods-Realtime_Tests/Pods-Realtime_Tests.release.xcconfig"; sourceTree = "<group>"; };
 		A416BD6A2007DECF008A4741 /* Realtime.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Realtime.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A416BD6D2007DED6008A4741 /* leveldb.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = leveldb.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A416BD6E2007DED6008A4741 /* nanopb.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = nanopb.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A41BC0122040098800D1A9E8 /* RealtimeViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RealtimeViewController.swift; sourceTree = "<group>"; };
+		A41FD586211EF800006DC3F7 /* listenable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = listenable.swift; sourceTree = "<group>"; };
+		A41FD588211EF890006DC3F7 /* other.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = other.swift; sourceTree = "<group>"; };
 		A44331B52020E9E900BA2FDE /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTableController.swift; sourceTree = "<group>"; };
 		A4E054512008D3B100E95A49 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
@@ -130,7 +134,9 @@
 		607FACE81AFB9204008FA782 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
-				607FACEB1AFB9204008FA782 /* Tests.swift */,
+				607FACEB1AFB9204008FA782 /* realtime.swift */,
+				A41FD586211EF800006DC3F7 /* listenable.swift */,
+				A41FD588211EF890006DC3F7 /* other.swift */,
 				607FACE91AFB9204008FA782 /* Supporting Files */,
 			);
 			path = Tests;
@@ -361,7 +367,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				607FACEC1AFB9204008FA782 /* Tests.swift in Sources */,
+				A41FD587211EF800006DC3F7 /* listenable.swift in Sources */,
+				A41FD589211EF890006DC3F7 /* other.swift in Sources */,
+				607FACEC1AFB9204008FA782 /* realtime.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

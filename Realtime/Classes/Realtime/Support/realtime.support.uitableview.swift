@@ -160,9 +160,12 @@ public final class SingleSectionTableViewDelegate<Model>: RealtimeTableViewDeleg
     }
 
     public override func bind(_ tableView: UITableView) {
+        tableView.delegate = nil
+        tableView.dataSource = nil
         tableView.delegate = delegateService
         tableView.dataSource = delegateService
         if #available(iOS 10.0, *) {
+            tableView.prefetchDataSource = nil
             tableView.prefetchDataSource = delegateService
         }
     }
