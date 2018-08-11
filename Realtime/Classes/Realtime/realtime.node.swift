@@ -206,7 +206,7 @@ public extension Node {
     }
 }
 public extension Node {
-    static var linksNode: Node { return Node.root.child(with: InternalKeys.links) }
+    static var linksNode: Node { return RealtimeApp.app.linksNode }
     var linksNode: Node {
         guard isRooted else { fatalError("Try get links node from not rooted node: \(self)") }
         return copy(to: Node.linksNode)

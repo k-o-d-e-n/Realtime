@@ -11,6 +11,7 @@ import FirebaseDatabase
 // MARK: FireDataProtocol ---------------------------------------------------------------
 
 public protocol FireDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
+    var database: RealtimeDatabase? { get }
     var value: Any? { get }
     var priority: Any? { get }
     var dataKey: String? { get }
@@ -27,6 +28,7 @@ public protocol FireDataProtocol: Decoder, CustomDebugStringConvertible, CustomS
 }
 
 extension DataSnapshot: FireDataProtocol, Sequence {
+    public var database: RealtimeDatabase? { return ref.database }
     public var dataKey: String? {
         return key
     }
@@ -47,6 +49,7 @@ extension DataSnapshot: FireDataProtocol, Sequence {
     }
 }
 extension MutableData: FireDataProtocol, Sequence {
+    public var database: RealtimeDatabase? { return nil }
     public var dataKey: String? {
         return key
     }

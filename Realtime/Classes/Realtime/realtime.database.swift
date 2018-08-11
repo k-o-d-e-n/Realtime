@@ -8,29 +8,31 @@
 import Foundation
 import FirebaseDatabase
 
-protocol DatabaseNode {
-    func update(use keyValuePairs: [String: Any], completion: ((Error?, DatabaseNode) -> Void)?)
+public protocol DatabaseNode {
+    var cachedData: FireDataProtocol? { get }
+//    func update(use keyValuePairs: [String: Any], completion: ((Error?, DatabaseNode) -> Void)?)
 }
 extension DatabaseReference: DatabaseNode {
-    func update(use keyValuePairs: [String : Any], completion: ((Error?, DatabaseNode) -> Void)?) {
-        if let completion = completion {
-            updateChildValues(keyValuePairs, withCompletionBlock: completion)
-        } else {
-            updateChildValues(keyValuePairs)
-        }
-    }
+    public var cachedData: FireDataProtocol? { return nil }
+//    public func update(use keyValuePairs: [String : Any], completion: ((Error?, DatabaseNode) -> Void)?) {
+//        if let completion = completion {
+//            updateChildValues(keyValuePairs, withCompletionBlock: completion)
+//        } else {
+//            updateChildValues(keyValuePairs)
+//        }
+//    }
 }
 
-protocol RealtimeDatabase {
+public protocol RealtimeDatabase {
     func node() -> DatabaseNode
     func node(with valueNode: Node) -> DatabaseNode
 }
 extension Database: RealtimeDatabase {
-    func node() -> DatabaseNode {
+    public func node() -> DatabaseNode {
         return reference()
     }
 
-    func node(with valueNode: Node) -> DatabaseNode {
+    public func node(with valueNode: Node) -> DatabaseNode {
         return reference(withPath: valueNode.rootPath)
     }
 }

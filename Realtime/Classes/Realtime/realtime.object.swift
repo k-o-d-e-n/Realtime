@@ -13,7 +13,8 @@ import FirebaseDatabase
 
 /// Base class for any database value
 open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
-    public var dbRef: DatabaseReference?
+    fileprivate(set) var database: RealtimeDatabase?
+    public fileprivate(set) var dbRef: DatabaseReference?
     public fileprivate(set) var node: Node?
     public fileprivate(set) var version: Int?
     public fileprivate(set) var raw: FireDataValue?
@@ -24,6 +25,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     private var observing: (token: UInt, counter: Int)?
 
     public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
+        self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
         self.dbRef = node.flatMap { $0.isRooted ? $0.reference() : nil }
         if case let pl as [String: FireDataValue] = options[.payload] {
@@ -181,6 +183,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     // MARK: Realtime Value
 
     public required init(fireData: FireDataProtocol) throws {
+        self.database = fireData.database
         self.node = Node.root.child(with: fireData.dataRef!.rootPath)
         self.dbRef = fireData.dataRef
         try apply(fireData, strongly: true)

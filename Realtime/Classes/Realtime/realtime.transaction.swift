@@ -25,10 +25,14 @@ extension Reverting where Self: ChangeableRealtimeValue {
     }
 }
 
-public protocol UpdateNode: FireDataProtocol {
+public protocol UpdateNode: FireDataProtocol, DatabaseNode {
     var node: Node { get }
     var value: Any? { get }
     func fill(from ancestor: Node, into container: inout [String: Any])
+}
+extension UpdateNode {
+    public var cachedData: FireDataProtocol? { return self }
+    public var database: RealtimeDatabase? { return RootNode(node: .root) }
 }
 
 class ValueNode: UpdateNode {
@@ -47,6 +51,17 @@ class ValueNode: UpdateNode {
 
 class FileNode: ValueNode {
     override func fill(from ancestor: Node, into container: inout [String: Any]) {}
+}
+
+class RootNode: ObjectNode, RealtimeDatabase {
+    func node() -> DatabaseNode {
+        return self
+    }
+
+    func node(with valueNode: Node) -> DatabaseNode {
+        let path = valueNode.rootPath
+        return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: node), value: nil)
+    }
 }
 
 class ObjectNode: UpdateNode, CustomStringConvertible {
@@ -82,7 +97,7 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     }
 
     static func root() -> ObjectNode {
-        return ObjectNode(node: .root)
+        return RootNode(node: .root)
     }
 }
 

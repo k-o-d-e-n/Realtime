@@ -53,6 +53,7 @@ public struct RealtimeValueOption: Hashable {
     }
 }
 public extension RealtimeValueOption {
+    internal static let database: RealtimeValueOption = RealtimeValueOption("realtime.database")
     static let payload: RealtimeValueOption = RealtimeValueOption("realtime.value.payload")
     internal static let internalPayload: RealtimeValueOption = RealtimeValueOption("realtime.value.internalPayload")
 }
