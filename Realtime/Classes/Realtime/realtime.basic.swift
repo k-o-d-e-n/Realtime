@@ -19,9 +19,11 @@ public struct RealtimeError: Error {
 
     enum Source {
         case value
+        case collection
+
         case coding
         case transaction([Error])
-        case collection
+        case cache
     }
 
     init<T>(initialization type: T.Type, _ data: Any) {

@@ -456,6 +456,7 @@ extension RealtimeObject: Reverting {
 
 extension RealtimeObject {
     /// writes RealtimeObject in transaction like as single value
+    @discardableResult
     public func save(in parent: Node, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         guard let key = self.dbKey else { fatalError("Object has not key. If you cannot set key manually use RealtimeTransaction.set(_:by:) method instead") }
 
@@ -465,6 +466,7 @@ extension RealtimeObject {
     }
 
     /// writes changes of RealtimeObject in transaction as independed values
+    @discardableResult
     public func update(in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
         try transaction.update(self)

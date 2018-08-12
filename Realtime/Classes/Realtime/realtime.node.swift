@@ -24,6 +24,7 @@ public class Node: Equatable {
     public static let root: Node = Root()
     class Root: Node {
         init() { super.init(key: "") }
+        override var parent: Node? { set {} get { return nil } }
         override var isRoot: Bool { return true }
         override var isRooted: Bool { return true }
         override var root: Node? { return nil }
@@ -36,7 +37,7 @@ public class Node: Equatable {
     }
 
     public let key: String
-    public var parent: Node?
+    public internal(set) var parent: Node?
 
     public convenience init(parent: Node? = nil) {
         self.init(key: DatabaseReference.root().childByAutoId().key, parent: parent)

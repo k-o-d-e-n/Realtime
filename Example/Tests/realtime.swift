@@ -76,7 +76,7 @@ class TestObject: RealtimeObject {
         return [\TestObject.property, \TestObject.linkedArray, \TestObject.array, \TestObject.dictionary, \TestObject.nestedObject]
     }
 
-    class NestedObject: TestObject {
+    class NestedObject: RealtimeObject {
         lazy var lazyProperty: RealtimeProperty<String?> = "lazyprop".property(from: self.node)
         var usualProperty: RealtimeProperty<String?>?
 
@@ -135,7 +135,7 @@ extension Tests {
         do {
             let elementTransaction = try element.update()
             let objectTransaction = try testObject.update()
-            elementTransaction.merge(objectTransaction)
+            try elementTransaction.merge(objectTransaction)
 
             let value = elementTransaction.updateNode.updateValue
             let expectedValue = ["/prop":"string", "/nestedObject/lazyprop":"nested_string",
@@ -547,5 +547,35 @@ extension Tests {
         let ref = Reference(ref: Node.root.child(with: "first/two").rootPath)
         let fireValue = ref.fireValue
         XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "/first/two"])
+    }
+
+    func testLocalDatabase() {
+        let transaction = RealtimeTransaction(database: RootNode.root)
+        let testObject = TestObject(in: .root)
+
+        testObject.property <== "string"
+        testObject.nestedObject.lazyProperty <== "nested_string"
+
+        do {
+            try testObject.update(in: transaction)
+
+            transaction.commit(with: { (state, errs) in
+                if let e = errs?.first {
+                    XCTFail(e.localizedDescription)
+                } else {
+                    do {
+                        let restoredObj = try TestObject(fireData: RootNode.root, strongly: false)
+
+                        XCTAssertEqual(testObject.property.unwrapped, restoredObj.property.unwrapped)
+                        XCTAssertEqual(testObject.nestedObject.lazyProperty.unwrapped,
+                                       restoredObj.nestedObject.lazyProperty.unwrapped)
+                    } catch let e {
+                        XCTFail(e.localizedDescription)
+                    }
+                }
+            })
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
     }
 }

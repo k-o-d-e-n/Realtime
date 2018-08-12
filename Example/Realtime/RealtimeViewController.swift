@@ -227,8 +227,8 @@ class RealtimeViewController: UIViewController {
 
         let transaction = RealtimeTransaction()
         try! u.ownedGroup.setValue(g, in: transaction)
-        transaction.merge(ug)
-        transaction.merge(gu)
+        try! transaction.merge(ug)
+        try! transaction.merge(gu)
         transaction.commit(with: { _, errs in
             if let errors = errs {
                 print(errors)

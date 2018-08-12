@@ -9,7 +9,7 @@ import Foundation
 import FirebaseDatabase
 
 public struct RealtimeApp {
-    let database: RealtimeDatabase
+    public let database: RealtimeDatabase
     let linksNode: Node
 //    let storage:
 
