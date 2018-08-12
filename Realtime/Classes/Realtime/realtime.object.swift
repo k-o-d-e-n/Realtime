@@ -13,8 +13,7 @@ import FirebaseDatabase
 
 /// Base class for any database value
 open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
-    fileprivate(set) var database: RealtimeDatabase?
-    public fileprivate(set) var dbRef: DatabaseReference?
+    public fileprivate(set) var database: RealtimeDatabase?
     public fileprivate(set) var node: Node?
     public fileprivate(set) var version: Int?
     public fileprivate(set) var raw: FireDataValue?
@@ -27,7 +26,6 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
-        self.dbRef = node.flatMap { $0.isRooted ? $0.reference() : nil }
         if case let pl as [String: FireDataValue] = options[.payload] {
             self.payload = pl
         }
@@ -45,30 +43,25 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     }
 
     public func load(completion: Assign<Error?>?) {
-        guard let ref = dbRef else {
+        guard let node = self.node, let database = self.database else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
 
-        ref.observeSingleEvent(
-            of: .value,
-            with: { d in
-                do {
-                    try self.apply(d, strongly: true)
-                    completion?.assign(nil)
-                } catch let e {
-                    completion?.assign(e)
-                }
-        },
-            withCancel: { e in
+        database.load(for: node, completion: { d in
+            do {
+                try self.apply(d, strongly: true)
+                completion?.assign(nil)
+            } catch let e {
                 completion?.assign(e)
-        })
+            }
+        }, onCancel: completion?.assign)
     }
 
     @discardableResult
     public func runObserving() -> Bool {
         guard isRooted else { fatalError("Tries observe not rooted value") }
         guard let o = observing else {
-            observing = observe(type: .value, onUpdate: nil).map { ($0, 1) }
+            observing = observe(.value, onUpdate: nil).map { ($0, 1) }
             return observing != nil
         }
 
@@ -89,31 +82,26 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         }
     }
     
-    func observe(type: DataEventType = .value, onUpdate: ((Error?) -> Void)? = nil) -> UInt? {
-        guard let ref = dbRef else {
+    func observe(_ event: DataEventType = .value, onUpdate: ((Error?) -> Void)? = nil) -> UInt? {
+        guard let node = self.node, let database = self.database else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
-        return ref.observe(
-            type,
-            with: { d in
-                do {
-                    try self.apply(d, strongly: type == .value)
-                    onUpdate?(nil)
-                } catch let e {
-                    onUpdate?(e)
-                }
-        },
-            withCancel: { e in
+        return database.observe(event, on: node, onUpdate: { d in
+            do {
+                try self.apply(d, strongly: event == .value)
+                onUpdate?(nil)
+            } catch let e {
                 onUpdate?(e)
-        })
+            }
+        }, onCancel: onUpdate)
     }
 
     func endObserve(for token: UInt) {
-        guard let ref = dbRef else {
+        guard let node = node, let database = self.database else {
             return debugFatalError(condition: true, "Couldn`t get reference")
         }
 
-        ref.removeObserver(withHandle: token);
+        database.removeObserver(for: node, with: token)
     }
 
     public func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
@@ -130,11 +118,11 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
                         "Value has been removed from node: \(ancestor), that is not ancestor for this location: \(self.node!.description)")
         debugFatalError(condition: !ancestor.isRooted, "Value has been removed from non rooted node: \(ancestor)")
 
-        dbRef?.removeAllObservers()
+
+        node.map { n in database?.removeAllObservers(for: n) }
         observing = nil
         if node?.parent == ancestor {
             self.node?.parent = nil
-            self.dbRef = nil
         }
     }
     public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
@@ -150,8 +138,6 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         } else {
             self.node = Node(key: key, parent: parent)
         }
-        
-        self.dbRef = parent.isRooted ? self.node?.reference() : nil
     }
     
     // MARK: Changeable & Writable
@@ -185,7 +171,6 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     public required init(fireData: FireDataProtocol) throws {
         self.database = fireData.database
         self.node = Node.root.child(with: fireData.dataRef!.rootPath)
-        self.dbRef = fireData.dataRef
         try apply(fireData, strongly: true)
     }
 

@@ -662,8 +662,9 @@ public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: Fire
 }
 
 public extension SharedProperty {
-    public func changeValue(use changing: @escaping (T) throws -> T, completion: ((Bool, T) -> Void)? = nil) {
-        guard let ref = dbRef else  {
+    public func changeValue(use changing: @escaping (T) throws -> T,
+                            completion: ((Bool, T) -> Void)? = nil) {
+        guard let ref = node?.reference() else  {
             fatalError("Can`t get database reference")
         }
         ref.runTransactionBlock({ data in

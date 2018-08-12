@@ -550,7 +550,7 @@ extension Tests {
     }
 
     func testLocalDatabase() {
-        let transaction = RealtimeTransaction(database: RootNode.root)
+        let transaction = RealtimeTransaction(database: CacheNode.root)
         let testObject = TestObject(in: .root)
 
         testObject.property <== "string"
@@ -564,7 +564,7 @@ extension Tests {
                     XCTFail(e.localizedDescription)
                 } else {
                     do {
-                        let restoredObj = try TestObject(fireData: RootNode.root, strongly: false)
+                        let restoredObj = try TestObject(fireData: CacheNode.root, strongly: false)
 
                         XCTAssertEqual(testObject.property.unwrapped, restoredObj.property.unwrapped)
                         XCTAssertEqual(testObject.nestedObject.lazyProperty.unwrapped,
@@ -572,6 +572,39 @@ extension Tests {
                     } catch let e {
                         XCTFail(e.localizedDescription)
                     }
+                }
+            })
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+    }
+
+    func testCacheObject() {
+        let transaction = RealtimeTransaction(database: CacheNode.root)
+        let testObject = TestObject(in: .root)
+
+        testObject.property <== "string"
+        testObject.nestedObject.lazyProperty <== "nested_string"
+        testObject.file <== #imageLiteral(resourceName: "pw")
+
+        do {
+            try testObject.update(in: transaction)
+
+            let imgData = UIImagePNGRepresentation(#imageLiteral(resourceName: "pw"))!
+            transaction.addFile(imgData, by: testObject.readonlyFile.node!)
+
+            transaction.commit(with: { (state, errs) in
+                if let e = errs?.first {
+                    XCTFail(e.localizedDescription)
+                } else {
+                    let restoredObj = TestObject(in: .root, options: [.database: CacheNode.root])
+                    restoredObj.load(completion: .just { e in
+                        e.map { XCTFail($0.localizedDescription) }
+
+                        XCTAssertEqual(testObject.property.unwrapped, restoredObj.property.unwrapped)
+                        XCTAssertEqual(testObject.nestedObject.lazyProperty.unwrapped,
+                                       restoredObj.nestedObject.lazyProperty.unwrapped)
+                    })
                 }
             })
         } catch let e {

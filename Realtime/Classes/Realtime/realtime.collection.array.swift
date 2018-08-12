@@ -98,9 +98,12 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
     }
     
     public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+        guard let ref = node?.reference() else  {
+            fatalError("Can`t get database reference")
+        }
         checkPreparation()
 
-        query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
+        query(ref).observeSingleEvent(of: .value, with: { (data) in
             do {
                 try self.apply(data, strongly: false)
                 completion(self.filter { data.hasChild($0.dbKey) }, nil)

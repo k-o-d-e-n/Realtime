@@ -28,6 +28,22 @@ public protocol RealtimeDatabase {
     func node(with valueNode: Node) -> DatabaseNode
 
     func commit(transaction: RealtimeTransaction, completion: ((Error?, DatabaseNode) -> Void)?)
+
+    func load(
+        for node: Node,
+        completion: @escaping (FireDataProtocol) -> Void,
+        onCancel: ((Error?) -> Void)?
+    )
+
+    func observe(
+        _ event: DataEventType,
+        on node: Node,
+        onUpdate: @escaping (FireDataProtocol) -> Void,
+        onCancel: ((Error?) -> Void)?
+    ) -> UInt
+
+    func removeAllObservers(for node: Node)
+    func removeObserver(for node: Node, with token: UInt)
 }
 extension Database: RealtimeDatabase {
     public func node() -> DatabaseNode {
@@ -53,6 +69,33 @@ extension Database: RealtimeDatabase {
             node(with: nearest.node).update(use: nearest.updateValue, completion: completion)
         }
     }
+
+    public func load(
+        for node: Node,
+        completion: @escaping (FireDataProtocol) -> Void,
+        onCancel: ((Error?) -> Void)?) {
+        node.reference(for: self).observeSingleEvent(
+            of: .value,
+            with: completion,
+            withCancel: onCancel
+        )
+    }
+
+    public func observe(
+        _ event: DataEventType,
+        on node: Node,
+        onUpdate: @escaping (FireDataProtocol) -> Void,
+        onCancel: ((Error?) -> Void)?) -> UInt {
+        return node.reference(for: self).observe(event, with: onUpdate, withCancel: onCancel)
+    }
+
+    public func removeAllObservers(for node: Node) {
+        node.reference(for: self).removeAllObservers()
+    }
+
+    public func removeObserver(for node: Node, with token: UInt) {
+        node.reference(for: self).removeObserver(withHandle: token)
+    }
 }
 
 public protocol UpdateNode: FireDataProtocol, DatabaseNode {
@@ -62,7 +105,7 @@ public protocol UpdateNode: FireDataProtocol, DatabaseNode {
 }
 extension UpdateNode {
     public var cachedData: FireDataProtocol? { return self }
-    public var database: RealtimeDatabase? { return RootNode.root }
+    public var database: RealtimeDatabase? { return CacheNode.root }
 }
 
 class ValueNode: UpdateNode {
@@ -88,8 +131,8 @@ class FileNode: ValueNode {
     var database: RealtimeDatabase? { return nil }
 }
 
-class RootNode: ObjectNode, RealtimeDatabase {
-    static let root: RootNode = RootNode(node: .root)
+class CacheNode: ObjectNode, RealtimeDatabase {
+    static let root: CacheNode = CacheNode(node: .root)
     func node() -> DatabaseNode {
         return self
     }
@@ -106,6 +149,22 @@ class RootNode: ObjectNode, RealtimeDatabase {
         } catch let e {
             completion?(e, self)
         }
+    }
+
+    func removeAllObservers(for node: Node) {
+        fatalError()
+    }
+
+    func removeObserver(for node: Node, with token: UInt) {
+        fatalError()
+    }
+
+    func load(for node: Node, completion: @escaping (FireDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) {
+        completion(child(forPath: node.rootPath))
+    }
+
+    func observe(_ event: DataEventType, on node: Node, onUpdate: @escaping (FireDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) -> UInt {
+        fatalError()
     }
 }
 

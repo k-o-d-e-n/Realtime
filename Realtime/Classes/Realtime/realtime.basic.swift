@@ -55,7 +55,7 @@ public struct RealtimeValueOption: Hashable {
     }
 }
 public extension RealtimeValueOption {
-    internal static let database: RealtimeValueOption = RealtimeValueOption("realtime.database")
+    static let database: RealtimeValueOption = RealtimeValueOption("realtime.database")
     static let payload: RealtimeValueOption = RealtimeValueOption("realtime.value.payload")
     internal static let internalPayload: RealtimeValueOption = RealtimeValueOption("realtime.value.internalPayload")
 }
@@ -117,9 +117,6 @@ extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
 
 public extension RealtimeValue {
     var dbKey: String! { return node?.key }
-    func dbRef(_ database: Database = Database.database()) -> DatabaseReference? {
-        return node.flatMap { $0.isRooted ? $0.reference(for: database) : nil }
-    }
 
     var isInserted: Bool { return isRooted }
     var isStandalone: Bool { return !isRooted }
