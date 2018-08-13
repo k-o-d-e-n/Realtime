@@ -23,7 +23,7 @@ enum InternalKeys: String {
 public class Node: Equatable {
     public static let root: Node = Root()
     class Root: Node {
-        init() { super.init(key: "") }
+        init() { super.init(key: "", parent: nil) }
         override var parent: Node? { set {} get { return nil } }
         override var isRoot: Bool { return true }
         override var isRooted: Bool { return true }
@@ -47,7 +47,11 @@ public class Node: Equatable {
         self.init(key: key.rawValue, parent: parent)
     }
 
-    public init(key: String, parent: Node? = nil) {
+    public convenience init(key: String) {
+        self.init(key: key, parent: nil)
+    }
+
+    public init(key: String, parent: Node?) {
         self.key = key
         self.parent = parent
     }
@@ -140,9 +144,6 @@ extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
 public extension Node {
     static func root<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
         return Node.root.child(with: path.rawValue)
-    }
-    static func from(_ snapshot: FireDataProtocol) -> Node? {
-        return snapshot.dataRef.map(Node.from)
     }
     static func from(_ reference: DatabaseReference) -> Node {
         return Node.root.child(with: reference.rootPath)

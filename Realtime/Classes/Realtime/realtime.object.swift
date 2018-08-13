@@ -123,16 +123,18 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         observing = nil
         if node?.parent == ancestor {
             self.node?.parent = nil
+            self.database = nil
         }
     }
     public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
         debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value will be saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
         debugFatalError(condition: !parent.isRooted, "Value will be saved non rooted node: \(parent)")
     }
-    public func didSave(in parent: Node, by key: String) {
+    public func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
         debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
 
+        self.database = database
         if let node = self.node {
             node.parent = parent
         } else {
@@ -168,10 +170,10 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
     // MARK: Realtime Value
 
-    public required init(fireData: FireDataProtocol) throws {
+    public required init(fireData: FireDataProtocol, strongly: Bool) throws {
         self.database = fireData.database
-        self.node = Node.root.child(with: fireData.dataRef!.rootPath)
-        try apply(fireData, strongly: true)
+        self.node = fireData.node
+        try apply(fireData, strongly: strongly)
     }
 
     func _apply_RealtimeValue(_ data: FireDataProtocol, strongly: Bool) {
@@ -239,11 +241,11 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         }
     }
 
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
             enumerateLoadedChilds { (_, value: _RealtimeValue) in
-                value.didSave(in: node)
+                value.didSave(in: database, in: node)
             }
         } else {
             debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.rootPath)")

@@ -85,9 +85,8 @@ class TestObject: RealtimeObject {
             super.init(in: node, options: options)
         }
 
-        required convenience init(fireData: FireDataProtocol) throws {
-            self.init(in: fireData.dataRef.map(Node.from))
-            try apply(fireData, strongly: true)
+        required init(fireData: FireDataProtocol, strongly: Bool) throws {
+            try super.init(fireData: fireData, strongly: strongly)
         }
 
         override func apply(_ data: FireDataProtocol, strongly: Bool) throws {
@@ -387,7 +386,7 @@ extension Tests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
 
         let node = Node(key: "testObjects", parent: .root)
-        testObject.didSave(in: node)
+        testObject.didSave(in: CacheNode.root, in: node)
 
         XCTAssertTrue(testObject.isInserted)
         XCTAssertTrue(testObject.property.isInserted)
@@ -444,12 +443,12 @@ extension Tests {
             }
         }
 
-        init(fireData: FireDataProtocol) throws {
+        init(fireData: FireDataProtocol, strongly: Bool) throws {
             let raw: CShort = fireData.rawValue as? CShort ?? 0
 
             switch raw {
-            case 1: self = .two(try TestObject(fireData: fireData))
-            default: self = .one(try TestObject(fireData: fireData))
+            case 1: self = .two(try TestObject(fireData: fireData, strongly: strongly))
+            default: self = .one(try TestObject(fireData: fireData, strongly: strongly))
             }
         }
 
@@ -482,8 +481,8 @@ extension Tests {
             value.willSave(in: transaction, in: parent, by: key)
         }
 
-        func didSave(in parent: Node, by key: String) {
-            value.didSave(in: parent, by: key)
+        func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+            value.didSave(in: database, in: parent, by: key)
         }
 
         func didRemove(from ancestor: Node) {

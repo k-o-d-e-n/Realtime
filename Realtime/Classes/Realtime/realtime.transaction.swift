@@ -176,7 +176,7 @@ extension RealtimeTransaction {
         var current = updateNode
         var iterator = nodes.makeIterator()
         while let n = iterator.next() {
-            if let update = current.childs.first(where: { $0.node == n }) {
+            if let update = current.childs.first(where: { $0.location == n }) {
                 if case let u as ObjectNode = update {
                     if n === node {
                         fatalError("Tries insert value higher than earlier writed values")
@@ -239,8 +239,8 @@ extension RealtimeTransaction {
         }
         files.indices.forEach { _ in group.enter() }
         files.forEach { (file) in
-            guard case let data as Data = file.value else { fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.node)") }
-            file.node.file(for: storage).putData(data, metadata: nil, completion: addCompletion)
+            guard case let data as Data = file.value else { fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.location)") }
+            file.location.file(for: storage).putData(data, metadata: nil, completion: addCompletion)
         }
         group.notify(queue: .main) {
             completion(completions)
@@ -292,10 +292,11 @@ extension RealtimeTransaction: CustomStringConvertible {
 public extension RealtimeTransaction {
     /// adds operation of save RealtimeValue as single value
     func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) throws {
+        let database = self.database
         try _set(value, by: node)
         addCompletion { (result) in
             if result {
-                value.didSave(in: node.parent!, by: node.key)
+                value.didSave(in: database, in: node.parent ?? .root, by: node.key)
             }
         }
     }
@@ -314,10 +315,11 @@ public extension RealtimeTransaction {
     func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) throws {
         guard let updatedNode = value.node else { fatalError("Value must be rooted") }
 
+        let database = self.database
         try _update(value, by: updatedNode)
         addCompletion { (result) in
             if result {
-                value.didSave(in: updatedNode.parent ?? .root, by: updatedNode.key)
+                value.didSave(in: database, in: updatedNode.parent ?? .root, by: updatedNode.key)
             }
         }
     }

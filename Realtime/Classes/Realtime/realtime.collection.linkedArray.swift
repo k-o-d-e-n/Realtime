@@ -53,15 +53,16 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
     // MARK: Realtime
 
     public convenience init(fireData: FireDataProtocol, elementsNode: Node) throws {
-        self.init(in: fireData.dataRef.map(Node.from), options: [.elementsNode: elementsNode])
-        try apply(fireData, strongly: true)
+        self.init(in: fireData.node, options: [.elementsNode: elementsNode,
+                                               .database: fireData.database as Any])
+        try apply(fireData, strongly: strongly)
     }
 
-    public required init(fireData: FireDataProtocol) throws {
+    public required init(fireData: FireDataProtocol, strongly: Bool) throws {
         #if DEBUG
-            fatalError("LinkedRealtimeArray does not supported init(fireData:) yet.")
+            fatalError("LinkedRealtimeArray does not supported init(fireData:strongly:) yet.")
         #else
-            throw RealtimeError(source: .collection, description: "LinkedRealtimeArray does not supported init(fireData:) yet.")
+            throw RealtimeError(source: .collection, description: "LinkedRealtimeArray does not supported init(fireData:strongly:) yet.")
         #endif
     }
 
@@ -106,9 +107,9 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 //    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
 
 //    }
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
-        _view.source.didSave(in: parent)
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
+        _view.source.didSave(in: database, in: parent)
     }
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
@@ -165,11 +166,6 @@ public extension LinkedRealtimeArray {
 
         let transaction = transaction ?? RealtimeTransaction()
         try _write(element, at: index ?? count, by: node!, in: transaction)
-        transaction.addCompletion { [weak self] (result) in
-            if result {
-                self?.didSave()
-            }
-        }
         return transaction
     }
 
@@ -255,11 +251,6 @@ public extension LinkedRealtimeArray {
             with: item.dbKey.subpath(with: item.linkID)
         )
         transaction.removeValue(by: elementLinksNode)
-        transaction.addCompletion { [weak self] (result) in
-            if result {
-                self?.didSave()
-            }
-        }
     }
 }
 

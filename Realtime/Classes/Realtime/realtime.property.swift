@@ -91,6 +91,18 @@ public final class RealtimeReference<Referenced: RealtimeValue>: RealtimePropert
         super.init(in: node, options: [.representer: o.representer])
     }
 
+    public init(fireData: FireDataProtocol, strongly: Bool, options: Options) throws {
+        try super.init(fireData: fireData, strongly: strongly, representer: options.representer)
+    }
+
+    required public init(fireData: FireDataProtocol, strongly: Bool) throws {
+        fatalError("init(fireData:strongly:) cannot be called. Use init(fireData:strongly:options) instead")
+    }
+
+    required public init(fireData: FireDataProtocol, strongly: Bool, representer: Representer<Referenced>) throws {
+        fatalError("init(fireData:strongly:representer:) cannot be called. Use init(fireData:strongly:options) instead")
+    }
+
     @discardableResult
     public override func setValue(_ value: Referenced, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         guard value.isRooted else { fatalError("Value must with rooted node") }
@@ -129,6 +141,19 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
 
         self.options = relation
         super.init(in: node, options: [.representer: relation.representer])
+    }
+
+    public init(fireData: FireDataProtocol, strongly: Bool, options: Options) throws {
+        self.options = options
+        try super.init(fireData: fireData, strongly: strongly, representer: options.representer)
+    }
+
+    required public init(fireData: FireDataProtocol, strongly: Bool) throws {
+        fatalError("init(fireData:strongly:) cannot be called. Use init(fireData:strongly:options) instead")
+    }
+
+    required public init(fireData: FireDataProtocol, strongly: Bool, representer: Representer<Related>) throws {
+        fatalError("init(fireData:strongly:representer:) cannot be called. Use init(fireData:strongly:options) instead")
     }
 
     @discardableResult
@@ -189,7 +214,7 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
         }
     }
 
-    struct Options {
+    public struct Options {
         /// Levels up by hierarchy to relation owner of this property
         let ownerLevelsUp: Int
         /// String path from related object to his relation property
@@ -400,6 +425,17 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
         self.representer = representer
         super.init(in: node, options: options)
     }
+
+    public required init(fireData: FireDataProtocol, strongly: Bool, representer: Representer<T>) throws {
+        self.representer = representer
+        self.localPropertyValue = PropertyValue(.initial)
+        self.insider = Insider(source: localPropertyValue.get)
+        try super.init(fireData: fireData, strongly: strongly)
+    }
+
+    public required init(fireData: FireDataProtocol, strongly: Bool) throws {
+        fatalError("init(fireData:strongly:) cannot be called. Use init(fireData:strongly:representer:)")
+    }
     
     public override func load(completion: Assign<Error?>?) {
         super.load(completion: completion?.with(work: { (val) in
@@ -437,8 +473,8 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     
     // MARK: Events
     
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
         if case .local(let v) = localPropertyValue.get() {
             _setListenValue(.remote(v, strong: true))
         }
@@ -450,11 +486,6 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     }
     
     // MARK: Changeable
-
-    public convenience required init(fireData: FireDataProtocol) throws {
-        self.init(in: fireData.dataRef.map(Node.from))
-        try apply(fireData, strongly: true)
-    }
 
     override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
 //        super.apply(data, strongly: strongly)
@@ -634,10 +665,6 @@ public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: Fire
 
     // MARK: Events
 
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
-    }
-
     override public func didRemove(from node: Node) {
         super.didRemove(from: node)
         setValue(T())
@@ -645,9 +672,10 @@ public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: Fire
 
     // MARK: Changeable
 
-    public convenience required init(fireData: FireDataProtocol) throws {
-        self.init(in: fireData.dataRef.map(Node.from))
-        try apply(fireData, strongly: true)
+    public required init(fireData: FireDataProtocol, strongly: Bool) throws {
+        self.localPropertyValue = PropertyValue(T())
+        self.insider = Insider(source: localPropertyValue.get)
+        try super.init(fireData: fireData, strongly: strongly)
     }
 
     override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {

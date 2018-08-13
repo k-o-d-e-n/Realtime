@@ -116,7 +116,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var canObserve: Bool { return base.canObserve }
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
-    public convenience required init(fireData: FireDataProtocol) throws { fatalError() }
+    public convenience required init(fireData: FireDataProtocol, strongly: Bool) throws { fatalError() }
     public func apply(_ data: FireDataProtocol, strongly: Bool) throws { try base.apply(data, strongly: strongly) }
 }
 
@@ -232,7 +232,7 @@ where Element: RealtimeValue {
         base.stopObserving()
     }
 
-    public convenience required init(fireData: FireDataProtocol) throws {
+    public convenience required init(fireData: FireDataProtocol, strongly: Bool) throws {
         fatalError("Cannot use this initializer")
     }
 
@@ -295,7 +295,7 @@ where Base.Index == Int {
         base.stopObserving()
     }
 
-    public convenience required init(fireData: FireDataProtocol) throws {
+    public convenience required init(fireData: FireDataProtocol, strongly: Bool) throws {
         fatalError("Cannot use this initializer")
     }
 

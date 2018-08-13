@@ -106,9 +106,9 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: Realt
     }
 }
 extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
-    public init(fireData: FireDataProtocol) throws {
+    public init(fireData: FireDataProtocol, strongly: Bool) throws {
         if fireData.exists() {
-            self = .some(try Wrapped(fireData: fireData))
+            self = .some(try Wrapped(fireData: fireData, strongly: strongly))
         } else {
             self = .none
         }
@@ -125,14 +125,6 @@ public extension RealtimeValue {
 
     init(in node: Node?) { self.init(in: node, options: [:]) }
     init() { self.init(in: nil) }
-    init(fireData: FireDataProtocol, strongly: Bool) throws {
-        if strongly {
-            try self.init(fireData: fireData)
-        } else {
-            self.init(in: fireData.dataRef.map(Node.from))
-            try apply(fireData, strongly: false)
-        }
-    }
 
     mutating func apply(parentDataIfNeeded parent: FireDataProtocol, strongly: Bool) throws {
         guard strongly || dbKey.has(in: parent) else { return }
@@ -177,7 +169,7 @@ public protocol RealtimeValueEvents {
     ///
     /// - Parameter parent: Parent node
     /// - Parameter key: Location in parent node
-    func didSave(in parent: Node, by key: String)
+    func didSave(in database: RealtimeDatabase, in parent: Node, by key: String)
     /// Must call always before removing action
     ///
     /// - Parameters:
@@ -196,16 +188,16 @@ extension RealtimeValueEvents where Self: RealtimeValue {
         }
         willSave(in: transaction, in: parent, by: node.key)
     }
-    func didSave(in parent: Node) {
+    func didSave(in database: RealtimeDatabase, in parent: Node) {
         if let node = self.node {
-            didSave(in: parent, by: node.key)
+            didSave(in: database, in: parent, by: node.key)
         } else {
             debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.rootPath)")
         }
     }
-    func didSave() {
+    func didSave(in database: RealtimeDatabase) {
         if let parent = node?.parent, let node = self.node {
-            didSave(in: parent, by: node.key)
+            didSave(in: database, in: parent, by: node.key)
         } else {
             debugFatalError("Rootless value has been saved to undefined location")
         }
