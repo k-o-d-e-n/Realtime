@@ -55,14 +55,6 @@ class RealtimeUser: RealtimeObject {
     lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png.optional())
     //    lazy var gender: String?
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
-    //    @objc dynamic var items: [String] = []
-    //    @objc dynamic var location: CLLocation?
-    //    @objc dynamic var url: URL?
-    //    @objc dynamic var birth: Date?
-    //    @objc dynamic var thumbnail: File?
-    //    @objc dynamic var cover: File?
-    //    @objc dynamic var type: UserType = .first
-    //    @objc dynamic var testItems: Set<String> = []
     lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var scheduledConversations: RealtimeArray<Conversation> = "scheduledConversations".array(from: self.node)
 

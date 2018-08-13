@@ -24,6 +24,8 @@ extension DatabaseReference: DatabaseNode {
 }
 
 public protocol RealtimeDatabase {
+    func generateAutoID() -> String
+
     func node() -> DatabaseNode
     func node(with valueNode: Node) -> DatabaseNode
 
@@ -46,6 +48,10 @@ public protocol RealtimeDatabase {
     func removeObserver(for node: Node, with token: UInt)
 }
 extension Database: RealtimeDatabase {
+    public func generateAutoID() -> String {
+        return reference().childByAutoId().key
+    }
+
     public func node() -> DatabaseNode {
         return reference()
     }
@@ -134,6 +140,11 @@ class FileNode: ValueNode {
 
 class CacheNode: ObjectNode, RealtimeDatabase {
     static let root: CacheNode = CacheNode(node: .root)
+
+    func generateAutoID() -> String {
+        return Database.database().generateAutoID()
+    }
+
     func node() -> DatabaseNode {
         return self
     }

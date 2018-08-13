@@ -52,7 +52,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 
     // MARK: Realtime
 
-    public convenience init(fireData: FireDataProtocol, elementsNode: Node) throws {
+    public convenience init(fireData: FireDataProtocol, strongly: Bool, elementsNode: Node) throws {
         self.init(in: fireData.node, options: [.elementsNode: elementsNode,
                                                .database: fireData.database as Any])
         try apply(fireData, strongly: strongly)
