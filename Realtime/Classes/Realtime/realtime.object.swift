@@ -9,8 +9,6 @@
 import Foundation
 import FirebaseDatabase
 
-// TODO: Add caching mechanism, for reuse entities (Can use root global element describing all database)
-
 /// Base class for any database value
 open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
     public fileprivate(set) var database: RealtimeDatabase?
@@ -309,7 +307,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     /// - Parameter label: Label of property
     /// - Returns: Key path to access property
     open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
-        fatalError("You should implement class func keyPath(for:)")
+        fatalError("You should implement class func lazyPropertyKeyPath(for:)")
     }
 
     override func _write(to transaction: RealtimeTransaction, by node: Node) throws {

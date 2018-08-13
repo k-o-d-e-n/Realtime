@@ -143,8 +143,6 @@ public struct RCBasedDataSource<RC: RealtimeCollection>: ModelDataSource {
     }
 }
 
-// TODO: Add registration section model
-// TODO: Overhead with recompilation listenings; DECISION: Save listening items by indexPath
 @available(*, deprecated: 0.1.0, message: "Use RealtimeTableViewDelegate instead")
 public class _RealtimeTableAdapter<Models: ModelDataSource> {
     public typealias CellFactory<Cell: UITableViewCell> = (ReuseViewPrototype<Cell>, Models.Model) -> [ListeningItem]
@@ -152,7 +150,7 @@ public class _RealtimeTableAdapter<Models: ModelDataSource> {
     private var _freePrototypes: [ReuseViewPrototype<UITableViewCell>] = []
     private var _prototypeCache = Dictionary<IndexPath, ReuseViewPrototype<UITableViewCell>>()
     private var _cellProtos: [TypeKey: CellFactory<UITableViewCell>] = [:]
-    private var _isNeedReload: Bool = false // TODO: Not reset, need reset after reload
+    private var _isNeedReload: Bool = false
     private var _listening: Disposable!
 
     public var cellForIndexPath: ((IndexPath) -> UITableViewCell.Type)!
