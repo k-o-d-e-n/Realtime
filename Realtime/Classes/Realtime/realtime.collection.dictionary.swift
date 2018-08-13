@@ -29,7 +29,6 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
     let keysNode: Node
     let elementBuilder: (Node, [RealtimeValueOption: Any]) -> Value
     var elements: [K: Value] = [:]
-    var localElements: [K: Value] = [:]
 
     func buildElement(with key: K) -> V {
         return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.payload: $0] } ?? [:])
@@ -64,7 +63,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
     public override var payload: [String : FireDataValue]? { return nil }
-    override var _hasChanges: Bool { return storage.localElements.count > 0 }
+    override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
     public var view: RealtimeCollectionView { return _view }
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
@@ -77,7 +76,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         let builder = options[.elementBuilder] as? RCElementBuilder<Value> ?? Value.init
-        self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: builder, elements: [:], localElements: [:])
+        self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: builder, elements: [:])
         self._view = AnyRealtimeCollectionView(InternalKeys.items._property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty()))
         super.init(in: node, options: options)
         self._view.collection = self
@@ -107,7 +106,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
     public func contains(valueBy key: Key) -> Bool {
         if isStandalone {
-            return storage.localElements[key] != nil
+            return storage.elements[key] != nil
         } else {
             _view.checkPreparation()
             return _view.contains(where: { $0.dbKey == key.dbKey })
@@ -141,7 +140,8 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
-        storage.localElements[key] = element
+        _view.append(RCItem(element: element, key: key.dbKey, linkID: "", index: _view.count))
+        storage.store(value: element, by: key)
     }
 
     @discardableResult
@@ -300,7 +300,8 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     }
 
     override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
-        try storage.localElements.forEach { (key, value) in
+        for (i, (key: key, value: value)) in storage.elements.enumerated() {
+            _view.remove(at: i)
             try _write(value,
                        for: key,
                        by: (storage: node,
@@ -330,7 +331,6 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
             _view.source.didSave(in: node.linksNode)
             storage.sourceNode = node
         }
-        storage.localElements.removeAll()
         storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0.dbKey) }
     }
 
