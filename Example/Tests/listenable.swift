@@ -26,7 +26,7 @@ class ListenableTests: XCTestCase {
         }
     }
 
-    class PropertyClass<T>: InsiderOwner {
+    class PropertyClass<T>: InsiderOwner, ValueWrapper {
         private var localPropertyValue: PropertyValue<T>
         var value: T {
             get { return localPropertyValue.get() }
@@ -505,13 +505,11 @@ class ListenableTests: XCTestCase {
     func testOnReceiveListening() {
         var exponentValue = 1
         var property = Property<Double>(value: .pi)
-        //        _ = property.insider.listen(preprocessor: { pp in
-        //            return pp.onReceive { v, exp in DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })  }
-        //        }, {
-        //            exponentValue = $0
-        //        })
         _ = property.insider.listen(preprocessor: { (pp) in
-            return pp.map { $0.exponent }.onReceive { v, exp in DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() }) }
+            return pp.map { $0.exponent }
+                .onReceive { v, exp in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })
+            }
         }, .just {
             exponentValue = $0
             })
@@ -567,6 +565,210 @@ class ListenableTests: XCTestCase {
 
         propertyDouble.value = "Test #2154"
         XCTAssertTrue(value == "Test #2154" + " is successful")
+    }
+
+    func testPreprocessorAsListenable() {
+        func map<T: Listenable, U>(_ listenable: T, _ transform: @escaping (T.OutData) -> U) -> TransformedFilteredPreprocessor<T.OutData, U> {
+            return TransformedFilteredPreprocessor(listenable: AnyListenable(listenable), bridgeMaker: SimpleBridgeMaker().transformed(transform))
+        }
+
+        let propertyDouble = PropertyClass<Double>(.pi)
+
+        var isChanged = false
+        var doubleValue = 0.0 {
+            didSet { isChanged = true }
+        }
+        _ = map(propertyDouble.filter { $0 != .infinity }, { print($0); return $0 }).listening(.just { doubleValue = $0 })
+
+        propertyDouble.value = 10.0
+        XCTAssertTrue(doubleValue == 10.0)
+
+        propertyDouble.value = .infinity
+        XCTAssertTrue(doubleValue == 10.0)
+    }
+
+    func testDoubleFilterPropertyClass() {
+        let property = PropertyClass("")
+
+        var textLength = 0
+        _ = property
+            .filter { !$0.isEmpty }
+            .filter { $0.count <= 10 }
+            .map { $0.count }
+            .listening { textLength = $0 }
+
+        property.value = "10.0"
+        XCTAssertTrue(textLength == 4)
+
+        property.value = ""
+        XCTAssertTrue(textLength == 4)
+
+        property.value = "Text with many characters"
+        XCTAssertTrue(textLength == 4)
+
+        property.value = "Passed"
+        XCTAssertTrue(textLength == 6)
+    }
+
+    func testDoubleMapPropertyClass() {
+        let property = PropertyClass("")
+
+        var textLength = "0"
+        _ = property
+            .filter { !$0.isEmpty }
+            .map { $0.count }
+            .map(String.init)
+            .listening { textLength = $0 }
+
+        property.value = "10.0"
+        XCTAssertTrue(textLength == "4")
+
+        property.value = ""
+        XCTAssertTrue(textLength == "4")
+
+        property.value = "Text with many characters"
+        XCTAssertTrue(textLength == "\(property.value.count)")
+
+        property.value = "Passed"
+        XCTAssertTrue(textLength == "6")
+    }
+
+    func testOnReceivePropertyClass() {
+        var exponentValue = 1
+        var property = PropertyClass<Double>(.pi)
+        _ = property
+            .map { $0.exponent }
+            .onReceive { v, exp in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })
+            }
+            .listening(.just {
+                exponentValue = $0
+            })
+
+        let exp = expectation(description: "")
+        property <== 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+            XCTAssertTrue(property.value == 0)
+            XCTAssertTrue(exponentValue == property.value.exponent)
+            property <== 21
+            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+                XCTAssertTrue(exponentValue == property.value.exponent)
+                XCTAssertTrue(property.value == 21)
+                property <== -100.5
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+                    XCTAssertTrue(exponentValue == property.value.exponent)
+                    XCTAssertTrue(property.value == -100.5)
+                    exp.fulfill()
+                })
+            })
+        })
+
+        waitForExpectations(timeout: 5, handler: nil)
+    }
+
+    func testDoubleOnReceivePropertyClass() {
+        var exponentValue = 1
+        var property = PropertyClass<Double>(.pi)
+        _ = property
+            .map { $0.exponent }
+            .onReceive { v, exp in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })
+            }
+            .onReceive({ (v, promise) in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { promise.fulfill() })
+            })
+            .listening(.just {
+                exponentValue = $0
+            })
+
+        let exp = expectation(description: "")
+        property <== 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
+            XCTAssertTrue(property.value == 0)
+            XCTAssertEqual(exponentValue, property.value.exponent)
+            property <== 21
+            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
+                XCTAssertEqual(exponentValue, property.value.exponent)
+                XCTAssertTrue(property.value == 21)
+                property <== -100.5
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
+                    XCTAssertEqual(exponentValue, property.value.exponent)
+                    XCTAssertTrue(property.value == -100.5)
+                    exp.fulfill()
+                })
+            })
+        })
+
+        waitForExpectations(timeout: 10, handler: nil)
+    }
+
+    func testOnReceiveMapPropertyClass() {
+        var exponentValue = "1"
+        var property = PropertyClass<Double>(.pi)
+        _ = property
+            .map { $0.exponent }
+            .onReceiveMap { v, exp in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill("\(v)") })
+            }
+            .listening(.just {
+                exponentValue = $0
+            })
+
+        let exp = expectation(description: "")
+        property <== 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+            XCTAssertTrue(property.value == 0)
+            XCTAssertTrue(exponentValue == "\(property.value.exponent)")
+            property <== 21
+            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+                XCTAssertTrue(exponentValue == "\(property.value.exponent)")
+                XCTAssertTrue(property.value == 21)
+                property <== -100.5
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+                    XCTAssertTrue(exponentValue == "\(property.value.exponent)")
+                    XCTAssertTrue(property.value == -100.5)
+                    exp.fulfill()
+                })
+            })
+        })
+
+        waitForExpectations(timeout: 5, handler: nil)
+    }
+
+    func testDoubleOnReceiveMapPropertyClass() {
+        var exponentValue = 0
+        var property = PropertyClass<Double>(.pi)
+        _ = property
+            .map { $0.exponent }
+            .onReceiveMap { v, exp in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill("\(v)") })
+            }
+            .onReceiveMap({ (v, promise) in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { promise.fulfill(v.count) })
+            })
+            .listening(.just {
+                exponentValue = $0
+            })
+
+        let exp = expectation(description: "")
+        property <== 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
+            XCTAssertTrue(property.value == 0)
+            XCTAssertEqual(exponentValue, "\(property.value.exponent)".count)
+            property <== 21
+            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
+                XCTAssertEqual(exponentValue, "\(property.value.exponent)".count)
+                XCTAssertTrue(property.value == 21)
+                property <== -100.5
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
+                    XCTAssertEqual(exponentValue, "\(property.value.exponent)".count)
+                    XCTAssertTrue(property.value == -100.5)
+                    exp.fulfill()
+                })
+            })
+        })
+
+        waitForExpectations(timeout: 10, handler: nil)
     }
 
     //    func testRealtimeTextField() {

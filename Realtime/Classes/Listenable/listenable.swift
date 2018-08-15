@@ -158,19 +158,6 @@ protocol ListeningMaker {
     associatedtype Data
     func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening
 }
-
-struct SimpleBridgeMaker<Data>: BridgeMaker {
-    typealias OutData = Data
-    func wrapAssign(_ assign: Assign<Data>) -> Assign<Data> {
-        return assign
-    }
-    func filtered(_ predicate: @escaping (Data) -> Bool) -> FilteredBridge<Data> {
-        return .init(bridge: AnyFilter.wrap(predicate: predicate, on: { $1($0) }))
-    }
-    func transformed<U>(_ transform: @escaping (Data) -> U) -> TransformedFilteredBridgeMaker<Data, U> {
-        return .init(bridge: AnyModificator.make(modificator: transform, with: { $1($0) }))
-    }
-}
 protocol _ListeningMaker: ListeningMaker {
     associatedtype Bridge: BridgeMaker
     var bridgeMaker: Bridge { get }

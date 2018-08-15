@@ -73,7 +73,7 @@ public extension Listenable where OutData: RealtimeValueActions {
 }
 
 public extension Listenable {
-    func asyncMap<U: RealtimeValueActions>(_ transform: @escaping (OutData) -> U) -> OnReceivePreprocessor<OutData, U> {
+    func asyncMap<U: RealtimeValueActions>(_ transform: @escaping (OutData) -> U) -> OnReceivePreprocessor<U, U> {
         return map(transform).onReceive({ (v, p) in
             v.load(completion: .just { _ in p.fulfill() })
         })
@@ -92,7 +92,7 @@ public extension Listenable where OutData: _Optional {
             .filter { $0.map { _ in true } ?? false }
             .map { transform($0.unsafelyUnwrapped) }
     }
-    func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (OutData.Wrapped) -> U) -> OnReceivePreprocessor<OutData, U> {
+    func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (OutData.Wrapped) -> U) -> OnReceivePreprocessor<U, U> {
         return flatMap(transform).onReceive({ (v, p) in
             v.load(completion: .just { _ in p.fulfill() })
         })
