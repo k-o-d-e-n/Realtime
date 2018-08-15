@@ -139,15 +139,9 @@ fileprivate struct AnyOnReceive<I, O> {
     }
 }
 
-/// Data source that can be applied filter
-public protocol FilteringEntity {
-    associatedtype Value
-    associatedtype Filtered
-    func filter(_ predicate: @escaping (Value) -> Bool) -> Filtered
-}
-public extension FilteringEntity {
-    fileprivate func _distinctUntilChanged(_ def: Value?, comparer: @escaping (Value, Value) -> Bool) -> Filtered {
-        var oldValue: Value? = def
+public extension Listenable {
+    fileprivate func _distinctUntilChanged(_ def: OutData?, comparer: @escaping (OutData, OutData) -> Bool) -> TransformedFilteredPreprocessor<OutData, OutData> {
+        var oldValue: OutData? = def
         return filter { newValue in
             defer { oldValue = newValue }
             return oldValue.map { comparer($0, newValue) } ?? true
@@ -155,23 +149,23 @@ public extension FilteringEntity {
     }
 
     /// blocks updates with the same values, using specific comparer. Defines initial value.
-    func distinctUntilChanged(_ def: Value, comparer: @escaping (Value, Value) -> Bool) -> Filtered {
+    func distinctUntilChanged(_ def: OutData, comparer: @escaping (OutData, OutData) -> Bool) -> TransformedFilteredPreprocessor<OutData, OutData> {
         return _distinctUntilChanged(def, comparer: comparer)
     }
 
     /// blocks updates with the same values, using specific comparer
-    func distinctUntilChanged(comparer: @escaping (Value, Value) -> Bool) -> Filtered {
+    func distinctUntilChanged(comparer: @escaping (OutData, OutData) -> Bool) -> TransformedFilteredPreprocessor<OutData, OutData> {
         return _distinctUntilChanged(nil, comparer: comparer)
     }
 }
-public extension FilteringEntity where Value: Equatable {
+public extension Listenable where OutData: Equatable {
 	/// blocks updates with the same values with defined initial value.
-    func distinctUntilChanged(_ def: Value) -> Filtered {
+    func distinctUntilChanged(_ def: OutData) -> TransformedFilteredPreprocessor<OutData, OutData> {
         return distinctUntilChanged(def, comparer: !=)
     }
 
     /// blocks updates with the same values
-    func distinctUntilChanged() -> Filtered {
+    func distinctUntilChanged() -> TransformedFilteredPreprocessor<OutData, OutData> {
         return distinctUntilChanged(comparer: !=)
     }
 }
@@ -240,7 +234,7 @@ struct OnReceiveMapBridge<I, O, R>: BridgeMaker {
     }
 }
 
-public struct TransformedFilteredPreprocessor<I, O>: FilteringEntity, Listenable {
+public struct TransformedFilteredPreprocessor<I, O>: Listenable {
     public typealias OutData = O
     typealias Data = I
     let listenable: AnyListenable<I>
@@ -253,7 +247,7 @@ public struct TransformedFilteredPreprocessor<I, O>: FilteringEntity, Listenable
         return listenable.listeningItem(as: config, bridgeMaker.wrapAssign(assign))
     }
 }
-public struct OnReceivePreprocessor<I, O>: FilteringEntity, Listenable {
+public struct OnReceivePreprocessor<I, O>: Listenable {
     public typealias OutData = O
     typealias Data = I
     internal typealias Bridge = OnReceiveBridge<I, O>
@@ -267,7 +261,7 @@ public struct OnReceivePreprocessor<I, O>: FilteringEntity, Listenable {
         return listenable.listeningItem(as: config, bridgeMaker.wrapAssign(assign))
     }
 }
-public struct OnReceiveMapPreprocessor<Result, I, O>: FilteringEntity, Listenable {
+public struct OnReceiveMapPreprocessor<Result, I, O>: Listenable {
     public typealias OutData = Result
     typealias Data = I
     let listenable: AnyListenable<I>
@@ -315,7 +309,7 @@ public protocol PublicPreprocessor {
     func wrap(_ assign: @escaping (OutData) -> Void) -> AnyListening
 }
 
-public struct InsiderPreprocessor<V>: FilteringEntity, _ListeningMaker, PublicPreprocessor {
+public struct InsiderPreprocessor<V>: _ListeningMaker, PublicPreprocessor {
     public typealias OutData = V
     typealias Data = V
     internal let dataSource: () -> V
@@ -341,7 +335,7 @@ public struct InsiderPreprocessor<V>: FilteringEntity, _ListeningMaker, PublicPr
         return makeListening(assign)
     }
 }
-public struct InsiderTransformedPreprocessor<V>: FilteringEntity, _ListeningMaker, PublicPreprocessor {
+public struct InsiderTransformedPreprocessor<V>: _ListeningMaker, PublicPreprocessor {
     public typealias OutData = V
     typealias Data = V
     internal let dataSource: () -> V
@@ -367,7 +361,7 @@ public struct InsiderTransformedPreprocessor<V>: FilteringEntity, _ListeningMake
         return makeListening(assign)
     }
 }
-public struct InsiderFilteredPreprocessor<V>: FilteringEntity, _ListeningMaker, PublicPreprocessor {
+public struct InsiderFilteredPreprocessor<V>: _ListeningMaker, PublicPreprocessor {
     public typealias OutData = V
     typealias Data = V
     internal let dataSource: () -> V
@@ -393,7 +387,7 @@ public struct InsiderFilteredPreprocessor<V>: FilteringEntity, _ListeningMaker, 
         return makeListening(assign)
     }
 }
-public struct InsiderTransformedFilteredPreprocessor<I, O>: FilteringEntity, _ListeningMaker, PublicPreprocessor {
+public struct InsiderTransformedFilteredPreprocessor<I, O>: _ListeningMaker, PublicPreprocessor {
     public typealias OutData = O
     typealias Data = I
     internal let dataSource: () -> I

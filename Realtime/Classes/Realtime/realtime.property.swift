@@ -74,8 +74,6 @@ public extension RawRepresentable where Self.RawValue == String {
     }
 }
 
-extension RealtimeProperty: FilteringEntity {}
-
 public extension RealtimeValueOption {
     static let relation = RealtimeValueOption("realtime.relation")
     static let reference = RealtimeValueOption("realtime.reference")

@@ -460,28 +460,6 @@ class ListenableTests: XCTestCase {
         XCTAssertTrue(property.value == -100.5)
     }
 
-    func testDistinctUntilChangedListening() {
-        var counter: Int = 0
-        var property = Property<Double>(value: .pi)
-        _ = property.insider.listen(preprocessor: { pp in
-            return pp.distinctUntilChanged()
-        }, .just { _ in
-            counter += 1
-            })
-
-        property <== 0
-        XCTAssertTrue(counter == 1)
-        property <== 0
-        XCTAssertTrue(counter == 1)
-        property <== -100.5
-        XCTAssertTrue(counter == 2)
-        XCTAssertTrue(property.value == -100.5)
-        property <== .pi
-        XCTAssertTrue(counter == 3)
-        property <== .pi
-        XCTAssertTrue(counter == 3)
-    }
-
     func testMapListening() {
         var exponentValue = 1
         var property = Property<Double>(value: .pi)
@@ -549,6 +527,26 @@ class ListenableTests: XCTestCase {
 
         propertyDouble.value = .infinity
         XCTAssertTrue(doubleValue == 10.0)
+    }
+
+    func testDistinctUntilChangedPropertyClass() {
+        var counter: Int = 0
+        var property = PropertyClass<Double>(.pi)
+        _ = property.distinctUntilChanged().listening({ (v) in
+            counter += 1
+        })
+
+        property <== 0
+        XCTAssertTrue(counter == 1)
+        property <== 0
+        XCTAssertTrue(counter == 1)
+        property <== -100.5
+        XCTAssertTrue(counter == 2)
+        XCTAssertTrue(property.value == -100.5)
+        property <== .pi
+        XCTAssertTrue(counter == 3)
+        property <== .pi
+        XCTAssertTrue(counter == 3)
     }
 
     func testMapPropertyClass() {
