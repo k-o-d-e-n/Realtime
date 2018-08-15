@@ -72,7 +72,7 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
         listeningItems.forEach { $0.start() }
     }
 
-    public lazy var insider: Insider<View?> = Insider(source: { [unowned self] in self.view })
+    lazy var insider: Insider<View?> = Insider(source: { [unowned self] in self.view })
 }
 
 public class ReuseController<View: AnyObject, Key: Hashable> {

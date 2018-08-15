@@ -566,8 +566,8 @@ class ListenableTests: XCTestCase {
     }
 
     func testPreprocessorAsListenable() {
-        func map<T: Listenable, U>(_ listenable: T, _ transform: @escaping (T.OutData) -> U) -> TransformedFilteredPreprocessor<T.OutData, U> {
-            return TransformedFilteredPreprocessor(listenable: AnyListenable(listenable), bridgeMaker: SimpleBridgeMaker().transformed(transform))
+        func map<T: Listenable, U>(_ listenable: T, _ transform: @escaping (T.OutData) -> U) -> Preprocessor<T.OutData, U> {
+            return listenable.map(transform)
         }
 
         let propertyDouble = PropertyClass<Double>(.pi)

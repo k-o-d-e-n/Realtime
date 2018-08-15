@@ -374,7 +374,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     fileprivate var localPropertyValue: PropertyValue<ListenValue<T>>
     fileprivate var oldValue: ListenValue<T> = .initial
     fileprivate(set) var representer: Representer<T>
-    public var insider: Insider<ListenValue<T>>
+    var insider: Insider<ListenValue<T>>
 
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
@@ -619,7 +619,7 @@ public extension ReadonlyRealtimeProperty where T: HasDefaultLiteral & _Comparab
 public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: FireDataValue & HasDefaultLiteral {
     private var localPropertyValue: PropertyValue<T>
     public var value: T { return localPropertyValue.get() }
-    public var insider: Insider<T>
+    var insider: Insider<T>
     let representer: Representer<T> = .any
 
     // MARK: Initializers, deinitializer

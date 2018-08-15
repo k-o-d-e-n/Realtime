@@ -284,17 +284,17 @@ extension InsiderOwner {
 }
 
 /// Entity, which is port to connect to data changes
-public struct Insider<D> {
-    public typealias Token = Int
+struct Insider<D> {
+    typealias Token = Int
     internal let dataSource: () -> D
     private var listeners = [Token: AnyListening]()
     private var nextToken: Token = Token.min
     
-    public init(source: @escaping () -> D) {
+    init(source: @escaping () -> D) {
         dataSource = source
     }
 
-    public mutating func dataDidChange() {
+    mutating func dataDidChange() {
         let lstnrs = listeners
         lstnrs.forEach { (key: Token, value: AnyListening) in
             value.sendData()
@@ -304,11 +304,11 @@ public struct Insider<D> {
         }
     }
     
-    public mutating func connect<L: AnyListening>(with listening: L) -> Token {
+    mutating func connect<L: AnyListening>(with listening: L) -> Token {
         return connect(with: listening)
     }
     
-    public mutating func connect(with listening: AnyListening) -> Token {
+    mutating func connect(with listening: AnyListening) -> Token {
         defer { nextToken += 1 }
         
         listeners[nextToken] = listening
@@ -316,18 +316,18 @@ public struct Insider<D> {
         return nextToken
     }
     
-    public func has(token: Token) -> Bool {
+    func has(token: Token) -> Bool {
         return listeners.contains { $0.key == token }
     }
     
-    public mutating func disconnect(with token: Token, callOnStop call: Bool = true) {
+    mutating func disconnect(with token: Token, callOnStop call: Bool = true) {
         if let listener = listeners.removeValue(forKey: token), call {
             listener.onStop()
         }
     }
 }
 
-public extension Insider {
+extension Insider {
     func mapped<Other>(_ map: @escaping (D) -> Other) -> Insider<Other> {
         let source = dataSource
         return Insider<Other>(source: { map(source()) })
@@ -336,7 +336,7 @@ public extension Insider {
 
 /// Provides calculated listening value
 public struct ReadonlyProperty<Value> {
-    public lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get) // TODO: Remove public
+    lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
     fileprivate let concreteValue: PropertyValue<Value>
     fileprivate(set) var value: Value {
         get { return concreteValue.get() }
@@ -360,7 +360,7 @@ public struct ReadonlyProperty<Value> {
 
 /// Provides listening value based on async action
 public struct AsyncReadonlyProperty<Value> {
-    public var insider: Insider<Value> {
+    var insider: Insider<Value> {
         get { return concreteValue.getInsider() }
         set { concreteValue.setInsider(newValue) }
     }
@@ -460,7 +460,7 @@ public extension ValueWrapper where V: _Optional {
 
 /// Simple stored property with listening possibility
 public struct Property<Value>: ValueWrapper {
-    lazy public var insider: Insider<Value> = Insider(source: self.concreteValue.get)
+    lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
     fileprivate let concreteValue: PropertyValue<Value>
     public var value: Value {
         get { return concreteValue.get() }
@@ -477,7 +477,7 @@ public struct Property<Value>: ValueWrapper {
 }
 
 public struct WeakProperty<Value>: ValueWrapper where Value: AnyObject {
-    lazy public var insider: Insider<Value?> = Insider(source: self.concreteValue.get)
+    lazy var insider: Insider<Value?> = Insider(source: self.concreteValue.get)
     fileprivate let concreteValue: WeakPropertyValue<Value>
     public var value: Value? {
         get { return concreteValue.get() }
@@ -494,7 +494,7 @@ public struct WeakProperty<Value>: ValueWrapper where Value: AnyObject {
 }
 
 // TODO: Create common protocol for Properties
-public extension Property {
+extension Property {
     /// Subscribing to values from other property
     ///
     /// - Parameter other: Property as source values
@@ -504,7 +504,7 @@ public extension Property {
     }
 }
 
-public extension ReadonlyProperty {
+extension ReadonlyProperty {
     mutating func setter(_ value: Value) -> Void { self.value = value }
 
     mutating func bind(to other: inout Property<Value>) -> Insider<Value>.ListeningToken { // TODO: Not notify subscribers about receiving new value.
