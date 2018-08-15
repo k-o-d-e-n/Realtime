@@ -116,6 +116,14 @@ public struct Assign<A> {
             self.assign(transform(u))
         })
     }
+
+    public func filter(_ predicate: @escaping (A) -> Bool) -> Assign<A> {
+        return Assign(assign: { (a) in
+            if predicate(a) {
+                self.assign(a)
+            }
+        })
+    }
 }
 
 prefix operator <-
@@ -129,6 +137,7 @@ protocol BridgeMaker {
     associatedtype Data
     associatedtype OutData
     func makeBridge(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void
+    func wrapAssign(_ assign: Assign<OutData>) -> Assign<Data>
 }
 
 extension BridgeMaker where Data == OutData {
@@ -152,6 +161,15 @@ protocol ListeningMaker {
 
 struct SimpleBridgeMaker<Data>: BridgeMaker {
     typealias OutData = Data
+    func wrapAssign(_ assign: Assign<Data>) -> Assign<Data> {
+        return assign
+    }
+    func filtered(_ predicate: @escaping (Data) -> Bool) -> FilteredBridge<Data> {
+        return .init(bridge: AnyFilter.wrap(predicate: predicate, on: { $1($0) }))
+    }
+    func transformed<U>(_ transform: @escaping (Data) -> U) -> TransformedFilteredBridgeMaker<Data, U> {
+        return .init(bridge: AnyModificator.make(modificator: transform, with: { $1($0) }))
+    }
 }
 protocol _ListeningMaker: ListeningMaker {
     associatedtype Bridge: BridgeMaker
@@ -193,6 +211,27 @@ public extension Listenable {
         return listeningItem(.just(assign))
     }
 }
+struct AnyListenable<Out>: Listenable {
+    let _listening: ((AnyListening) -> AnyListening, Assign<Out>) -> Disposable
+    let _listeningItem: ((AnyListening) -> AnyListening, Assign<Out>) -> ListeningItem
+
+    init<L: Listenable>(_ base: L) where L.OutData == Out {
+        self._listening = base.listening
+        self._listeningItem = base.listeningItem
+    }
+    init(_ listening: @escaping ((AnyListening) -> AnyListening, Assign<Out>) -> Disposable,
+         _ listeningItem: @escaping ((AnyListening) -> AnyListening, Assign<Out>) -> ListeningItem) {
+        self._listening = listening
+        self._listeningItem = listeningItem
+    }
+
+    func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<Out>) -> Disposable {
+        return _listening(config, assign)
+    }
+    func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<Out>) -> ListeningItem {
+        return _listeningItem(config, assign)
+    }
+}
 
 extension Insider: _ListeningMaker, BridgeMaker {
     typealias OutData = D
@@ -211,6 +250,10 @@ extension Insider: _ListeningMaker, BridgeMaker {
     /// connects to insider to receive value changes with preaction on receive update
     mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, onReceive: @escaping (D, Promise) -> Void, _ assign: Assign<D>) -> ListeningToken {
         return addListening(config(makeListening(on: onReceive, assign.assign)))
+    }
+
+    func wrapAssign(_ assign: Assign<D>) -> Assign<D> {
+        return assign
     }
 }
 

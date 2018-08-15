@@ -63,36 +63,36 @@ extension Optional: _Optional {
     public var wrapped: Wrapped? { return self }
 }
 
-public extension InsiderOwner where InsiderValue: RealtimeValueActions {
+public extension Listenable where OutData: RealtimeValueActions {
 	/// adds loading action on receive new value
-    func loadOnReceive() -> OwnedOnReceivePreprocessor<Self, InsiderValue, InsiderValue> {
+    func loadOnReceive() -> OwnedOnReceivePreprocessor<OutData, OutData> {
         return onReceive({ (v, p) in
             v.load(completion: .just { _ in p.fulfill() })
         })
     }
 }
 
-public extension InsiderOwner {
-    func asyncMap<U: RealtimeValueActions>(_ transform: @escaping (InsiderValue) -> U) -> OwnedOnReceivePreprocessor<Self, U, U> {
+public extension Listenable {
+    func asyncMap<U: RealtimeValueActions>(_ transform: @escaping (OutData) -> U) -> OwnedOnReceivePreprocessor<OutData, U> {
         return map(transform).onReceive({ (v, p) in
             v.load(completion: .just { _ in p.fulfill() })
         })
     }
-    func loadRelated<Loaded: RealtimeValueActions>(_ transform: @escaping (InsiderValue) -> Loaded?) -> OwnedOnReceivePreprocessor<Self, InsiderValue, InsiderValue> {
+    func loadRelated<Loaded: RealtimeValueActions>(_ transform: @escaping (OutData) -> Loaded?) -> OwnedOnReceivePreprocessor<OutData, OutData> {
         return onReceive({ (v, p) in
             transform(v)?.load(completion: .just { _ in p.fulfill() })
         })
     }
 }
 
-public extension InsiderOwner where InsiderValue: _Optional {
+public extension Listenable where OutData: _Optional {
 	/// skips nil values
-    func flatMap<U>(_ transform: @escaping (InsiderValue.Wrapped) -> U) -> OwnedTransformedFilteredPreprocessor<Self, InsiderValue, U> {
+    func flatMap<U>(_ transform: @escaping (OutData.Wrapped) -> U) -> OwnedTransformedFilteredPreprocessor<OutData, U> {
         return self
             .filter { $0.map { _ in true } ?? false }
             .map { transform($0.unsafelyUnwrapped) }
     }
-    func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (InsiderValue.Wrapped) -> U) -> OwnedOnReceivePreprocessor<Self, InsiderValue, U> {
+    func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (OutData.Wrapped) -> U) -> OwnedOnReceivePreprocessor<OutData, U> {
         return flatMap(transform).onReceive({ (v, p) in
             v.load(completion: .just { _ in p.fulfill() })
         })
