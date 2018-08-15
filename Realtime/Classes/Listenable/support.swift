@@ -126,52 +126,57 @@ public extension Listenable where Self.OutData == UIImage? {
 }
 
 extension UIControl: Listenable {
-    public typealias OutData = Void
-
-    private func makeDispose(for events: UIControlEvents, listening: AnyListening) -> Disposable {
-        return ControlListening(self, events: events, listening: listening)
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
+        return listening(as: config, events: .allEvents, assign)
     }
-    private func makeListeningItem(for events: UIControlEvents, listening: AnyListening) -> ListeningItem {
-        let controlListening = ControlListening(self, events: events, listening: listening)
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
+        return listeningItem(as: config, events: .allEvents, assign)
+    }
+
+    private func listen(for events: UIControlEvents, _ listening: AnyListening, _ change: @escaping (UIEvent) -> Void) -> ControlListening {
+        return ControlListening(self, events: events, listening: listening, change: change)
+    }
+    private func listenItem(for events: UIControlEvents, _ listening: AnyListening, _ change: @escaping (UIEvent) -> Void) -> ListeningItem {
+        let controlListening = ControlListening(self, events: events, listening: listening, change: change)
         return ListeningItem(start: controlListening.onStart,
                              stop: controlListening.onStop,
                              notify: controlListening.sendData,
                              token: ())
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<Void>) -> Disposable {
-        return makeDispose(for: .allEvents, listening: config(Listening(bridge: assign.assign)))
+    public func listening(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
+        var event: UIEvent = UIEvent()
+        let listening = config(Listening(bridge: { [unowned self] in assign.assign((self, event)) }))
+        return listen(for: events, listening, { event = $0 })
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<Void>) -> ListeningItem {
-        return makeListeningItem(for: .allEvents, listening: config(Listening(bridge: assign.assign)))
-    }
-
-    public func listening(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<Void>) -> Disposable {
-        return makeDispose(for: events, listening: config(Listening(bridge: assign.assign)))
-    }
-
-    public func listeningItem(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<Void>) -> ListeningItem {
-        return makeListeningItem(for: events, listening: config(Listening(bridge: assign.assign)))
+    public func listeningItem(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
+        var event: UIEvent = UIEvent()
+        let listening = config(Listening(bridge: { [unowned self] in assign.assign((self, event)) }))
+        return listenItem(for: events, listening, { event = $0 })
     }
 
     private class ControlListening: AnyListening, Disposable, Hashable {
         unowned let control: UIControl
         let events: UIControlEvents
         let base: AnyListening
+        let onEvent: (UIEvent) -> Void
 
         var isInvalidated: Bool { return control.allTargets.contains(self) }
         var dispose: () -> Void { return onStop }
 
-        init(_ control: UIControl, events: UIControlEvents, listening: AnyListening) {
+        init(_ control: UIControl, events: UIControlEvents, listening: AnyListening, change: @escaping (UIEvent) -> Void) {
             self.control = control
             self.events = events
             self.base = listening
+            self.onEvent = change
 
             onStart()
         }
 
         @objc func onEvent(_ control: UIControl, _ event: UIEvent) { // TODO: UIEvent
+            onEvent(event)
             sendData()
         }
 

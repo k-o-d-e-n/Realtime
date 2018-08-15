@@ -16,7 +16,7 @@ class OtherTests: XCTestCase {
         var counter = 0
         let control = UIControl()
 
-        let disposable = control.listening(events: .touchUpInside, .just {
+        let disposable = control.listening(events: .touchUpInside, .just {_ in
             counter += 1
             })
 

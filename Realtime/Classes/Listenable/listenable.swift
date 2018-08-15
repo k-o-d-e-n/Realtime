@@ -133,47 +133,6 @@ public prefix func <-<A>(rhs: Assign<A>) -> (A) -> Void {
 
 // MARK: Connections
 
-protocol BridgeMaker {
-    associatedtype Data
-    associatedtype OutData
-    func makeBridge(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void
-    func wrapAssign(_ assign: Assign<OutData>) -> Assign<Data>
-}
-
-extension BridgeMaker where Data == OutData {
-    internal func makeBridge(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void {
-        return { assign(source()) }
-    }
-    fileprivate func makeBridge(on event: @escaping (OutData, Promise) -> Void, with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void {
-        let realBridge = makeBridge(with: assign, source: source)
-        return makeBridge(on: event, bridge: realBridge, source: source)
-    }
-    fileprivate func makeBridge(on event: @escaping (OutData, Promise) -> Void, bridge: @escaping () -> Void, source: @escaping () -> Data) -> () -> Void {
-        return { event(source(), Promise(action: bridge)) }
-    }
-}
-
-protocol ListeningMaker {
-    associatedtype OutData
-    associatedtype Data
-    func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening
-}
-protocol _ListeningMaker: ListeningMaker {
-    associatedtype Bridge: BridgeMaker
-    var bridgeMaker: Bridge { get }
-    var dataSource: () -> Data { get }
-}
-extension _ListeningMaker where Bridge.Data == Self.Data, Bridge.OutData == Self.OutData {
-    internal func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening {
-        return Listening(bridge: bridgeMaker.makeBridge(with: assign, source: dataSource))
-    }
-    fileprivate func makeListening(on event: @escaping (Data, Promise) -> Void, _ assign: @escaping (OutData) -> Void) -> AnyListening {
-        let source = dataSource
-        let realBridge = bridgeMaker.makeBridge(with: assign, source: source)
-        return Listening(bridge: { event(source(), Promise(action: realBridge)) })
-    }
-}
-
 /// Common protocol for all objects that ensures listening value. 
 public protocol Listenable {
     associatedtype OutData
@@ -530,5 +489,48 @@ public extension Listenable {
     @discardableResult
     func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.OutData {
         return listening(as: { $0.livetime(other) }, .just { [weak other] v in other?.value = v })
+    }
+}
+
+// ------------------------------------------ DEPRECATED ------------------------------------------
+
+protocol BridgeMaker {
+    associatedtype Data
+    associatedtype OutData
+    func makeBridge(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void
+    func wrapAssign(_ assign: Assign<OutData>) -> Assign<Data>
+}
+
+extension BridgeMaker where Data == OutData {
+    internal func makeBridge(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void {
+        return { assign(source()) }
+    }
+    fileprivate func makeBridge(on event: @escaping (OutData, Promise) -> Void, with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void {
+        let realBridge = makeBridge(with: assign, source: source)
+        return makeBridge(on: event, bridge: realBridge, source: source)
+    }
+    fileprivate func makeBridge(on event: @escaping (OutData, Promise) -> Void, bridge: @escaping () -> Void, source: @escaping () -> Data) -> () -> Void {
+        return { event(source(), Promise(action: bridge)) }
+    }
+}
+
+protocol ListeningMaker {
+    associatedtype OutData
+    associatedtype Data
+    func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening
+}
+protocol _ListeningMaker: ListeningMaker {
+    associatedtype Bridge: BridgeMaker
+    var bridgeMaker: Bridge { get }
+    var dataSource: () -> Data { get }
+}
+extension _ListeningMaker where Bridge.Data == Self.Data, Bridge.OutData == Self.OutData {
+    internal func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening {
+        return Listening(bridge: bridgeMaker.makeBridge(with: assign, source: dataSource))
+    }
+    fileprivate func makeListening(on event: @escaping (Data, Promise) -> Void, _ assign: @escaping (OutData) -> Void) -> AnyListening {
+        let source = dataSource
+        let realBridge = bridgeMaker.makeBridge(with: assign, source: source)
+        return Listening(bridge: { event(source(), Promise(action: realBridge)) })
     }
 }
