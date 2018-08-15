@@ -250,7 +250,7 @@ func prepareElementsRecursive<RC: Collection>(_ collection: RC, completion: @esc
 public extension RealtimeCollection {
     /// RealtimeCollection actions
 
-    func filtered<ValueGetter: InsiderOwner & RealtimeValueActions>(map values: @escaping (Iterator.Element) -> ValueGetter,
+    func filtered<ValueGetter: Listenable & RealtimeValueActions>(map values: @escaping (Iterator.Element) -> ValueGetter,
                                                                     fetchIf: ((ValueGetter) -> Bool)? = nil,
                                                                     predicate: @escaping (ValueGetter.OutData) -> Bool,
                                                                     onCompleted: @escaping ([Iterator.Element]) -> ()) {

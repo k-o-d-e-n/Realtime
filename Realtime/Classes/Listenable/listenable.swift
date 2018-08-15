@@ -188,7 +188,7 @@ extension _ListeningMaker where Bridge.Data == Self.Data, Bridge.OutData == Self
 }
 
 /// Common protocol for all objects that ensures listening value. 
-public protocol Listenable { // TODO: Add method to connect use AnyListening and use his in preprocessors instead InsiderOwner
+public protocol Listenable {
     associatedtype OutData
 
     /// Disposable listening of value
@@ -258,23 +258,9 @@ extension Insider: _ListeningMaker, BridgeMaker {
 }
 
 /// Object that provides listenable data
-public protocol InsiderOwner: class, Listenable {
+protocol InsiderOwner: class, Listenable {
     associatedtype InsiderValue
     var insider: Insider<InsiderValue> { get set }
-}
-
-protocol InsiderAccessor {
-    associatedtype Owner: InsiderOwner
-    var insiderOwner: Owner! { get }
-}
-
-extension InsiderAccessor where Self: _ListeningMaker {
-    func _listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> Disposable {
-        return insiderOwner.connect(disposed: config(makeListening(assign.assign)))
-    }
-    func _listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem {
-        return insiderOwner.connect(item: config(makeListening(assign.assign)))
-    }
 }
 
 extension InsiderOwner {
@@ -539,7 +525,7 @@ public extension ReadonlyProperty {
     }
 }
 
-public extension InsiderOwner {
+extension InsiderOwner {
     /// Makes notification depending
     ///
     /// - Parameter other: Insider owner that will be invoke notifications himself listenings
@@ -548,13 +534,14 @@ public extension InsiderOwner {
     func depends<Other: InsiderOwner>(on other: Other) -> Disposable {
         return other.listening(as: { $0.livetime(self) }, .weak(self) { _, owner in owner?.insider.dataDidChange() })
     }
-
+}
+public extension Listenable {
     /// Binds values new values to value wrapper
     ///
     /// - Parameter other: Insider owner that will be invoke notifications himself listenings
     /// - Returns: Listening token
     @discardableResult
-    func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.InsiderValue {
+    func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.OutData {
         return listening(as: { $0.livetime(other) }, .just { [weak other] v in other?.value = v })
     }
 }
