@@ -84,7 +84,7 @@ extension DatabaseReference: Listenable {
     /// Disposable listening of value
     public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<FireDataProtocol>) -> Disposable {
         var value: FireDataProtocol = ValueNode(node: Node.from(self), value: nil)
-        let listening = config(Listening(bridge: { assign.assign(value) }))
+        let listening = config(Listening(bridge: { try assign.assign(value) }))
         let token = listen(listening, { value = $0 })
         return ListeningDispose({ self.removeObserver(withHandle: token) })
     }
@@ -92,7 +92,7 @@ extension DatabaseReference: Listenable {
     /// Listening with possibility to control active state
     public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem {
         var value: FireDataProtocol = ValueNode(node: Node.from(self), value: nil)
-        let listening = config(Listening(bridge: { assign.assign(value) }))
+        let listening = config(Listening(bridge: { try assign.assign(value) }))
         let token = listen(listening, { value = $0 })
         return ListeningItem(start: { self.listen(listening, { value = $0 }) }, stop: self.removeObserver, notify: listening.sendData, token: token)
     }

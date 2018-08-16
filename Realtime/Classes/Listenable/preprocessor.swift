@@ -9,11 +9,13 @@ import Foundation
 
 // MARK: Map, filter
 
+typealias BridgeBlank<I, O> = (_ value: I, _ assign: @escaping (O) throws -> Void) throws -> Void
+
 internal struct AnyFilter<I> {
-    static func wrap<O>(predicate: @escaping (O) -> Bool, on assign: @escaping (O) -> Void) -> (O) -> Void {
+    static func wrap<O>(predicate: @escaping (O) -> Bool, on assign: @escaping (O) throws -> Void) -> (O) throws -> Void {
         return { val in
             if predicate(val) {
-                assign(val)
+                try assign(val)
             }
         }
     }
@@ -34,18 +36,18 @@ internal struct AnyFilter<I> {
         }
     }
 
-    static func wrap<O>(predicate: @escaping (I) -> Bool, on filterModificator: @escaping (_ value: I, _ assign: @escaping (O) -> Void) -> Void) -> (_ value: I, _ assign: @escaping (O) -> Void) -> Void {
+    static func wrap<O>(predicate: @escaping (I) -> Bool, on filterModificator: @escaping BridgeBlank<I, O>) -> BridgeBlank<I, O> {
         return { val, assign in
             if predicate(val) {
-                filterModificator(val, assign)
+                try filterModificator(val, assign)
             }
         }
     }
 
-    static func wrap<O>(predicate: @escaping (O) -> Bool, on filterModificator: @escaping (_ value: I, _ assign: @escaping (O) -> Void) -> Void) -> (_ value: I, _ assign: @escaping (O) -> Void) -> Void {
+    static func wrapOut<O>(predicate: @escaping (O) -> Bool, on filterModificator: @escaping BridgeBlank<I, O>) -> BridgeBlank<I, O> {
         return { val, assign in
             let newAssign = wrap(predicate: predicate, on: assign)
-            filterModificator(val, newAssign)
+            try filterModificator(val, newAssign)
         }
     }
 }
@@ -55,24 +57,24 @@ internal struct AnyModificator<I, O> {
         return { return modificator(original()) }
     }
 
-    static func make<I, O>(modificator: @escaping (I) -> O, with assign: @escaping (O) -> Void) -> (I) -> Void {
+    static func make<I, O>(modificator: @escaping (I) -> O, with assign: @escaping (O) throws -> Void) -> (I) throws -> Void {
         return { input in
-            assign(modificator(input))
+            try assign(modificator(input))
         }
     }
 
-    static func make(modificator: @escaping (I) -> O, with filtered: @escaping (_ value: I, _ assign: (I) -> Void) -> Void) -> (_ value: I, _ assign: @escaping (O) -> Void) -> Void {
-        let newAssignMaker: (@escaping (I) -> O, @escaping (O) -> Void) -> (I) -> Void = AnyModificator.make
+    static func make(modificator: @escaping (I) -> O, with filtered: @escaping BridgeBlank<I, I>) -> BridgeBlank<I, O> {
+        let newAssignMaker: (@escaping (I) -> O, @escaping (O) throws -> Void) -> (I) throws -> Void = AnyModificator.make
         return { value, assign in
             let newAssign = newAssignMaker(modificator, assign)
-            filtered(value, newAssign)
+            try filtered(value, newAssign)
         }
     }
 
-    static func make<U>(modificator: @escaping (O) -> U, with filterModificator: @escaping (_ value: I, _ assign: @escaping (O) -> Void) -> Void) -> (_ value: I, _ assign: @escaping (U) -> Void) -> Void {
+    static func make<U>(modificator: @escaping (O) -> U, with filterModificator: @escaping BridgeBlank<I, O>) -> BridgeBlank<I, U> {
         return { value, assign in
             let newAssign = make(modificator: modificator, with: assign)
-            filterModificator(value, newAssign)
+            try filterModificator(value, newAssign)
         }
     }
 }
@@ -99,15 +101,15 @@ fileprivate struct AnyOnReceive<I, O> {
     }
 
     static func wrap(
-        bridgeBlank: @escaping (_ value: I, _ assign: @escaping (O) -> Void) -> Void,
+        bridgeBlank: @escaping BridgeBlank<I, O>,
         to event: @escaping (O, Promise) -> Void
-    ) -> (_ value: I, _ assign: @escaping (O) -> Void) -> Void {
+    ) -> BridgeBlank<I, O> {
         return { i, a in
             let wrappedAssign = { o in
-                event(o, Promise(action: { a(o) }))
+                event(o, Promise(action: { try a(o) }))
             }
 
-            bridgeBlank(i, wrappedAssign)
+            try bridgeBlank(i, wrappedAssign)
         }
     }
     static func wrap<Result>(assign: @escaping (Result) -> Void,
@@ -132,15 +134,15 @@ fileprivate struct AnyOnReceive<I, O> {
     }
 
     static func wrap<Result>(
-        bridgeBlank: @escaping (_ value: I, _ assign: @escaping (O) -> Void) -> Void,
+        bridgeBlank: @escaping BridgeBlank<I, O>,
         to event: @escaping (O, ResultPromise<Result>) -> Void
-    ) -> (_ value: I, _ assign: @escaping (Result) -> Void) -> Void {
+    ) -> BridgeBlank<I, Result> {
         return { i, a in
             let wrappedAssign = { o in
                 event(o, ResultPromise(receiver: a))
             }
 
-            bridgeBlank(i, wrappedAssign)
+            try bridgeBlank(i, wrappedAssign)
         }
     }
 }
@@ -177,7 +179,7 @@ public extension Listenable where OutData: Equatable {
 }
 
 struct Bridge<I, O> {
-    let bridge: (_ value: I, _ assign: @escaping (O) -> Void) -> Void
+    let bridge: BridgeBlank<I, O>
 
     func filtered(_ predicate: @escaping (O) -> Bool) -> Bridge<I, O> {
         return Bridge(bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
@@ -193,26 +195,26 @@ struct Bridge<I, O> {
     }
 
     func wrapAssign(_ assign: Assign<O>) -> Assign<I> {
-        return .just({ i in self.bridge(i, assign.assign) })
+        return .just({ i in try self.bridge(i, assign.assign) })
     }
 
-    init(bridge: @escaping (_ value: I, _ assign: @escaping (O) -> Void) -> Void) {
+    init(bridge: @escaping BridgeBlank<I, O>) {
         self.bridge = bridge
     }
 
     init(transform: @escaping (I) -> O) {
-        self.bridge = AnyModificator.make(modificator: transform, with: { $1($0) })
+        self.bridge = AnyModificator.make(modificator: transform, with: { try $1($0) })
     }
     init(event: @escaping (I, ResultPromise<O>) -> Void) {
-        self.bridge = AnyOnReceive.wrap(bridgeBlank: { $1($0) }, to: event)
+        self.bridge = AnyOnReceive.wrap(bridgeBlank: { try $1($0) }, to: event)
     }
 }
 extension Bridge where I == O {
     init(predicate: @escaping (O) -> Bool) {
-        self.bridge = AnyFilter.wrap(predicate: predicate, on: { $1($0) })
+        self.bridge = AnyFilter.wrapOut(predicate: predicate, on: { try $1($0) })
     }
     init(event: @escaping (O, Promise) -> Void) {
-        self.bridge = AnyOnReceive.wrap(bridgeBlank: { $1($0) }, to: event)
+        self.bridge = AnyOnReceive.wrap(bridgeBlank: { try $1($0) }, to: event)
     }
 }
 
@@ -250,7 +252,7 @@ public extension Listenable {
 }
 
 // ------------------------------------- DEPRECATED ----------------------------------------
-
+/*
 struct SimpleBridgeMaker<Data>: BridgeMaker {
     typealias OutData = Data
     func wrapAssign(_ assign: Assign<Data>) -> Assign<Data> {
@@ -266,11 +268,11 @@ struct FilteredBridge<V>: BridgeMaker {
     func filtered(_ predicate: @escaping (V) -> Bool) -> FilteredBridge<V> {
         return .init(bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
     }
-    func transformed<U>(_ transform: @escaping (V) -> U) -> TransformedFilteredBridgeMaker<V, U> {
+    func transformed<U>(_ transform: @escaping (V) throws -> U) -> TransformedFilteredBridgeMaker<V, U> {
         return .init(bridge: AnyModificator.make(modificator: transform, with: bridge))
     }
     func wrapAssign(_ assign: Assign<V>) -> Assign<V> {
-        return .just({ i in self.bridge(i, assign.assign) })
+        return .just({ i in try self.bridge(i, assign.assign) })
     }
 }
 struct TransformedFilteredBridgeMaker<I, O>: BridgeMaker {
@@ -487,3 +489,4 @@ extension Insider {
         return addListening(config(preprocessor(InsiderPreprocessor(dataSource: dataSource)).wrap(assign.assign)))
     }
 }
+*/

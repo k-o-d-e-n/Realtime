@@ -11,17 +11,17 @@ import Foundation
 /// -------------------------------------------------------------------
 
 public struct Promise {
-    let action: () -> Void
+    let action: () throws -> Void
 
-    public func fulfill() {
-        action()
+    public func fulfill() throws {
+        try action()
     }
 }
 public struct ResultPromise<T> {
-    let receiver: (T) -> Void
+    let receiver: (T) throws -> Void
 
-    public func fulfill(_ result: T) {
-        receiver(result)
+    public func fulfill(_ result: T) throws {
+        try receiver(result)
     }
 }
 
@@ -63,10 +63,10 @@ extension Closure where O == Void {
 
 /// Configurable wrapper for closure that receive listening value.
 public struct Assign<A> {
-    internal let assign: (A) -> Void
+    internal let assign: (A) throws -> Void
 
     /// simple closure without side effects
-    static public func just(_ assign: @escaping (A) -> Void) -> Assign<A> {
+    static public func just(_ assign: @escaping (A) throws -> Void) -> Assign<A> {
         return Assign(assign: assign)
     }
 
@@ -92,19 +92,27 @@ public struct Assign<A> {
 //    }
 
     /// closure that called on specified dispatch queue
-    static public func on(_ queue: DispatchQueue, assign: @escaping (A) -> Void) -> Assign<A> {
-        return Assign(assign: { v in queue.async { assign(v) } })
+    static public func on(_ queue: DispatchQueue, assign: @escaping (A) throws -> Void) -> Assign<(A, (Error) -> Void)> {
+        return Assign<(A, (Error) -> Void)>(assign: { v in
+            queue.async {
+                do {
+                    try assign(v.0)
+                } catch let e {
+                    v.1(e)
+                }
+            }
+        })
     }
 
     /// returns new closure wrapped using queue behavior
-    public func on(queue: DispatchQueue) -> Assign<A> {
+    public func on(queue: DispatchQueue) -> Assign<(A, (Error) -> Void)> {
         return Assign.on(queue, assign: assign)
     }
 
-    public func with(work: @escaping (A) -> Void) -> Assign<A> {
+    public func with(work: @escaping (A) throws -> Void) -> Assign<A> {
         return Assign(assign: { (v) in
-            work(v)
-            self.assign(v)
+            try work(v)
+            try self.assign(v)
         })
     }
     public func with(work: Assign<A>) -> Assign<A> {
@@ -113,21 +121,21 @@ public struct Assign<A> {
 
     public func map<U>(_ transform: @escaping (U) -> A) -> Assign<U> {
         return Assign<U>(assign: { (u) in
-            self.assign(transform(u))
+            try self.assign(transform(u))
         })
     }
 
     public func filter(_ predicate: @escaping (A) -> Bool) -> Assign<A> {
         return Assign(assign: { (a) in
             if predicate(a) {
-                self.assign(a)
+                try self.assign(a)
             }
         })
     }
 }
 
 prefix operator <-
-public prefix func <-<A>(rhs: Assign<A>) -> (A) -> Void {
+public prefix func <-<A>(rhs: Assign<A>) -> (A) throws -> Void {
     return rhs.assign
 }
 
@@ -179,29 +187,29 @@ struct AnyListenable<Out>: Listenable {
     }
 }
 
-extension Insider: _ListeningMaker, BridgeMaker {
-    typealias OutData = D
-    public typealias Data = D
-    var bridgeMaker: Insider<D> { return self }
-    public typealias ListeningToken = (token: Token, listening: AnyListening)
-    internal mutating func addListening(_ listening: AnyListening) -> ListeningToken {
-        return (connect(with: listening), listening)
-    }
-
-    /// connects to insider to receive value changes
-    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: Assign<D>) -> ListeningToken {
-        return addListening(config(makeListening(assign.assign)))
-    }
-
-    /// connects to insider to receive value changes with preaction on receive update
-    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, onReceive: @escaping (D, Promise) -> Void, _ assign: Assign<D>) -> ListeningToken {
-        return addListening(config(makeListening(on: onReceive, assign.assign)))
-    }
-
-    func wrapAssign(_ assign: Assign<D>) -> Assign<D> {
-        return assign
-    }
-}
+//extension Insider: _ListeningMaker, BridgeMaker {
+//    typealias OutData = D
+//    public typealias Data = D
+//    var bridgeMaker: Insider<D> { return self }
+//    public typealias ListeningToken = (token: Token, listening: AnyListening)
+//    internal mutating func addListening(_ listening: AnyListening) -> ListeningToken {
+//        return (connect(with: listening), listening)
+//    }
+//
+//    /// connects to insider to receive value changes
+//    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: Assign<D>) -> ListeningToken {
+//        return addListening(config(makeListening(assign.assign)))
+//    }
+//
+//    /// connects to insider to receive value changes with preaction on receive update
+//    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, onReceive: @escaping (D, Promise) -> Void, _ assign: Assign<D>) -> ListeningToken {
+//        return addListening(config(makeListening(on: onReceive, assign.assign)))
+//    }
+//
+//    func wrapAssign(_ assign: Assign<D>) -> Assign<D> {
+//        return assign
+//    }
+//}
 
 /// Object that provides listenable data
 protocol InsiderOwner: class, Listenable {
