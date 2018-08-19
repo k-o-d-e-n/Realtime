@@ -147,18 +147,12 @@ public protocol Listenable {
     associatedtype OutData
 
     /// Disposable listening of value
-    func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> Disposable
+    func listening(_ assign: Assign<OutData>) -> Disposable
 
     /// Listening with possibility to control active state
-    func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem
+    func listeningItem(_ assign: Assign<OutData>) -> ListeningItem
 }
 public extension Listenable {
-    func listening(_ assign: Assign<OutData>) -> Disposable {
-        return listening(as: { $0 }, assign)
-    }
-    func listeningItem(_ assign: Assign<OutData>) -> ListeningItem {
-        return listeningItem(as: { $0 }, assign)
-    }
     func listening(_ assign: @escaping (OutData) -> Void) -> Disposable {
         return listening(.just(assign))
     }
@@ -167,24 +161,24 @@ public extension Listenable {
     }
 }
 struct AnyListenable<Out>: Listenable {
-    let _listening: ((AnyListening) -> AnyListening, Assign<Out>) -> Disposable
-    let _listeningItem: ((AnyListening) -> AnyListening, Assign<Out>) -> ListeningItem
+    let _listening: (Assign<Out>) -> Disposable
+    let _listeningItem: (Assign<Out>) -> ListeningItem
 
     init<L: Listenable>(_ base: L) where L.OutData == Out {
         self._listening = base.listening
         self._listeningItem = base.listeningItem
     }
-    init(_ listening: @escaping ((AnyListening) -> AnyListening, Assign<Out>) -> Disposable,
-         _ listeningItem: @escaping ((AnyListening) -> AnyListening, Assign<Out>) -> ListeningItem) {
+    init(_ listening: @escaping (Assign<Out>) -> Disposable,
+         _ listeningItem: @escaping (Assign<Out>) -> ListeningItem) {
         self._listening = listening
         self._listeningItem = listeningItem
     }
 
-    func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<Out>) -> Disposable {
-        return _listening(config, assign)
+    func listening(_ assign: Assign<Out>) -> Disposable {
+        return _listening(assign)
     }
-    func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<Out>) -> ListeningItem {
-        return _listeningItem(config, assign)
+    func listeningItem(_ assign: Assign<Out>) -> ListeningItem {
+        return _listeningItem(assign)
     }
 }
 
@@ -235,19 +229,19 @@ extension InsiderOwner {
         return makeListeningItem(token: insider.connect(with: listening), listening: listening)
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<InsiderValue>) -> Disposable {
-        return makeDispose(for: insider.listen(as: config, assign).token)
+    public func listening(_ assign: Assign<InsiderValue>) -> Disposable {
+        return makeDispose(for: insider.listen(assign).token)
     }
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<InsiderValue>) -> ListeningItem {
-        let item = insider.listen(as: config, assign)
+    public func listeningItem(_ assign: Assign<InsiderValue>) -> ListeningItem {
+        let item = insider.listen(assign)
         return makeListeningItem(token: item.token, listening: item.listening)
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: @escaping (InsiderValue) -> Void) -> Disposable {
-        return listening(as: config, .just(assign))
+    public func listening(_ assign: @escaping (InsiderValue) -> Void) -> Disposable {
+        return listening(.just(assign))
     }
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: @escaping (InsiderValue) -> Void) -> ListeningItem {
-        return listeningItem(as: config, .just(assign))
+    public func listeningItem(_ assign: @escaping (InsiderValue) -> Void) -> ListeningItem {
+        return listeningItem(.just(assign))
     }
 }
 
@@ -289,10 +283,8 @@ struct Insider<D> {
         return listeners.contains { $0.key == token }
     }
     
-    mutating func disconnect(with token: Token, callOnStop call: Bool = true) {
-        if let listener = listeners.removeValue(forKey: token), call {
-            listener.onStop()
-        }
+    mutating func disconnect(with token: Token) {
+        listeners.removeValue(forKey: token)
     }
 }
 
@@ -488,7 +480,7 @@ extension InsiderOwner {
     /// - Returns: Listening token
     @discardableResult
     func depends<Other: InsiderOwner>(on other: Other) -> Disposable {
-        return other.listening(as: { $0.livetime(self) }, .weak(self) { _, owner in owner?.insider.dataDidChange() })
+        return other.livetime(self).listening(.weak(self) { _, owner in owner?.insider.dataDidChange() })
     }
 }
 public extension Listenable {
@@ -498,7 +490,7 @@ public extension Listenable {
     /// - Returns: Listening token
     @discardableResult
     func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.OutData {
-        return listening(as: { $0.livetime(other) }, .just { [weak other] v in other?.value = v })
+        return livetime(other).listening({ [weak other] v in other?.value = v })
     }
 }
 

@@ -220,11 +220,11 @@ public struct Preprocessor<I, O>: Listenable {
     let listenable: AnyListenable<I>
     let bridgeMaker: Bridge<I, O>
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<O>) -> Disposable {
-        return listenable.listening(as: config, bridgeMaker.wrapAssign(assign))
+    public func listening(_ assign: Assign<O>) -> Disposable {
+        return listenable.listening(bridgeMaker.wrapAssign(assign))
     }
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<O>) -> ListeningItem {
-        return listenable.listeningItem(as: config, bridgeMaker.wrapAssign(assign))
+    public func listeningItem(_ assign: Assign<O>) -> ListeningItem {
+        return listenable.listeningItem(bridgeMaker.wrapAssign(assign))
     }
 }
 
@@ -321,7 +321,7 @@ struct OnReceiveMapBridge<I, O, R>: BridgeMaker {
 //    associatedtype OnReceiveMap: PublicPreprocessor
 //    func onReceiveMap<Result>(_ event: @escaping (Input, ResultPromise<Result>) -> Void) -> OnReceiveMap
 //}
-public protocol PublicPreprocessor {
+protocol PublicPreprocessor {
     associatedtype OutData
     func wrap(_ assign: @escaping (OutData) -> Void) -> AnyListening
 }
@@ -348,7 +348,7 @@ public struct InsiderPreprocessor<V>: _ListeningMaker, PublicPreprocessor {
         return InsiderOnReceiveMapPreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: { i, assign in assign(i) }))
     }
 
-    public func wrap(_ assign: @escaping (V) -> Void) -> AnyListening {
+    func wrap(_ assign: @escaping (V) -> Void) -> AnyListening {
         return makeListening(assign)
     }
 }
@@ -374,7 +374,7 @@ public struct InsiderTransformedPreprocessor<V>: _ListeningMaker, PublicPreproce
         return InsiderOnReceiveMapPreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: { i, assign in assign(i) }))
     }
 
-    public func wrap(_ assign: @escaping (V) -> Void) -> AnyListening {
+    func wrap(_ assign: @escaping (V) -> Void) -> AnyListening {
         return makeListening(assign)
     }
 }
@@ -400,7 +400,7 @@ public struct InsiderFilteredPreprocessor<V>: _ListeningMaker, PublicPreprocesso
         return InsiderOnReceiveMapPreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: { i, assign in assign(i) }))
     }
 
-    public func wrap(_ assign: @escaping (V) -> Void) -> AnyListening {
+    func wrap(_ assign: @escaping (V) -> Void) -> AnyListening {
         return makeListening(assign)
     }
 }
@@ -431,7 +431,7 @@ public struct InsiderTransformedFilteredPreprocessor<I, O>: _ListeningMaker, Pub
         return InsiderOnReceiveMapPreprocessor(dataSource: dataSource, bridgeMaker: OnReceiveMapBridge(event: event, bridge: bridgeMaker.bridge))
     }
 
-    public func wrap(_ assign: @escaping (O) -> Void) -> AnyListening {
+    func wrap(_ assign: @escaping (O) -> Void) -> AnyListening {
         return makeListening(assign)
     }
 }
@@ -452,7 +452,7 @@ public struct InsiderOnReceivePreprocessor<I, O>: _ListeningMaker, PublicPreproc
         return InsiderTransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: bridge))
     }
 
-    public func wrap(_ assign: @escaping (O) -> Void) -> AnyListening {
+    func wrap(_ assign: @escaping (O) -> Void) -> AnyListening {
         return makeListening(assign)
     }
 }
@@ -472,7 +472,7 @@ public struct InsiderOnReceiveMapPreprocessor<Result, I, O>: _ListeningMaker, Pu
         return InsiderTransformedFilteredPreprocessor(dataSource: dataSource, bridgeMaker: .init(bridge: bridge))
     }
 
-    public func wrap(_ assign: @escaping (Result) -> Void) -> AnyListening {
+    func wrap(_ assign: @escaping (Result) -> Void) -> AnyListening {
         return makeListening(assign)
     }
 }

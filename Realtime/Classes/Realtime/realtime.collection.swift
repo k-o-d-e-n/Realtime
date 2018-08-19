@@ -266,7 +266,7 @@ public extension RealtimeCollection {
         let current = self
         current.forEach { element in
             let value = values(element)
-            let listeningItem = value.listeningItem(as: { $0.once() }, .just { (val) in
+            let listeningItem = value.once().listeningItem({ (val) in
                 released = current.index(after: released)
                 guard predicate(val) else {
                     completeIfNeeded(released)
@@ -325,13 +325,14 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
 
     init(_ source: RealtimeProperty<Source>) {
         self.source = source
-        let isPrepared: () -> Bool = { [unowned self] in !self.isPrepared }
-        self.listening = source.listening(as: { $0.if(isPrepared) }, .guarded(self) { event, view in
-            switch event {
-            case .remote(_, strong: let s): view.isPrepared = s
-            default: break
-            }
-        })
+        self.listening = source
+            .filter { [unowned self] _ in !self.isPrepared }
+            .listening(.guarded(self) { event, view in
+                switch event {
+                case .remote(_, strong: let s): view.isPrepared = s
+                default: break
+                }
+            })
     }
 
     deinit {

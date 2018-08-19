@@ -125,16 +125,16 @@ public extension Listenable where Self.OutData == UIImage? {
     }
 }
 
-struct ControlEvent: Listenable {
+public struct ControlEvent: Listenable {
     unowned var control: UIControl
     let event: UIControlEvents
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
-        return control.listening(as: config, events: event, assign)
+    public func listening(_ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
+        return control.listen(for: event, assign)
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
-        return control.listeningItem(as: config, events: event, assign)
+    public func listeningItem(_ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
+        return control.listenItem(for: event, assign)
     }
 }
 
@@ -145,62 +145,51 @@ public extension Listenable where Self: UIControl {
 }
 
 extension UIControl: Listenable {
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
-        return listening(as: config, events: .allEvents, assign)
+    public func listening(_ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
+        return listen(for: .allEvents, assign)
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
-        return listeningItem(as: config, events: .allEvents, assign)
+    public func listeningItem(_ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
+        return listenItem(for: .allEvents, assign)
     }
 
-    private func listen(for events: UIControlEvents, _ listening: AnyListening, _ change: @escaping (UIEvent) -> Void) -> ControlListening {
-        return ControlListening(self, events: events, listening: listening, change: change)
+    fileprivate func listen(for events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> ControlListening {
+        let controlListening = ControlListening(self, events: events, assign: assign)
+        defer {
+            controlListening.onStart()
+        }
+        return controlListening
     }
-    private func listenItem(for events: UIControlEvents, _ listening: AnyListening, _ change: @escaping (UIEvent) -> Void) -> ListeningItem {
-        let controlListening = ControlListening(self, events: events, listening: listening, change: change)
+    fileprivate func listenItem(for events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
+        var event: UIEvent = UIEvent()
+        let controlListening = ControlListening(self, events: events, assign: assign.with(work: { (_, e) in
+            event = e
+        }))
+        defer {
+            controlListening.onStart()
+        }
         return ListeningItem(start: controlListening.onStart,
                              stop: controlListening.onStop,
-                             notify: controlListening.sendData,
+                             notify: { [unowned self] in assign.assign((self, event)) },
                              token: ())
     }
 
-    func listening(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
-        var event: UIEvent = UIEvent()
-        let listening = config(Listening(bridge: { [unowned self] in assign.assign((self, event)) }))
-        return listen(for: events, listening, { event = $0 })
-    }
-
-    func listeningItem(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
-        var event: UIEvent = UIEvent()
-        let listening = config(Listening(bridge: { [unowned self] in assign.assign((self, event)) }))
-        return listenItem(for: events, listening, { event = $0 })
-    }
-
-    private class ControlListening: AnyListening, Disposable, Hashable {
+    fileprivate class ControlListening: Disposable, Hashable {
         unowned let control: UIControl
         let events: UIControlEvents
-        let base: AnyListening
-        let onEvent: (UIEvent) -> Void
+        let assign: Assign<(UIControl, UIEvent)>
 
         var isInvalidated: Bool { return control.allTargets.contains(self) }
         var dispose: () -> Void { return onStop }
 
-        init(_ control: UIControl, events: UIControlEvents, listening: AnyListening, change: @escaping (UIEvent) -> Void) {
+        init(_ control: UIControl, events: UIControlEvents, assign: Assign<(UIControl, UIEvent)>) {
             self.control = control
             self.events = events
-            self.base = listening
-            self.onEvent = change
-
-            onStart()
+            self.assign = assign
         }
 
-        @objc func onEvent(_ control: UIControl, _ event: UIEvent) { // TODO: UIEvent
-            onEvent(event)
-            sendData()
-        }
-
-        func sendData() {
-            base.sendData()
+        @objc func onEvent(_ control: UIControl, _ event: UIEvent) {
+            assign.assign((control, event))
         }
 
         func onStart() {
@@ -209,7 +198,6 @@ extension UIControl: Listenable {
 
         func onStop() {
             control.removeTarget(self, action: #selector(onEvent(_:_:)), for: events)
-            base.onStop()
         }
 
         var hashValue: Int { return Int(events.rawValue) }

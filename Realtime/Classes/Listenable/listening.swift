@@ -9,69 +9,28 @@ import Foundation
 
 // MARK: Listenings
 
-// TODO: sendData, onStop should be private
 /// Represents connection data source and data receiver
-public protocol AnyListening {
+protocol AnyListening {
     var isInvalidated: Bool { get }
     func sendData()
-    func onStop() // TODO: is not used now
 }
-public extension AnyListening {
-    /// calls if closure returns true
-    func `if`(_ itRight: @autoclosure @escaping () -> Bool) -> AnyListening {
-        return IfListening(base: self, ifRight: itRight)
-    }
-    /// calls if closure returns true
-    func `if`(_ itRight: @escaping () -> Bool) -> AnyListening {
-        return IfListening(base: self, ifRight: itRight)
-    }
 
-	/// calls closure on disconnect
-    func onFire(_ todo: @escaping () -> Void) -> AnyListening {
-        return OnFireListening(base: self, onFire: todo)
-    }
-
-    /// connection to receive single value
-    func once() -> AnyListening {
-        return OnceListening(base: self)
-    }
-
-    /// calls connection on specific queue
-    func queue(_ queue: DispatchQueue) -> AnyListening {
-        return ConcurrencyListening(base: self, queue: queue)
-    }
-
-    /// works until time has not reached deadline
-    func deadline(_ time: DispatchTime) -> AnyListening {
-        return DeadlineListening(base: self, deadline: time)
-    }
-
-    /// works until alive specified object
-    func livetime(_ byItem: AnyObject) -> AnyListening {
-        return LivetimeListening(base: self, living: byItem)
-    }
-
-    /// each next event are calling not earlier a specified period
-    func debounce(_ time: DispatchTimeInterval) -> AnyListening {
-        return DebounceListening(base: self, time: time)
-    }
-}
 /// Fires if disposes use his Disposable. Else if has previous dispose behaviors like as once(), livetime(_:) and others, will not called.
 /// Can calls before last event.
 public struct OnFire<T>: Listenable {
     fileprivate let listenable: AnyListenable<T>
     fileprivate let onFire: () -> Void
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
-        let disposable = listenable.listening(as: config, assign)
+    public func listening(_ assign: Assign<T>) -> Disposable {
+        let disposable = listenable.listening(assign)
         return ListeningDispose({
             disposable.dispose()
             self.onFire()
         })
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
-        let item = listenable.listeningItem(as: config, assign)
+    public func listeningItem(_ assign: Assign<T>) -> ListeningItem {
+        let item = listenable.listeningItem(assign)
         return ListeningItem(start: item.start, stop: { _ in
             item.stop()
             self.onFire()
@@ -89,12 +48,12 @@ public struct Do<T>: Listenable {
     fileprivate let listenable: AnyListenable<T>
     fileprivate let doit: (T) -> Void
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
-        return listenable.listening(as: config, assign.with(work: doit))
+    public func listening(_ assign: Assign<T>) -> Disposable {
+        return listenable.listening(assign.with(work: doit))
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
-        return listenable.listeningItem(as: config, assign.with(work: doit))
+    public func listeningItem(_ assign: Assign<T>) -> ListeningItem {
+        return listenable.listeningItem(assign.with(work: doit))
     }
 }
 public extension Listenable {
@@ -119,62 +78,6 @@ struct Listening: AnyListening {
     func onStop() {}
 }
 
-struct IfListening: AnyListening {
-    private let base: AnyListening
-    private let ifRight: () -> Bool
-    var isInvalidated: Bool { return base.isInvalidated }
-
-    init(base: AnyListening, ifRight: @escaping () -> Bool) {
-        self.base = base
-        self.ifRight = ifRight
-    }
-
-    func sendData() {
-        if ifRight() {
-            base.sendData()
-        }
-    }
-
-    func onStop() {
-        base.onStop()
-    }
-}
-
-struct OnFireListening: AnyListening {
-    private let listening: AnyListening
-    private let onFire: () -> Void
-    var isInvalidated: Bool { return listening.isInvalidated }
-
-    init(base: AnyListening, onFire: @escaping () -> Void) {
-        self.listening = base
-        self.onFire = onFire
-    }
-
-    func sendData() {
-        listening.sendData()
-    }
-
-    func onStop() {
-        listening.onStop()
-        onFire()
-    }
-}
-
-struct OnceListening: AnyListening {
-    private let listening: AnyListening
-    var isInvalidated: Bool { return true }
-    init(base: AnyListening) {
-        self.listening = base
-    }
-
-    func sendData() {
-        listening.sendData()
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
 public struct Once<T>: Listenable {
     private let listenable: AnyListenable<T>
 
@@ -182,17 +85,17 @@ public struct Once<T>: Listenable {
         self.listenable = base
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+    public func listening(_ assign: Assign<T>) -> Disposable {
         var disposable: Disposable! = nil
-        disposable = listenable.listening(as: config, assign.with(work: { (_) in
+        disposable = listenable.listening(assign.with(work: { (_) in
             disposable.dispose()
         }))
         return disposable
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<T>) -> ListeningItem {
         var item: ListeningItem! = nil
-        item = listenable.listeningItem(as: config, assign.with(work: { (_) in
+        item = listenable.listeningItem(assign.with(work: { (_) in
             item.dispose()
         }))
         return item
@@ -205,24 +108,6 @@ public extension Listenable {
     }
 }
 
-struct ConcurrencyListening: AnyListening {
-    private let listening: AnyListening
-    private let queue: DispatchQueue
-    var isInvalidated: Bool { return listening.isInvalidated }
-
-    init(base: AnyListening, queue: DispatchQueue) {
-        self.listening = base
-        self.queue = queue
-    }
-
-    func sendData() {
-        queue.async { self.listening.sendData() }
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
 extension Bridge where I == O {
     init(queue: DispatchQueue) {
         self.init { (value, assign) in
@@ -239,27 +124,6 @@ public extension Listenable {
     }
 }
 
-struct DeadlineListening: AnyListening {
-    private let listening: AnyListening
-    private let deadline: DispatchTime
-    private var _isInvalidated: Bool { return deadline <= .now() }
-    var isInvalidated: Bool { return listening.isInvalidated || _isInvalidated }
-
-    init(base: AnyListening, deadline: DispatchTime) {
-        self.listening = base
-        self.deadline = deadline
-    }
-
-    func sendData() {
-        guard !isInvalidated else { return }
-
-        listening.sendData()
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
 public struct Deadline<T>: Listenable {
     private let listenable: AnyListenable<T>
     private let deadline: DispatchTime
@@ -269,9 +133,9 @@ public struct Deadline<T>: Listenable {
         self.deadline = deadline
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+    public func listening(_ assign: Assign<T>) -> Disposable {
         var disposable: Disposable! = nil
-        disposable = listenable.listening(as: config, assign.filter({ _ -> Bool in
+        disposable = listenable.listening(assign.filter({ _ -> Bool in
             guard self.deadline >= .now() else {
                 disposable.dispose()
                 return false
@@ -281,9 +145,9 @@ public struct Deadline<T>: Listenable {
         return disposable
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<T>) -> ListeningItem {
         var item: ListeningItem! = nil
-        item = listenable.listeningItem(as: config, assign.filter({ _ -> Bool in
+        item = listenable.listeningItem(assign.filter({ _ -> Bool in
             guard self.deadline >= .now() else {
                 item.dispose()
                 return false
@@ -300,27 +164,6 @@ public extension Listenable {
     }
 }
 
-struct LivetimeListening: AnyListening {
-    private let listening: AnyListening
-    private weak var livingItem: AnyObject?
-    private var _isInvalidated: Bool { return livingItem == nil }
-    var isInvalidated: Bool { return listening.isInvalidated || _isInvalidated }
-
-    init(base: AnyListening, living: AnyObject) {
-        self.listening = base
-        self.livingItem = living
-    }
-
-    func sendData() {
-        guard !isInvalidated else { return }
-
-        listening.sendData()
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
 public struct Livetime<T>: Listenable {
     private let listenable: AnyListenable<T>
     private weak var livingItem: AnyObject?
@@ -330,9 +173,9 @@ public struct Livetime<T>: Listenable {
         self.livingItem = living
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+    public func listening(_ assign: Assign<T>) -> Disposable {
         var disposable: Disposable! = nil
-        disposable = listenable.listening(as: config, assign.filter({ _ -> Bool in
+        disposable = listenable.listening(assign.filter({ _ -> Bool in
             guard self.livingItem != nil else {
                 disposable.dispose()
                 return false
@@ -342,9 +185,9 @@ public struct Livetime<T>: Listenable {
         return disposable
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<T>) -> ListeningItem {
         var item: ListeningItem! = nil
-        item = listenable.listeningItem(as: config, assign.filter({ _ -> Bool in
+        item = listenable.listeningItem(assign.filter({ _ -> Bool in
             guard self.livingItem != nil else {
                 item.dispose()
                 return false
@@ -361,38 +204,6 @@ public extension Listenable {
     }
 }
 
-class DebounceListening: AnyListening {
-    private let listening: AnyListening
-    private let repeatTime: DispatchTimeInterval
-    private var isNeedSend: Bool = true
-    private var fireDate: DispatchTime
-    var isInvalidated: Bool { return listening.isInvalidated }
-
-    init(base: AnyListening, time: DispatchTimeInterval) {
-        self.listening = base
-        self.repeatTime = time
-        self.fireDate = .now()
-    }
-
-    func sendData() {
-        guard !isInvalidated else { return }
-
-        guard fireDate <= .now() else { isNeedSend = true; return }
-
-        isNeedSend = false
-        listening.sendData()
-        fireDate = .now() + repeatTime
-        DispatchQueue.main.asyncAfter(deadline: fireDate, execute: {
-            if self.isNeedSend {
-                self.sendData()
-            }
-        })
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
 extension Bridge where I == O {
     init(debounce time: DispatchTimeInterval) {
         var isNeedSend = true
@@ -468,7 +279,7 @@ public struct ListeningItem {
 extension ListeningItem: Disposable {
     public var dispose: () -> Void { return stop }
 }
-public extension ListeningItem {
+extension ListeningItem {
     init<Token>(start: @escaping (AnyListening) -> Token?, stop: @escaping (Token) -> Void, listeningToken: (Token, AnyListening)) {
         self.init(start: { return start(listeningToken.1) },
                   stop: stop,

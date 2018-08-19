@@ -158,22 +158,6 @@ class ListenableTests: XCTestCase {
     //        XCTAssertTrue(stringLength == 15)
     //    }
 
-    func testOncePropertyListen() {
-        let view = UIView()
-        var backgroundProperty = Property<UIColor>(value: .white)
-
-        let bgToken = backgroundProperty.insider.listen(as: { $0.once() }, .just {
-            view.backgroundColor = $0
-            })
-        backgroundProperty <== .red
-
-        XCTAssertTrue(view.backgroundColor == .red)
-        XCTAssertFalse(backgroundProperty.insider.has(token: bgToken.token))
-
-        backgroundProperty <== .green
-        XCTAssertTrue(view.backgroundColor == .red)
-    }
-
     func testOnce() {
         let view = UIView()
         var backgroundProperty = P<UIColor>(.white)
@@ -185,42 +169,6 @@ class ListenableTests: XCTestCase {
 
         XCTAssertTrue(view.backgroundColor == .red)
 //        XCTAssertFalse(backgroundProperty.insider.hasConnections)
-
-        backgroundProperty <== .green
-        XCTAssertTrue(view.backgroundColor == .red)
-    }
-
-    func testIfPropertyListen() {
-        let view = UIView()
-        var backgroundProperty = Property<UIColor>(value: .white)
-
-        let _ = backgroundProperty.insider.listen(as: { $0.if(!view.isHidden) }, .just {
-            view.backgroundColor = $0
-            })
-        backgroundProperty <== .red
-
-        XCTAssertTrue(view.backgroundColor == .red)
-        view.isHidden = true
-
-        backgroundProperty <== .green
-        XCTAssertTrue(view.backgroundColor == .red)
-    }
-
-    func testPropertyFiredListening() {
-        let view = UIView()
-        var backgroundProperty = Property<UIColor>(value: .white)
-
-        let bgToken = backgroundProperty.insider.listen(as: {
-            $0.onFire {
-                XCTAssertTrue(view.backgroundColor == .red)
-                }.once()
-        }, .just {
-            view.backgroundColor = $0
-            })
-        backgroundProperty <== .red
-
-        XCTAssertTrue(view.backgroundColor == .red)
-        XCTAssertFalse(backgroundProperty.insider.has(token: bgToken.token))
 
         backgroundProperty <== .green
         XCTAssertTrue(view.backgroundColor == .red)
@@ -247,23 +195,6 @@ class ListenableTests: XCTestCase {
         XCTAssertTrue(view.backgroundColor == .red)
     }
 
-    func testConcurrencyPropertyListen() {
-        let cache = NSCache<NSString, NSString>()
-        var stringProperty = Property<NSString>(value: "initial")
-        let assignedValue = "New value"
-
-        performWaitExpectation("async", timeout: 5) { (exp) in
-            _ = stringProperty.insider.listen(as: { $0.queue(.global(qos: .background)) }, .just { (string) in
-                cache.setObject(string, forKey: "key")
-                XCTAssertFalse(Thread.isMainThread)
-                XCTAssertTrue(cache.object(forKey: "key")! as String == assignedValue)
-                exp.fulfill()
-                })
-
-            stringProperty <== assignedValue as NSString
-        }
-    }
-
     func testConcurrency() {
         let cache = NSCache<NSString, NSNumber>()
         var stringProperty = PropertyClass<NSString>("initial")
@@ -284,40 +215,6 @@ class ListenableTests: XCTestCase {
                 })
 
             stringProperty <== assignedValue as NSString
-        }
-    }
-
-    func testDeadlinePropertyListen() {
-        var counter = 0
-        var stringProperty = Property<String>(value: "initial")
-        let beforeDeadlineValue = "First value"
-        let afterDeadlineValue = "Second value"
-        let inTimeValue = "Test"
-
-        performWaitExpectation("async", timeout: 10) { (exp) in
-            let token = stringProperty.insider.listen(as: { $0.deadline(.now() + .seconds(2)) }, .just { (string) in
-                if counter == 0 {
-                    XCTAssertTrue(string == beforeDeadlineValue)
-                } else if counter == 1 {
-                    XCTAssertTrue(string == inTimeValue)
-                }
-
-                counter += 1
-                })
-
-            stringProperty <== beforeDeadlineValue
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
-                stringProperty <== inTimeValue
-            }
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
-                stringProperty <== afterDeadlineValue
-                XCTAssertTrue(token.listening.isInvalidated)
-                XCTAssertFalse(stringProperty.insider.has(token: token.token))
-                XCTAssertTrue(counter == 2)
-                exp.fulfill()
-            }
         }
     }
 
@@ -348,43 +245,6 @@ class ListenableTests: XCTestCase {
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
                 stringProperty <== afterDeadlineValue
                 XCTAssertFalse(stringProperty.insider.hasConnections)
-                XCTAssertTrue(counter == 2)
-                exp.fulfill()
-            }
-        }
-    }
-
-    func testLivetimePropertyListen() {
-        var counter = 0
-        var stringProperty = Property<String>(value: "initial")
-        let beforeDeadlineValue = "First value"
-        let afterDeadlineValue = "Second value"
-        let inTimeValue = "Test"
-
-        var living: NSObject? = NSObject()
-
-        performWaitExpectation("async", timeout: 10) { (exp) in
-            let token = stringProperty.insider.listen(as: { $0.livetime(living!) }, .just { (string) in
-                if counter == 0 {
-                    XCTAssertTrue(string == beforeDeadlineValue)
-                } else if counter == 1 {
-                    XCTAssertTrue(string == inTimeValue)
-                }
-
-                counter += 1
-                })
-
-            stringProperty <== beforeDeadlineValue
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
-                stringProperty <== inTimeValue
-                living = nil
-            }
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
-                stringProperty <== afterDeadlineValue
-                XCTAssertTrue(token.listening.isInvalidated)
-                XCTAssertFalse(stringProperty.insider.has(token: token.token))
                 XCTAssertTrue(counter == 2)
                 exp.fulfill()
             }
@@ -422,33 +282,6 @@ class ListenableTests: XCTestCase {
                 stringProperty <== afterDeadlineValue
                 XCTAssertFalse(stringProperty.insider.hasConnections)
                 XCTAssertTrue(counter == 2)
-                exp.fulfill()
-            }
-        }
-    }
-
-    func testDebouncePropertyListen() {
-        var counter = Property<Int>(value: 0)
-        var receivedValues: [Int] = []
-
-        _ = counter.insider.listen(as: { $0.debounce(.seconds(1)) }, .just { (value) in
-            receivedValues.append(value)
-            print(value)
-            })
-
-        let timer: Timer
-        if #available(iOS 10.0, *) {
-            timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { (_) in
-                counter.value += 1
-            }
-        } else {
-            fatalError()
-        }
-
-        performWaitExpectation("async", timeout: 10) { (exp) in
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
-                timer.invalidate()
-                XCTAssertTrue(receivedValues == [1, 3, 6, 8])
                 exp.fulfill()
             }
         }

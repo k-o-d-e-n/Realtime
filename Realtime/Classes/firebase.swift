@@ -69,34 +69,39 @@ extension Dictionary {
     }
 }
 
-extension DatabaseReference: Listenable {
-    func listen(_ listening: AnyListening, _ change: @escaping (FireDataProtocol) -> Void) -> UInt {
+extension DatabaseReference {
+    public struct Event: Listenable {
+        let ref: DatabaseReference
+        let event: DataEventType
+
+        /// Disposable listening of value
+        public func listening(_ assign: Assign<FireDataProtocol>) -> Disposable {
+            let token = ref.listen(assign, nil)
+            return ListeningDispose({
+                self.ref.removeObserver(withHandle: token)
+            })
+        }
+
+        /// Listening with possibility to control active state
+        public func listeningItem(_ assign: Assign<OutData>) -> ListeningItem {
+            var value: FireDataProtocol = ValueNode(node: Node.from(ref), value: nil)
+            let token = ref.listen(assign, { value = $0 })
+            return ListeningItem(start: { self.ref.listen(assign, { value = $0 }) }, stop: ref.removeObserver, notify: { assign.assign(value) }, token: token)
+        }
+    }
+
+    public func snapshot(_ event: DataEventType) -> Event {
+        return Event(ref: self, event: event)
+    }
+
+    private func listen(_ assign: Assign<FireDataProtocol>, _ change: ((FireDataProtocol) -> Void)?) -> UInt {
         let token = observe(.value, with: { (data) in
-            change(data)
-            listening.sendData()
+            change?(data)
+            assign.assign(data)
         }) { (error) in
             print(error.localizedDescription)
             // todo
         }
         return token
-    }
-
-    /// Disposable listening of value
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<FireDataProtocol>) -> Disposable {
-        var value: FireDataProtocol = ValueNode(node: Node.from(self), value: nil)
-        let listening = config(Listening(bridge: { assign.assign(value) }))
-        let token = listen(listening, { value = $0 })
-        return ListeningDispose({
-            self.removeObserver(withHandle: token)
-            listening.onStop()
-        })
-    }
-
-    /// Listening with possibility to control active state
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem {
-        var value: FireDataProtocol = ValueNode(node: Node.from(self), value: nil)
-        let listening = config(Listening(bridge: { assign.assign(value) }))
-        let token = listen(listening, { value = $0 })
-        return ListeningItem(start: { self.listen(listening, { value = $0 }) }, stop: self.removeObserver, notify: listening.sendData, token: token)
     }
 }

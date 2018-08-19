@@ -83,11 +83,11 @@ struct P<T>: Listenable, ValueWrapper {
         }
     }
 
-    func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+    func listening(_ assign: Assign<T>) -> Disposable {
         return listen(assign)
     }
 
-    func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+    func listeningItem(_ assign: Assign<T>) -> ListeningItem {
         return listenItem(assign)
     }
 }
@@ -96,14 +96,14 @@ public struct ThreadSafe<T>: Listenable {
     let base: AnyListenable<T>
     let lock: NSLock = NSLock()
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+    public func listening(_ assign: Assign<T>) -> Disposable {
         lock.lock(); defer { lock.unlock() }
-        return base.listening(as: config, assign)
+        return base.listening(assign)
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<T>) -> ListeningItem {
         lock.lock(); defer { lock.unlock() }
-        return base.listeningItem(as: config, assign)
+        return base.listeningItem(assign)
     }
 }
 
@@ -112,15 +112,15 @@ public struct QueueSafe<T>: Listenable {
     let queue: DispatchQueue
     let lock: NSLock = NSLock()
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+    public func listening(_ assign: Assign<T>) -> Disposable {
         return queue.sync {
-            return base.listening(as: config, assign)
+            return base.listening(assign)
         }
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<T>) -> ListeningItem {
         return queue.sync {
-            return base.listeningItem(as: config, assign)
+            return base.listeningItem(assign)
         }
     }
 }
