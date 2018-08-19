@@ -107,8 +107,17 @@ public struct Assign<A> {
             self.assign(v)
         })
     }
+    public func after(work: @escaping (A) -> Void) -> Assign<A> {
+        return Assign(assign: { (v) in
+            self.assign(v)
+            work(v)
+        })
+    }
     public func with(work: Assign<A>) -> Assign<A> {
         return with(work: work.assign)
+    }
+    public func after(work: Assign<A>) -> Assign<A> {
+        return after(work: work.assign)
     }
 
     public func map<U>(_ transform: @escaping (U) -> A) -> Assign<U> {
@@ -248,6 +257,7 @@ struct Insider<D> {
     internal let dataSource: () -> D
     private var listeners = [Token: AnyListening]()
     private var nextToken: Token = Token.min
+    internal var hasConnections: Bool { return listeners.count > 0 }
     
     init(source: @escaping () -> D) {
         dataSource = source

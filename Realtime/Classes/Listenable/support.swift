@@ -37,7 +37,7 @@ internal func debugFatalError(condition: @autoclosure () -> Bool = true,
 // MARK: System type extensions
 
 /// Function for any lazy properties with completion handler calling on load.
-/// Using: lazy var someProp: Type = didLoad(Type()) { loadedLazyProp in
+/// Using: lazy var someProp: Type = onLoad(Type()) { loadedLazyProp in
 ///		/// action on loadedLazyProp
 /// }
 ///
@@ -125,6 +125,25 @@ public extension Listenable where Self.OutData == UIImage? {
     }
 }
 
+struct ControlEvent: Listenable {
+    unowned var control: UIControl
+    let event: UIControlEvents
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
+        return control.listening(as: config, events: event, assign)
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
+        return control.listeningItem(as: config, events: event, assign)
+    }
+}
+
+public extension Listenable where Self: UIControl {
+    func onEvent(_ controlEvent: UIControlEvents) -> ControlEvent {
+        return ControlEvent(control: self, event: controlEvent)
+    }
+}
+
 extension UIControl: Listenable {
     public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
         return listening(as: config, events: .allEvents, assign)
@@ -145,13 +164,13 @@ extension UIControl: Listenable {
                              token: ())
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
+    func listening(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> Disposable {
         var event: UIEvent = UIEvent()
         let listening = config(Listening(bridge: { [unowned self] in assign.assign((self, event)) }))
         return listen(for: events, listening, { event = $0 })
     }
 
-    public func listeningItem(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
+    func listeningItem(as config: (AnyListening) -> AnyListening = { $0 }, events: UIControlEvents, _ assign: Assign<(UIControl, UIEvent)>) -> ListeningItem {
         var event: UIEvent = UIEvent()
         let listening = config(Listening(bridge: { [unowned self] in assign.assign((self, event)) }))
         return listenItem(for: events, listening, { event = $0 })

@@ -56,6 +56,53 @@ public extension AnyListening {
         return DebounceListening(base: self, time: time)
     }
 }
+/// Fires if disposes use his Disposable. Else if has previous dispose behaviors like as once(), livetime(_:) and others, will not called.
+/// Can calls before last event.
+public struct OnFire<T>: Listenable {
+    fileprivate let listenable: AnyListenable<T>
+    fileprivate let onFire: () -> Void
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+        let disposable = listenable.listening(as: config, assign)
+        return ListeningDispose({
+            disposable.dispose()
+            self.onFire()
+        })
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+        let item = listenable.listeningItem(as: config, assign)
+        return ListeningItem(start: item.start, stop: { _ in
+            item.stop()
+            self.onFire()
+        }, notify: item.notify, token: nil)
+    }
+}
+public extension Listenable {
+    /// calls closure on disconnect
+    func onFire(_ todo: @escaping () -> Void) -> OnFire<OutData> {
+        return OnFire(listenable: AnyListenable(self.listening, self.listeningItem), onFire: todo)
+    }
+}
+
+public struct Do<T>: Listenable {
+    fileprivate let listenable: AnyListenable<T>
+    fileprivate let doit: (T) -> Void
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+        return listenable.listening(as: config, assign.with(work: doit))
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+        return listenable.listeningItem(as: config, assign.with(work: doit))
+    }
+}
+public extension Listenable {
+    /// calls closure on receive next value
+    func `do`(_ something: @escaping (OutData) -> Void) -> Do<OutData> {
+        return Do(listenable: AnyListenable(self.listening, self.listeningItem), doit: something)
+    }
+}
 
 // TODO: Add possible to make depended listenings
 struct Listening: AnyListening {
@@ -128,6 +175,35 @@ struct OnceListening: AnyListening {
         listening.onStop()
     }
 }
+public struct Once<T>: Listenable {
+    private let listenable: AnyListenable<T>
+
+    init(base: AnyListenable<T>) {
+        self.listenable = base
+    }
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+        var disposable: Disposable! = nil
+        disposable = listenable.listening(as: config, assign.with(work: { (_) in
+            disposable.dispose()
+        }))
+        return disposable
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+        var item: ListeningItem! = nil
+        item = listenable.listeningItem(as: config, assign.with(work: { (_) in
+            item.dispose()
+        }))
+        return item
+    }
+}
+public extension Listenable {
+    /// connection to receive single value
+    func once() -> Once<OutData> {
+        return Once(base: AnyListenable(self.listening, self.listeningItem))
+    }
+}
 
 struct ConcurrencyListening: AnyListening {
     private let listening: AnyListening
@@ -145,6 +221,21 @@ struct ConcurrencyListening: AnyListening {
 
     func onStop() {
         listening.onStop()
+    }
+}
+extension Bridge where I == O {
+    init(queue: DispatchQueue) {
+        self.init { (value, assign) in
+            queue.async {
+                assign(value)
+            }
+        }
+    }
+}
+public extension Listenable {
+    /// calls connection on specific queue
+    func queue(_ queue: DispatchQueue) -> Preprocessor<OutData, OutData> {
+        return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem), bridgeMaker: Bridge(queue: queue))
     }
 }
 
@@ -169,6 +260,45 @@ struct DeadlineListening: AnyListening {
         listening.onStop()
     }
 }
+public struct Deadline<T>: Listenable {
+    private let listenable: AnyListenable<T>
+    private let deadline: DispatchTime
+
+    init(base: AnyListenable<T>, deadline: DispatchTime) {
+        self.listenable = base
+        self.deadline = deadline
+    }
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+        var disposable: Disposable! = nil
+        disposable = listenable.listening(as: config, assign.filter({ _ -> Bool in
+            guard self.deadline >= .now() else {
+                disposable.dispose()
+                return false
+            }
+            return true
+        }))
+        return disposable
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+        var item: ListeningItem! = nil
+        item = listenable.listeningItem(as: config, assign.filter({ _ -> Bool in
+            guard self.deadline >= .now() else {
+                item.dispose()
+                return false
+            }
+            return true
+        }))
+        return item
+    }
+}
+public extension Listenable {
+    /// works until time has not reached deadline
+    func deadline(_ time: DispatchTime) -> Deadline<OutData> {
+        return Deadline(base: AnyListenable(self.listening, self.listeningItem), deadline: time)
+    }
+}
 
 struct LivetimeListening: AnyListening {
     private let listening: AnyListening
@@ -189,6 +319,45 @@ struct LivetimeListening: AnyListening {
 
     func onStop() {
         listening.onStop()
+    }
+}
+public struct Livetime<T>: Listenable {
+    private let listenable: AnyListenable<T>
+    private weak var livingItem: AnyObject?
+
+    init(base: AnyListenable<T>, living: AnyObject) {
+        self.listenable = base
+        self.livingItem = living
+    }
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+        var disposable: Disposable! = nil
+        disposable = listenable.listening(as: config, assign.filter({ _ -> Bool in
+            guard self.livingItem != nil else {
+                disposable.dispose()
+                return false
+            }
+            return true
+        }))
+        return disposable
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+        var item: ListeningItem! = nil
+        item = listenable.listeningItem(as: config, assign.filter({ _ -> Bool in
+            guard self.livingItem != nil else {
+                item.dispose()
+                return false
+            }
+            return true
+        }))
+        return item
+    }
+}
+public extension Listenable {
+    /// works until alive specified object
+    func livetime(_ byItem: AnyObject) -> Livetime<OutData> {
+        return Livetime(base: AnyListenable(self.listening, self.listeningItem), living: byItem)
     }
 }
 
@@ -224,6 +393,36 @@ class DebounceListening: AnyListening {
         listening.onStop()
     }
 }
+extension Bridge where I == O {
+    init(debounce time: DispatchTimeInterval) {
+        var isNeedSend = true
+        var fireDate: DispatchTime = .now()
+        var next: I?
+
+        func debounce(_ value: I, _ assign: @escaping (O) -> Void) {
+            next = value
+            guard fireDate <= .now() else { isNeedSend = true; return }
+
+            isNeedSend = false
+            next.map(assign)
+            fireDate = .now() + time
+            DispatchQueue.main.asyncAfter(deadline: fireDate, execute: {
+                if isNeedSend, let n = next {
+                    debounce(n, assign)
+                }
+            })
+        }
+
+        self.init(bridge: debounce)
+    }
+}
+public extension Listenable {
+    /// each next event are calling not earlier a specified period
+    func debounce(_ time: DispatchTimeInterval) -> Preprocessor<OutData, OutData> {
+        return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem), bridgeMaker: Bridge(debounce: time))
+    }
+}
+
 // MARK: Cancellable listenings
 
 // TODO: Disposable and ListeningItem does not have information about real active state listening (lifetime, delay listenings with autostop)
@@ -241,7 +440,7 @@ struct ListeningDispose: Disposable {
 
 /// Listening with possibility to control connection state
 public struct ListeningItem {
-    private let start: () -> Void
+    let start: () -> Void
     public let stop: () -> Void
     let notify: () -> Void
     let isListen: () -> Bool

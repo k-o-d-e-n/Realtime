@@ -86,7 +86,10 @@ extension DatabaseReference: Listenable {
         var value: FireDataProtocol = ValueNode(node: Node.from(self), value: nil)
         let listening = config(Listening(bridge: { assign.assign(value) }))
         let token = listen(listening, { value = $0 })
-        return ListeningDispose({ self.removeObserver(withHandle: token) })
+        return ListeningDispose({
+            self.removeObserver(withHandle: token)
+            listening.onStop()
+        })
     }
 
     /// Listening with possibility to control active state

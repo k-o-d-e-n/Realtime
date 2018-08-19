@@ -32,6 +32,108 @@ extension ListenableValue {
     }
 }
 
+struct P<T>: Listenable, ValueWrapper {
+    let get: () -> T
+    let set: (T) -> Void
+    let listen: (Assign<T>) -> Disposable
+    let listenItem: (Assign<T>) -> ListeningItem
+
+    var value: T {
+        get { return get() }
+        set { set(newValue) }
+    }
+
+    init(_ value: T) {
+        var nextToken = UInt.min
+        var listeners: [UInt: Assign<T>] = [:]
+        var val = value {
+            didSet {
+                listeners.forEach { (assign) in
+                    assign.value.assign(val)
+                }
+            }
+        }
+        get = { val }
+        set = { val = $0 }
+        listen = { assign in
+            defer { nextToken += 1 }
+
+            let token = nextToken
+            listeners[token] = assign
+
+            return ListeningDispose {
+                listeners.removeValue(forKey: token)
+            }
+        }
+
+        listenItem = { assign in
+            defer { nextToken += 1 }
+
+            listeners[nextToken] = assign
+
+            return ListeningItem(start: { () -> UInt? in
+                defer { nextToken += 1 }
+                listeners[nextToken] = assign
+                return nextToken
+            }, stop: { (t) in
+                listeners.removeValue(forKey: t)
+            }, notify: {
+                assign.assign(val)
+            }, token: nextToken)
+        }
+    }
+
+    func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+        return listen(assign)
+    }
+
+    func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+        return listenItem(assign)
+    }
+}
+
+public struct ThreadSafe<T>: Listenable {
+    let base: AnyListenable<T>
+    let lock: NSLock = NSLock()
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+        lock.lock(); defer { lock.unlock() }
+        return base.listening(as: config, assign)
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+        lock.lock(); defer { lock.unlock() }
+        return base.listeningItem(as: config, assign)
+    }
+}
+
+public struct QueueSafe<T>: Listenable {
+    let base: AnyListenable<T>
+    let queue: DispatchQueue
+    let lock: NSLock = NSLock()
+
+    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> Disposable {
+        return queue.sync {
+            return base.listening(as: config, assign)
+        }
+    }
+
+    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<T>) -> ListeningItem {
+        return queue.sync {
+            return base.listeningItem(as: config, assign)
+        }
+    }
+}
+
+public extension Listenable {
+    func threadSafe() -> ThreadSafe<OutData> {
+        return ThreadSafe(base: AnyListenable(self.listening, self.listeningItem))
+    }
+    func threadSafe(use serialQueue: DispatchQueue) -> QueueSafe<OutData> {
+        return QueueSafe(base: AnyListenable(self.listening, self.listeningItem), queue: serialQueue)
+    }
+}
+
 ///// Attempt create primitive value, property where value will be copied
 
 struct Primitive<T> {
