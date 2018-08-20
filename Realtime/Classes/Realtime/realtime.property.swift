@@ -300,8 +300,9 @@ public extension ListenValue {
 }
 
 public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
+    fileprivate var oldValue: ListenValue<T> = .initial
     internal var _changedValue: T? {
-        switch localPropertyValue.get() {
+        switch _value {
         case .local(let v): return v
         case .remote, .error, .initial, .removed: return nil
         }
@@ -311,8 +312,7 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
     public func revert() {
         guard hasChanges else { return }
 
-        localPropertyValue.set(oldValue)
-        insider.dataDidChange()
+        _value = oldValue
     }
     public func currentReversion() -> () -> Void {
         return { [weak self] in
@@ -342,7 +342,7 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
 //        super._write(to: transaction, by: node)
-        switch localPropertyValue.get() {
+        switch _value {
         case .initial: break
 //                if  {
 //                    throw RealtimeError("Required property has not been set")
@@ -355,7 +355,7 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
 
     internal func _setValue(_ value: T) {
         if !hasChanges {
-            oldValue = localPropertyValue.get()
+            oldValue = _value
         }
         _setListenValue(.local(value))
     }
@@ -370,11 +370,10 @@ public extension RealtimeProperty {
 
 // TODO: Need to make as wrapper
 @available(*, introduced: 0.4.3)
-public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
-    fileprivate var localPropertyValue: PropertyValue<ListenValue<T>>
-    fileprivate var oldValue: ListenValue<T> = .initial
+public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
+    fileprivate var _value: ListenValue<T>
+    fileprivate let repeater: Repeater<ListenValue<T>> = Repeater()
     fileprivate(set) var representer: Representer<T>
-    var insider: Insider<ListenValue<T>>
 
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
@@ -393,16 +392,18 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     public required init(in node: Node?, options: [RealtimeValueOption: Any] = [.representer: Representer<T>.any]) {
         guard case let representer as Representer<T> = options[.representer] else { fatalError("Bad options") }
 
-        self.localPropertyValue = PropertyValue((options[.initialValue] as? T).map { .local($0) } ?? .initial)
-        self.insider = Insider(source: localPropertyValue.get)
+        self._value = (options[.initialValue] as? T).map { .local($0) } ?? .initial
         self.representer = representer
         super.init(in: node, options: options)
     }
     
     public override func load(completion: Assign<Error?>?) {
-        super.load(completion: completion?.with(work: { (val) in
-            val.map(self.setError)
-        }))
+        super.load(
+            completion: Assign.just({ (val) in
+                val.map(self.setError)
+            })
+            .with(work: completion)
+        )
     }
 
     @discardableResult
@@ -437,7 +438,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     
     override public func didSave(in parent: Node, by key: String) {
         super.didSave(in: parent, by: key)
-        if case .local(let v) = localPropertyValue.get() {
+        if case .local(let v) = _value {
             _setListenValue(.remote(v, strong: true))
         }
     }
@@ -465,13 +466,12 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     }
 
     internal func _setListenValue(_ value: ListenValue<T>) {
-        localPropertyValue.set(value)
-        insider.dataDidChange()
+        _value = value
+        repeater.send(.value(value))
     }
 
     internal func setError(_ error: Error) {
-        localPropertyValue.set(.error(error, last: localPropertyValue.get()))
-        insider.dataDidChange()
+        repeater.send(.error(error))
     }
 
     public override var debugDescription: String {
@@ -483,13 +483,27 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
         """
     }
 }
+extension ReadonlyRealtimeProperty: Listenable {
+    public func listening(_ assign: Assign<ListenEvent<ListenValue<T>>>) -> Disposable {
+        return repeater.listening(assign)
+    }
+    public func listeningItem(_ assign: Assign<ListenEvent<ListenValue<T>>>) -> ListeningItem {
+        let item = repeater.listeningItem(assign)
+        return ListeningItem(
+            start: item.start,
+            stop: item.stop,
+            notify: { assign.assign(.value(self._value)) },
+            token: ()
+        )
+    }
+}
 public extension ReadonlyRealtimeProperty {
     var lastEvent: ListenValue<T> {
-        return localPropertyValue.get()
+        return _value
     }
 
     var wrapped: T? {
-        return localPropertyValue.get().wrapped
+        return _value.wrapped
     }
 }
 public extension ReadonlyRealtimeProperty {
