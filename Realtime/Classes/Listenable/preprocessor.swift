@@ -181,19 +181,6 @@ public extension Listenable where OutData: Equatable {
 struct Bridge<I, O> {
     let bridge: BridgeBlank<ListenEvent<I>, ListenEvent<O>>
 
-//    func filtered(_ predicate: @escaping (O) -> Bool) -> Bridge<I, O> {
-//        return Bridge(bridge: AnyFilter.wrap(predicate: predicate, on: bridge))
-//    }
-//    func transformed<U>(_ transform: @escaping (O) -> U) -> Bridge<I, U> {
-//        return Bridge<I, U>(bridge: AnyModificator.make(modificator: transform, with: bridge))
-//    }
-//    func onReceive(_ event: @escaping (O, Promise) -> Void) -> Bridge<I, O> {
-//        return Bridge(bridge: AnyOnReceive.wrap(bridgeBlank: bridge, to: event))
-//    }
-//    func onReceiveMap<R>(_ event: @escaping (O, ResultPromise<R>) -> Void) -> Bridge<I, R> {
-//        return Bridge<I, R>(bridge: AnyOnReceive.wrap(bridgeBlank: bridge, to: event))
-//    }
-
     func wrapAssign(_ assign: Assign<ListenEvent<O>>) -> Assign<ListenEvent<I>> {
         return .just({ i in self.bridge(i, assign.assign) })
     }

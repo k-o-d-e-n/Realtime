@@ -32,30 +32,22 @@ extension ListenableValue {
     }
 }
 
-struct P<T>: Listenable, ValueWrapper {
-    let get: () -> T
-    let set: (T) -> Void
+struct Repeater<T>: Listenable {
+    let sender: (ListenEvent<T>) -> Void
     let listen: (Assign<ListenEvent<T>>) -> Disposable
     let listenItem: (Assign<ListenEvent<T>>) -> ListeningItem
 
-    var value: T {
-        get { return get() }
-        set { set(newValue) }
-    }
-
-    init(_ value: T) {
+    init() {
         var nextToken = UInt.min
         var listeners: [UInt: Assign<ListenEvent<T>>] = [:]
-        var val = value {
-            didSet {
-                listeners.forEach { (assign) in
-                    assign.value.assign(.value(val))
-                }
-            }
+
+        self.sender = { e in
+            listeners.forEach({ (listener) in
+                listener.value.assign(e)
+            })
         }
-        get = { val }
-        set = { val = $0 }
-        listen = { assign in
+
+        self.listen = { assign in
             defer { nextToken += 1 }
 
             let token = nextToken
@@ -66,7 +58,7 @@ struct P<T>: Listenable, ValueWrapper {
             }
         }
 
-        listenItem = { assign in
+        self.listenItem = { assign in
             defer { nextToken += 1 }
 
             listeners[nextToken] = assign
@@ -78,7 +70,7 @@ struct P<T>: Listenable, ValueWrapper {
             }, stop: { (t) in
                 listeners.removeValue(forKey: t)
             }, notify: {
-                assign.assign(.value(val))
+                assign.assign(.error(RealtimeError(source: .listening, description: "No value to notify")))
             }, token: nextToken)
         }
     }
@@ -89,6 +81,79 @@ struct P<T>: Listenable, ValueWrapper {
 
     func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
         return listenItem(assign)
+    }
+}
+
+struct P<T>: Listenable, ValueWrapper {
+    let get: () -> T
+    let set: (T) -> Void
+    let listenItem: (Assign<ListenEvent<T>>) -> ListeningItem
+    let repeater: Repeater<T>
+
+    var value: T {
+        get { return get() }
+        set { set(newValue) }
+    }
+
+    init(_ value: T) {
+        let repeater = Repeater<T>()
+
+        var val = value {
+            didSet {
+                repeater.sender(.value(val))
+            }
+        }
+
+        self.repeater = repeater
+        self.get = { val }
+        self.set = { val = $0 }
+        self.listenItem = { assign in
+            let item = repeater.listeningItem(assign)
+            return ListeningItem(
+                start: item.start,
+                stop: item.stop,
+                notify: { assign.assign(.value(val)) },
+                token: ()
+            )
+        }
+    }
+
+    func sendError(_ error: Error) {
+        repeater.sender(.error(error))
+    }
+
+    func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        return repeater.listen(assign)
+    }
+
+    func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        return listenItem(assign)
+    }
+}
+
+struct Trivial<T>: Listenable, ValueWrapper {
+    let repeater: Repeater<T> = Repeater()
+
+    var value: T {
+        didSet {
+            repeater.sender(.value(value))
+        }
+    }
+
+    init(_ value: T) {
+        self.value = value
+    }
+
+    func sendError(_ error: Error) {
+        repeater.sender(.error(error))
+    }
+
+    func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        return repeater.listen(assign)
+    }
+
+    func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        return repeater.listeningItem(assign)
     }
 }
 

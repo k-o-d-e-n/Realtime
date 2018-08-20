@@ -19,6 +19,7 @@ public struct RealtimeError: Error {
 
     enum Source {
         case value
+        case listening
         case coding
         case transaction([Error])
         case collection

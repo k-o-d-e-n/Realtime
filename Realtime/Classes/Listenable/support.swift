@@ -125,44 +125,21 @@ public extension Listenable where Self.OutData == UIImage? {
     }
 }
 
-public struct ControlEvent: Listenable {
-    unowned var control: UIControl
-    let event: UIControlEvents
+public struct ControlEvent<C: UIControl>: Listenable {
+    unowned var control: C
+    let events: UIControlEvents
 
-    public func listening(_ assign: Assign<ListenEvent<(UIControl, UIEvent)>>) -> Disposable {
-        return control.listen(for: event, assign)
-    }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<(UIControl, UIEvent)>>) -> ListeningItem {
-        return control.listenItem(for: event, assign)
-    }
-}
-
-public extension Listenable where Self: UIControl {
-    func onEvent(_ controlEvent: UIControlEvents) -> ControlEvent {
-        return ControlEvent(control: self, event: controlEvent)
-    }
-}
-
-extension UIControl: Listenable {
-    public func listening(_ assign: Assign<ListenEvent<(UIControl, UIEvent)>>) -> Disposable {
-        return listen(for: .allEvents, assign)
-    }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<(UIControl, UIEvent)>>) -> ListeningItem {
-        return listenItem(for: .allEvents, assign)
-    }
-
-    fileprivate func listen(for events: UIControlEvents, _ assign: Assign<ListenEvent<(UIControl, UIEvent)>>) -> ControlListening {
-        let controlListening = ControlListening(self, events: events, assign: assign)
+    public func listening(_ assign: Assign<ListenEvent<(C, UIEvent)>>) -> Disposable {
+        let controlListening = UIControl.Listening<C>(control, events: events, assign: assign)
         defer {
             controlListening.onStart()
         }
         return controlListening
     }
-    fileprivate func listenItem(for events: UIControlEvents, _ assign: Assign<ListenEvent<(UIControl, UIEvent)>>) -> ListeningItem {
+
+    public func listeningItem(_ assign: Assign<ListenEvent<(C, UIEvent)>>) -> ListeningItem {
         var event: UIEvent = UIEvent()
-        let controlListening = ControlListening(self, events: events, assign: assign.with(work: { e in
+        let controlListening = UIControl.Listening<C>(control, events: events, assign: assign.with(work: { e in
             if let uiEvent = e.value?.1 {
                 event = uiEvent
             }
@@ -172,26 +149,27 @@ extension UIControl: Listenable {
         }
         return ListeningItem(start: controlListening.onStart,
                              stop: controlListening.onStop,
-                             notify: { [unowned self] in assign.assign(.value((self, event))) },
+                             notify: { [unowned control] in assign.assign(.value((control, event))) },
                              token: ())
     }
+}
 
-    fileprivate class ControlListening: Disposable, Hashable {
-        unowned let control: UIControl
+extension UIControl {
+    fileprivate class Listening<C: UIControl>: Disposable, Hashable {
+        unowned let control: C
         let events: UIControlEvents
-        let assign: Assign<ListenEvent<(UIControl, UIEvent)>>
+        let assign: Assign<ListenEvent<(C, UIEvent)>>
 
-        var isInvalidated: Bool { return control.allTargets.contains(self) }
         var dispose: () -> Void { return onStop }
 
-        init(_ control: UIControl, events: UIControlEvents, assign: Assign<ListenEvent<(UIControl, UIEvent)>>) {
+        init(_ control: C, events: UIControlEvents, assign: Assign<ListenEvent<(C, UIEvent)>>) {
             self.control = control
             self.events = events
             self.assign = assign
         }
 
         @objc func onEvent(_ control: UIControl, _ event: UIEvent) {
-            assign.assign(.value((control, event)))
+            assign.assign(.value((unsafeDowncast(control, to: C.self), event)))
         }
 
         func onStart() {
@@ -203,33 +181,18 @@ extension UIControl: Listenable {
         }
 
         var hashValue: Int { return Int(events.rawValue) }
-        static func ==(lhs: ControlListening, rhs: ControlListening) -> Bool {
+        static func ==(lhs: Listening, rhs: Listening) -> Bool {
             return lhs === rhs
         }
     }
 }
-
-//// MARK: Attempts
-
-import UIKit
-
-extension UITextField {
-    class Realtime {
-        private weak var base: UIKit.UITextField!
-
-        init(base: UIKit.UITextField) {
-            self.base = base
-        }
-
-        lazy var text: Property<String?> = Property(PropertyValue(unowned: self.base, getter: { $0.text }, setter: { $0.text = $1 }))
-        lazy var state: Property<String?> = {
-            let propertyValue = PropertyValue<String?>(unowned: self.base, getter: { $0.text }, setter: { $0.text = $1 })
-            self.base.addTarget(self, action: #selector(self.textDidChange), for: .valueChanged)
-            return Property(propertyValue)
-        }()
-
-        @objc private func textDidChange() {
-            state.value = self.base.text
-        }
+public extension UIControl {
+    func onEvent(_ controlEvent: UIControlEvents) -> ControlEvent<UIControl> {
+        return ControlEvent(control: self, events: controlEvent)
+    }
+}
+public extension UITextField {
+    func onTextChange() -> Preprocessor<(UITextField, UIEvent), String?> {
+        return ControlEvent(control: self, events: .valueChanged).map({ $0.0.text })
     }
 }

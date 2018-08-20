@@ -373,9 +373,15 @@ public struct ReadonlyProperty<Value> {
     public init(getter: @escaping () -> Value) {
         self.init(value: getter(), getter: getter)
     }
+
+    init<T>(property: Property<T>, getter: @escaping (T) -> Value) {
+        let accessor = property.concreteValue
+        self.init(getter: { getter(accessor.get()) })
+    }
     
     mutating func fetch() {
-        value = getter()
+        concreteValue.set(getter())
+        insider.dataDidChange()
     }
 }
 

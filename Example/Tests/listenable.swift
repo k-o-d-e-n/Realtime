@@ -136,27 +136,27 @@ class ListenableTests: XCTestCase {
         XCTAssertTrue(view.backgroundColor == .red)
     }
 
-    //    func testReadonlyProperty() {
-    //        var propertyIndexSet = Property<IndexSet>(value: IndexSet(integer: 0))
-    //        var readonlySum = ReadonlyProperty<Int>() {
-    //            return propertyIndexSet.value.reduce(0, +) // TODO: Bad access
-    //        }
-    //        _ = propertyIndexSet.insider.listen(.just { _ in
-    //            readonlySum.fetch()
-    //        })
-    //        XCTAssertTrue(readonlySum.value == 0)
-    //        propertyIndexSet.value.insert(1)
-    //        XCTAssertTrue(readonlySum.value == 1)
-    //        propertyIndexSet.value.insert(integersIn: 100...500)
-    //        print(readonlySum.value)
-    //
-    //        var stringLength = 0
-    //        let observableEntity = ObservableEntityClass(propertyValue: "")
-    //        _ = observableEntity.readonlyProperty.insider.listen(.just { stringLength = $0 })
-    //        _ = observableEntity.readonlyProperty.insider.listen(.just{ print($0) })
-    //        observableEntity.property <== "Denis Koryttsev"
-    //        XCTAssertTrue(stringLength == 15)
-    //    }
+    func testReadonlyProperty() {
+        var propertyIndexSet = Property<IndexSet>(value: IndexSet(integer: 0))
+        var readonlySum = ReadonlyProperty<Int>(property: propertyIndexSet) { (v) -> Int in
+            return v.reduce(0, +)
+        }
+        _ = propertyIndexSet.insider.listen(.just { _ in
+            readonlySum.fetch()
+            })
+        XCTAssertTrue(readonlySum.value == 0)
+        propertyIndexSet.value.insert(1)
+        XCTAssertTrue(readonlySum.value == 1)
+        propertyIndexSet.value.insert(integersIn: 100...500)
+        print(readonlySum.value)
+
+        var stringLength = 0
+        let observableEntity = ObservableEntityClass(propertyValue: "")
+        _ = observableEntity.readonlyProperty.insider.listen(.just { $0.map(to: &stringLength) })
+        _ = observableEntity.readonlyProperty.insider.listen(.just{ print($0) })
+        observableEntity.property <== "Denis Koryttsev"
+        XCTAssertTrue(stringLength == 15)
+    }
 
     func testOnce() {
         let view = UIView()
@@ -689,44 +689,6 @@ class ListenableTests: XCTestCase {
 
         waitForExpectations(timeout: 10, handler: nil)
     }
-
-    //    func testRealtimeTextField() {
-    //        let textField = UITextField()
-    //        let propertyValue = PropertyValue<String?>(unowned: textField, getter: { $0.text }, setter: { $0.text = $1 })
-    //        var property = Property(propertyValue)
-    //
-    //        _ = textField.realtimeText.insider.listen(.just { print($0 ?? "nil") })
-    //
-    //        property.value = "Text"
-    //        XCTAssertTrue(property.value == textField.text)
-    //
-    //        textField.realtimeText.value = "Some text"
-    //
-    //        XCTAssertTrue(textField.text == "Some text")
-    //
-    //        property.value = "new text"
-    //        XCTAssertTrue(textField.text == "new text")
-    //    }
-
-    //    func testRealtimeTextField2() {
-    //        let textField = UITextField()
-    //        let realtimeTF = textField.rt
-    //        _ = realtimeTF.text.insider.listen(.just {
-    //            print($0 ?? "nil")
-    //        })
-    //
-    //        realtimeTF.text.value = "Text"
-    //        XCTAssertTrue(realtimeTF.text.value == textField.text)
-    //
-    //        textField.realtimeText.value = "Some text"
-    //        textField.sendActions(for: .valueChanged)
-    //
-    //        XCTAssertTrue(textField.text == "Some text")
-    //        XCTAssertTrue(realtimeTF.text~ == "Some text")
-    //
-    //        realtimeTF.text <== "new text"
-    //        XCTAssertTrue(textField.text == "new text")
-    //    }
 
     func testPrimitiveValue() {
         let referencedValue = PropertyValue<Int>(10)
