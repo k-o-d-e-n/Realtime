@@ -193,7 +193,7 @@ public class RealtimeTransaction {
     let database: Database
     let storage: Storage
     internal var updateNode: ObjectNode = .root()
-    fileprivate var preconditions: [(ResultPromise<Error?>) -> Void] = []
+    fileprivate var preconditions: [(Promise) -> Void] = []
     fileprivate var completions: [(Bool) -> Void] = []
     fileprivate var cancelations: [() -> Void] = []
     fileprivate var scheduledMerges: [RealtimeTransaction]?
@@ -238,12 +238,13 @@ public class RealtimeTransaction {
             lock.unlock()
         }
 
-        let failPromise = ResultPromise<Error?> { err in
-            if let e = err {
+        let failPromise = Promise(
+            action: group.leave,
+            error: { e in
                 addError(e)
+                group.leave()
             }
-            group.leave()
-        }
+        )
         currentPreconditions.forEach { $0(failPromise) }
 
         group.notify(queue: .main) {
@@ -426,7 +427,7 @@ extension RealtimeTransaction {
     }
 
     /// registers new precondition action
-    public func addPrecondition(_ precondition: @escaping (ResultPromise<Error?>) -> Void) {
+    public func addPrecondition(_ precondition: @escaping (Promise) -> Void) {
         guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
 
         preconditions.append(precondition)

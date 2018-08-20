@@ -11,17 +11,27 @@ import Foundation
 /// -------------------------------------------------------------------
 
 public struct Promise {
-    let action: () throws -> Void
+    let action: () -> Void
+    let error: (Error) -> Void
 
-    public func fulfill() throws {
-        try action()
+    public func fulfill() {
+        action()
+    }
+
+    public func reject(_ error: Error) {
+        self.error(error)
     }
 }
 public struct ResultPromise<T> {
-    let receiver: (T) throws -> Void
+    let receiver: (T) -> Void
+    let error: (Error) -> Void
 
-    public func fulfill(_ result: T) throws {
-        try receiver(result)
+    public func fulfill(_ result: T) {
+        receiver(result)
+    }
+
+    public func reject(_ error: Error) {
+        self.error(error)
     }
 }
 
@@ -63,10 +73,10 @@ extension Closure where O == Void {
 
 /// Configurable wrapper for closure that receive listening value.
 public struct Assign<A> {
-    internal let assign: (A) throws -> Void
+    internal let assign: (A) -> Void
 
     /// simple closure without side effects
-    static public func just(_ assign: @escaping (A) throws -> Void) -> Assign<A> {
+    static public func just(_ assign: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: assign)
     }
 
@@ -92,124 +102,169 @@ public struct Assign<A> {
 //    }
 
     /// closure that called on specified dispatch queue
-    static public func on(_ queue: DispatchQueue, assign: @escaping (A) throws -> Void) -> Assign<(A, (Error) -> Void)> {
-        return Assign<(A, (Error) -> Void)>(assign: { v in
+    static public func on(_ queue: DispatchQueue, assign: @escaping (A) -> Void) -> Assign<A> {
+        return Assign<A>(assign: { v in
             queue.async {
-                do {
-                    try assign(v.0)
-                } catch let e {
-                    v.1(e)
-                }
+                assign(v)
             }
         })
     }
 
     /// returns new closure wrapped using queue behavior
-    public func on(queue: DispatchQueue) -> Assign<(A, (Error) -> Void)> {
+    public func on(queue: DispatchQueue) -> Assign<A> {
         return Assign.on(queue, assign: assign)
     }
 
-    public func with(work: @escaping (A) throws -> Void) -> Assign<A> {
+    public func with(work: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: { (v) in
-            try work(v)
-            try self.assign(v)
+            work(v)
+            self.assign(v)
+        })
+    }
+    public func after(work: @escaping (A) -> Void) -> Assign<A> {
+        return Assign(assign: { (v) in
+            self.assign(v)
+            work(v)
         })
     }
     public func with(work: Assign<A>) -> Assign<A> {
         return with(work: work.assign)
     }
+    public func after(work: Assign<A>) -> Assign<A> {
+        return after(work: work.assign)
+    }
 
     public func map<U>(_ transform: @escaping (U) -> A) -> Assign<U> {
         return Assign<U>(assign: { (u) in
-            try self.assign(transform(u))
+            self.assign(transform(u))
         })
     }
 
     public func filter(_ predicate: @escaping (A) -> Bool) -> Assign<A> {
         return Assign(assign: { (a) in
             if predicate(a) {
-                try self.assign(a)
+                self.assign(a)
             }
         })
     }
 }
 
 prefix operator <-
-public prefix func <-<A>(rhs: Assign<A>) -> (A) throws -> Void {
+public prefix func <-<A>(rhs: Assign<A>) -> (A) -> Void {
     return rhs.assign
+}
+public prefix func <-<A>(rhs: @escaping (A) -> Void) -> Assign<A> {
+    return Assign(assign: rhs)
 }
 
 // MARK: Connections
+
+public enum ListenEvent<T> {
+    case value(T)
+    case error(Error)
+}
+public extension ListenEvent {
+    var value: T? {
+        guard case .value(let v) = self else { return nil }
+        return v
+    }
+    func map<U>(_ transform: (T) throws -> U) rethrows -> ListenEvent<U> {
+        switch self {
+        case .value(let v): return .value(try transform(v))
+        case .error(let e): return .error(e)
+        }
+    }
+    func flatMap<U>(_ transform: (T) throws -> U) rethrows -> U? {
+        switch self {
+        case .value(let v): return try transform(v)
+        case .error: return nil
+        }
+    }
+}
 
 /// Common protocol for all objects that ensures listening value. 
 public protocol Listenable {
     associatedtype OutData
 
     /// Disposable listening of value
-    func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> Disposable
+    func listening(_ assign: Assign<ListenEvent<OutData>>) -> Disposable
 
     /// Listening with possibility to control active state
-    func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem
+    func listeningItem(_ assign: Assign<ListenEvent<OutData>>) -> ListeningItem
 }
 public extension Listenable {
-    func listening(_ assign: Assign<OutData>) -> Disposable {
-        return listening(as: { $0 }, assign)
-    }
-    func listeningItem(_ assign: Assign<OutData>) -> ListeningItem {
-        return listeningItem(as: { $0 }, assign)
-    }
-    func listening(_ assign: @escaping (OutData) -> Void) -> Disposable {
+    func listening(_ assign: @escaping (ListenEvent<OutData>) -> Void) -> Disposable {
         return listening(.just(assign))
     }
-    func listeningItem(_ assign: @escaping (OutData) -> Void) -> ListeningItem {
+    func listeningItem(_ assign: @escaping (ListenEvent<OutData>) -> Void) -> ListeningItem {
         return listeningItem(.just(assign))
+    }
+    func listening(onValue assign: Assign<OutData>) -> Disposable {
+        return listening(Assign(assign: {
+            if let v = $0.value {
+                assign.assign(v)
+            }
+        }))
+    }
+    func listeningItem(onValue assign: Assign<OutData>) -> ListeningItem {
+        return listeningItem(Assign(assign: {
+            if let v = $0.value {
+                assign.assign(v)
+            }
+        }))
+    }
+    func listening(onValue assign: @escaping (OutData) -> Void) -> Disposable {
+        return listening(onValue: .just(assign))
+    }
+    func listeningItem(onValue assign: @escaping (OutData) -> Void) -> ListeningItem {
+        return listeningItem(onValue: .just(assign))
     }
 }
 struct AnyListenable<Out>: Listenable {
-    let _listening: ((AnyListening) -> AnyListening, Assign<Out>) -> Disposable
-    let _listeningItem: ((AnyListening) -> AnyListening, Assign<Out>) -> ListeningItem
+    let _listening: (Assign<ListenEvent<Out>>) -> Disposable
+    let _listeningItem: (Assign<ListenEvent<Out>>) -> ListeningItem
 
     init<L: Listenable>(_ base: L) where L.OutData == Out {
         self._listening = base.listening
         self._listeningItem = base.listeningItem
     }
-    init(_ listening: @escaping ((AnyListening) -> AnyListening, Assign<Out>) -> Disposable,
-         _ listeningItem: @escaping ((AnyListening) -> AnyListening, Assign<Out>) -> ListeningItem) {
+    init(_ listening: @escaping (Assign<ListenEvent<Out>>) -> Disposable,
+         _ listeningItem: @escaping (Assign<ListenEvent<Out>>) -> ListeningItem) {
         self._listening = listening
         self._listeningItem = listeningItem
     }
 
-    func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<Out>) -> Disposable {
-        return _listening(config, assign)
+    func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
+        return _listening(assign)
     }
-    func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<Out>) -> ListeningItem {
-        return _listeningItem(config, assign)
+    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
+        return _listeningItem(assign)
     }
 }
 
-//extension Insider: _ListeningMaker, BridgeMaker {
-//    typealias OutData = D
-//    public typealias Data = D
-//    var bridgeMaker: Insider<D> { return self }
-//    public typealias ListeningToken = (token: Token, listening: AnyListening)
-//    internal mutating func addListening(_ listening: AnyListening) -> ListeningToken {
-//        return (connect(with: listening), listening)
-//    }
-//
-//    /// connects to insider to receive value changes
-//    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: Assign<D>) -> ListeningToken {
-//        return addListening(config(makeListening(assign.assign)))
-//    }
-//
-//    /// connects to insider to receive value changes with preaction on receive update
-//    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, onReceive: @escaping (D, Promise) -> Void, _ assign: Assign<D>) -> ListeningToken {
-//        return addListening(config(makeListening(on: onReceive, assign.assign)))
-//    }
-//
-//    func wrapAssign(_ assign: Assign<D>) -> Assign<D> {
-//        return assign
-//    }
-//}
+extension Insider: _ListeningMaker, BridgeMaker {
+    typealias OutData = D
+    public typealias Data = D
+    var bridgeMaker: Insider<D> { return self }
+    public typealias ListeningToken = (token: Token, listening: AnyListening)
+    internal mutating func addListening(_ listening: AnyListening) -> ListeningToken {
+        return (connect(with: listening), listening)
+    }
+
+    /// connects to insider to receive value changes
+    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, _ assign: Assign<ListenEvent<D>>) -> ListeningToken {
+        return addListening(config(makeListening(assign.assign)))
+    }
+
+    /// connects to insider to receive value changes with preaction on receive update
+    mutating public func listen(as config: (AnyListening) -> AnyListening = { $0 }, onReceive: @escaping (D, Promise) -> Void, _ assign: Assign<ListenEvent<D>>) -> ListeningToken {
+        return addListening(config(makeListening(on: onReceive, assign.assign)))
+    }
+
+    func wrapAssign(_ assign: Assign<ListenEvent<D>>) -> Assign<ListenEvent<D>> {
+        return assign
+    }
+}
 
 /// Object that provides listenable data
 protocol InsiderOwner: class, Listenable {
@@ -234,19 +289,19 @@ extension InsiderOwner {
         return makeListeningItem(token: insider.connect(with: listening), listening: listening)
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<InsiderValue>) -> Disposable {
-        return makeDispose(for: insider.listen(as: config, assign).token)
+    public func listening(_ assign: Assign<ListenEvent<InsiderValue>>) -> Disposable {
+        return makeDispose(for: insider.listen(assign).token)
     }
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<InsiderValue>) -> ListeningItem {
-        let item = insider.listen(as: config, assign)
+    public func listeningItem(_ assign: Assign<ListenEvent<InsiderValue>>) -> ListeningItem {
+        let item = insider.listen(assign)
         return makeListeningItem(token: item.token, listening: item.listening)
     }
 
-    public func listening(as config: (AnyListening) -> AnyListening, _ assign: @escaping (InsiderValue) -> Void) -> Disposable {
-        return listening(as: config, .just(assign))
+    public func listening(_ assign: @escaping (ListenEvent<InsiderValue>) -> Void) -> Disposable {
+        return listening(.just(assign))
     }
-    public func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: @escaping (InsiderValue) -> Void) -> ListeningItem {
-        return listeningItem(as: config, .just(assign))
+    public func listeningItem(_ assign: @escaping (ListenEvent<InsiderValue>) -> Void) -> ListeningItem {
+        return listeningItem(.just(assign))
     }
 }
 
@@ -256,6 +311,7 @@ struct Insider<D> {
     internal let dataSource: () -> D
     private var listeners = [Token: AnyListening]()
     private var nextToken: Token = Token.min
+    internal var hasConnections: Bool { return listeners.count > 0 }
     
     init(source: @escaping () -> D) {
         dataSource = source
@@ -287,10 +343,8 @@ struct Insider<D> {
         return listeners.contains { $0.key == token }
     }
     
-    mutating func disconnect(with token: Token, callOnStop call: Bool = true) {
-        if let listener = listeners.removeValue(forKey: token), call {
-            listener.onStop()
-        }
+    mutating func disconnect(with token: Token) {
+        listeners.removeValue(forKey: token)
     }
 }
 
@@ -467,7 +521,12 @@ extension Property {
     /// - Parameter other: Property as source values
     /// - Returns: Listening token
     func bind(to other: inout Property<Value>) -> Insider<Value>.ListeningToken { // TODO: Not notify subscribers about receiving new value.
-        return other.insider.listen(.just(concreteValue.set))
+        let value = concreteValue
+        return other.insider.listen(Assign(assign: { (e) in
+            if let v = e.value {
+                value.set(v)
+            }
+        }))
     }
 }
 
@@ -475,7 +534,12 @@ extension ReadonlyProperty {
     mutating func setter(_ value: Value) -> Void { self.value = value }
 
     mutating func bind(to other: inout Property<Value>) -> Insider<Value>.ListeningToken { // TODO: Not notify subscribers about receiving new value.
-        return other.insider.listen(.just(concreteValue.set))
+        let value = concreteValue
+        return other.insider.listen(Assign(assign: { (e) in
+            if let v = e.value {
+                value.set(v)
+            }
+        }))
     }
 }
 
@@ -486,7 +550,7 @@ extension InsiderOwner {
     /// - Returns: Listening token
     @discardableResult
     func depends<Other: InsiderOwner>(on other: Other) -> Disposable {
-        return other.listening(as: { $0.livetime(self) }, .weak(self) { _, owner in owner?.insider.dataDidChange() })
+        return other.livetime(self).listening(.weak(self) { _, owner in owner?.insider.dataDidChange() })
     }
 }
 public extension Listenable {
@@ -496,7 +560,11 @@ public extension Listenable {
     /// - Returns: Listening token
     @discardableResult
     func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.OutData {
-        return listening(as: { $0.livetime(other) }, .just { [weak other] v in other?.value = v })
+        return livetime(other).listening({ [weak other] val in
+            if let v = val.value {
+                other?.value = v
+            }
+        })
     }
 }
 
@@ -505,27 +573,27 @@ public extension Listenable {
 protocol BridgeMaker {
     associatedtype Data
     associatedtype OutData
-    func makeBridge(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void
-    func wrapAssign(_ assign: Assign<OutData>) -> Assign<Data>
+    func makeBridge(with assign: @escaping (ListenEvent<OutData>) -> Void, source: @escaping () -> Data) -> () -> Void
+    func wrapAssign(_ assign: Assign<ListenEvent<OutData>>) -> Assign<ListenEvent<Data>>
 }
 
 extension BridgeMaker where Data == OutData {
-    internal func makeBridge(with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void {
-        return { assign(source()) }
+    internal func makeBridge(with assign: @escaping (ListenEvent<OutData>) -> Void, source: @escaping () -> Data) -> () -> Void {
+        return { assign(.value(source())) }
     }
-    fileprivate func makeBridge(on event: @escaping (OutData, Promise) -> Void, with assign: @escaping (OutData) -> Void, source: @escaping () -> Data) -> () -> Void {
+    fileprivate func makeBridge(on event: @escaping (OutData, Promise) -> Void, with assign: @escaping (ListenEvent<OutData>) -> Void, source: @escaping () -> Data) -> () -> Void {
         let realBridge = makeBridge(with: assign, source: source)
         return makeBridge(on: event, bridge: realBridge, source: source)
     }
     fileprivate func makeBridge(on event: @escaping (OutData, Promise) -> Void, bridge: @escaping () -> Void, source: @escaping () -> Data) -> () -> Void {
-        return { event(source(), Promise(action: bridge)) }
+        return { event(source(), Promise(action: bridge, error: {_ in})) }
     }
 }
 
 protocol ListeningMaker {
     associatedtype OutData
     associatedtype Data
-    func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening
+    func makeListening(_ assign: @escaping (ListenEvent<OutData>) -> Void) -> AnyListening
 }
 protocol _ListeningMaker: ListeningMaker {
     associatedtype Bridge: BridgeMaker
@@ -533,12 +601,12 @@ protocol _ListeningMaker: ListeningMaker {
     var dataSource: () -> Data { get }
 }
 extension _ListeningMaker where Bridge.Data == Self.Data, Bridge.OutData == Self.OutData {
-    internal func makeListening(_ assign: @escaping (OutData) -> Void) -> AnyListening {
+    internal func makeListening(_ assign: @escaping (ListenEvent<OutData>) -> Void) -> AnyListening {
         return Listening(bridge: bridgeMaker.makeBridge(with: assign, source: dataSource))
     }
-    fileprivate func makeListening(on event: @escaping (Data, Promise) -> Void, _ assign: @escaping (OutData) -> Void) -> AnyListening {
+    fileprivate func makeListening(on event: @escaping (Data, Promise) -> Void, _ assign: @escaping (ListenEvent<OutData>) -> Void) -> AnyListening {
         let source = dataSource
         let realBridge = bridgeMaker.makeBridge(with: assign, source: source)
-        return Listening(bridge: { event(source(), Promise(action: realBridge)) })
+        return Listening(bridge: { event(source(), Promise(action: realBridge, error: {_ in})) })
     }
 }

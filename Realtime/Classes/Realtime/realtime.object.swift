@@ -275,12 +275,12 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
                     refs.flatMap { $0.links.map(Node.root.child) }.forEach(transaction.removeValue)
                     do {
                         try transaction.delete(links)
-                        promise.fulfill(nil)
+                        promise.fulfill()
                     } catch let e {
-                        promise.fulfill(e)
+                        promise.reject(e)
                     }
                 }),
-                fail: .just(promise.fulfill)
+                fail: .just(promise.reject)
             )
         }
     }

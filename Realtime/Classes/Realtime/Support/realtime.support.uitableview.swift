@@ -28,7 +28,7 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
             set { view.map { v in assign(v, newValue) } }
             get { fatalError() }
         }
-        listeningItems.append(value.listeningItem({ data = $0 }))
+        listeningItems.append(value.listeningItem(onValue: { data = $0 }))
 
         guard source.canObserve else { return }
         if source.runObserving() {
@@ -43,7 +43,7 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
             set { view.map { v in assign(v, newValue) } }
             get { fatalError() }
         }
-        listeningItems.append(value.listeningItem({ data = $0 }))
+        listeningItems.append(value.listeningItem(onValue: { data = $0 }))
 
         guard value.canObserve else { return }
         if value.runObserving() {
@@ -54,7 +54,7 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
     }
 
     public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
-        listeningItems.append(filter({ $0 != nil }).map({ $0! }).listeningItem({ assign($0, value) }))
+        listeningItems.append(filter({ $0 != nil }).map({ $0! }).listeningItem(onValue: { assign($0, value) }))
     }
 
     func free() {

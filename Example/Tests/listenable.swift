@@ -84,9 +84,9 @@ class ListenableTests: XCTestCase {
         var valueWrapper = ListenableValue<Int>(0)
         _ = valueWrapper.insider.listen(.just { (val) in
             if counter == 0 {
-                XCTAssertTrue(val == 1)
+                XCTAssertTrue(val.value == 1)
             } else if counter == 1 {
-                XCTAssertTrue(val == 20)
+                XCTAssertTrue(val.value == 20)
             }
             counter += 1
             })
@@ -99,19 +99,19 @@ class ListenableTests: XCTestCase {
     func testProperty() {
         let view = UIView()
         var backgroundProperty = Property<UIColor>(value: .white)
-        let bgToken = backgroundProperty.insider.listen(.just { view.backgroundColor = $0 })
+        let bgToken = backgroundProperty.insider.listen(.just { view.backgroundColor = $0.value })
 
         var weakowner: UIView? = UIView()
         _ = backgroundProperty.insider.listen(.weak(weakowner!) { (color, owner) in
             print(color, owner ?? "nil")
-            if color == .yellow {
+            if color.value == .yellow {
                 XCTAssertNil(owner)
             }
             })
 
         let unownedOwner: UIView? = UIView()
         _ = backgroundProperty.insider.listen(.unowned(unownedOwner!) { (color, owner) in
-            owner.backgroundColor = color
+            owner.backgroundColor = color.value
             })
 
         XCTAssertTrue(bgToken.token == Int.min)
@@ -126,8 +126,8 @@ class ListenableTests: XCTestCase {
         copyBgProperty <== .yellow
         XCTAssertTrue(view.backgroundColor == .yellow)
 
-        var otherColor: UIColor = .black
-        _ = backgroundProperty.insider.listen(.just { otherColor = $0 })
+        var otherColor: UIColor? = .black
+        _ = backgroundProperty.insider.listen(.just { otherColor = $0.value })
         copyBgProperty <== .red
         XCTAssertFalse(otherColor == .red)
 
@@ -158,84 +158,75 @@ class ListenableTests: XCTestCase {
     //        XCTAssertTrue(stringLength == 15)
     //    }
 
-    func testOncePropertyListen() {
+    func testOnce() {
         let view = UIView()
-        var backgroundProperty = Property<UIColor>(value: .white)
+        var backgroundProperty = P<UIColor>(.white)
 
-        let bgToken = backgroundProperty.insider.listen(as: { $0.once() }, .just {
+        _ = backgroundProperty.once().listening(onValue: {
             view.backgroundColor = $0
-            })
+        })
         backgroundProperty <== .red
 
         XCTAssertTrue(view.backgroundColor == .red)
-        XCTAssertFalse(backgroundProperty.insider.has(token: bgToken.token))
+//        XCTAssertFalse(backgroundProperty.insider.hasConnections)
 
         backgroundProperty <== .green
         XCTAssertTrue(view.backgroundColor == .red)
     }
 
-    func testIfPropertyListen() {
+    func testOnFire() {
         let view = UIView()
-        var backgroundProperty = Property<UIColor>(value: .white)
+        var backgroundProperty = PropertyClass<UIColor>(.white)
 
-        let _ = backgroundProperty.insider.listen(as: { $0.if(!view.isHidden) }, .just {
-            view.backgroundColor = $0
+        _ = backgroundProperty
+            .onFire({
+                XCTAssertEqual(view.backgroundColor, nil)
+            })
+            .once()
+            .listening(onValue: {
+                view.backgroundColor = $0
             })
         backgroundProperty <== .red
 
         XCTAssertTrue(view.backgroundColor == .red)
-        view.isHidden = true
+        XCTAssertFalse(backgroundProperty.insider.hasConnections)
 
         backgroundProperty <== .green
         XCTAssertTrue(view.backgroundColor == .red)
     }
 
-    func testPropertyFiredListening() {
-        let view = UIView()
-        var backgroundProperty = Property<UIColor>(value: .white)
-
-        let bgToken = backgroundProperty.insider.listen(as: {
-            $0.onFire {
-                XCTAssertTrue(view.backgroundColor == .red)
-                }.once()
-        }, .just {
-            view.backgroundColor = $0
-            })
-        backgroundProperty <== .red
-
-        XCTAssertTrue(view.backgroundColor == .red)
-        XCTAssertFalse(backgroundProperty.insider.has(token: bgToken.token))
-
-        backgroundProperty <== .green
-        XCTAssertTrue(view.backgroundColor == .red)
-    }
-
-    func testConcurrencyPropertyListen() {
-        let cache = NSCache<NSString, NSString>()
-        var stringProperty = Property<NSString>(value: "initial")
+    func testConcurrency() {
+        let cache = NSCache<NSString, NSNumber>()
+        var stringProperty = PropertyClass<NSString>("initial")
         let assignedValue = "New value"
 
         performWaitExpectation("async", timeout: 5) { (exp) in
-            _ = stringProperty.insider.listen(as: { $0.queue(.global(qos: .background)) }, .just { (string) in
-                cache.setObject(string, forKey: "key")
-                XCTAssertFalse(Thread.isMainThread)
-                XCTAssertTrue(cache.object(forKey: "key")! as String == assignedValue)
-                exp.fulfill()
+            _ = stringProperty
+                .queue(.global(qos: .background))
+                .map { _ in Thread.isMainThread }
+                .queue(.main)
+                .do { _ in XCTAssertTrue(Thread.isMainThread) }
+                .queue(.global())
+                .listening(onValue: { value in
+                    cache.setObject(value as NSNumber, forKey: "key")
+                    XCTAssertFalse(Thread.isMainThread)
+                    XCTAssertFalse(cache.object(forKey: "key")!.boolValue)
+                    exp.fulfill()
                 })
 
             stringProperty <== assignedValue as NSString
         }
     }
 
-    func testDeadlinePropertyListen() {
+    func testDeadline() {
         var counter = 0
-        var stringProperty = Property<String>(value: "initial")
+        var stringProperty = PropertyClass<String>("initial")
         let beforeDeadlineValue = "First value"
         let afterDeadlineValue = "Second value"
         let inTimeValue = "Test"
 
         performWaitExpectation("async", timeout: 10) { (exp) in
-            let token = stringProperty.insider.listen(as: { $0.deadline(.now() + .seconds(2)) }, .just { (string) in
+            _ = stringProperty.deadline(.now() + .seconds(2)).listening(onValue: { string in
                 if counter == 0 {
                     XCTAssertTrue(string == beforeDeadlineValue)
                 } else if counter == 1 {
@@ -243,7 +234,7 @@ class ListenableTests: XCTestCase {
                 }
 
                 counter += 1
-                })
+            })
 
             stringProperty <== beforeDeadlineValue
 
@@ -253,17 +244,16 @@ class ListenableTests: XCTestCase {
 
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
                 stringProperty <== afterDeadlineValue
-                XCTAssertTrue(token.listening.isInvalidated)
-                XCTAssertFalse(stringProperty.insider.has(token: token.token))
+                XCTAssertFalse(stringProperty.insider.hasConnections)
                 XCTAssertTrue(counter == 2)
                 exp.fulfill()
             }
         }
     }
 
-    func testLivetimePropertyListen() {
+    func testLivetime() {
         var counter = 0
-        var stringProperty = Property<String>(value: "initial")
+        var stringProperty = PropertyClass<String>("initial")
         let beforeDeadlineValue = "First value"
         let afterDeadlineValue = "Second value"
         let inTimeValue = "Test"
@@ -271,7 +261,7 @@ class ListenableTests: XCTestCase {
         var living: NSObject? = NSObject()
 
         performWaitExpectation("async", timeout: 10) { (exp) in
-            let token = stringProperty.insider.listen(as: { $0.livetime(living!) }, .just { (string) in
+            _ = stringProperty.livetime(living!).listening(onValue: { string in
                 if counter == 0 {
                     XCTAssertTrue(string == beforeDeadlineValue)
                 } else if counter == 1 {
@@ -279,7 +269,7 @@ class ListenableTests: XCTestCase {
                 }
 
                 counter += 1
-                })
+            })
 
             stringProperty <== beforeDeadlineValue
 
@@ -290,22 +280,21 @@ class ListenableTests: XCTestCase {
 
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
                 stringProperty <== afterDeadlineValue
-                XCTAssertTrue(token.listening.isInvalidated)
-                XCTAssertFalse(stringProperty.insider.has(token: token.token))
+                XCTAssertFalse(stringProperty.insider.hasConnections)
                 XCTAssertTrue(counter == 2)
                 exp.fulfill()
             }
         }
     }
 
-    func testDebouncePropertyListen() {
-        var counter = Property<Int>(value: 0)
-        var receivedValues: [Int] = []
+    func testDebounce() {
+        let counter = PropertyClass<Double>(0.0)
+        var receivedValues: [Double] = []
 
-        _ = counter.insider.listen(as: { $0.debounce(.seconds(1)) }, .just { (value) in
+        _ = counter.debounce(.seconds(1)).listening(onValue: { value in
             receivedValues.append(value)
             print(value)
-            })
+        })
 
         let timer: Timer
         if #available(iOS 10.0, *) {
@@ -319,7 +308,10 @@ class ListenableTests: XCTestCase {
         performWaitExpectation("async", timeout: 10) { (exp) in
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(4)) {
                 timer.invalidate()
-                XCTAssertTrue(receivedValues == [1, 3, 6, 8])
+                zip(receivedValues, [1, 3, 6, 8]).forEach({ (arg: (Double, Double)) in
+                    let (received, must) = arg
+                    XCTAssertEqual(received, must, accuracy: 1.0)
+                })
                 exp.fulfill()
             }
         }
@@ -329,7 +321,7 @@ class ListenableTests: XCTestCase {
         let propertyDouble = PropertyClass<Double>(.pi)
 
         var doubleValue = 0.0
-        let dispose = propertyDouble.listening(.just { doubleValue = $0 })
+        let dispose = propertyDouble.listening(onValue: { doubleValue = $0 })
 
         propertyDouble.value = 10.0
         XCTAssertTrue(doubleValue == 10.0)
@@ -343,9 +335,9 @@ class ListenableTests: XCTestCase {
         let propertyDouble = PropertyClass<Double>(.pi)
 
         var doubleValue = 0.0
-        let item = propertyDouble.listeningItem(.just {
+        let item = propertyDouble.listeningItem(onValue: {
             doubleValue = $0
-            })
+        })
 
         propertyDouble.value = 10.0
         XCTAssertTrue(doubleValue == 10.0)
@@ -355,7 +347,7 @@ class ListenableTests: XCTestCase {
         propertyDouble.value = .infinity
         XCTAssertTrue(doubleValue == 10.0)
 
-        item.start()
+        item.start(true)
         XCTAssertTrue(item.isListen())
         XCTAssertTrue(doubleValue == .infinity)
         propertyDouble.value = .pi
@@ -376,7 +368,7 @@ class ListenableTests: XCTestCase {
         let propertyDouble = PropertyClass<Double>(.pi)
 
         var doubleValue = 0.0
-        propertyDouble.listening(.just { doubleValue = $0 }).add(to: &store)
+        propertyDouble.listening(onValue: { doubleValue = $0 }).add(to: &store)
         propertyDouble.value = 10.0
         XCTAssertTrue(doubleValue == 10.0)
 
@@ -384,7 +376,7 @@ class ListenableTests: XCTestCase {
         propertyDouble.value = .infinity
         XCTAssertTrue(doubleValue == 10.0)
 
-        let item = propertyDouble.listeningItem(.just { doubleValue = $0 })
+        let item = propertyDouble.listeningItem(onValue: { doubleValue = $0 })
         item.add(to: &store)
 
         propertyDouble.value = .pi
@@ -442,77 +434,6 @@ class ListenableTests: XCTestCase {
     ////        XCTAssertTrue(otherPointer.pointee.has(token: token))
     //    }
 
-    func testFilterListening() {
-        var stringValueLength = 0
-        var property = Property<Double>(value: .pi)
-        _ = property.insider.listen(preprocessor: { pp in
-            return pp.filter { $0 >= 0 }.map(String.init).filter { $0.count > 1 }.map { v -> Int in debugPrint(v); return v.count }
-        }, .just {
-            stringValueLength = $0
-            })
-
-        property <== 0 // "0.0".length == 3
-        XCTAssertTrue(stringValueLength == 3)
-        property <== 21 // "21.0".length == 4
-        XCTAssertTrue(stringValueLength == 4)
-        property <== -100.5 // filtered
-        XCTAssertTrue(stringValueLength == 4)
-        XCTAssertTrue(property.value == -100.5)
-    }
-
-    func testMapListening() {
-        var exponentValue = 1
-        var property = Property<Double>(value: .pi)
-        _ = property.insider.listen(preprocessor: { pp in
-            return pp.map { $0 + 0.5 }.filter { $0 > 0.5 }.map { v -> Int in debugPrint(v); return v.exponent }//.filter { $0 == 21.5 } // uncomment for filter input values, but this behavior illogical, therefore it use not recommended
-        }, .just {
-            exponentValue = $0
-            })
-
-        property <== 0
-        XCTAssertTrue(property.value == 0)
-        XCTAssertTrue(exponentValue == 1)
-        property <== 21 // 21.5.exponent == 4
-        XCTAssertTrue(exponentValue == 4)
-        XCTAssertTrue(property.value == 21)
-        property <== -100.5 // filtered
-        XCTAssertTrue(exponentValue == 4)
-        XCTAssertTrue(property.value == -100.5)
-    }
-
-    func testOnReceiveListening() {
-        var exponentValue = 1
-        var property = Property<Double>(value: .pi)
-        _ = property.insider.listen(preprocessor: { (pp) in
-            return pp.map { $0.exponent }
-                .onReceive { v, exp in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })
-            }
-        }, .just {
-            exponentValue = $0
-            })
-
-        let exp = expectation(description: "")
-        property <== 0
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
-            XCTAssertTrue(property.value == 0)
-            XCTAssertTrue(exponentValue == property.value.exponent)
-            property <== 21
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
-                XCTAssertTrue(exponentValue == property.value.exponent)
-                XCTAssertTrue(property.value == 21)
-                property <== -100.5
-                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
-                    XCTAssertTrue(exponentValue == property.value.exponent)
-                    XCTAssertTrue(property.value == -100.5)
-                    exp.fulfill()
-                })
-            })
-        })
-
-        waitForExpectations(timeout: 5, handler: nil)
-    }
-
     func testFilterPropertyClass() {
         let propertyDouble = PropertyClass<Double>(.pi)
 
@@ -520,7 +441,7 @@ class ListenableTests: XCTestCase {
         var doubleValue = 0.0 {
             didSet { isChanged = true }
         }
-        _ = propertyDouble.filter { $0 != .infinity }.map { print($0); return $0 }.listening(.just { doubleValue = $0 })
+        _ = propertyDouble.filter { $0 != .infinity }.map { print($0); return $0 }.listening(onValue: { doubleValue = $0 })
 
         propertyDouble.value = 10.0
         XCTAssertTrue(doubleValue == 10.0)
@@ -553,7 +474,7 @@ class ListenableTests: XCTestCase {
         let propertyDouble = PropertyClass<String>("Test")
 
         var value = ""
-        _ = propertyDouble.map { $0 + " is successful" }.filter { print($0); return $0.count > 0 }.listening(.weak(self) { (v, owner) in
+        _ = propertyDouble.map { $0 + " is successful" }.filter { print($0); return $0.count > 0 }.listening(onValue: .weak(self) { (v, owner) in
             print(owner ?? "nil")
             value = v
             })
@@ -576,7 +497,7 @@ class ListenableTests: XCTestCase {
         var doubleValue = 0.0 {
             didSet { isChanged = true }
         }
-        _ = map(propertyDouble.filter { $0 != .infinity }, { print($0); return $0 }).listening(.just { doubleValue = $0 })
+        _ = map(propertyDouble.filter { $0 != .infinity }, { print($0); return $0 }).listening(onValue: .just { doubleValue = $0 })
 
         propertyDouble.value = 10.0
         XCTAssertTrue(doubleValue == 10.0)
@@ -639,7 +560,7 @@ class ListenableTests: XCTestCase {
             .onReceive { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })
             }
-            .listening(.just {
+            .listening(onValue: {
                 exponentValue = $0
             })
 
@@ -675,7 +596,7 @@ class ListenableTests: XCTestCase {
             .onReceive({ (v, promise) in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { promise.fulfill() })
             })
-            .listening(.just {
+            .listening(onValue: {
                 exponentValue = $0
             })
 
@@ -708,7 +629,7 @@ class ListenableTests: XCTestCase {
             .onReceiveMap { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill("\(v)") })
             }
-            .listening(.just {
+            .listening(onValue: {
                 exponentValue = $0
             })
 
@@ -744,7 +665,7 @@ class ListenableTests: XCTestCase {
             .onReceiveMap({ (v, promise) in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { promise.fulfill(v.count) })
             })
-            .listening(.just {
+            .listening(onValue: {
                 exponentValue = $0
             })
 

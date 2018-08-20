@@ -175,15 +175,15 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
     private func removeOldValueIfExists(in transaction: RealtimeTransaction, by node: Node) {
         transaction.addPrecondition { [unowned transaction] (promise) in
             node.reference().observeSingleEvent(of: .value, with: { (data) in
-                guard data.exists() else { return promise.fulfill(nil) }
+                guard data.exists() else { return promise.fulfill() }
                 do {
                     let relation = try Relation(fireData: data)
                     transaction.removeValue(by: Node.root.child(with: relation.targetPath).child(with: relation.relatedProperty))
-                    promise.fulfill(nil)
+                    promise.fulfill()
                 } catch let e {
-                    promise.fulfill(e)
+                    promise.reject(e)
                 }
-            }, withCancel: promise.fulfill)
+            }, withCancel: promise.reject)
         }
     }
 

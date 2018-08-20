@@ -155,12 +155,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    guard err == nil else { return promise.fulfill(err) }
+                    guard err == nil else { return promise.reject(err!) }
                     do {
                         try collection._write(element, for: key, in: transaction)
-                        promise.fulfill(nil)
+                        promise.fulfill()
                     } catch let e {
-                        promise.fulfill(e)
+                        promise.reject(e)
                     }
                 })
             }
@@ -224,8 +224,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection.remove(for: key, in: transaction)
-                    promise.fulfill(err)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        collection.remove(for: key, in: transaction)
+                        promise.fulfill()
+                    }
                 })
             }
             return transaction

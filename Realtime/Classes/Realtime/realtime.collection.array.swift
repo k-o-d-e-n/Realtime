@@ -83,7 +83,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
-        return _view.source.map { _ in }.listeningItem(handler)
+        return _view.source.map { _ in }.listeningItem(onValue: handler)
     }
     @discardableResult
     override public func runObserving() -> Bool { return _view.source.runObserving() }
@@ -123,12 +123,15 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    guard err == nil else { return promise.fulfill(err) }
-                    do {
-                        try collection._insert(element, at: index, in: transaction)
-                        promise.fulfill(nil)
-                    } catch let e {
-                        promise.fulfill(e)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        do {
+                            try collection._insert(element, at: index, in: transaction)
+                            promise.fulfill()
+                        } catch let e {
+                            promise.reject(e)
+                        }
                     }
                 })
             }
@@ -197,8 +200,12 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection._remove(element, in: transaction)
-                    promise.fulfill(err)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        collection._remove(element, in: transaction)
+                        promise.fulfill()
+                    }
                 })
             }
             return transaction
@@ -216,8 +223,12 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection._remove(at: index, in: transaction)
-                    promise.fulfill(err)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        collection._remove(at: index, in: transaction)
+                        promise.fulfill()
+                    }
                 })
             }
             return transaction

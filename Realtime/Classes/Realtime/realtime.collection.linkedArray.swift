@@ -133,12 +133,15 @@ public extension LinkedRealtimeArray {
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    guard err == nil else { return promise.fulfill(err) }
-                    do {
-                        try collection._write(element, at: index, in: transaction)
-                        promise.fulfill(nil)
-                    } catch let e {
-                        promise.fulfill(e)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        do {
+                            try collection._write(element, at: index, in: transaction)
+                            promise.fulfill()
+                        } catch let e {
+                            promise.reject(e)
+                        }
                     }
                 })
             }
@@ -203,8 +206,12 @@ public extension LinkedRealtimeArray {
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection._remove(element, in: transaction)
-                    promise.fulfill(err)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        collection._remove(element, in: transaction)
+                        promise.fulfill()
+                    }
                 })
             }
             return transaction
@@ -222,8 +229,12 @@ public extension LinkedRealtimeArray {
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection._remove(at: index, in: transaction)
-                    promise.fulfill(err)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        collection._remove(at: index, in: transaction)
+                        promise.fulfill()
+                    }
                 })
             }
             return transaction
