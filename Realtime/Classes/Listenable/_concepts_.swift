@@ -75,6 +75,10 @@ struct Repeater<T>: Listenable {
         }
     }
 
+    func send(_ event: ListenEvent<T>) {
+        sender(event)
+    }
+
     func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return listen(assign)
     }

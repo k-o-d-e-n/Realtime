@@ -9,38 +9,21 @@
 import XCTest
 @testable import Realtime
 
-/// -------------------------------------------------------------------------------------------------------------
+class PropertyClass<T>: InsiderOwner, ValueWrapper {
+    private var localPropertyValue: PropertyValue<T>
+    var value: T {
+        get { return localPropertyValue.get() }
+        set { localPropertyValue.set(newValue); insider.dataDidChange() }
+    }
+    var insider: Insider<T>
+
+    init(_ value: T) {
+        localPropertyValue = PropertyValue(value)
+        insider = Insider(source: localPropertyValue.get)
+    }
+}
 
 class ListenableTests: XCTestCase {
-    class ObservableEntityClass {
-        var property: Property<String>
-        lazy var readonlyProperty = ReadonlyProperty() { [weak self] () -> Int in
-            return self!.property.value.count
-        }
-
-        init(propertyValue: String) {
-            self.property = Property(value: propertyValue)
-            _ = property.insider.listen(.weak(self) { _, _self in
-                _self?.readonlyProperty.fetch()
-                })
-        }
-    }
-
-    class PropertyClass<T>: InsiderOwner, ValueWrapper {
-        private var localPropertyValue: PropertyValue<T>
-        var value: T {
-            get { return localPropertyValue.get() }
-            set { localPropertyValue.set(newValue); insider.dataDidChange() }
-        }
-        var insider: Insider<T>
-
-        init(_ value: T) {
-            localPropertyValue = PropertyValue(value)
-            insider = Insider(source: localPropertyValue.get)
-        }
-    }
-
-    /// -------------------------------------------------------------------------------------------------------------
 
     func testClosure() {
         var string = "Some string"
@@ -79,84 +62,67 @@ class ListenableTests: XCTestCase {
         XCTAssertTrue(valueWrapper.get() == nil)
     }
 
-    func testListenableValue() {
-        var counter = 0
-        var valueWrapper = ListenableValue<Int>(0)
-        _ = valueWrapper.insider.listen(.just { (val) in
-            if counter == 0 {
-                XCTAssertTrue(val.value == 1)
-            } else if counter == 1 {
-                XCTAssertTrue(val.value == 20)
-            }
-            counter += 1
-            })
-        valueWrapper.set(1)
-        XCTAssertTrue(valueWrapper.get() == 1)
-        valueWrapper.set(20)
-        XCTAssertTrue(valueWrapper.get() == 20)
-    }
+//    func testProperty() {
+//        let view = UIView()
+//        var backgroundProperty = Property<UIColor>(value: .white)
+//        let bgToken = backgroundProperty.insider.listen(.just { view.backgroundColor = $0.value })
+//
+//        var weakowner: UIView? = UIView()
+//        _ = backgroundProperty.insider.listen(.weak(weakowner!) { (color, owner) in
+//            print(color, owner ?? "nil")
+//            if color.value == .yellow {
+//                XCTAssertNil(owner)
+//            }
+//            })
+//
+//        let unownedOwner: UIView? = UIView()
+//        _ = backgroundProperty.insider.listen(.unowned(unownedOwner!) { (color, owner) in
+//            owner.backgroundColor = color.value
+//            })
+//
+//        XCTAssertTrue(bgToken.token == Int.min)
+//        backgroundProperty <== .red
+//        XCTAssertTrue(view.backgroundColor == .red)
+//        backgroundProperty <== .green
+//        XCTAssertTrue(view.backgroundColor == .green)
+//
+//        weakowner = nil
+//
+//        var copyBgProperty = backgroundProperty
+//        copyBgProperty <== .yellow
+//        XCTAssertTrue(view.backgroundColor == .yellow)
+//
+//        var otherColor: UIColor? = .black
+//        _ = backgroundProperty.insider.listen(.just { otherColor = $0.value })
+//        copyBgProperty <== .red
+//        XCTAssertFalse(otherColor == .red)
+//
+//        backgroundProperty.insider.disconnect(with: bgToken.token)
+//        backgroundProperty <== .black
+//        XCTAssertTrue(view.backgroundColor == .red)
+//    }
 
-    func testProperty() {
-        let view = UIView()
-        var backgroundProperty = Property<UIColor>(value: .white)
-        let bgToken = backgroundProperty.insider.listen(.just { view.backgroundColor = $0.value })
-
-        var weakowner: UIView? = UIView()
-        _ = backgroundProperty.insider.listen(.weak(weakowner!) { (color, owner) in
-            print(color, owner ?? "nil")
-            if color.value == .yellow {
-                XCTAssertNil(owner)
-            }
-            })
-
-        let unownedOwner: UIView? = UIView()
-        _ = backgroundProperty.insider.listen(.unowned(unownedOwner!) { (color, owner) in
-            owner.backgroundColor = color.value
-            })
-
-        XCTAssertTrue(bgToken.token == Int.min)
-        backgroundProperty <== .red
-        XCTAssertTrue(view.backgroundColor == .red)
-        backgroundProperty <== .green
-        XCTAssertTrue(view.backgroundColor == .green)
-
-        weakowner = nil
-
-        var copyBgProperty = backgroundProperty
-        copyBgProperty <== .yellow
-        XCTAssertTrue(view.backgroundColor == .yellow)
-
-        var otherColor: UIColor? = .black
-        _ = backgroundProperty.insider.listen(.just { otherColor = $0.value })
-        copyBgProperty <== .red
-        XCTAssertFalse(otherColor == .red)
-
-        backgroundProperty.insider.disconnect(with: bgToken.token)
-        backgroundProperty <== .black
-        XCTAssertTrue(view.backgroundColor == .red)
-    }
-
-    func testReadonlyProperty() {
-        var propertyIndexSet = Property<IndexSet>(value: IndexSet(integer: 0))
-        var readonlySum = ReadonlyProperty<Int>(property: propertyIndexSet) { (v) -> Int in
-            return v.reduce(0, +)
-        }
-        _ = propertyIndexSet.insider.listen(.just { _ in
-            readonlySum.fetch()
-            })
-        XCTAssertTrue(readonlySum.value == 0)
-        propertyIndexSet.value.insert(1)
-        XCTAssertTrue(readonlySum.value == 1)
-        propertyIndexSet.value.insert(integersIn: 100...500)
-        print(readonlySum.value)
-
-        var stringLength = 0
-        let observableEntity = ObservableEntityClass(propertyValue: "")
-        _ = observableEntity.readonlyProperty.insider.listen(.just { $0.map(to: &stringLength) })
-        _ = observableEntity.readonlyProperty.insider.listen(.just{ print($0) })
-        observableEntity.property <== "Denis Koryttsev"
-        XCTAssertTrue(stringLength == 15)
-    }
+//    func testReadonlyProperty() {
+//        var propertyIndexSet = Property<IndexSet>(value: IndexSet(integer: 0))
+//        var readonlySum = ReadonlyProperty<Int>(property: propertyIndexSet) { (v) -> Int in
+//            return v.reduce(0, +)
+//        }
+//        _ = propertyIndexSet.insider.listen(.just { _ in
+//            readonlySum.fetch()
+//            })
+//        XCTAssertTrue(readonlySum.value == 0)
+//        propertyIndexSet.value.insert(1)
+//        XCTAssertTrue(readonlySum.value == 1)
+//        propertyIndexSet.value.insert(integersIn: 100...500)
+//        print(readonlySum.value)
+//
+//        var stringLength = 0
+//        let observableEntity = ObservableEntityClass(propertyValue: "")
+//        _ = observableEntity.readonlyProperty.insider.listen(.just { $0.map(to: &stringLength) })
+//        _ = observableEntity.readonlyProperty.insider.listen(.just{ print($0) })
+//        observableEntity.property <== "Denis Koryttsev"
+//        XCTAssertTrue(stringLength == 15)
+//    }
 
     func testOnce() {
         let view = UIView()
@@ -736,66 +702,144 @@ class ListenableTests: XCTestCase {
         }
     }
 
-    /* // failed
-     func testPrimitiveProperty() {
-     let view = UIView()
-     var frameProperty = PrimitiveProperty<CGRect>(value: .zero)
-     let bgToken = frameProperty.insider.listening(with: { view.frame = $0 })
+//    func testBindProperty() {
+//        var backgroundProperty = Property<UIColor>(value: .white)
+//        var otherBackgroundProperty = Property<UIColor>(value: .black)
+//        _ = otherBackgroundProperty.bind(to: &backgroundProperty)
+//
+//        backgroundProperty <== .red
+//
+//        XCTAssertTrue(otherBackgroundProperty.value == .red)
+//    }
+//
+//    func testBindReadonlyProperty() {
+//        var backgroundProperty = Property<UIColor>(value: .white)
+//        var otherBackgroundProperty = ReadonlyProperty<UIColor>(getter: { .red })
+//        _ = otherBackgroundProperty.bind(to: &backgroundProperty)
+//
+//        backgroundProperty <== .white
+//
+//        XCTAssertTrue(otherBackgroundProperty.value == .white)
+//    }
+}
 
-     var weakowner: UIView? = UIView()
-     _ = frameProperty.insider.listening(owner: .weak(weakowner!), with: { (frame, owner) in
-     print(frame, owner ?? "nil")
-     if frame == CGRect(origin: .zero, size: CGSize(width: 10, height: 10)) {
-     XCTAssertNil(owner)
-     }
-     })
+// MARK: Concepts
 
-     let unownedOwner: UIView? = UIView()
-     _ = frameProperty.insider.listening(owner: .unowned(unownedOwner!), with: { (frame, owner) in
-     owner?.frame = frame
-     })
+extension ListenableTests {
+    func testRepeater() {
+        let view = UIView()
+        let backgroundProperty = Repeater<UIColor>()
+        let bgToken = backgroundProperty.listening { view.backgroundColor = $0.value }
 
-     XCTAssertTrue(bgToken.token == Int.min)
-     frameProperty.value = CGRect(x: 50, y: 20, width: 0, height: 10)
-     XCTAssertTrue(view.frame == CGRect(x: 50, y: 20, width: 0, height: 10))
-     frameProperty <== CGRect(x: 50, y: 20, width: 100, height: 10)
-     XCTAssertTrue(view.frame == CGRect(x: 50, y: 20, width: 100, height: 10))
+        var weakowner: UIView? = UIView()
+        _ = backgroundProperty.listening(.weak(weakowner!) { (color, owner) in
+            print(color, owner ?? "nil")
+            if color.value == .yellow {
+                XCTAssertNil(owner)
+            }
+        })
 
-     weakowner = nil
+        let unownedOwner: UIView? = UIView()
+        _ = backgroundProperty.listening(.unowned(unownedOwner!) { (color, owner) in
+            owner.backgroundColor = color.value
+        })
 
-     var copyFrameProperty = frameProperty
-     copyFrameProperty <== CGRect(origin: .zero, size: CGSize(width: 10, height: 10))
-     XCTAssertTrue(view.frame == CGRect(origin: .zero, size: CGSize(width: 10, height: 10)))
-     XCTAssertTrue(frameProperty.value == CGRect(x: 50, y: 20, width: 100, height: 10))
+        backgroundProperty.sender(.value(.red))
+        XCTAssertEqual(view.backgroundColor, .red)
+        backgroundProperty.sender(.value(.green))
+        XCTAssertEqual(view.backgroundColor, .green)
 
-     var otherFrame: CGRect = .zero
-     _ = frameProperty.insider.listening(with: { otherFrame = $0 })
-     copyFrameProperty <== CGRect(x: 1, y: 2, width: 3, height: 4)
-     XCTAssertFalse(otherFrame == .zero)
+        weakowner = nil
 
-     frameProperty.insider.disconnect(with: bgToken.token)
-     frameProperty <== CGRect(x: 4, y: 3, width: 2, height: 1)
-     XCTAssertTrue(view.frame == CGRect(x: 1, y: 2, width: 3, height: 4))
-     }
-     */
+        let copyBgProperty = backgroundProperty
+        copyBgProperty.sender(.value(.yellow))
+        XCTAssertEqual(view.backgroundColor, .yellow)
 
-    func testBindProperty() {
-        var backgroundProperty = Property<UIColor>(value: .white)
-        var otherBackgroundProperty = Property<UIColor>(value: .black)
-        _ = otherBackgroundProperty.bind(to: &backgroundProperty)
+        var otherColor: UIColor? = .black
+        _ = backgroundProperty.listening({ otherColor = $0.value })
+        copyBgProperty.sender(.value(.red))
+        XCTAssertEqual(otherColor, .red)
 
-        backgroundProperty <== .red
-
-        XCTAssertTrue(otherBackgroundProperty.value == .red)
+        bgToken.dispose()
+        backgroundProperty.sender(.value(.black))
+        XCTAssertEqual(view.backgroundColor, .red)
     }
 
-    func testBindReadonlyProperty() {
-        var backgroundProperty = Property<UIColor>(value: .white)
-        var otherBackgroundProperty = ReadonlyProperty<UIColor>(getter: { .red })
-        _ = otherBackgroundProperty.bind(to: &backgroundProperty)
+    func testP() {
+        let view = UIView()
+        var backgroundProperty = P<UIColor>(.white)
+        let bgToken = backgroundProperty.listening { view.backgroundColor = $0.value }
 
-        backgroundProperty <== .white
+        var weakowner: UIView? = UIView()
+        _ = backgroundProperty.listening(.weak(weakowner!) { (color, owner) in
+            print(color, owner ?? "nil")
+            if color.value == .yellow {
+                XCTAssertNil(owner)
+            }
+        })
 
-        XCTAssertTrue(otherBackgroundProperty.value == .white)
+        let unownedOwner: UIView? = UIView()
+        _ = backgroundProperty.listening(.unowned(unownedOwner!) { (color, owner) in
+            owner.backgroundColor = color.value
+        })
+
+        backgroundProperty <== .red
+        XCTAssertEqual(view.backgroundColor, .red)
+        backgroundProperty <== .green
+        XCTAssertEqual(view.backgroundColor, .green)
+
+        weakowner = nil
+
+        var copyBgProperty = backgroundProperty
+        copyBgProperty <== .yellow
+        XCTAssertEqual(view.backgroundColor, .yellow)
+
+        var otherColor: UIColor? = .black
+        _ = backgroundProperty.listening({ otherColor = $0.value })
+        copyBgProperty <== .red
+        XCTAssertEqual(otherColor, .red)
+
+        bgToken.dispose()
+        backgroundProperty <== .black
+        XCTAssertEqual(view.backgroundColor, .red)
+    }
+
+    func testTrivial() {
+        let view = UIView()
+        var backgroundProperty = Trivial<UIColor>(.white)
+        let bgToken = backgroundProperty.listening { view.backgroundColor = $0.value }
+
+        var weakowner: UIView? = UIView()
+        _ = backgroundProperty.listening(.weak(weakowner!) { (color, owner) in
+            print(color, owner ?? "nil")
+            if color.value == .yellow {
+                XCTAssertNil(owner)
+            }
+        })
+
+        let unownedOwner: UIView? = UIView()
+        _ = backgroundProperty.listening(.unowned(unownedOwner!) { (color, owner) in
+            owner.backgroundColor = color.value
+        })
+
+        backgroundProperty <== .red
+        XCTAssertEqual(view.backgroundColor, .red)
+        backgroundProperty <== .green
+        XCTAssertEqual(view.backgroundColor, .green)
+
+        weakowner = nil
+
+        var copyBgProperty = backgroundProperty
+        copyBgProperty <== .yellow
+        XCTAssertEqual(view.backgroundColor, .yellow)
+
+        var otherColor: UIColor? = .black
+        _ = backgroundProperty.listening({ otherColor = $0.value })
+        copyBgProperty <== .red
+        XCTAssertEqual(otherColor, .red)
+
+        bgToken.dispose()
+        backgroundProperty <== .black
+        XCTAssertEqual(view.backgroundColor, .red)
     }
 }
