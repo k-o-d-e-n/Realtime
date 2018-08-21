@@ -17,10 +17,17 @@ extension XCTestCase {
 extension XCTestCase {
     func performWaitExpectation(_ description: String,
                                 timeout: TimeInterval,
-                                performBlock:(_ expectation: XCTestExpectation) -> Void) {
+                                performBlock: (_ expectation: XCTestExpectation) -> Void,
+                                onFulfill: XCWaitCompletionHandler? = nil) {
         let expectation = self.expectation(description: description)
         performBlock(expectation)
-        waitForExpectations(timeout: timeout, handler: nil)
+        waitForExpectations(timeout: timeout, handler: onFulfill)
+    }
+
+    func performWaitExpectation(_ description: String,
+                                timeout: TimeInterval,
+                                performBlock: (_ expectation: XCTestExpectation) -> Void) {
+        performWaitExpectation(description, timeout: timeout, performBlock: performBlock, onFulfill: nil)
     }
 
     func expectation(with description: String,
@@ -207,6 +214,7 @@ extension Tests {
     }
 
     func testDecoding() {
+        let exp = expectation(description: "")
         let transaction = RealtimeTransaction()
 
         do {
@@ -225,6 +233,9 @@ extension Tests {
             let data = try element.update(in: transaction).updateNode
 
             let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), strongly: false)
+            _ = object.array.listening {
+                exp.fulfill()
+            }
             try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), strongly: true)
 
             XCTAssertNotNil(object.file.wrapped)
@@ -234,8 +245,11 @@ extension Tests {
             XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
-            XCTAssertTrue(object.array.isPrepared)
-            XCTAssertEqual(object.array.first?.property.unwrapped, element.array.first?.property.unwrapped)
+            waitForExpectations(timeout: 2) { (err) in
+                err.map({ XCTFail($0.localizedDescription) })
+                XCTAssertTrue(object.array.isPrepared)
+                XCTAssertEqual(object.array.first?.property.unwrapped, element.array.first?.property.unwrapped)
+            }
         } catch let e {
             XCTFail(e.localizedDescription)
         }

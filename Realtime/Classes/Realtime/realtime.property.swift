@@ -372,7 +372,7 @@ public extension RealtimeProperty {
 @available(*, introduced: 0.4.3)
 public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
     fileprivate var _value: ListenValue<T>
-    fileprivate let repeater: Repeater<ListenValue<T>> = Repeater()
+    fileprivate let repeater: Repeater<ListenValue<T>> = Repeater.unmanaged()
     fileprivate(set) var representer: Representer<T>
 
     public override var version: Int? { return nil }

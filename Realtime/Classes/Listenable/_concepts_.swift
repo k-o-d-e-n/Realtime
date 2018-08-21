@@ -37,13 +37,17 @@ struct Repeater<T>: Listenable {
     let listen: (Assign<ListenEvent<T>>) -> Disposable
     let listenItem: (Assign<ListenEvent<T>>) -> ListeningItem
 
-    init() {
+    static func unmanaged(with dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.assign($0) }) -> Repeater<T> {
+        return Repeater(dispatcher: dispatcher)
+    }
+
+    init(dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         var nextToken = UInt.min
         var listeners: [UInt: Assign<ListenEvent<T>>] = [:]
 
         self.sender = { e in
             listeners.forEach({ (listener) in
-                listener.value.assign(e)
+                dispatcher(e, listener.value)
             })
         }
 
@@ -75,6 +79,72 @@ struct Repeater<T>: Listenable {
         }
     }
 
+    init(queue: DispatchQueue) {
+        self.init { (e, a) in
+            queue.async { a.assign(e) }
+        }
+    }
+
+    static func locked(by lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.assign($0) }) -> Repeater<T> {
+        return Repeater(lockedBy: lock, dispatcher: dispatcher)
+    }
+
+    init(lockedBy lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.assign($0) }) {
+        var nextToken = UInt.min
+        var listeners: [UInt: Assign<ListenEvent<T>>] = [:]
+
+        self.sender = { e in
+            lock.lock(); defer { lock.unlock() }
+            listeners.forEach({ (listener) in
+                dispatcher(e, listener.value)
+            })
+        }
+
+        self.listen = { assign in
+            lock.lock()
+            defer {
+                nextToken += 1
+                lock.unlock()
+            }
+
+            let token = nextToken
+            listeners[token] = assign
+
+            return ListeningDispose {
+                lock.lock(); defer { lock.unlock() }
+                listeners.removeValue(forKey: token)
+            }
+        }
+
+        self.listenItem = { assign in
+            lock.lock()
+            defer {
+                nextToken += 1
+                lock.unlock()
+            }
+
+            let token = nextToken
+            listeners[token] = assign
+
+            return ListeningItem(start: { () -> UInt? in
+                lock.lock(); defer { lock.unlock() }
+                listeners[token] = assign
+                return token
+            }, stop: { (t) in
+                lock.lock(); defer { lock.unlock() }
+                listeners.removeValue(forKey: t)
+            }, notify: {
+                assign.assign(.error(RealtimeError(source: .listening, description: "No value to notify")))
+            }, token: token)
+        }
+    }
+
+    init(lockedBy lock: NSLocking, queue: DispatchQueue) {
+        self.init(lockedBy: lock) { (e, a) in
+            queue.async { a.assign(e) }
+        }
+    }
+
     func send(_ event: ListenEvent<T>) {
         sender(event)
     }
@@ -96,12 +166,10 @@ struct P<T>: Listenable, ValueWrapper {
 
     var value: T {
         get { return get() }
-        set { set(newValue) }
+        nonmutating set { set(newValue) }
     }
 
-    init(_ value: T) {
-        let repeater = Repeater<T>()
-
+    init(_ value: T, repeater: Repeater<T>) {
         var val = value {
             didSet {
                 repeater.sender(.value(val))
@@ -122,6 +190,10 @@ struct P<T>: Listenable, ValueWrapper {
         }
     }
 
+    init(_ value: T) {
+        self.init(value, repeater: Repeater<T>.unmanaged())
+    }
+
     func sendError(_ error: Error) {
         repeater.sender(.error(error))
     }
@@ -136,20 +208,25 @@ struct P<T>: Listenable, ValueWrapper {
 }
 
 struct Trivial<T>: Listenable, ValueWrapper {
-    let repeater: Repeater<T> = Repeater()
+    let repeater: Repeater<T>
 
     var value: T {
         didSet {
-            repeater.sender(.value(value))
+            repeater.send(.value(value))
         }
     }
 
-    init(_ value: T) {
+    init(_ value: T, repeater: Repeater<T>) {
         self.value = value
+        self.repeater = repeater
+    }
+
+    init(_ value: T) {
+        self.init(value, repeater: Repeater.unmanaged())
     }
 
     func sendError(_ error: Error) {
-        repeater.sender(.error(error))
+        repeater.send(.error(error))
     }
 
     func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
@@ -198,69 +275,7 @@ public extension Listenable {
     func threadSafe() -> ThreadSafe<OutData> {
         return ThreadSafe(base: AnyListenable(self.listening, self.listeningItem))
     }
-    func threadSafe(use serialQueue: DispatchQueue) -> QueueSafe<OutData> {
+    func queueSafe(use serialQueue: DispatchQueue) -> QueueSafe<OutData> {
         return QueueSafe(base: AnyListenable(self.listening, self.listeningItem), queue: serialQueue)
     }
-}
-
-///// Attempt create primitive value, property where value will be copied
-
-struct Primitive<T> {
-    let get: () -> T
-    let set: (T) -> Void
-
-    init(_ value: T) {
-        var val = value
-        let pointer = UnsafeMutablePointer(&val)
-        get = { val }
-        set = { pointer.pointee = $0 }
-    }
-}
-
-struct PrimitiveValue<T> {
-    fileprivate var getter: (_ owner: PrimitiveValue<T>) -> T
-    private var setter: (_ owner: inout PrimitiveValue<T>, _ value: T) -> Void
-    private var value: T
-
-    func get() -> T {
-        return getter(self)
-    }
-
-    mutating func set(_ val: T) {
-        setter(&self, val)
-    }
-
-    init(_ value: T) {
-        self.value = value
-        setter = { $0.value = $1 }
-        //        let pointer = UnsafeMutablePointer<PrimitiveValue<V>>(&self)
-        getter = { $0.value }
-    }
-
-    func `deinit`() {
-        // hidden possibillity
-    }
-}
-
-struct PrimitiveProperty<Value>: ValueWrapper {
-    lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get) // 'get' implicitly took concreteValue, and returned always one value
-    private var concreteValue: PrimitiveValue<Value>
-    var value: Value {
-        get { return concreteValue.get() }
-        set { concreteValue.set(newValue); insider.dataDidChange() }
-    }
-
-    init(value: Value) {
-        concreteValue = PrimitiveValue(value)
-    }
-}
-
-// MARK: Not used yet or unsuccessful attempts
-
-protocol AnyInsider {
-    associatedtype Data
-    associatedtype Token
-//    var dataSource: () -> Data { get }
-    mutating func connect(with listening: AnyListening) -> Token
-    mutating func disconnect(with token: Token)
 }

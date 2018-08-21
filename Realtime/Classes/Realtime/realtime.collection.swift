@@ -326,6 +326,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
     init(_ source: RealtimeProperty<Source>) {
         self.source = source
         self.listening = source
+            .livetime(self)
             .filter { [unowned self] _ in !self.isPrepared }
             .listening(onValue: .guarded(self) { event, view in
                 switch event {

@@ -125,19 +125,24 @@ class ListenableTests: XCTestCase {
 //    }
 
     func testOnce() {
+        let exp = expectation(description: "")
         let view = UIView()
         var backgroundProperty = P<UIColor>(.white)
 
         _ = backgroundProperty.once().listening(onValue: {
             view.backgroundColor = $0
         })
+
         backgroundProperty <== .red
-
-        XCTAssertTrue(view.backgroundColor == .red)
-//        XCTAssertFalse(backgroundProperty.insider.hasConnections)
-
         backgroundProperty <== .green
-        XCTAssertTrue(view.backgroundColor == .red)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2), execute: exp.fulfill)
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map { XCTFail($0.localizedDescription) }
+
+            XCTAssertEqual(view.backgroundColor, .red)
+        }
     }
 
     func testOnFire() {
@@ -656,52 +661,6 @@ class ListenableTests: XCTestCase {
         waitForExpectations(timeout: 10, handler: nil)
     }
 
-    func testPrimitiveValue() {
-        let referencedValue = PropertyValue<Int>(10)
-        let newReferencedValue = referencedValue
-        var value = PrimitiveValue<Int>(5)
-        let newValue = value
-
-        value.set(6)
-        referencedValue.set(20)
-
-        print(value.get())
-        XCTAssertTrue(value.get() == 6)
-        print(newValue.get())
-        XCTAssertTrue(newValue.get() == 5)
-
-        XCTAssertTrue(referencedValue.get() == 20)
-        XCTAssertTrue(newReferencedValue.get() == 20)
-        XCTAssertTrue(newReferencedValue.get() == referencedValue.get())
-    }
-
-    func testPrimitivePropertyValue() {
-        var valueWrapper = PrimitiveProperty<Int>(value: -1)
-        XCTAssertTrue(valueWrapper.value == -1)
-        valueWrapper.value = 1
-        XCTAssertTrue(valueWrapper.value == 1)
-        valueWrapper <== 20
-        XCTAssertTrue(valueWrapper.value == 20)
-    }
-
-    func testPrimitive() {
-        let valueWrapper = Primitive<Int>(-1)
-        XCTAssertTrue(valueWrapper.get() == -1)
-        valueWrapper.set(1)
-        let newValue = valueWrapper
-        XCTAssertTrue(valueWrapper.get() == 1)
-        valueWrapper.set(20)
-        performWaitExpectation("wait", timeout: 20) { exp in
-            DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 5.0, execute: {
-                XCTAssertTrue(valueWrapper.get() == 20)
-                XCTAssertTrue(newValue.get() == 20)
-                newValue.set(100)
-                XCTAssertTrue(valueWrapper.get() == 100)
-                exp.fulfill()
-            })
-        }
-    }
-
 //    func testBindProperty() {
 //        var backgroundProperty = Property<UIColor>(value: .white)
 //        var otherBackgroundProperty = Property<UIColor>(value: .black)
@@ -727,9 +686,21 @@ class ListenableTests: XCTestCase {
 
 extension ListenableTests {
     func testRepeater() {
-        let view = UIView()
-        let backgroundProperty = Repeater<UIColor>()
-        let bgToken = backgroundProperty.listening { view.backgroundColor = $0.value }
+        let exp = expectation(description: "")
+        exp.expectedFulfillmentCount = 4
+
+        var backgroundProperty = Repeater<UIColor>.unmanaged()
+        var counter = 0
+        let bgToken = backgroundProperty.listening(onValue: { color in
+            defer { counter += 1; exp.fulfill() }
+            switch counter {
+            case 0: XCTAssertEqual(color, .red)
+            case 1: XCTAssertEqual(color, .green)
+            case 2: XCTAssertEqual(color, .yellow)
+            case 3: XCTAssertEqual(color, .red)
+            default: XCTFail("Extra call")
+            }
+        })
 
         var weakowner: UIView? = UIView()
         _ = backgroundProperty.listening(.weak(weakowner!) { (color, owner) in
@@ -744,31 +715,39 @@ extension ListenableTests {
             owner.backgroundColor = color.value
         })
 
-        backgroundProperty.sender(.value(.red))
-        XCTAssertEqual(view.backgroundColor, .red)
-        backgroundProperty.sender(.value(.green))
-        XCTAssertEqual(view.backgroundColor, .green)
+        backgroundProperty.send(.value(.red))
+        backgroundProperty.send(.value(.green))
 
         weakowner = nil
 
-        let copyBgProperty = backgroundProperty
-        copyBgProperty.sender(.value(.yellow))
-        XCTAssertEqual(view.backgroundColor, .yellow)
-
-        var otherColor: UIColor? = .black
-        _ = backgroundProperty.listening({ otherColor = $0.value })
-        copyBgProperty.sender(.value(.red))
-        XCTAssertEqual(otherColor, .red)
+        var copyBgProperty = backgroundProperty
+        backgroundProperty.send(.value(.yellow))
+        backgroundProperty.send(.value(.red))
 
         bgToken.dispose()
-        backgroundProperty.sender(.value(.black))
-        XCTAssertEqual(view.backgroundColor, .red)
+        backgroundProperty.send(.value(.black))
+
+        waitForExpectations(timeout: 5) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+        }
     }
 
     func testP() {
-        let view = UIView()
+        let exp = expectation(description: "")
+        exp.expectedFulfillmentCount = 4
+
         var backgroundProperty = P<UIColor>(.white)
-        let bgToken = backgroundProperty.listening { view.backgroundColor = $0.value }
+        var counter = 0
+        let bgToken = backgroundProperty.listening(onValue: { color in
+            defer { counter += 1; exp.fulfill() }
+            switch counter {
+            case 0: XCTAssertEqual(color, .red)
+            case 1: XCTAssertEqual(color, .green)
+            case 2: XCTAssertEqual(color, .yellow)
+            case 3: XCTAssertEqual(color, .red)
+            default: XCTFail("Extra call")
+            }
+        })
 
         var weakowner: UIView? = UIView()
         _ = backgroundProperty.listening(.weak(weakowner!) { (color, owner) in
@@ -784,30 +763,38 @@ extension ListenableTests {
         })
 
         backgroundProperty <== .red
-        XCTAssertEqual(view.backgroundColor, .red)
         backgroundProperty <== .green
-        XCTAssertEqual(view.backgroundColor, .green)
 
         weakowner = nil
 
         var copyBgProperty = backgroundProperty
         copyBgProperty <== .yellow
-        XCTAssertEqual(view.backgroundColor, .yellow)
-
-        var otherColor: UIColor? = .black
-        _ = backgroundProperty.listening({ otherColor = $0.value })
         copyBgProperty <== .red
-        XCTAssertEqual(otherColor, .red)
 
         bgToken.dispose()
         backgroundProperty <== .black
-        XCTAssertEqual(view.backgroundColor, .red)
+
+        waitForExpectations(timeout: 5) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+        }
     }
 
     func testTrivial() {
-        let view = UIView()
+        let exp = expectation(description: "")
+        exp.expectedFulfillmentCount = 4
+
         var backgroundProperty = Trivial<UIColor>(.white)
-        let bgToken = backgroundProperty.listening { view.backgroundColor = $0.value }
+        var counter = 0
+        let bgToken = backgroundProperty.listening(onValue: { color in
+            defer { counter += 1; exp.fulfill() }
+            switch counter {
+            case 0: XCTAssertEqual(color, .red)
+            case 1: XCTAssertEqual(color, .green)
+            case 2: XCTAssertEqual(color, .yellow)
+            case 3: XCTAssertEqual(color, .red)
+            default: XCTFail("Extra call")
+            }
+        })
 
         var weakowner: UIView? = UIView()
         _ = backgroundProperty.listening(.weak(weakowner!) { (color, owner) in
@@ -815,31 +802,132 @@ extension ListenableTests {
             if color.value == .yellow {
                 XCTAssertNil(owner)
             }
-        })
+            })
 
         let unownedOwner: UIView? = UIView()
         _ = backgroundProperty.listening(.unowned(unownedOwner!) { (color, owner) in
             owner.backgroundColor = color.value
-        })
+            })
 
         backgroundProperty <== .red
-        XCTAssertEqual(view.backgroundColor, .red)
         backgroundProperty <== .green
-        XCTAssertEqual(view.backgroundColor, .green)
 
         weakowner = nil
 
         var copyBgProperty = backgroundProperty
         copyBgProperty <== .yellow
-        XCTAssertEqual(view.backgroundColor, .yellow)
-
-        var otherColor: UIColor? = .black
-        _ = backgroundProperty.listening({ otherColor = $0.value })
         copyBgProperty <== .red
-        XCTAssertEqual(otherColor, .red)
 
         bgToken.dispose()
         backgroundProperty <== .black
-        XCTAssertEqual(view.backgroundColor, .red)
+
+        waitForExpectations(timeout: 5) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+        }
+    }
+
+    func testAvoidSimultaneousAccessInP() {
+        let backgroundProperty = P<UIColor>(.white)
+        _ = backgroundProperty.listening { val in
+            XCTAssertEqual(val, backgroundProperty.value)
+        }
+
+        backgroundProperty.value = .red // backgroundProperty <== .red will be crash with simultaneous access error, because inout parameter
+    }
+
+    func testAvoidSimultaneousAccessInTrivial() {
+        var backgroundProperty = Trivial<UIColor>(.white)
+        _ = backgroundProperty.listening({ val in
+//            XCTAssertEqual(val, backgroundProperty.value) will be crash with simultaneous access error, because setter of `value` property mutating
+        })
+
+        backgroundProperty.value = .red
+    }
+
+    @available(iOS 10.0, *)
+    func testRepeaterOnQueue() {
+        let exp = expectation(description: "")
+        exp.expectedFulfillmentCount = 20
+        exp.assertForOverFulfill = true
+        var store = ListeningDisposeStore()
+        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock(), queue: DispatchQueue(label: "repeater"))
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { (_) in
+            repeater.send(.value(5))
+        }
+        let storeLock = NSLock()
+        func put(_ dispose: Disposable) {
+            storeLock.lock(); defer { storeLock.unlock() }
+            store.add(dispose)
+        }
+
+        (0..<20).forEach { (i) in
+            DispatchQueue.global(qos: .background).async {
+                _ = repeater.once().listening({ _ in
+                    exp.fulfill()
+                })
+            }
+        }
+
+        waitForExpectations(timeout: 5) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+            timer.invalidate()
+        }
+    }
+
+    @available(iOS 10.0, *)
+    func testRepeaterLocked() {
+        let exp = expectation(description: "")
+        exp.expectedFulfillmentCount = 20
+        exp.assertForOverFulfill = true
+        var store = ListeningDisposeStore()
+        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock())
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { (_) in
+            DispatchQueue.global().async {
+                repeater.send(.value(5))
+                RunLoop.current.run(until: Date(timeIntervalSinceNow: 1))
+            }
+        }
+        let storeLock = NSRecursiveLock()
+        func put(_ dispose: Disposable) {
+            storeLock.lock(); defer { storeLock.unlock() }
+            store.add(dispose)
+        }
+
+        (0..<20).forEach { (i) in
+            DispatchQueue.global(qos: .background).async {
+                put(repeater.once().listening({ _ in
+                    exp.fulfill()
+                }))
+            }
+        }
+
+        waitForExpectations(timeout: 10) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+            timer.invalidate()
+        }
+    }
+
+    @available(iOS 10.0, *)
+    func testRepeaterOnRunloop() {
+        let exp = expectation(description: "")
+        var value: Int?
+        let repeater = Repeater<Int> { (e, assign) in
+            RunLoop.current.perform {
+                assign.assign(e)
+            }
+        }
+        _ = repeater.listening({
+            value = $0.value
+            exp.fulfill()
+        })
+
+        DispatchQueue.global().async {
+            repeater.send(.value(4))
+            RunLoop.current.run(until: Date(timeIntervalSinceNow: 4))
+        }
+        waitForExpectations(timeout: 5) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+            XCTAssertEqual(4, value)
+        }
     }
 }

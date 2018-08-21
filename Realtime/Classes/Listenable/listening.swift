@@ -87,17 +87,29 @@ public struct Once<T>: Listenable {
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         var disposable: Disposable! = nil
-        disposable = listenable.listening(assign.with(work: { (_) in
-            disposable.dispose()
-        }))
+        var shouldCall = true
+        disposable = listenable
+            .filter({ _ in shouldCall })
+            .listening(
+                assign.with(work: { (_) in
+                    disposable.dispose()
+                    shouldCall = false
+                })
+        )
         return disposable
     }
 
     public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
         var item: ListeningItem! = nil
-        item = listenable.listeningItem(assign.with(work: { (_) in
-            item.dispose()
-        }))
+        var shouldCall = true
+        item = listenable.listeningItem(
+            assign
+                .filter({ _ in shouldCall })
+                .with(work: { (_) in
+                    item.dispose()
+                    shouldCall = false
+                })
+        )
         return item
     }
 }
