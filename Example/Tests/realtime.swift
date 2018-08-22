@@ -42,6 +42,8 @@ extension XCTestCase {
 }
 
 class Tests: XCTestCase {
+    var store: ListeningDisposeStore = ListeningDisposeStore()
+
     override func setUp() {
         super.setUp()
         // Put setup code here. This method is called before the invocation of each test method in the class.
@@ -233,9 +235,9 @@ extension Tests {
             let data = try element.update(in: transaction).updateNode
 
             let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), strongly: false)
-            _ = object.array.listening {
+            object.array.listening {
                 exp.fulfill()
-            }
+            }.add(to: &store)
             try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), strongly: true)
 
             XCTAssertNotNil(object.file.wrapped)

@@ -150,8 +150,10 @@ public struct OnFire<T>: Listenable {
             pause: { _ in
                 item.pause()
                 self.onFire()
-        }, notify: item._notify,
-           token: nil)
+            },
+            notify: item._notify,
+            token: nil
+        )
     }
 }
 public extension Listenable {

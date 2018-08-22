@@ -490,8 +490,8 @@ extension ReadonlyRealtimeProperty: Listenable {
     public func listeningItem(_ assign: Assign<ListenEvent<ListenValue<T>>>) -> ListeningItem {
         let item = repeater.listeningItem(assign)
         return ListeningItem(
-            resume: item._start,
-            pause: item._stop,
+            resume: item.resume,
+            pause: item.pause,
             notify: { assign.assign(.value(self._value)) }, // TODO: Dispatcher
             token: ()
         )
@@ -678,8 +678,8 @@ extension SharedProperty: Listenable {
     public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
         let item = repeater.listeningItem(assign)
         return ListeningItem(
-            resume: item._start,
-            pause: item._stop,
+            resume: item.resume,
+            pause: item.pause,
             notify: { assign.assign(.value(self._value)) }, // TODO: Dispatcher
             token: ()
         )

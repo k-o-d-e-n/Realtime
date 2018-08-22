@@ -80,8 +80,8 @@ extension ReuseItem: Listenable {
     public func listeningItem(_ assign: Assign<ListenEvent<View?>>) -> ListeningItem {
         let item = repeater.listeningItem(assign)
         return ListeningItem(
-            resume: item._start,
-            pause: item._stop,
+            resume: item.resume,
+            pause: item.pause,
             notify: { assign.assign(.value(self.view)) },
             token: ()
         )

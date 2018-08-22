@@ -10,6 +10,7 @@ import XCTest
 @testable import Realtime
 
 class ListenableTests: XCTestCase {
+    var store: ListeningDisposeStore = ListeningDisposeStore()
 
     func testClosure() {
         var string = "Some string"
@@ -104,14 +105,14 @@ class ListenableTests: XCTestCase {
             return v.reduce(0, +)
         }
         var counter = 0
-        _ = readonlySum.listening(onValue: { v in
+        readonlySum.listening(onValue: { v in
             defer { counter += 1; exp.fulfill() }
             switch counter {
             case 0: XCTAssertEqual(v, 1)
             case 1: XCTAssertEqual(v, IndexSet(integersIn: 100...500).reduce(0, +) + 1)
             default: XCTFail("Extra call")
             }
-        })
+        }).add(to: &store)
 
         propertyIndexSet.value.insert(1)
         propertyIndexSet.value.insert(integersIn: 100...500)
@@ -126,7 +127,7 @@ class ListenableTests: XCTestCase {
         exp.expectedFulfillmentCount = 2
 
         var counter = 0
-        var propertyIndexSet = Property<IndexSet>.unsafe(strong: IndexSet(integer: 0))
+        let propertyIndexSet = Property<IndexSet>.unsafe(strong: IndexSet(integer: 0))
         let readonlySum = AsyncReadonlyProperty<(Int, Int)>(propertyIndexSet) { (v, promise) in
             let c = counter
             counter += 1
@@ -134,14 +135,14 @@ class ListenableTests: XCTestCase {
                 promise.fulfill((c, v.reduce(0, +)))
             }
         }
-        _ = readonlySum.listening(onValue: { (c, v) in
+        readonlySum.listening(onValue: { (c, v) in
             switch c {
             case 0: XCTAssertEqual(v, 1)
             case 1: XCTAssertEqual(v, IndexSet(integersIn: 100...500).reduce(0, +) + 1)
             default: XCTFail("Extra call")
             }
             exp.fulfill()
-        })
+        }).add(to: &store)
 
         propertyIndexSet.value.insert(1)
         propertyIndexSet.value.insert(integersIn: 100...500)
@@ -176,7 +177,7 @@ class ListenableTests: XCTestCase {
         let view = UIView()
         var backgroundProperty = Property<UIColor>.unsafe(strong: .white)
 
-        _ = backgroundProperty
+        backgroundProperty
             .onFire({
                 XCTAssertEqual(view.backgroundColor, nil)
             })
@@ -184,6 +185,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 view.backgroundColor = $0
             })
+            .add(to: &store)
 
         backgroundProperty <== .red
         XCTAssertEqual(view.backgroundColor, .red)
@@ -210,6 +212,7 @@ class ListenableTests: XCTestCase {
                     XCTAssertFalse(cache.object(forKey: "key")!.boolValue)
                     exp.fulfill()
                 })
+                .add(to: &store)
 
             stringProperty <== assignedValue as NSString
         }
@@ -332,6 +335,7 @@ class ListenableTests: XCTestCase {
             doubleValue = $0
         })
 
+        XCTAssertTrue(item!.isListen)
         propertyDouble.value = 10.0
         XCTAssertEqual(doubleValue, 10.0)
 
@@ -407,7 +411,7 @@ class ListenableTests: XCTestCase {
         var doubleValue = 0.0 {
             didSet { isChanged = true }
         }
-        _ = propertyDouble.filter { $0 != .infinity }.map { print($0); return $0 }.listening(onValue: { doubleValue = $0 })
+        propertyDouble.filter { $0 != .infinity }.map { print($0); return $0 }.listening(onValue: { doubleValue = $0 }).add(to: &store)
 
         propertyDouble.value = 10.0
         XCTAssertEqual(doubleValue, 10.0)
@@ -419,9 +423,9 @@ class ListenableTests: XCTestCase {
     func testDistinctUntilChangedPropertyClass() {
         var counter: Int = 0
         var property = Property<Double>.unsafe(strong: .pi)
-        _ = property.distinctUntilChanged().listening({ (v) in
+        property.distinctUntilChanged().listening({ (v) in
             counter += 1
-        })
+        }).add(to: &store)
 
         property <== 0
         XCTAssertEqual(counter, 1)
@@ -440,10 +444,14 @@ class ListenableTests: XCTestCase {
         let propertyDouble = Property<String>.unsafe(strong: "Test")
 
         var value = ""
-        _ = propertyDouble.map { $0 + " is successful" }.filter { print($0); return $0.count > 0 }.listening(onValue: .weak(self) { (v, owner) in
-            print(owner ?? "nil")
-            value = v
+        propertyDouble
+            .map { $0 + " is successful" }
+            .filter { print($0); return $0.count > 0 }
+            .listening(onValue: .weak(self) { (v, owner) in
+                print(owner ?? "nil")
+                value = v
             })
+            .add(to: &store)
 
         propertyDouble.value = "Test #1"
         XCTAssertEqual(value, "Test #1" + " is successful")
@@ -463,7 +471,7 @@ class ListenableTests: XCTestCase {
         var doubleValue = 0.0 {
             didSet { isChanged = true }
         }
-        _ = map(propertyDouble.filter { $0 != .infinity }, { print($0); return $0 }).listening(onValue: .just { doubleValue = $0 })
+        map(propertyDouble.filter { $0 != .infinity }, { print($0); return $0 }).listening(onValue: .just { doubleValue = $0 }).add(to: &store)
 
         propertyDouble.value = 10.0
         XCTAssertEqual(doubleValue, 10.0)
@@ -476,11 +484,12 @@ class ListenableTests: XCTestCase {
         let property = Property.unsafe(strong: "")
 
         var textLength = 0
-        _ = property
+        property
             .filter { !$0.isEmpty }
             .filter { $0.count <= 10 }
             .map { $0.count }
             .listening { textLength = $0 }
+            .add(to: &store)
 
         property.value = "10.0"
         XCTAssertEqual(textLength, 4)
@@ -499,11 +508,12 @@ class ListenableTests: XCTestCase {
         let property = Property.unsafe(strong: "")
 
         var textLength = "0"
-        _ = property
+        property
             .filter { !$0.isEmpty }
             .map { $0.count }
             .map(String.init)
             .listening { textLength = $0 }
+            .add(to: &store)
 
         property.value = "10.0"
         XCTAssertEqual(textLength, "4")
@@ -521,7 +531,7 @@ class ListenableTests: XCTestCase {
     func testOnReceivePropertyClass() {
         var exponentValue = 1
         var property = Property<Double>.unsafe(strong: .pi)
-        _ = property
+        property
             .map { $0.exponent }
             .onReceive { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })
@@ -529,6 +539,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 exponentValue = $0
             })
+            .add(to: &store)
 
         let exp = expectation(description: "")
         property <== 0
@@ -554,7 +565,7 @@ class ListenableTests: XCTestCase {
     func testDoubleOnReceivePropertyClass() {
         var exponentValue = 1
         var property = Property<Double>.unsafe(strong: .pi)
-        _ = property
+        property
             .map { $0.exponent }
             .onReceive { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })
@@ -565,6 +576,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 exponentValue = $0
             })
+            .add(to: &store)
 
         let exp = expectation(description: "")
         property <== 0
@@ -590,7 +602,7 @@ class ListenableTests: XCTestCase {
     func testOnReceiveMapPropertyClass() {
         var exponentValue = "1"
         var property = Property<Double>.unsafe(strong: .pi)
-        _ = property
+        property
             .map { $0.exponent }
             .onReceiveMap { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill("\(v)") })
@@ -598,6 +610,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 exponentValue = $0
             })
+            .add(to: &store)
 
         let exp = expectation(description: "")
         property <== 0
@@ -623,7 +636,7 @@ class ListenableTests: XCTestCase {
     func testDoubleOnReceiveMapPropertyClass() {
         var exponentValue = 0
         var property = Property<Double>.unsafe(strong: .pi)
-        _ = property
+        property
             .map { $0.exponent }
             .onReceiveMap { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill("\(v)") })
@@ -634,6 +647,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 exponentValue = $0
             })
+            .add(to: &store)
 
         let exp = expectation(description: "")
         property <== 0
@@ -659,7 +673,7 @@ class ListenableTests: XCTestCase {
     func testBindProperty() {
         var backgroundProperty = Property<UIColor>.unsafe(strong: .white)
         let otherBackgroundProperty = Property<UIColor>.unsafe(strong: .black)
-        _ = backgroundProperty.bind(to: otherBackgroundProperty)
+        backgroundProperty.bind(to: otherBackgroundProperty).add(to: &store)
 
         backgroundProperty <== .red
 
@@ -888,10 +902,10 @@ extension ListenableTests {
                 assign.assign(e)
             }
         }
-        _ = repeater.listening({
+        repeater.listening({
             value = $0.value
             exp.fulfill()
-        })
+        }).add(to: &store)
 
         DispatchQueue.global().async {
             repeater.send(.value(4))

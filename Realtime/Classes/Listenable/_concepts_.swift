@@ -300,8 +300,8 @@ public struct Property<T>: Listenable, ValueWrapper {
         return { assign in
             let item = repeater.listeningItem(assign)
             return ListeningItem(
-                resume: item._start,
-                pause: item._stop,
+                resume: item.resume,
+                pause: item.pause,
                 notify: { notify(assign) },
                 token: ()
             )

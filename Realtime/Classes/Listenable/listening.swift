@@ -14,7 +14,7 @@ public protocol Disposable {
     func dispose()
 }
 
-struct ListeningDispose: Disposable {
+class ListeningDispose: Disposable {
     let _dispose: () -> Void
     init(_ dispose: @escaping () -> Void) {
         self._dispose = dispose
@@ -22,10 +22,13 @@ struct ListeningDispose: Disposable {
     func dispose() {
         _dispose()
     }
+    deinit {
+        _dispose()
+    }
 }
 
 /// Listening with possibility to control connection state
-public struct ListeningItem {
+public class ListeningItem {
     let _start: () -> Void
     let _stop: () -> Void
     let _notify: () -> Void
@@ -53,8 +56,17 @@ public struct ListeningItem {
         if needNotify { _notify() }
     }
 
+    public func resume() {
+        _start()
+    }
+
     public func pause() {
         _stop()
+    }
+
+    deinit {
+        print("Deinit ListeningItem")
+        dispose()
     }
 }
 extension ListeningItem: Disposable {
@@ -102,10 +114,5 @@ public struct ListeningDisposeStore {
 
     public func resume(_ needNotify: Bool = true) {
         listeningItems.forEach { $0.resume(needNotify) }
-    }
-
-    func `deinit`() {
-        disposes.forEach { $0.dispose() }
-        listeningItems.forEach { $0.dispose() }
     }
 }

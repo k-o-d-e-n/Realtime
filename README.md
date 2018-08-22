@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/cocoapods/l/Realtime.svg?style=flat)](http://cocoapods.org/pods/Realtime)
 [![Platform](https://img.shields.io/cocoapods/p/Realtime.svg?style=flat)](http://cocoapods.org/pods/Realtime)
 
-Realtime is database framework based on Firebase that makes the creation of complex database structures is simple. :exclamation:
+Realtime is database framework based on Firebase that makes the creation of complex database structures is simple.
 Realtime can help you to create app quicker than if use clear Firebase API herewith to apply complex structures to store data in Firebase database, to update UI using reactive behaviors.
 Realtime provides lightweight data traffic, lazy initialization of data, good distribution of data.
 
