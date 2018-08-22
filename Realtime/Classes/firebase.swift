@@ -87,8 +87,8 @@ extension DatabaseReference {
             var value: FireDataProtocol = ValueNode(node: Node.from(ref), value: nil)
             let token = ref.listen(assign, { value = $0 })
             return ListeningItem(
-                start: { self.ref.listen(assign, { value = $0 }) },
-                stop: ref.removeObserver,
+                resume: { self.ref.listen(assign, { value = $0 }) },
+                pause: ref.removeObserver,
                 notify: { assign.assign(.value(value)) },
                 token: token
             )

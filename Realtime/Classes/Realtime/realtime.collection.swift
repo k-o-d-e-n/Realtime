@@ -280,7 +280,7 @@ public extension RealtimeCollection {
             if fetchIf?(value) ?? true {
                 value.load(completion: nil)
             } else {
-                listeningItem.notify()
+                listeningItem._notify()
             }
         }
     }

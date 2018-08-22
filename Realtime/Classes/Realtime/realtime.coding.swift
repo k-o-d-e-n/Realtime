@@ -239,10 +239,10 @@ extension RepresenterProtocol where V: HasDefaultLiteral & _ComparableWithDefaul
     }
 }
 public extension Representer {
-    func encode<T: _Optional>(_: T.Type = T.self, _ value: V) throws -> Any? where V == Optional<T.Wrapped> {
+    func encode<T>(_ value: V) throws -> Any? where V == Optional<T> {
         return try value.map(encode)
     }
-    func decode<T: _Optional>(_: T.Type = T.self, _ data: FireDataProtocol) throws -> V where V == Optional<T.Wrapped> {
+    func decode<T>(_ data: FireDataProtocol) throws -> V where V == Optional<T> {
         guard data.exists() else { return nil }
         return try decode(data)
     }
@@ -261,7 +261,7 @@ public struct Representer<V>: RepresenterProtocol {
         self.encoding = encoding
         self.decoding = decoding
     }
-    public init<T: _Optional>(_: T.Type = T.self, encoding: @escaping (T.Wrapped) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> T.Wrapped) where V == Optional<T.Wrapped> {
+    public init<T>(encoding: @escaping (T) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> T) where V == Optional<T> {
         self.encoding = { v -> Any? in
             return try v.map(encoding)
         }

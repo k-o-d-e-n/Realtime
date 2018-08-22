@@ -71,9 +71,13 @@ extension Closure where O == Void {
     }
 }
 
-/// Configurable wrapper for closure that receive listening value.
+/// Configurable wrapper for closure that receives listening value.
 public struct Assign<A> {
-    internal let assign: (A) -> Void
+    let assign: (A) -> Void
+
+    public func call(_ arg: A) {
+        assign(arg)
+    }
 
     /// simple closure without side effects
     static public func just(_ assign: @escaping (A) -> Void) -> Assign<A> {
@@ -95,11 +99,6 @@ public struct Assign<A> {
     static public func guarded<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
         return weak(owner) { if let o = $1 { assign($0, o) } }
     }
-
-//    /// closure associated with object using weak reference, that called only when object alive
-//    static public func guardedWeak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
-//        return weak(owner) { if let o = $1 { weak var o = o; assign($0, o) } }
-//    }
 
     /// closure that called on specified dispatch queue
     static public func on(_ queue: DispatchQueue, assign: @escaping (A) -> Void) -> Assign<A> {
@@ -174,6 +173,10 @@ public extension ListenEvent {
         guard case .value(let v) = self else { return nil }
         return v
     }
+    var error: Error? {
+        guard case .error(let e) = self else { return nil }
+        return e
+    }
     func map<U>(_ transform: (T) throws -> U) rethrows -> ListenEvent<U> {
         switch self {
         case .value(let v): return .value(try transform(v))
@@ -230,6 +233,27 @@ public extension Listenable {
     func listeningItem(onValue assign: @escaping (OutData) -> Void) -> ListeningItem {
         return listeningItem(onValue: .just(assign))
     }
+
+    func listening(onError assign: Assign<Error>) -> Disposable {
+        return listening(Assign(assign: {
+            if let v = $0.error {
+                assign.assign(v)
+            }
+        }))
+    }
+    func listeningItem(onError assign: Assign<Error>) -> ListeningItem {
+        return listeningItem(Assign(assign: {
+            if let v = $0.error {
+                assign.assign(v)
+            }
+        }))
+    }
+    func listening(onError assign: @escaping (Error) -> Void) -> Disposable {
+        return listening(onError: .just(assign))
+    }
+    func listeningItem(onError assign: @escaping (Error) -> Void) -> ListeningItem {
+        return listeningItem(onError: .just(assign))
+    }
 }
 struct AnyListenable<Out>: Listenable {
     let _listening: (Assign<ListenEvent<Out>>) -> Disposable
@@ -253,182 +277,43 @@ struct AnyListenable<Out>: Listenable {
     }
 }
 
-/// Object that provides listenable data
-protocol InsiderOwner: class, Listenable {
-    associatedtype InsiderValue
-    var insider: Insider<InsiderValue> { get set }
-}
-
-extension InsiderOwner {
-    private func makeDispose(for token: Insider<InsiderValue>.Token) -> ListeningDispose {
-        return ListeningDispose({ [weak self] in self?.insider.disconnect(with: token) })
-    }
-    private func makeListeningItem(token: Insider<InsiderValue>.Token, listening: AnyListening) -> ListeningItem {
-        return ListeningItem(start: { [weak self] in return self?.insider.connect(with: listening) },
-                             stop: { [weak self] in self?.insider.disconnect(with: $0) },
-                             notify: { listening.sendData() },
-                             token: token)
-    }
-    func connect(disposed listening: AnyListening) -> ListeningDispose {
-        return makeDispose(for: insider.connect(with: listening))
-    }
-    func connect(item listening: AnyListening) -> ListeningItem {
-        return makeListeningItem(token: insider.connect(with: listening), listening: listening)
-    }
-
-    public func listening(_ assign: Assign<ListenEvent<InsiderValue>>) -> Disposable {
-        let source = insider.dataSource
-        return connect(disposed: Listening(bridge: { assign.assign(.value(source())) }))
-    }
-    public func listeningItem(_ assign: Assign<ListenEvent<InsiderValue>>) -> ListeningItem {
-        let source = insider.dataSource
-        return connect(item: Listening(bridge: { assign.assign(.value(source())) }))
-    }
-}
-
-/// Entity, which is port to connect to data changes
-struct Insider<D> {
-    typealias Token = Int
-    internal let dataSource: () -> D
-    private var listeners = [Token: AnyListening]()
-    private var nextToken: Token = Token.min
-    internal var hasConnections: Bool { return listeners.count > 0 }
-    
-    init(source: @escaping () -> D) {
-        dataSource = source
-    }
-
-    mutating func dataDidChange() {
-        let lstnrs = listeners
-        lstnrs.forEach { (key: Token, value: AnyListening) in
-            value.sendData()
-            guard value.isInvalidated else { return }
-            
-            disconnect(with: key)
-        }
-    }
-    
-    mutating func connect<L: AnyListening>(with listening: L) -> Token {
-        return connect(with: listening)
-    }
-    
-    mutating func connect(with listening: AnyListening) -> Token {
-        defer { nextToken += 1 }
-        
-        listeners[nextToken] = listening
-        
-        return nextToken
-    }
-    
-    func has(token: Token) -> Bool {
-        return listeners.contains { $0.key == token }
-    }
-    
-    mutating func disconnect(with token: Token) {
-        listeners.removeValue(forKey: token)
-    }
-}
-
-extension Insider {
-    func mapped<Other>(_ map: @escaping (D) -> Other) -> Insider<Other> {
-        let source = dataSource
-        return Insider<Other>(source: { map(source()) })
-    }
-}
-
 /// Provides calculated listening value
-public struct ReadonlyProperty<Value> {
-    lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
-    fileprivate let concreteValue: PropertyValue<Value>
-    fileprivate(set) var value: Value {
-        get { return concreteValue.get() }
-        set { concreteValue.set(newValue); insider.dataDidChange() }
-    }
-    private let getter: () -> Value
-    
-    init(value: Value, getter: @escaping () -> Value) {
-        self.getter = getter
-        concreteValue = PropertyValue(value)
-    }
-    
-    public init(getter: @escaping () -> Value) {
-        self.init(value: getter(), getter: getter)
+public struct ReadonlyProperty<Value>: Listenable {
+    let repeater: Repeater<Value>
+    private let store: ListeningDisposeStore
+
+    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), calculation: @escaping (L.OutData) -> Value) {
+        var store = ListeningDisposeStore()
+        repeater.depends(on: source.map(calculation)).add(to: &store)
+        self.repeater = repeater
+        self.store = store
     }
 
-    init<T>(property: Property<T>, getter: @escaping (T) -> Value) {
-        let accessor = property.concreteValue
-        self.init(getter: { getter(accessor.get()) })
+    public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
+        return repeater.listening(assign)
     }
-    
-    mutating func fetch() {
-        concreteValue.set(getter())
-        insider.dataDidChange()
+    public func listeningItem(_ assign: Assign<ListenEvent<Value>>) -> ListeningItem {
+        return repeater.listeningItem(assign)
     }
 }
 
 /// Provides listening value based on async action
-public struct AsyncReadonlyProperty<Value> {
-    var insider: Insider<Value> {
-        get { return concreteValue.getInsider() }
-        set { concreteValue.setInsider(newValue) }
-    }
-    private let concreteValue: ListenableValue<Value>
-    public private(set) var value: Value {
-        get { return concreteValue.get() }
-        set { concreteValue.set(newValue); }
-    }
-    private let getter: (@escaping (Value) -> Void) -> Void
+public struct AsyncReadonlyProperty<Value>: Listenable {
+    let repeater: Repeater<Value>
+    private let store: ListeningDisposeStore
     
-    public init(value: Value, getter: @escaping (@escaping (Value) -> Void) -> Void) {
-        self.getter = getter
-        concreteValue = ListenableValue(value)
-    }
-    
-    public mutating func fetch() {
-        getter(concreteValue.set)
-    }
-}
-
-public extension AsyncReadonlyProperty {
-    @discardableResult
-    mutating func fetch(`if` itRight: (Value) -> Bool) -> AsyncReadonlyProperty {
-        guard itRight(value) else { return self }
-        
-        fetch()
-        
-        return self
-    }
-}
-
-struct PropertyValue<T> {
-    let get: () -> T
-    let set: (T) -> Void
-    let didSet: ((T, T) -> Void)?
-    
-    init(_ value: T, didSet: ((T, T) -> Void)? = nil) {
-        var val = value {
-            didSet { didSet?(oldValue, val) }
-        }
-        self.get = { val }
-        self.set = { val = $0 }
-        self.didSet = didSet
+    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), fetching: @escaping (L.OutData, ResultPromise<Value>) -> Void) {
+        var store = ListeningDisposeStore()
+        repeater.depends(on: source.onReceiveMap(fetching)).add(to: &store)
+        self.repeater = repeater
+        self.store = store
     }
 
-    init<O: AnyObject>(unowned owner: O, getter: @escaping (O) -> T, setter: @escaping (O, T) -> Void, didSet: ((T, T) -> Void)? = nil) {
-        self.get = { [unowned owner] in return getter(owner) }
-        self.set = { [unowned owner] in setter(owner, $0) }
-        self.didSet = didSet
+    public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
+        return repeater.listening(assign)
     }
-}
-
-struct WeakPropertyValue<T> where T: AnyObject {
-    let get: () -> T?
-    let set: (T?) -> Void
-
-    init(_ value: T?) {
-        weak var val = value
-        get = { val }
-        set = { val = $0 }
+    public func listeningItem(_ assign: Assign<ListenEvent<Value>>) -> ListeningItem {
+        return repeater.listeningItem(assign)
     }
 }
 
@@ -466,61 +351,47 @@ public extension ValueWrapper where V: _Optional {
     }
 }
 
-/// Simple stored property with listening possibility
-public struct Property<Value>: ValueWrapper {
-    lazy var insider: Insider<Value> = Insider(source: self.concreteValue.get)
-    fileprivate let concreteValue: PropertyValue<Value>
-    public var value: Value {
-        get { return concreteValue.get() }
-        set { concreteValue.set(newValue); insider.dataDidChange() }
-    }
-    
-    public init(value: Value) {
-        self.init(PropertyValue(value))
-    }
-
-    init(_ value: PropertyValue<Value>) {
-        self.concreteValue = value
-    }
-}
-
-public struct WeakProperty<Value>: ValueWrapper where Value: AnyObject {
-    lazy var insider: Insider<Value?> = Insider(source: self.concreteValue.get)
-    fileprivate let concreteValue: WeakPropertyValue<Value>
-    public var value: Value? {
-        get { return concreteValue.get() }
-        set { concreteValue.set(newValue); insider.dataDidChange() }
-    }
-
-    public init(value: Value?) {
-        self.init(WeakPropertyValue(value))
-    }
-
-    init(_ value: WeakPropertyValue<Value>) {
-        self.concreteValue = value
-    }
-}
-
-extension InsiderOwner {
+public extension Repeater {
     /// Makes notification depending
     ///
-    /// - Parameter other: Insider owner that will be invoke notifications himself listenings
-    /// - Returns: Listening token
+    /// - Parameter other: Listenable that will be invoke notifications himself listenings
+    /// - Returns: Disposable
     @discardableResult
-    func depends<Other: InsiderOwner>(on other: Other) -> Disposable {
-        return other.livetime(self).listening(.weak(self) { _, owner in owner?.insider.dataDidChange() })
+    func depends<L: Listenable>(on other: L) -> Disposable where L.OutData == T {
+        return other.listening(self.send)
     }
 }
 public extension Listenable {
     /// Binds values new values to value wrapper
     ///
-    /// - Parameter other: Insider owner that will be invoke notifications himself listenings
-    /// - Returns: Listening token
+    /// - Parameter other: Value wrapper that will be receive value
+    /// - Returns: Disposable
     @discardableResult
     func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.OutData {
-        return livetime(other).listening({ [weak other] val in
-            if let v = val.value {
-                other?.value = v
+        return livetime(other).listening(onValue: { [weak other] val in
+            other?.value = val
+        })
+    }
+
+    /// Binds events to repeater
+    ///
+    /// - Parameter other: Repeater that will be receive value
+    /// - Returns: Disposable
+    @discardableResult
+    func bind(to other: Repeater<OutData>) -> Disposable {
+        return other.depends(on: self)
+    }
+
+    /// Binds events to property
+    ///
+    /// - Parameter other: Repeater that will be receive value
+    /// - Returns: Disposable
+    @discardableResult
+    func bind(to other: Property<OutData>) -> Disposable {
+        return listening({ (e) in
+            switch e {
+            case .value(let v): other.value = v
+            case .error(let e): other.sendError(e)
             }
         })
     }

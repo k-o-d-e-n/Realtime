@@ -7,41 +7,16 @@
 
 import Foundation
 
-struct ListenableValue<T> {
-    let get: () -> T
-    let set: (T) -> Void
-    let setWithoutNotify: (T) -> Void
-    let getInsider: () -> Insider<T>
-    let setInsider: (Insider<T>) -> Void
-
-    init(_ value: T) {
-        var val = value
-        get = { val }
-        var insider = Insider(source: get)
-        set = { val = $0; insider.dataDidChange(); }
-        setWithoutNotify = { val = $0 }
-        getInsider = { insider }
-        setInsider = { insider = $0 }
-    }
-}
-
-extension ListenableValue {
-    var insider: Insider<T> {
-        get { return getInsider() }
-        set { setInsider(newValue) }
-    }
-}
-
-struct Repeater<T>: Listenable {
+public struct Repeater<T>: Listenable {
     let sender: (ListenEvent<T>) -> Void
     let listen: (Assign<ListenEvent<T>>) -> Disposable
     let listenItem: (Assign<ListenEvent<T>>) -> ListeningItem
 
-    static func unmanaged(with dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.assign($0) }) -> Repeater<T> {
+    public static func unsafe(with dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }) -> Repeater<T> {
         return Repeater(dispatcher: dispatcher)
     }
 
-    init(dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+    public init(dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         var nextToken = UInt.min
         var listeners: [UInt: Assign<ListenEvent<T>>] = [:]
 
@@ -67,29 +42,29 @@ struct Repeater<T>: Listenable {
 
             listeners[nextToken] = assign
 
-            return ListeningItem(start: { () -> UInt? in
+            return ListeningItem(resume: { () -> UInt? in
                 defer { nextToken += 1 }
                 listeners[nextToken] = assign
                 return nextToken
-            }, stop: { (t) in
+            }, pause: { (t) in
                 listeners.removeValue(forKey: t)
             }, notify: {
-                assign.assign(.error(RealtimeError(source: .listening, description: "No value to notify")))
+                dispatcher(.error(RealtimeError(source: .listening, description: "No value to notify")), assign)
             }, token: nextToken)
         }
     }
 
-    init(queue: DispatchQueue) {
+    public init(queue: DispatchQueue) {
         self.init { (e, a) in
             queue.async { a.assign(e) }
         }
     }
 
-    static func locked(by lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.assign($0) }) -> Repeater<T> {
+    public static func locked(by lock: NSLocking = NSRecursiveLock(), dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }) -> Repeater<T> {
         return Repeater(lockedBy: lock, dispatcher: dispatcher)
     }
 
-    init(lockedBy lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.assign($0) }) {
+    public init(lockedBy lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         var nextToken = UInt.min
         var listeners: [UInt: Assign<ListenEvent<T>>] = [:]
 
@@ -126,84 +101,287 @@ struct Repeater<T>: Listenable {
             let token = nextToken
             listeners[token] = assign
 
-            return ListeningItem(start: { () -> UInt? in
+            return ListeningItem(resume: { () -> UInt? in
                 lock.lock(); defer { lock.unlock() }
                 listeners[token] = assign
                 return token
-            }, stop: { (t) in
+            }, pause: { (t) in
                 lock.lock(); defer { lock.unlock() }
                 listeners.removeValue(forKey: t)
             }, notify: {
-                assign.assign(.error(RealtimeError(source: .listening, description: "No value to notify")))
+                dispatcher(.error(RealtimeError(source: .listening, description: "No value to notify")), assign)
             }, token: token)
         }
     }
 
-    init(lockedBy lock: NSLocking, queue: DispatchQueue) {
+    public init(lockedBy lock: NSLocking, queue: DispatchQueue) {
         self.init(lockedBy: lock) { (e, a) in
             queue.async { a.assign(e) }
         }
     }
 
-    func send(_ event: ListenEvent<T>) {
+    public func send(_ event: ListenEvent<T>) {
         sender(event)
     }
 
-    func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return listen(assign)
     }
 
-    func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
         return listenItem(assign)
     }
 }
 
-struct P<T>: Listenable, ValueWrapper {
+public struct Property<T>: Listenable, ValueWrapper {
     let get: () -> T
     let set: (T) -> Void
+    let listen: (Assign<ListenEvent<T>>) -> Disposable
     let listenItem: (Assign<ListenEvent<T>>) -> ListeningItem
     let repeater: Repeater<T>
 
-    var value: T {
+    public var value: T {
         get { return get() }
         nonmutating set { set(newValue) }
     }
 
-    init(_ value: T, repeater: Repeater<T>) {
+    init(repeater: Repeater<T>,
+         get: @escaping () -> T, set: @escaping (T) -> Void,
+         listen: @escaping (Assign<ListenEvent<T>>) -> Disposable,
+         listenItem: @escaping (Assign<ListenEvent<T>>) -> ListeningItem) {
+        self.get = get
+        self.set = set
+        self.listen = listen
+        self.listenItem = listenItem
+        self.repeater = repeater
+    }
+
+    public init(unsafeStrong value: T, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+        let repeater = Repeater(dispatcher: dispatcher)
         var val = value {
             didSet {
-                repeater.sender(.value(val))
+                repeater.send(.value(val))
             }
         }
 
-        self.repeater = repeater
-        self.get = { val }
-        self.set = { val = $0 }
-        self.listenItem = { assign in
+        self.init(
+            repeater: repeater,
+            get: { val }, set: { val = $0 },
+            listen: repeater.listen,
+            listenItem: Property.unsafe(item: repeater, notify: { dispatcher(.value(val), $0) })
+        )
+    }
+
+    public init(lockedStrong value: T, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+        let repeater = Repeater(dispatcher: dispatcher)
+        var val = value {
+            didSet {
+                repeater.send(.value(val))
+            }
+        }
+
+        let safeGet: () -> T = {
+            lock.lock(); defer { lock.unlock() }
+            return val
+        }
+
+        self.init(
+            repeater: repeater,
+            get: safeGet,
+            set: {
+                lock.lock()
+                val = $0
+                lock.unlock()
+            },
+            listen: Property.disposed(lock, repeater: repeater),
+            listenItem: Property.item(lock, repeater: repeater, notify: { (assign) in
+                dispatcher(.value(safeGet()), assign)
+            })
+        )
+    }
+
+    public init<O: AnyObject>(unsafeWeak value: O?, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) where Optional<O> == T {
+        let repeater = Repeater(dispatcher: dispatcher)
+        weak var val = value {
+            didSet {
+                repeater.send(.value(val))
+            }
+        }
+
+        self.init(
+            repeater: repeater,
+            get: { val }, set: { val = $0 },
+            listen: repeater.listen,
+            listenItem: Property.unsafe(item: repeater, notify: { dispatcher(.value(val), $0) })
+        )
+    }
+
+    public init<O: AnyObject>(lockedWeak value: O?, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) where Optional<O> == T {
+        let repeater = Repeater(dispatcher: dispatcher)
+        weak var val = value {
+            didSet {
+                repeater.send(.value(val))
+            }
+        }
+
+        let safeGet: () -> T = {
+            lock.lock(); defer { lock.unlock() }
+            return val
+        }
+
+        self.init(
+            repeater: repeater,
+            get: safeGet,
+            set: {
+                lock.lock()
+                val = $0
+                lock.unlock()
+            },
+            listen: Property.disposed(lock, repeater: repeater),
+            listenItem: Property.item(lock, repeater: repeater, notify: { dispatcher(.value(safeGet()), $0) })
+        )
+    }
+
+    public static func unsafe(
+        strong value: T,
+        dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
+        ) -> Property {
+        return Property(unsafeStrong: value, dispatcher: dispatcher)
+    }
+
+    public static func unsafe<O: AnyObject>(
+        weak value: O?,
+        dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
+        ) -> Property where Optional<O> == T {
+        return Property(unsafeWeak: value, dispatcher: dispatcher)
+    }
+
+    public static func locked(
+        strong value: T,
+        lock: NSLocking = NSRecursiveLock(),
+        dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
+        ) -> Property {
+        return Property(lockedStrong: value, lock: lock, dispatcher: dispatcher)
+    }
+
+    public static func locked<O: AnyObject>(
+        weak value: O?,
+        lock: NSLocking = NSRecursiveLock(),
+        dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }) -> Property where Optional<O> == T {
+        return Property(lockedWeak: value, lock: lock, dispatcher: dispatcher)
+    }
+
+    public func sendError(_ error: Error) {
+        repeater.sender(.error(error))
+    }
+
+    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        return repeater.listen(assign)
+    }
+
+    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        return listenItem(assign)
+    }
+
+    private static func disposed(_ lock: NSLocking, repeater: Repeater<T>) -> (Assign<ListenEvent<T>>) -> Disposable {
+        return { assign in
+            lock.lock(); defer { lock.unlock() }
+
+            let d = repeater.listening(assign)
+            return ListeningDispose {
+                lock.lock()
+                d.dispose()
+                lock.unlock()
+            }
+        }
+    }
+
+    private static func unsafe(item repeater: Repeater<T>, notify: @escaping (Assign<ListenEvent<T>>) -> Void) -> (Assign<ListenEvent<T>>) -> ListeningItem {
+        return { assign in
             let item = repeater.listeningItem(assign)
             return ListeningItem(
-                start: item.start,
-                stop: item.stop,
-                notify: { assign.assign(.value(val)) },
+                resume: item._start,
+                pause: item._stop,
+                notify: { notify(assign) },
                 token: ()
             )
         }
     }
 
-    init(_ value: T) {
-        self.init(value, repeater: Repeater<T>.unmanaged())
+    private static func item<T>(_ lock: NSLocking, repeater: Repeater<T>, notify: @escaping (Assign<ListenEvent<T>>) -> Void) -> (Assign<ListenEvent<T>>) -> ListeningItem {
+        return { assign in
+            lock.lock(); defer { lock.unlock() }
+
+            let item = repeater.listeningItem(assign)
+
+            return ListeningItem(resume: {
+                lock.lock(); defer { lock.unlock() }
+                return item.resume()
+            }, pause: { (t) in
+                lock.lock(); defer { lock.unlock() }
+                item.pause()
+            }, notify: { notify(assign) },
+               token: ())
+        }
+    }
+}
+extension Property where T: AnyObject {
+    public init(unsafeUnowned value: T, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+        let repeater = Repeater(dispatcher: dispatcher)
+        unowned var val = value {
+            didSet {
+                repeater.send(.value(val))
+            }
+        }
+
+        self.init(
+            repeater: repeater,
+            get: { val }, set: { val = $0 },
+            listen: repeater.listen,
+            listenItem: Property.unsafe(item: repeater, notify: { dispatcher(.value(val), $0) })
+        )
     }
 
-    func sendError(_ error: Error) {
-        repeater.sender(.error(error))
+    public init(lockedUnowned value: T, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+        let repeater = Repeater(dispatcher: dispatcher)
+        unowned var val = value {
+            didSet {
+                repeater.send(.value(val))
+            }
+        }
+
+        let safeGet: () -> T = {
+            lock.lock(); defer { lock.unlock() }
+            return val
+        }
+
+        self.init(
+            repeater: repeater,
+            get: safeGet,
+            set: {
+                lock.lock()
+                val = $0
+                lock.unlock()
+        },
+            listen: Property.disposed(lock, repeater: repeater),
+            listenItem: Property.item(lock, repeater: repeater, notify: { (assign) in
+                dispatcher(.value(safeGet()), assign)
+            })
+        )
     }
 
-    func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        return repeater.listen(assign)
+    public static func unsafe(
+        unowned value: T,
+        dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
+        ) -> Property {
+        return Property(unsafeUnowned: value, dispatcher: dispatcher)
     }
-
-    func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return listenItem(assign)
+    public static func locked(
+        unowned value: T,
+        lock: NSLocking = NSRecursiveLock(),
+        dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
+        ) -> Property {
+        return Property(lockedUnowned: value, lock: lock, dispatcher: dispatcher)
     }
 }
 
@@ -222,7 +400,7 @@ struct Trivial<T>: Listenable, ValueWrapper {
     }
 
     init(_ value: T) {
-        self.init(value, repeater: Repeater.unmanaged())
+        self.init(value, repeater: Repeater.unsafe())
     }
 
     func sendError(_ error: Error) {
@@ -235,47 +413,5 @@ struct Trivial<T>: Listenable, ValueWrapper {
 
     func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
         return repeater.listeningItem(assign)
-    }
-}
-
-public struct ThreadSafe<T>: Listenable {
-    let base: AnyListenable<T>
-    let lock: NSLock = NSLock()
-
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        lock.lock(); defer { lock.unlock() }
-        return base.listening(assign)
-    }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        lock.lock(); defer { lock.unlock() }
-        return base.listeningItem(assign)
-    }
-}
-
-public struct QueueSafe<T>: Listenable {
-    let base: AnyListenable<T>
-    let queue: DispatchQueue
-    let lock: NSLock = NSLock()
-
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        return queue.sync {
-            return base.listening(assign)
-        }
-    }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return queue.sync {
-            return base.listeningItem(assign)
-        }
-    }
-}
-
-public extension Listenable {
-    func threadSafe() -> ThreadSafe<OutData> {
-        return ThreadSafe(base: AnyListenable(self.listening, self.listeningItem))
-    }
-    func queueSafe(use serialQueue: DispatchQueue) -> QueueSafe<OutData> {
-        return QueueSafe(base: AnyListenable(self.listening, self.listeningItem), queue: serialQueue)
     }
 }

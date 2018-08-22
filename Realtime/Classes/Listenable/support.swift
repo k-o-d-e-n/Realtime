@@ -46,11 +46,6 @@ public func onLoad<V>(_ value: V, _ completion: (V) -> Void) -> V {
     return value
 }
 
-// TODO: Add extension for all types with var asProperty, asRealtimeProperty
-extension String {
-    var asProperty: Property<String> { return Realtime.Property(value: self) }
-}
-
 public protocol _Optional: ExpressibleByNilLiteral {
     associatedtype Wrapped
     func map<U>(_ f: (Wrapped) throws -> U) rethrows -> U?
@@ -147,8 +142,8 @@ public struct ControlEvent<C: UIControl>: Listenable {
         defer {
             controlListening.onStart()
         }
-        return ListeningItem(start: controlListening.onStart,
-                             stop: controlListening.onStop,
+        return ListeningItem(resume: controlListening.onStart,
+                             pause: controlListening.onStop,
                              notify: { [unowned control] in assign.assign(.value((control, event))) },
                              token: ())
     }
@@ -159,8 +154,6 @@ extension UIControl {
         unowned let control: C
         let events: UIControlEvents
         let assign: Assign<ListenEvent<(C, UIEvent)>>
-
-        var dispose: () -> Void { return onStop }
 
         init(_ control: C, events: UIControlEvents, assign: Assign<ListenEvent<(C, UIEvent)>>) {
             self.control = control
@@ -178,6 +171,10 @@ extension UIControl {
 
         func onStop() {
             control.removeTarget(self, action: #selector(onEvent(_:_:)), for: events)
+        }
+
+        func dispose() {
+            onStop()
         }
 
         var hashValue: Int { return Int(events.rawValue) }

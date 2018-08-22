@@ -195,7 +195,7 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
         /// Levels up by hierarchy to the same node for both related values. Default nil, that means root node
         let rootLevelsUp: Int?
 
-        var ownerNode: Property<Node?> = Property(value: nil)
+        var ownerNode: Property<Node?> = Property.unsafe(strong: nil)
         let representer: Representer<Related>
 
         public init(rootLevelsUp: Int?, ownerLevelsUp: Int, property: RelationMode) {
@@ -372,7 +372,7 @@ public extension RealtimeProperty {
 @available(*, introduced: 0.4.3)
 public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
     fileprivate var _value: ListenValue<T>
-    fileprivate let repeater: Repeater<ListenValue<T>> = Repeater.unmanaged()
+    fileprivate let repeater: Repeater<ListenValue<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T>
 
     public override var version: Int? { return nil }
@@ -490,9 +490,9 @@ extension ReadonlyRealtimeProperty: Listenable {
     public func listeningItem(_ assign: Assign<ListenEvent<ListenValue<T>>>) -> ListeningItem {
         let item = repeater.listeningItem(assign)
         return ListeningItem(
-            start: item.start,
-            stop: item.stop,
-            notify: { assign.assign(.value(self._value)) },
+            resume: item._start,
+            pause: item._stop,
+            notify: { assign.assign(.value(self._value)) }, // TODO: Dispatcher
             token: ()
         )
     }
@@ -630,17 +630,16 @@ public extension ReadonlyRealtimeProperty where T: HasDefaultLiteral & _Comparab
 }
 
 // TODO: Reconsider usage it. Some RealtimeValue things are not need here.
-public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: FireDataValue & HasDefaultLiteral {
-    private var localPropertyValue: PropertyValue<T>
-    public var value: T { return localPropertyValue.get() }
-    var insider: Insider<T>
+public final class SharedProperty<T>: _RealtimeValue where T: FireDataValue & HasDefaultLiteral {
+    private var _value: T
+    public var value: T { return _value }
+    let repeater: Repeater<T> = Repeater.unsafe()
     let representer: Representer<T> = .any
 
     // MARK: Initializers, deinitializer
 
     public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
-        self.localPropertyValue = PropertyValue(T())
-        self.insider = Insider(source: localPropertyValue.get)
+        self._value = T()
         super.init(in: node, options: options)
     }
 
@@ -668,8 +667,22 @@ public final class SharedProperty<T>: _RealtimeValue, InsiderOwner where T: Fire
     }
 
     fileprivate func setValue(_ value: T) {
-        localPropertyValue.set(value)
-        insider.dataDidChange()
+        self._value = value
+        repeater.send(.value(value))
+    }
+}
+extension SharedProperty: Listenable {
+    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        return repeater.listening(assign)
+    }
+    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        let item = repeater.listeningItem(assign)
+        return ListeningItem(
+            resume: item._start,
+            pause: item._stop,
+            notify: { assign.assign(.value(self._value)) }, // TODO: Dispatcher
+            token: ()
+        )
     }
 }
 
