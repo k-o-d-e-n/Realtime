@@ -142,10 +142,11 @@ public struct ControlEvent<C: UIControl>: Listenable {
         defer {
             controlListening.onStart()
         }
-        return ListeningItem(resume: controlListening.onStart,
-                             pause: controlListening.onStop,
-                             notify: { [unowned control] in assign.assign(.value((control, event))) },
-                             token: ())
+        return ListeningItem(
+            resume: controlListening.onStart,
+            pause: controlListening.onStop,
+            token: ()
+        )
     }
 }
 

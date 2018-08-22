@@ -89,7 +89,6 @@ extension DatabaseReference {
             return ListeningItem(
                 resume: { self.ref.listen(assign, { value = $0 }) },
                 pause: ref.removeObserver,
-                notify: { assign.assign(.value(value)) },
                 token: token
             )
         }

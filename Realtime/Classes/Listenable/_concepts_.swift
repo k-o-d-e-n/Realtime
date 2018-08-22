@@ -11,12 +11,14 @@ public struct Repeater<T>: Listenable {
     let sender: (ListenEvent<T>) -> Void
     let listen: (Assign<ListenEvent<T>>) -> Disposable
     let listenItem: (Assign<ListenEvent<T>>) -> ListeningItem
+    let dispatcher: (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void
 
     public static func unsafe(with dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }) -> Repeater<T> {
         return Repeater(dispatcher: dispatcher)
     }
 
     public init(dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+        self.dispatcher = dispatcher
         var nextToken = UInt.min
         var listeners: [UInt: Assign<ListenEvent<T>>] = [:]
 
@@ -42,15 +44,17 @@ public struct Repeater<T>: Listenable {
 
             listeners[nextToken] = assign
 
-            return ListeningItem(resume: { () -> UInt? in
-                defer { nextToken += 1 }
-                listeners[nextToken] = assign
-                return nextToken
-            }, pause: { (t) in
-                listeners.removeValue(forKey: t)
-            }, notify: {
-                dispatcher(.error(RealtimeError(source: .listening, description: "No value to notify")), assign)
-            }, token: nextToken)
+            return ListeningItem(
+                resume: { () -> UInt? in
+                    defer { nextToken += 1 }
+                    listeners[nextToken] = assign
+                    return nextToken
+                },
+                pause: { (t) in
+                    listeners.removeValue(forKey: t)
+                },
+                token: nextToken
+            )
         }
     }
 
@@ -65,6 +69,7 @@ public struct Repeater<T>: Listenable {
     }
 
     public init(lockedBy lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+        self.dispatcher = dispatcher
         var nextToken = UInt.min
         var listeners: [UInt: Assign<ListenEvent<T>>] = [:]
 
@@ -101,16 +106,18 @@ public struct Repeater<T>: Listenable {
             let token = nextToken
             listeners[token] = assign
 
-            return ListeningItem(resume: { () -> UInt? in
-                lock.lock(); defer { lock.unlock() }
-                listeners[token] = assign
-                return token
-            }, pause: { (t) in
-                lock.lock(); defer { lock.unlock() }
-                listeners.removeValue(forKey: t)
-            }, notify: {
-                dispatcher(.error(RealtimeError(source: .listening, description: "No value to notify")), assign)
-            }, token: token)
+            return ListeningItem(
+                resume: { () -> UInt? in
+                    lock.lock(); defer { lock.unlock() }
+                    listeners[token] = assign
+                    return token
+                },
+                pause: { (t) in
+                    lock.lock(); defer { lock.unlock() }
+                    listeners.removeValue(forKey: t)
+                },
+                token: token
+            )
         }
     }
 
@@ -298,13 +305,7 @@ public struct Property<T>: Listenable, ValueWrapper {
 
     private static func unsafe(item repeater: Repeater<T>, notify: @escaping (Assign<ListenEvent<T>>) -> Void) -> (Assign<ListenEvent<T>>) -> ListeningItem {
         return { assign in
-            let item = repeater.listeningItem(assign)
-            return ListeningItem(
-                resume: item.resume,
-                pause: item.pause,
-                notify: { notify(assign) },
-                token: ()
-            )
+            return repeater.listeningItem(assign)
         }
     }
 
@@ -314,14 +315,17 @@ public struct Property<T>: Listenable, ValueWrapper {
 
             let item = repeater.listeningItem(assign)
 
-            return ListeningItem(resume: {
-                lock.lock(); defer { lock.unlock() }
-                return item.resume()
-            }, pause: { (t) in
-                lock.lock(); defer { lock.unlock() }
-                item.pause()
-            }, notify: { notify(assign) },
-               token: ())
+            return ListeningItem(
+                resume: {
+                    lock.lock(); defer { lock.unlock() }
+                    return item.resume()
+                },
+                pause: { (t) in
+                    lock.lock(); defer { lock.unlock() }
+                    item.pause()
+                },
+                token: ()
+            )
         }
     }
 }

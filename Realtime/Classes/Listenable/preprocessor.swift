@@ -151,7 +151,6 @@ public struct OnFire<T>: Listenable {
                 item.pause()
                 self.onFire()
             },
-            notify: item._notify,
             token: nil
         )
     }

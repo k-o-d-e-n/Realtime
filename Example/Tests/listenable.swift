@@ -344,9 +344,8 @@ class ListenableTests: XCTestCase {
         propertyDouble.value = .infinity
         XCTAssertEqual(doubleValue, 10.0)
 
-        item?.resume(true)
+        item?.resume()
         XCTAssertTrue(item!.isListen)
-        XCTAssertEqual(doubleValue, .infinity)
         propertyDouble.value = .pi
         XCTAssertEqual(doubleValue, .pi)
 
@@ -354,7 +353,7 @@ class ListenableTests: XCTestCase {
         XCTAssertFalse(item!.isListen)
         propertyDouble.value = 100.5
 
-        item?.resume(false)
+        item?.resume()
         XCTAssertTrue(item!.isListen)
         XCTAssertEqual(doubleValue, .pi)
         propertyDouble.value = 504.8
@@ -392,7 +391,6 @@ class ListenableTests: XCTestCase {
 
         store.resume()
         XCTAssertTrue(item.isListen)
-        XCTAssertEqual(doubleValue, 55.4)
 
         propertyDouble.value = 150.5
         XCTAssertEqual(doubleValue, 150.5)
@@ -400,7 +398,7 @@ class ListenableTests: XCTestCase {
         store.pause()
         propertyDouble.value = 25.1
 
-        store.resume(false)
+        store.resume()
         XCTAssertEqual(doubleValue, 150.5)
     }
 
@@ -803,7 +801,7 @@ extension ListenableTests {
 
         DispatchQueue.global().async {
             XCTAssertFalse(Thread.isMainThread)
-            bgItem.resume(false)
+            bgItem.resume()
 
             repeater.send(.value(20))
 
@@ -811,7 +809,7 @@ extension ListenableTests {
 
             repeater.send(.value(1000))
 
-            bgItem.resume(false)
+            bgItem.resume()
 
             repeater.send(.value(999))
         }

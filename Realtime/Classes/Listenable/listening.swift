@@ -31,14 +31,12 @@ class ListeningDispose: Disposable {
 public class ListeningItem {
     let _start: () -> Void
     let _stop: () -> Void
-    let _notify: () -> Void
     let _isListen: () -> Bool
 
     public var isListen: Bool { return _isListen() }
 
-    init<Token>(resume: @escaping () -> Token?, pause: @escaping (Token) -> Void, notify: @escaping () -> Void, token: Token?) {
+    init<Token>(resume: @escaping () -> Token?, pause: @escaping (Token) -> Void, token: Token?) {
         var tkn = token
-        self._notify = notify
         self._isListen = { tkn != nil }
         self._start = {
             guard tkn == nil else { return }
@@ -49,11 +47,6 @@ public class ListeningItem {
             pause(token)
             tkn = nil
         }
-    }
-
-    public func resume(_ needNotify: Bool = true) {
-        _start()
-        if needNotify { _notify() }
     }
 
     public func resume() {
@@ -112,7 +105,7 @@ public struct ListeningDisposeStore {
         listeningItems.forEach { $0.pause() }
     }
 
-    public func resume(_ needNotify: Bool = true) {
-        listeningItems.forEach { $0.resume(needNotify) }
+    public func resume() {
+        listeningItems.forEach { $0.resume() }
     }
 }

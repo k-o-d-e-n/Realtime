@@ -250,10 +250,11 @@ func prepareElementsRecursive<RC: Collection>(_ collection: RC, completion: @esc
 public extension RealtimeCollection {
     /// RealtimeCollection actions
 
-    func filtered<ValueGetter: Listenable & RealtimeValueActions>(map values: @escaping (Iterator.Element) -> ValueGetter,
-                                                                    fetchIf: ((ValueGetter) -> Bool)? = nil,
-                                                                    predicate: @escaping (ValueGetter.OutData) -> Bool,
-                                                                    onCompleted: @escaping ([Iterator.Element]) -> ()) {
+    func filtered<ValueGetter: Listenable & RealtimeValueActions>(
+        map values: @escaping (Iterator.Element) -> ValueGetter,
+        predicate: @escaping (ValueGetter.OutData) -> Bool,
+        onCompleted: @escaping ([Iterator.Element]) -> ()
+    ) {
         var filteredElements: [Iterator.Element] = []
         let count = endIndex
         let completeIfNeeded = { (releasedCount: Index) in
@@ -277,11 +278,7 @@ public extension RealtimeCollection {
                 completeIfNeeded(released)
             })
 
-            if fetchIf?(value) ?? true {
-                value.load(completion: nil)
-            } else {
-                listeningItem._notify()
-            }
+            value.load(completion: nil)
         }
     }
 }

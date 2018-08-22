@@ -31,7 +31,7 @@ public class ReuseItem<View: AnyObject> {
 
         guard source.canObserve else { return }
         if source.runObserving() {
-            listeningItems.append(ListeningItem(resume: { () }, pause: source.stopObserving, notify: {}, token: nil))
+            listeningItems.append(ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
         } else {
             debugFatalError("Observing is not running")
         }
@@ -46,7 +46,7 @@ public class ReuseItem<View: AnyObject> {
 
         guard value.canObserve else { return }
         if value.runObserving() {
-            listeningItems.append(ListeningItem(resume: { () }, pause: value.stopObserving, notify: {}, token: nil))
+            listeningItems.append(ListeningItem(resume: { () }, pause: value.stopObserving, token: nil))
         } else {
             debugFatalError("Observing is not running")
         }
@@ -78,13 +78,7 @@ extension ReuseItem: Listenable {
         return repeater.listening(assign)
     }
     public func listeningItem(_ assign: Assign<ListenEvent<View?>>) -> ListeningItem {
-        let item = repeater.listeningItem(assign)
-        return ListeningItem(
-            resume: item.resume,
-            pause: item.pause,
-            notify: { assign.assign(.value(self.view)) },
-            token: ()
-        )
+        return repeater.listeningItem(assign)
     }
 }
 
