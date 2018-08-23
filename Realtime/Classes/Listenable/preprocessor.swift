@@ -101,9 +101,6 @@ public struct Preprocessor<I, O>: Listenable {
     public func listening(_ assign: Assign<ListenEvent<O>>) -> Disposable {
         return listenable.listening(bridgeMaker.wrapAssign(assign))
     }
-    public func listeningItem(_ assign: Assign<ListenEvent<O>>) -> ListeningItem {
-        return listenable.listeningItem(bridgeMaker.wrapAssign(assign))
-    }
 }
 
 public extension Listenable {
@@ -142,18 +139,6 @@ public struct OnFire<T>: Listenable {
             self.onFire()
         })
     }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        let item = listenable.listeningItem(assign)
-        return ListeningItem(
-            resume: item._start,
-            pause: { _ in
-                item.pause()
-                self.onFire()
-            },
-            token: nil
-        )
-    }
 }
 public extension Listenable {
     /// calls closure on disconnect
@@ -168,10 +153,6 @@ public struct Do<T>: Listenable {
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return listenable.listening(assign.with(work: doit))
-    }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return listenable.listeningItem(assign.with(work: doit))
     }
 }
 public extension Listenable {
@@ -200,20 +181,6 @@ public struct Once<T>: Listenable {
                 })
         )
         return disposable
-    }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        var item: ListeningItem! = nil
-        var shouldCall = true
-        item = listenable.listeningItem(
-            assign
-                .filter({ _ in shouldCall })
-                .with(work: { (_) in
-                    item.dispose()
-                    shouldCall = false
-                })
-        )
-        return item
     }
 }
 public extension Listenable {
@@ -259,18 +226,6 @@ public struct Deadline<T>: Listenable {
         }))
         return disposable
     }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        var item: ListeningItem! = nil
-        item = listenable.listeningItem(assign.filter({ _ -> Bool in
-            guard self.deadline >= .now() else {
-                item.dispose()
-                return false
-            }
-            return true
-        }))
-        return item
-    }
 }
 public extension Listenable {
     /// works until time has not reached deadline
@@ -298,18 +253,6 @@ public struct Livetime<T>: Listenable {
             return true
         }))
         return disposable
-    }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        var item: ListeningItem! = nil
-        item = listenable.listeningItem(assign.filter({ _ -> Bool in
-            guard self.livingItem != nil else {
-                item.dispose()
-                return false
-            }
-            return true
-        }))
-        return item
     }
 }
 public extension Listenable {

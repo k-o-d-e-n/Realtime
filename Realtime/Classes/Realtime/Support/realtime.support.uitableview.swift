@@ -77,9 +77,6 @@ extension ReuseItem: Listenable {
     public func listening(_ assign: Assign<ListenEvent<View?>>) -> Disposable {
         return repeater.listening(assign)
     }
-    public func listeningItem(_ assign: Assign<ListenEvent<View?>>) -> ListeningItem {
-        return repeater.listeningItem(assign)
-    }
 }
 
 public class ReuseController<View: AnyObject, Key: Hashable> {

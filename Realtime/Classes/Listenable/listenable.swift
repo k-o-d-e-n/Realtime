@@ -207,6 +207,10 @@ public protocol Listenable {
     func listeningItem(_ assign: Assign<ListenEvent<OutData>>) -> ListeningItem
 }
 public extension Listenable {
+    /// Listening with possibility to control active state
+    func listeningItem(_ assign: Assign<ListenEvent<OutData>>) -> ListeningItem {
+        return ListeningItem(resume: { self.listening(assign) }, pause: { $0.dispose() }, token: listening(assign))
+    }
     func listening(_ assign: @escaping (ListenEvent<OutData>) -> Void) -> Disposable {
         return listening(.just(assign))
     }
@@ -292,9 +296,6 @@ public struct ReadonlyProperty<Value>: Listenable {
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
         return repeater.listening(assign)
     }
-    public func listeningItem(_ assign: Assign<ListenEvent<Value>>) -> ListeningItem {
-        return repeater.listeningItem(assign)
-    }
 }
 
 /// Provides listening value based on async action
@@ -311,9 +312,6 @@ public struct AsyncReadonlyProperty<Value>: Listenable {
 
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
         return repeater.listening(assign)
-    }
-    public func listeningItem(_ assign: Assign<ListenEvent<Value>>) -> ListeningItem {
-        return repeater.listeningItem(assign)
     }
 }
 

@@ -76,7 +76,7 @@ extension DatabaseReference {
 
         /// Disposable listening of value
         public func listening(_ assign: Assign<ListenEvent<FireDataProtocol>>) -> Disposable {
-            let token = ref.listen(assign, nil)
+            let token = ref.listen(assign)
             return ListeningDispose({
                 self.ref.removeObserver(withHandle: token)
             })
@@ -84,10 +84,9 @@ extension DatabaseReference {
 
         /// Listening with possibility to control active state
         public func listeningItem(_ assign: Assign<ListenEvent<OutData>>) -> ListeningItem {
-            var value: FireDataProtocol = ValueNode(node: Node.from(ref), value: nil)
-            let token = ref.listen(assign, { value = $0 })
+            let token = ref.listen(assign)
             return ListeningItem(
-                resume: { self.ref.listen(assign, { value = $0 }) },
+                resume: { self.ref.listen(assign) },
                 pause: ref.removeObserver,
                 token: token
             )
@@ -98,12 +97,10 @@ extension DatabaseReference {
         return Event(ref: self, event: event)
     }
 
-    private func listen(_ assign: Assign<ListenEvent<FireDataProtocol>>, _ change: ((FireDataProtocol) -> Void)?) -> UInt {
+    private func listen(_ assign: Assign<ListenEvent<FireDataProtocol>>) -> UInt {
         let token = observe(
             .value,
-            with: <-assign
-                .map { .value($0) }
-                .with(work: { change?($0) }),
+            with: <-assign.map { .value($0) },
             withCancel: <-assign.map { .error($0) }
         )
         return token

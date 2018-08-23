@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'Realtime'
-  s.version          = '0.5.2' + 0.2.2
+  s.version          = '0.5.2' + 0.2.4
   s.summary          = 'Firebase Realtime Database framework.'
 
 # This description is used to generate tags and improve search results.
