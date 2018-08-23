@@ -395,7 +395,11 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue, InsiderOwner {
     public required init(in node: Node?, options: [RealtimeValueOption: Any] = [.representer: Representer<T>.any]) {
         guard case let representer as Representer<T> = options[.representer] else { fatalError("Bad options") }
 
-        self.localPropertyValue = PropertyValue((options[.initialValue] as? T).map { .local($0) } ?? .initial)
+        if let inital = options[.initialValue], let v = inital as? T {
+            self.localPropertyValue = PropertyValue(.local(v))
+        } else {
+            self.localPropertyValue = PropertyValue(.initial)
+        }
         self.insider = Insider(source: localPropertyValue.get)
         self.representer = representer
         super.init(in: node, options: options)

@@ -105,13 +105,13 @@ class TestObject: RealtimeObject {
 
 extension Tests {
     func testNestedObjectChanges() {
-        let testObject = TestObject(in: .root)
+        let testObject = TestObject(in: Node(key: "t_obj"))
 
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
 
         do {
-            let trans = try testObject.update()
+            let trans = try testObject.save(in: .root)
             let value = trans.updateNode.updateValue
             let expectedValue = ["/prop":"string", "/nestedObject/lazyprop":"nested_string"] as [String: Any?]
 
