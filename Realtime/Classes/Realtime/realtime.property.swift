@@ -242,7 +242,7 @@ public extension RealtimeValueOption {
 public extension _RealtimeValue {
     public enum State<T> {
         case local(T)
-        case remote(T, strong: Bool)
+        case remote(T, exact: Bool)
         case removed
         indirect case error(Error, last: State<T>?)
         //    case reverted(ListenValue<T>?)
@@ -450,7 +450,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
             } else if let v = self._value {
                 switch v {
                 case .error(let e, last: _): fail.assign(e)
-                case .remote(let v, strong: _): completion.assign(v)
+                case .remote(let v, _): completion.assign(v)
                 default: failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
                 }
             } else {
@@ -477,7 +477,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
         super.didSave(in: parent, by: key)
         switch _value {
         case .some(.local(let v)):
-            _setValue(.remote(v, strong: true))
+            _setValue(.remote(v, exact: true))
         case .none:
             debugFatalError("Property has been saved but value does not exists")
         default:
@@ -501,7 +501,7 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
 //        super.apply(data, exactly: exactly)
         do {
             if let value = try representer.decode(data) {
-                _setValue(.remote(value, strong: exactly))
+                _setValue(.remote(value, exact: exactly))
             } else {
                 _setRemoved()
             }

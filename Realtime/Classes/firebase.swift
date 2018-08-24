@@ -83,7 +83,7 @@ extension DatabaseReference {
         }
 
         /// Listening with possibility to control active state
-        public func listeningItem(_ assign: Assign<ListenEvent<OutData>>) -> ListeningItem {
+        public func listeningItem(_ assign: Assign<ListenEvent<FireDataProtocol>>) -> ListeningItem {
             let token = ref.listen(assign)
             return ListeningItem(
                 resume: { self.ref.listen(assign) },

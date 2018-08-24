@@ -38,7 +38,7 @@ public class ReadonlyFile<T>: ReadonlyRealtimeProperty<T> {
             } else {
                 do {
                     if let value = try self.representer.decode(FileNode(node: node, value: data)) {
-                        self._setValue(.remote(value, strong: true))
+                        self._setValue(.remote(value, exact: true))
                     } else {
                         self._setRemoved()
                     }
@@ -67,7 +67,7 @@ public class File<T>: RealtimeProperty<T> {
             } else {
                 do {
                     if let value = try self.representer.decode(FileNode(node: node, value: data)) {
-                        self._setValue(.remote(value, strong: true))
+                        self._setValue(.remote(value, exact: true))
                     } else {
                         self._setRemoved()
                     }
