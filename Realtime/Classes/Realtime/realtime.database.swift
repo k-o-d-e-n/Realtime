@@ -26,7 +26,6 @@ extension DatabaseReference: DatabaseNode {
 public protocol RealtimeDatabase {
     func generateAutoID() -> String
 
-    func node() -> DatabaseNode
     func node(with valueNode: Node) -> DatabaseNode
 
     func commit(transaction: RealtimeTransaction, completion: ((Error?, DatabaseNode) -> Void)?)
@@ -52,12 +51,12 @@ extension Database: RealtimeDatabase {
         return reference().childByAutoId().key
     }
 
-    public func node() -> DatabaseNode {
-        return reference()
-    }
-
     public func node(with valueNode: Node) -> DatabaseNode {
-        return reference(withPath: valueNode.rootPath)
+        if valueNode.isRoot {
+            return reference()
+        } else {
+            return reference(withPath: valueNode.rootPath)
+        }
     }
 
     public func commit(transaction: RealtimeTransaction, completion: ((Error?, DatabaseNode) -> Void)?) {
@@ -145,13 +144,13 @@ class CacheNode: ObjectNode, RealtimeDatabase {
         return Database.database().generateAutoID()
     }
 
-    func node() -> DatabaseNode {
-        return self
-    }
-
     func node(with valueNode: Node) -> DatabaseNode {
-        let path = valueNode.rootPath
-        return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: location), value: nil)
+        if valueNode.isRoot {
+            return self
+        } else {
+            let path = valueNode.rootPath
+            return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: location), value: nil)
+        }
     }
 
     func commit(transaction: RealtimeTransaction, completion: ((Error?, DatabaseNode) -> Void)?) {
@@ -201,7 +200,12 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
             }
         })
     }
-    var description: String { return String(describing: updateValue) }
+    var description: String {
+        return """
+            values: \(updateValue),
+            files: \(files)
+        """
+    }
 
     init(node: Node) {
         self.location = node

@@ -59,8 +59,8 @@ where C.Index == Int {
         self.init(base: base)
     }
 
-    convenience required init(in node: Node) {
-        self.init(base: C(in: node))
+    convenience required init(in node: Node, options: [RealtimeValueOption: Any]) {
+        self.init(base: C(in: node, options: options))
     }
 
     override var node: Node? { return base.node }
@@ -125,19 +125,19 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
 // 2) Sorting performs after load prototype (runtime sorting)
 
 public extension RealtimeArray {
-    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed = Keyed.init)
+    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
         -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
     }
 }
 public extension LinkedRealtimeArray {
-    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed = Keyed.init)
+    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
         -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
     }
 }
 public extension RealtimeDictionary {
-    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed = Keyed.init)
+    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
         -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
     }
@@ -190,7 +190,7 @@ where Element: RealtimeValue {
     private let base: _AnyRealtimeCollectionBase<BaseElement>
     private let baseView: AnySharedCollection<AnyCollectionKey>
 
-    init<B: RC, Key: RawRepresentable>(base: B, key: Key, elementBuilder: @escaping (Node) -> Element = Element.init)
+    init<B: RC, Key: RawRepresentable>(base: B, key: Key, elementBuilder: @escaping (Node) -> Element)
         where B.View.Iterator.Element: DatabaseKeyRepresentable,
         B.View.Index: SignedInteger, B.Iterator.Element == BaseElement, B.Index == Int, Key.RawValue == String {
             guard base.isRooted else { fatalError("Only rooted collections can use in keyed collection") }

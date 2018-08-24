@@ -113,6 +113,22 @@ class TestObject: RealtimeObject {
 }
 
 extension Tests {
+    func testPropertySetValueFunc() {
+        let property = RealtimeProperty<String>(in: Node(key: "value", parent: .root), representer: Representer<String>.any)
+
+        let transaction = RealtimeTransaction(database: CacheNode.root)
+        do {
+            try property.setValue("Some string", in: transaction)
+
+            transaction.commit(with: { _, errors in
+                errors.map { _ in XCTFail() }
+
+                XCTAssertFalse(property.hasChanges)
+            })
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+    }
     func testNestedObjectChanges() {
         let testObject = TestObject(in: Node(key: "t_obj"))
 
@@ -264,6 +280,43 @@ extension Tests {
         }
 
         transaction.revert()
+    }
+
+    func testUpdateFileAfterSave() {
+        let group = RealtimeGroup(in: Node(key: "group", parent: Global.rtGroups.node))
+        let user = RealtimeUser(in: Node(key: "user"))
+        group.manager <== user
+        user.name <== "name"
+        user.age <== 0
+        user.photo <== #imageLiteral(resourceName: "pw")
+        user.groups.insert(element: group)
+        user.ownedGroup <== group
+
+        do {
+            let cache = RealtimeTransaction(database: CacheNode.root)
+            let transaction = try user.save(in: .root, in: cache)
+            transaction.commit(with: { (_, errors) in
+                errors.map { _ in XCTFail() }
+
+                XCTAssertFalse(user.hasChanges)
+
+                user.photo <== #imageLiteral(resourceName: "pw")
+                do {
+                    let update = try user.update()
+                    XCTAssertTrue(update.updateNode.updateValue.isEmpty)
+                    update.commit(with: { _, errors in
+                        errors.map { _ in XCTFail() }
+
+                        XCTAssertFalse(user.hasChanges)
+                        XCTAssertTrue(group.manager ==== user)
+                    })
+                } catch let e {
+                    XCTFail(e.localizedDescription)
+                }
+            })
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
     }
 
     func testRelationOneToOne() {

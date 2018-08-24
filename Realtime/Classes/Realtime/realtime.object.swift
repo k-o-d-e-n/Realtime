@@ -183,7 +183,16 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         _apply_RealtimeValue(data, exactly: exactly)
     }
     
-    public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \("TODO:");\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
+    public var debugDescription: String {
+        return """
+        {
+            ref: \(node?.rootPath ?? "not referred"),
+            version: \(version ?? 0),
+            raw: \(raw ?? "no raw"),
+            has changes: \(_hasChanges)
+        }
+        """
+    }
 }
 extension WritableRealtimeValue where Self: _RealtimeValue {
     public func write(to transaction: RealtimeTransaction, by node: Node) throws {
@@ -256,7 +265,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
-        let links: Links = Links(in: node!.linksNode, options: [.representer: Representer<[SourceLink]>.links])
+        let links: Links = Links(in: node!.linksNode, representer: Representer<[SourceLink]>.links)
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(
                 completion: .just({ refs in
@@ -421,7 +430,35 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         return !ignoredLabels.contains(l)
     }
     
-//    override public var debugDescription: String { return "\n{\n\tref: \(dbRef.pathFromRoot);" }//_allProps.reduce("\n{\n\tref: \(dbRef.pathFromRoot);") { $0 + "\n\"\($1.dbKey)\":" + $1.debugDescription } + "\n}" }
+    override public var debugDescription: String {
+        var values: String = ""
+        enumerateLoadedChilds { (label, val: _RealtimeValue) in
+            if values.isEmpty {
+                values.append(
+                    """
+                            \(label as Any): \(val.debugDescription)
+                    """
+                )
+            } else {
+                values.append(
+                    """
+                    \(val.debugDescription)
+                    """
+                )
+                values.append(",\n")
+            }
+        }
+        return """
+        {
+            ref: \(node?.rootPath ?? "not referred"),
+            version: \(version ?? 0),
+            raw: \(raw ?? "no raw"),
+            has changes: \(_hasChanges),
+            values:
+            \(values)
+        }
+        """
+    }
 }
 
 extension RealtimeObject: Reverting {
@@ -443,9 +480,9 @@ extension RealtimeObject {
     /// writes RealtimeObject in transaction like as single value
     @discardableResult
     public func save(in parent: Node, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        guard let key = self.dbKey else { fatalError("Object has not key. If you cannot set key manually use RealtimeTransaction.set(_:by:) method instead") }
+        guard let key = self.dbKey, let database = self.database else { fatalError("Object has not key. If you cannot set key manually use RealtimeTransaction.set(_:by:) method instead") }
 
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         do {
             try transaction.set(self, by: Node(key: key, parent: parent))
             return transaction
@@ -458,7 +495,9 @@ extension RealtimeObject {
     /// writes changes of RealtimeObject in transaction as independed values
     @discardableResult
     public func update(in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        let transaction = transaction ?? RealtimeTransaction()
+        guard let database = self.database else { fatalError("Object has not database reference, because was not saved") }
+
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         do {
             try transaction.update(self)
             return transaction
@@ -470,7 +509,9 @@ extension RealtimeObject {
 
     /// writes empty value by RealtimeObject reference in transaction 
     public func delete(in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        let transaction = transaction ?? RealtimeTransaction()
+        guard let database = self.database else { fatalError("Object has not database reference, because was not saved") }
+
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         do {
             try transaction.delete(self)
             return transaction

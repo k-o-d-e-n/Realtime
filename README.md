@@ -82,9 +82,9 @@ transaction.commit(with: { state, err in
 
 ### Files
 
-***ReadonlyStorageProperty*** - readonly stored property for file in Firebase Storage.
+***ReadonlyFile*** - readonly stored property for file in Firebase Storage.
 
-***StorageProperty*** - stored property for file in Firebase Storage.
+***File*** - stored property for file in Firebase Storage.
 
 ### Collections
 ```swift
@@ -194,8 +194,11 @@ public protocol Listenable {
 }
 ```
 
-## Limitions
-Implementation didn't test on multithread, and doesn't guarantee stable working on non main thread.
+### Debugging
+Add debug argument 'REALTIME_CRASH_ON_ERROR' passed on launch, to catch internal errors.
+
+## Limitations
+Realtime objects should not passed between threads.
 
 ## Example
 
@@ -217,6 +220,7 @@ pod 'Realtime'
 ## Author
 
 Koryttsev Denis, koden.u8800@gmail.com
+Twitter: [@K_o_D_e_N](https://twitter.com/K_o_D_e_N)
 
 ## License
 

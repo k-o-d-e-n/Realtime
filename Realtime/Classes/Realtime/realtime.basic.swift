@@ -8,7 +8,7 @@
 import Foundation
 import FirebaseDatabase
 
-public struct RealtimeError: Error {
+public struct RealtimeError: LocalizedError {
     let description: String
     let source: Source
 
@@ -79,6 +79,20 @@ public extension FireDataProtocol {
     }
 }
 
+public protocol _RealtimeValueUtilities {
+    static func _isValid(asReference value: Self) -> Bool
+    static func _isValid(asRelation value: Self) -> Bool
+}
+extension _RealtimeValueUtilities where Self: _RealtimeValue {
+    public static func _isValid(asReference value: Self) -> Bool {
+        return value.isRooted
+    }
+    public static func _isValid(asRelation value: Self) -> Bool {
+        return value.isRooted
+    }
+}
+extension _RealtimeValue: _RealtimeValueUtilities {}
+
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
     /// Current version of value.
@@ -96,7 +110,7 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
     init(in node: Node?, options: [RealtimeValueOption: Any])
 }
 
-extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: RealtimeValue {
+extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
     public var version: Int? { return self?.version }
     public var raw: FireDataValue? { return self?.raw }
     public var payload: [String : FireDataValue]? { return self?.payload }
@@ -106,6 +120,13 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: Realt
     }
     public mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
         try self?.apply(data, exactly: exactly)
+    }
+
+    public static func _isValid(asReference value: Optional<Wrapped>) -> Bool {
+        return value.map { $0.isRooted } ?? true
+    }
+    public static func _isValid(asRelation value: Optional<Wrapped>) -> Bool {
+        return value.map { $0.isRooted } ?? true
     }
 }
 extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
@@ -126,9 +147,6 @@ public extension RealtimeValue {
     var isReferred: Bool { return node?.parent != nil }
     var isRooted: Bool { return node?.isRooted ?? false }
 
-    init(in node: Node?) { self.init(in: node, options: [:]) }
-    init() { self.init(in: nil) }
-
     mutating func apply(parentDataIfNeeded parent: FireDataProtocol, exactly: Bool) throws {
         guard exactly || dbKey.has(in: parent) else { return }
 
@@ -136,6 +154,10 @@ public extension RealtimeValue {
     }
 }
 extension HasDefaultLiteral where Self: RealtimeValue {}
+public extension RealtimeObject {
+    convenience init(in node: Node?) { self.init(in: node, options: [:]) }
+    convenience init() { self.init(in: nil) }
+}
 
 public extension Hashable where Self: RealtimeValue {
     var hashValue: Int { return dbKey.hashValue }

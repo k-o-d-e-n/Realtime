@@ -164,6 +164,12 @@ extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral {
         return lhs == nil
     }
 }
+//extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral where Wrapped: HasDefaultLiteral & _ComparableWithDefaultLiteral {
+//    public init() { self = .none }
+//    public static func _isDefaultLiteral(_ lhs: Optional<Wrapped>) -> Bool {
+//        return lhs.map(Wrapped._isDefaultLiteral) ?? lhs == nil
+//    }
+//}
 extension Bool      : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
 extension Int       : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
 extension Double    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
@@ -321,7 +327,7 @@ public extension Representer where V: RealtimeValue {
         },
             decoding: { d in
                 let relation = try Relation(fireData: d)
-                return V(in: Node.root.child(with: relation.targetPath))
+                return V(in: Node.root.child(with: relation.targetPath), options: [:])
         })
     }
 

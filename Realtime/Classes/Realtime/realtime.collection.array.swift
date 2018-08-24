@@ -53,12 +53,19 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 
     let _view: AnyRealtimeCollectionView<[RCItem], RealtimeArray>
 
+    public convenience required init(in node: Node?) {
+        self.init(in: node, options: [:])
+    }
+
     public convenience required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         self.init(
             in: node,
             options: options,
-            viewSource: InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty())
+            viewSource: InternalKeys.items.property(
+                from: viewParentNode,
+                representer: Representer<[RCItem]>(collection: Representer.fireData)
+            ).defaultOnEmpty()
         )
     }
 
@@ -119,18 +126,18 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 
     @discardableResult
     public func write(element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        guard isRooted else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
+        guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
         guard !element.isReferred || element.node!.parent == storage.sourceNode
             else { fatalError("Element must not be referred in other location") }
         guard isPrepared else {
-            let transaction = transaction ?? RealtimeTransaction()
+            let transaction = transaction ?? RealtimeTransaction(database: database)
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
                     if let e = err {
                         promise.reject(e)
                     } else {
                         do {
-                            try collection._insert(element, at: index, in: transaction)
+                            try collection._insert(element, at: index, in: database, in: transaction)
                             promise.fulfill()
                         } catch let e {
                             promise.reject(e)
@@ -141,7 +148,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
             return transaction
         }
 
-        return try _insert(element, at: index, in: transaction)
+        return try _insert(element, at: index, in: database, in: transaction)
     }
 
     public func insert(element: Element, at index: Int? = nil) {
@@ -160,11 +167,11 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
     }
 
     @discardableResult
-    func _insert(_ element: Element, at index: Int? = nil, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+    func _insert(_ element: Element, at index: Int? = nil, in database: RealtimeDatabase, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         guard element.node.map({ _ in !contains(element) }) ?? true
             else { fatalError("Element with such key already exists") }
 
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         try _write(element, at: index ?? count, by: (storage: node!, itms: _view.source.node!), in: transaction)
         return transaction
     }
@@ -190,14 +197,14 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         storage.store(value: element, by: item)
         transaction.addValue(item.fireValue, by: itemNode)
         transaction.addValue(link.link.fireValue, by: link.node)
-        try transaction._set(element, by: elementNode)
+        try transaction.set(element, by: elementNode)
     }
 
     @discardableResult
     public func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
-        guard isRooted else { fatalError("This method is available only for rooted objects") }
+        guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
 
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
@@ -218,9 +225,9 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 
     @discardableResult
     public func remove(at index: Int, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        guard isRooted else { fatalError("This method is available only for rooted objects") }
+        guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
 
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
@@ -298,7 +305,10 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         }
     }
 
-    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
+    /// Collection does not respond for versions and raw value, and also payload.
+    /// To change value version/raw can use enum, but use modified representer.
+    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
+        /// skip the call of super (_RealtimeValue)
         let elems = storage.elements
         storage.elements.removeAll()
         for (index, element) in elems.enumerated() {
@@ -309,14 +319,6 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
                             itms: Node(key: InternalKeys.items, parent: node.linksNode)),
                        in: transaction)
         }
-    }
-
-    /// Collection does not respond for versions and raw value, and also payload.
-    /// To change value version/raw can use enum, but use modified representer.
-    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
-//        super._write(to: transaction, by: node)
-        // writes changes because after save collection can use only transaction mutations
-        try _writeChanges(to: transaction, by: node)
     }
 
     public func didPrepare() {
@@ -332,11 +334,12 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0) }
     }
 
-    public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {  // TODO: Elements don't receive willRemove event
+    public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
         if ancestor == node?.parent {
             transaction.removeValue(by: node!.linksNode)
         }
+        storage.elements.values.forEach { $0.willRemove(in: transaction, from: ancestor) }
     }
     override public func didRemove(from node: Node) {
         super.didRemove(from: node)

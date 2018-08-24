@@ -30,12 +30,11 @@ class Conversation: RealtimeObject {
 
 class RealtimeGroup: RealtimeObject {
     lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
-    //    @objc dynamic var cover: File?
     lazy var users: LinkedRealtimeArray<RealtimeUser> = "users".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var conversations: RealtimeDictionary<RealtimeUser, RealtimeUser> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
     lazy var manager: RealtimeRelation<RealtimeUser?> = "manager".relation(from: self.node, .oneToOne("ownedGroup"))
 
-    lazy var _manager: RealtimeRelation<RealtimeUser> = "_manager".relation(from: self.node, rootLevelsUp: nil, .oneToMany("ownedGroups"))
+    lazy var _manager: RealtimeRelation<RealtimeUser?> = "_manager".relation(from: self.node, rootLevelsUp: nil, .oneToMany("ownedGroups"))
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -53,7 +52,6 @@ class RealtimeUser: RealtimeObject {
     lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
     lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
     lazy var photo: File<UIImage?> = File(in: Node(key: "photo", parent: self.node), representer: Representer.png)
-    //    lazy var gender: String?
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
     lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var scheduledConversations: RealtimeArray<Conversation> = "scheduledConversations".array(from: self.node)

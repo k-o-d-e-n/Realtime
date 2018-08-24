@@ -156,24 +156,36 @@ extension RealtimeTransaction {
     }
 
     public func addFile(_ value: Any, by node: Realtime.Node) {
+        guard node.isRooted else { fatalError("Node should be rooted") }
+
         _addValue(FileNode.self, value, by: node)
     }
 
     public func removeFile(by node: Realtime.Node) {
+        guard node.isRooted else { fatalError("Node should be rooted") }
+
         _addValue(FileNode.self, nil, by: node)
     }
 
     public func addValue(_ value: Any, by node: Realtime.Node) {
+        guard node.isRooted else { fatalError("Node should be rooted") }
+
         _addValue(ValueNode.self, value, by: node)
     }
 
     public func removeValue(by node: Realtime.Node) {
+        guard node.isRooted else { fatalError("Node should be rooted") }
+        
         _addValue(ValueNode.self, nil, by: node)
     }
 
     /// registers new single value for specified reference
     func _addValue(_ valueType: ValueNode.Type = ValueNode.self, _ value: Any?/*FireDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
         let nodes = node.reversed().dropFirst()
+        guard nodes.count > 0 else {
+            fatalError("Tries set value to root node")
+        }
+
         var current = updateNode
         var iterator = nodes.makeIterator()
         while let n = iterator.next() {

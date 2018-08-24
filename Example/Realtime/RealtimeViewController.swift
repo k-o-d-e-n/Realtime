@@ -78,6 +78,8 @@ class RealtimeViewController: UIViewController {
         view.backgroundColor = .white
         edgesForExtendedLayout.remove(.top)
 
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .trash, target: self, action: #selector(free))
+
         Global.rtUsers.prepare(forUse: .just { (users, _) in
             self.user = users.first
         })
@@ -94,6 +96,23 @@ class RealtimeViewController: UIViewController {
         linkButton.addTarget(self, action: #selector(linkUserGroup), for: .touchUpInside)
         unlinkButton.addTarget(self, action: #selector(unlinkUserGroup), for: .touchUpInside)
         loadPhoto.addTarget(self, action: #selector(loadUserPhoto), for: .touchUpInside)
+    }
+
+    @objc func free() {
+        let free = RealtimeTransaction()
+        let testsNode = Node(key: "___tests", parent: .root)
+        free.removeValue(by: testsNode)
+        free.removeValue(by: testsNode.linksNode)
+
+        freeze()
+        free.commit(with: { _, error in
+            self.unfreeze()
+            if let e = error?.first {
+                self.setError(e.localizedDescription)
+            } else {
+                self.setSuccess()
+            }
+        })
     }
 
     @objc func addUser() {
@@ -229,7 +248,9 @@ class RealtimeViewController: UIViewController {
         try! u.ownedGroup.setValue(g, in: transaction)
         try! transaction.merge(ug)
         try! transaction.merge(gu)
+        freeze()
         transaction.commit(with: { _, errs in
+            self.unfreeze()
             if let errors = errs {
                 print(errors)
             } else {
@@ -250,7 +271,9 @@ class RealtimeViewController: UIViewController {
             let transaction = g.users.remove(element: u)
             try! u.ownedGroup.setValue(nil, in: transaction)
 
+            self.freeze()
             transaction?.commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -264,7 +287,9 @@ class RealtimeViewController: UIViewController {
             let transaction = u.groups.remove(element: g)
             try! g.manager.setValue(nil, in: transaction)
 
+            self.freeze()
             transaction?.commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -281,6 +306,7 @@ class RealtimeViewController: UIViewController {
         guard let u = user ?? Global.rtUsers.first, let g = group ?? Global.rtGroups.first else { fatalError() }
 
         let conversationUser = RealtimeUser()
+        conversationUser.age <== 100
         conversationUser.name <== "Conversation #"
         let transaction = try! g.conversations.write(element: conversationUser, for: u)
 
@@ -344,6 +370,16 @@ class RealtimeViewController: UIViewController {
 
         present(picker, animated: true, completion: nil)
     }
+
+    func freeze() {
+        view.isUserInteractionEnabled = false
+        view.alpha = 0.7
+    }
+
+    func unfreeze() {
+        view.isUserInteractionEnabled = true
+        view.alpha = 1
+    }
 }
 
 extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
@@ -365,7 +401,8 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
 
         u.photo <== originalImage
 
-        try! u.update().commit(with: { _,_  in }, filesCompletion: { (results) in
+        let update = try! u.update()
+        update.commit(with: { _,_  in }, filesCompletion: { (results) in
             let errs = results.compactMap({ $0.1 })
             if !errs.isEmpty {
                 self.setError(errs.reduce("", { $0 + $1.localizedDescription }))

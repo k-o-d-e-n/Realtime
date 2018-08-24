@@ -70,8 +70,8 @@ public extension RawRepresentable where Self.RawValue == String {
                                 config: .optional(rootLevelsUp: rootLevelsUp, ownerLevelsUp: ownerLevelsUp, property: property))
     }
 
-    func nested<Type: RealtimeObject>(in object: RealtimeObject) -> Type {
-        let property = Type(in: Node(key: rawValue, parent: object.node))
+    func nested<Type: RealtimeObject>(in object: RealtimeObject, options: [RealtimeValueOption: Any] = [:]) -> Type {
+        let property = Type(in: Node(key: rawValue, parent: object.node), options: options)
         property.parent = object
         return property
     }
@@ -82,7 +82,7 @@ public extension RealtimeValueOption {
     static let reference = RealtimeValueOption("realtime.reference")
 }
 
-public final class RealtimeReference<Referenced: RealtimeValue>: RealtimeProperty<Referenced> {
+public final class RealtimeReference<Referenced: RealtimeValue & _RealtimeValueUtilities>: RealtimeProperty<Referenced> {
     public override var version: Int? { return super._version }
     public override var raw: FireDataValue? { return super._raw }
     public override var payload: [String : FireDataValue]? { return super._payload }
@@ -110,7 +110,7 @@ public final class RealtimeReference<Referenced: RealtimeValue>: RealtimePropert
 
     @discardableResult
     public override func setValue(_ value: Referenced, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        guard value.isRooted else { fatalError("Value must with rooted node") }
+        guard Referenced._isValid(asReference: value) else { fatalError("Value must with rooted node") }
 
         return try super.setValue(value, in: transaction)
     }
@@ -133,7 +133,7 @@ public final class RealtimeReference<Referenced: RealtimeValue>: RealtimePropert
     }
 }
 
-public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Related> {
+public final class RealtimeRelation<Related: RealtimeValue & _RealtimeValueUtilities>: RealtimeProperty<Related> {
     var options: Options
     public override var version: Int? { return super._version }
     public override var raw: FireDataValue? { return super._raw }
@@ -166,7 +166,7 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
 
     @discardableResult
     public override func setValue(_ value: Related, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        guard value.isRooted else { fatalError("Value must with rooted node") }
+        guard Related._isValid(asRelation: value) else { fatalError("Value must with rooted node") }
 
         return try super.setValue(value, in: transaction)
     }
@@ -198,6 +198,7 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
     override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
         if hasChanges {
             try _write(to: transaction, by: node)
+            transaction.addReversion(currentReversion())
             removeOldValueIfExists(in: transaction, by: node)
         }
     }
@@ -254,6 +255,16 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
                 representer: Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode).optionalProperty()
             )
         }
+    }
+
+    public override var debugDescription: String {
+        return """
+        {
+            ref: \(node?.debugDescription ?? "not referred")
+            value:
+                \(_value as Any)
+        }
+        """
     }
 }
 
@@ -347,9 +358,8 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
     fileprivate var oldValue: State<T>?
     internal var _changedValue: T? {
         switch _value {
-        case .none: return nil
         case .some(.local(let v)): return v
-        case .some(.remote), .some(.error), .some(.removed): return nil
+        case .none, .some(.remote), .some(.error), .some(.removed): return nil
         }
     }
     override var _hasChanges: Bool { return _changedValue != nil }
@@ -367,17 +377,36 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
 
     @discardableResult
     public func setValue(_ value: T, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        guard let node = self.node, node.isRooted else { fatalError("Mutation cannot be do. Value is not rooted") }
+        guard let node = self.node, node.isRooted, let database = self.database else { fatalError("Mutation cannot be done. Value is not rooted") }
 
         _setLocalValue(value)
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         try _writeChanges(to: transaction, by: node)
+        transaction.addCompletion { (result) in
+            if result {
+                self.didSave(in: database)
+            }
+        }
         return transaction
+    }
+
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
+        debugAction {
+            if _value == nil {
+                do {
+                    /// test required property
+                    _ = try representer.encode(nil)
+                } catch {
+                    debugFatalError("Required property has been saved, but value does not exists")
+                }
+            }
+        }
     }
 
     override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
         if let changed = _changedValue {
-//            super._writeChanges(to: transaction, by: node)
+            /// skip the call of super (_RealtimeValue)
             transaction.addReversion(currentReversion())
             transaction._addValue(updateType, try representer.encode(changed), by: node)
         }
@@ -386,13 +415,18 @@ public class RealtimeProperty<T>: ReadonlyRealtimeProperty<T>, ChangeableRealtim
     /// Property does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
-//        super._write(to: transaction, by: node)
+        /// skip the call of super (_RealtimeValue)
         switch _value {
         case .none:
             /// throws error if property required
             /// does not add to transaction with consideration about empty node to save operation
             /// otherwise need to use update operation
-            _ = try representer.encode(nil)
+            do {
+                _ = try representer.encode(nil)
+            } catch let e {
+                debugFatalError("Required property has not been set")
+                throw e
+            }
         case .some(.local(let v)): transaction._addValue(updateType, try representer.encode(v), by: node)
         default:
             debugFatalError("Unexpected behavior")
@@ -514,10 +548,10 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
         switch _value {
         case .some(.local(let v)):
             _setValue(.remote(v, exact: true))
-        case .none:
-            debugFatalError("Property has been saved but value does not exists")
-        default:
-            debugFatalError("Property has been saved using does not local value")
+        case .none: break
+        default: break
+            /// now `didSave` calls on update operation, because error does not valid this case
+//            debugFatalError("Property has been saved using non local value")
         }
     }
     
@@ -786,21 +820,24 @@ public extension SharedProperty {
 }
 
 public final class MutationPoint<T> {
+    let database: RealtimeDatabase
     public let node: Node
-    public required init(in node: Node) {
+    public required init(in database: RealtimeDatabase, by node: Node) {
         guard node.isRooted else { fatalError("Node must be rooted") }
+
         self.node = node
+        self.database = database
     }
 }
 public extension MutationPoint where T: FireDataRepresented & FireDataValueRepresented {
     func set(value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         transaction.addValue(value.fireValue, by: node)
 
         return transaction
     }
     func mutate(by key: String? = nil, use value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         transaction.addValue(value.fireValue, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
 
         return transaction
@@ -808,13 +845,13 @@ public extension MutationPoint where T: FireDataRepresented & FireDataValueRepre
 }
 public extension MutationPoint where T: FireDataValue {
     func set(value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         transaction.addValue(value, by: node)
 
         return transaction
     }
     func mutate(by key: String? = nil, use value: T, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         transaction.addValue(value, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
 
         return transaction
@@ -822,7 +859,7 @@ public extension MutationPoint where T: FireDataValue {
 }
 extension MutationPoint {
     func removeValue(for key: String, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
-        let transaction = transaction ?? RealtimeTransaction()
+        let transaction = transaction ?? RealtimeTransaction(database: database)
         transaction.removeValue(by: node.child(with: key))
 
         return transaction
