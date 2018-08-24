@@ -58,7 +58,6 @@ public class ListeningItem {
     }
 
     deinit {
-        print("Deinit ListeningItem")
         dispose()
     }
 }

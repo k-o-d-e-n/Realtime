@@ -289,7 +289,6 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     var sourceNode: Node!
     let elementBuilder: RCElementBuilder<V>
     var elements: [String: Value] = [:]
-    var localElements: [V] = []
 
     mutating func store(value: Value, by key: RCItem) { elements[for: key.dbKey] = value }
     func storedValue(by key: RCItem) -> Value? { return elements[for: key.dbKey] }
@@ -370,11 +369,15 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
         value.insert(element, at: index)
         source._setLocalValue(value)
     }
+    @discardableResult
     func remove(at index: Int) -> RCItem {
         var value = self.value
         let removed = value.remove(at: index)
         source._setLocalValue(value)
         return removed
+    }
+    func removeAll() {
+        source._setLocalValue([])
     }
 }
 

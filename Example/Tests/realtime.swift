@@ -638,3 +638,128 @@ extension Tests {
         }
     }
 }
+
+// MARK: Collections
+
+extension LinkedRealtimeArray: Reverting {
+    public func revert() {
+        guard _hasChanges else { return }
+        storage.elements.removeAll()
+        _view.removeAll()
+    }
+
+    public func currentReversion() -> () -> Void {
+        return { [weak self] in
+            self?.revert()
+        }
+    }
+}
+extension RealtimeArray: Reverting {
+    public func revert() {
+        guard _hasChanges else { return }
+        storage.elements.removeAll()
+        _view.removeAll()
+    }
+
+    public func currentReversion() -> () -> Void {
+        return { [weak self] in
+            self?.revert()
+        }
+    }
+}
+extension RealtimeDictionary: Reverting {
+    public func revert() {
+        guard _hasChanges else { return }
+        storage.elements.removeAll()
+        _view.removeAll()
+    }
+
+    public func currentReversion() -> () -> Void {
+        return { [weak self] in
+            self?.revert()
+        }
+    }
+}
+
+extension Tests {
+    func testLocalChangesLinkedArray() {
+        let linkedArray: LinkedRealtimeArray<TestObject> = "l_array".linkedArray(from: nil, elements: .root)
+
+        linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
+        linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
+
+        var counter = 0
+        linkedArray.forEach { (obj) in
+            counter += 1
+        }
+
+        XCTAssertEqual(linkedArray.count, 2)
+        XCTAssertEqual(counter, 2)
+
+        let transaction = RealtimeTransaction()
+        do {
+            try transaction._update(linkedArray, by: .root)
+            XCTAssertEqual(linkedArray.storage.elements.count, 2)
+            XCTAssertEqual(linkedArray.count, 2)
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+        transaction.revert()
+    }
+    func testLocalChangesArray() {
+        let array: RealtimeArray<TestObject> = "array".array(from: nil)
+
+        let one = TestObject()
+        one.file <== #imageLiteral(resourceName: "pw")
+        array.insert(element: one)
+        let two = TestObject()
+        two.file <== #imageLiteral(resourceName: "pw")
+        array.insert(element: two)
+
+        var counter = 0
+        array.forEach { (obj) in
+            counter += 1
+        }
+
+        XCTAssertEqual(array.count, 2)
+        XCTAssertEqual(counter, 2)
+
+        let transaction = RealtimeTransaction()
+        do {
+            try transaction._update(array, by: .root)
+            XCTAssertEqual(array.storage.elements.count, 2)
+            XCTAssertEqual(array.count, 2)
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+        transaction.revert()
+    }
+    func testLocalChangesDictionary() {
+        let dict: RealtimeDictionary<TestObject, TestObject> = "dict".dictionary(from: nil, keys: .root)
+
+        let one = TestObject()
+        one.file <== #imageLiteral(resourceName: "pw")
+        dict.set(element: one, for: TestObject(in: Node.root.childByAutoId()))
+        let two = TestObject()
+        two.file <== #imageLiteral(resourceName: "pw")
+        dict.set(element: two, for: TestObject(in: Node.root.childByAutoId()))
+
+        var counter = 0
+        dict.forEach { (obj) in
+            counter += 1
+        }
+
+        XCTAssertEqual(dict.count, 2)
+        XCTAssertEqual(counter, 2)
+
+        let transaction = RealtimeTransaction()
+        do {
+            try transaction._update(dict, by: .root)
+            XCTAssertEqual(dict.storage.elements.count, 2)
+            XCTAssertEqual(dict.count, 2)
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+        transaction.revert()
+    }
+}

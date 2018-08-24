@@ -30,7 +30,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
     public override var payload: [String : FireDataValue]? { return nil }
-    override var _hasChanges: Bool { return storage.localElements.count > 0 }
+    override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
@@ -43,8 +43,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 
         self.storage = RCArrayStorage(sourceNode: elements,
                                       elementBuilder: builder,
-                                      elements: [:],
-                                      localElements: [])
+                                      elements: [:])
         self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty()))
         super.init(in: node, options: options)
         self._view.collection = self
@@ -89,8 +88,9 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
     }
 
     override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
-        for (index, element) in storage.localElements.enumerated() {
-            try _write(element, at: index, by: node, in: transaction)
+        for (index, element) in storage.elements.enumerated() {
+            _view.remove(at: index)
+            try _write(element.value, at: index, by: node, in: transaction)
         }
     }
 
@@ -104,9 +104,6 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 
     public func didPrepare() {}
 
-//    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
-
-//    }
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
         _view.source.didSave(in: database, in: parent)
@@ -155,12 +152,14 @@ public extension LinkedRealtimeArray {
     func insert(element: Element, at index: Int? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
-        let contains = element.node.map { n in storage.localElements.contains(where: { $0.dbKey == n.key }) } ?? false
+        let contains = element.node.map { n in storage.elements[n.key] != nil } ?? false
         guard !contains else {
             fatalError("Element with such key already exists")
         }
 
-        storage.localElements.insert(element, at: index ?? storage.localElements.count)
+        let index = index ?? _view.count
+        storage.elements[element.dbKey] = element
+        _view.insert(RCItem(element: element, linkID: "", index: index), at: index)
     }
 
     @discardableResult
