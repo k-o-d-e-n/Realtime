@@ -368,12 +368,12 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
     func insert(_ element: RCItem, at index: Int) {
         var value = self.value
         value.insert(element, at: index)
-        source._setValue(value)
+        source._setLocalValue(value)
     }
     func remove(at index: Int) -> RCItem {
         var value = self.value
         let removed = value.remove(at: index)
-        source._setValue(value)
+        source._setLocalValue(value)
         return removed
     }
 }

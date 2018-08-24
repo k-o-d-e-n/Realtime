@@ -78,7 +78,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         let builder = options[.elementBuilder] as? RCElementBuilder<Value> ?? Value.init
         self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: builder, elements: [:], localElements: [:])
-        self._view = AnyRealtimeCollectionView(InternalKeys.items._property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty()))
+        self._view = AnyRealtimeCollectionView(InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty()))
         super.init(in: node, options: options)
         self._view.collection = self
     }

@@ -9,12 +9,14 @@ import Foundation
 import FirebaseDatabase
 
 public struct RealtimeError: Error {
-    let localizedDescription: String
+    let description: String
     let source: Source
+
+    public var localizedDescription: String { return description }
 
     init(source: Source, description: String) {
         self.source = source
-        self.localizedDescription = description
+        self.description = description
     }
 
     enum Source {

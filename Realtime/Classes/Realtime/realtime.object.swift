@@ -328,7 +328,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
             try mirror.children.forEach({ (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
 
-                if let value: _RealtimeValue = realtimeValue(from: child.value) {
+                if let value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
                     if let valNode = value.node {
                         try value._write(to: transaction, by: node.child(with: valNode.key))
                     } else {
@@ -457,21 +457,36 @@ extension RealtimeObject {
         guard let key = self.dbKey else { fatalError("Object has not key. If you cannot set key manually use RealtimeTransaction.set(_:by:) method instead") }
 
         let transaction = transaction ?? RealtimeTransaction()
-        try transaction.set(self, by: Node(key: key, parent: parent))
-        return transaction
+        do {
+            try transaction.set(self, by: Node(key: key, parent: parent))
+            return transaction
+        } catch let e {
+            transaction.revert()
+            throw e
+        }
     }
 
     /// writes changes of RealtimeObject in transaction as independed values
     public func update(in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
-        try transaction.update(self)
-        return transaction
+        do {
+            try transaction.update(self)
+            return transaction
+        } catch let e {
+            transaction.revert()
+            throw e
+        }
     }
 
     /// writes empty value by RealtimeObject reference in transaction 
     public func delete(in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
-        try transaction.delete(self)
-        return transaction
+        do {
+            try transaction.delete(self)
+            return transaction
+        } catch let e {
+            transaction.revert()
+            throw e
+        }
     }
 }

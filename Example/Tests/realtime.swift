@@ -64,8 +64,8 @@ class TestObject: RealtimeObject {
     lazy var array: RealtimeArray<TestObject> = "array".array(from: self.node)
     lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
-    lazy var readonlyFile: ReadonlyStorageProperty<UIImage> = ReadonlyStorageProperty(in: Node(key: "readonlyFile", parent: self.node), representer: .png)
-    lazy var file: StorageProperty<UIImage> = StorageProperty(in: Node(key: "file", parent: self.node), representer: .jpeg())
+    lazy var readonlyFile: ReadonlyFile<UIImage> = ReadonlyFile(in: Node(key: "readonlyFile", parent: self.node), representer: .png)
+    lazy var file: File<UIImage> = File(in: Node(key: "file", parent: self.node), representer: .jpeg())
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -85,9 +85,9 @@ class TestObject: RealtimeObject {
         return [\TestObject.property, \TestObject.linkedArray, \TestObject.array, \TestObject.dictionary, \TestObject.nestedObject]
     }
 
-    class NestedObject: TestObject {
+    class NestedObject: RealtimeObject {
         lazy var lazyProperty: RealtimeProperty<String?> = "lazyprop".property(from: self.node)
-        var usualProperty: RealtimeProperty<String?>?
+        var usualProperty: RealtimeProperty<String?>
 
         required init(in node: Node?, options: [RealtimeValueOption : Any]) {
             self.usualProperty = "usualprop".property(from: node)
@@ -114,15 +114,16 @@ class TestObject: RealtimeObject {
 
 extension Tests {
     func testNestedObjectChanges() {
-        let testObject = TestObject(in: .root)
+        let testObject = TestObject(in: Node(key: "t_obj"))
 
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
+        testObject.file <== #imageLiteral(resourceName: "pw")
 
         do {
-            let trans = try testObject.update()
+            let trans = try testObject.save(in: .root)
             let value = trans.updateNode.updateValue
-            let expectedValue = ["/prop":"string", "/nestedObject/lazyprop":"nested_string"] as [String: Any?]
+            let expectedValue = ["/t_obj/prop":"string", "/t_obj/nestedObject/lazyprop":"nested_string"] as [String: Any?]
 
             XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
             trans.revert()
@@ -168,11 +169,13 @@ extension Tests {
         XCTAssertNoThrow(try testObject.linkedArray.write(element: linkedObject, in: transaction))
 
         let object = TestObject(in: Node(key: "elem_1"))
+        object.file <== #imageLiteral(resourceName: "pw")
         object.property <== "prop"
         testObject.array._view.isPrepared = true
         XCTAssertNoThrow(try testObject.array.write(element: object, in: transaction))
 
         let element = TestObject()
+        element.file <== #imageLiteral(resourceName: "pw")
         element.property <== "element #1"
         testObject.dictionary._view.isPrepared = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
@@ -188,16 +191,19 @@ extension Tests {
 
     func testCollectionOnStandaloneObject() {
         let testObject = TestObject(in: Node(key: "test_obj"))
+        testObject.file <== #imageLiteral(resourceName: "pw")
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
         linkedObject.property <== "#1"
         testObject.linkedArray.insert(element: linkedObject)
 
         let object = TestObject(in: Node(key: "elem_1"))
+        object.file <== #imageLiteral(resourceName: "pw")
         object.property <== "prop"
         testObject.array.insert(element: object)
 
         let element = TestObject()
+        element.file <== #imageLiteral(resourceName: "pw")
         element.property <== "element #1"
         testObject.dictionary.set(element: element, for: linkedObject)
 
@@ -225,6 +231,7 @@ extension Tests {
             element.nestedObject.lazyProperty <== "value"
             let child = TestObject()
             child.property <== "element #1"
+            child.file <== #imageLiteral(resourceName: "pw")
             element.array._view.isPrepared = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
@@ -319,7 +326,7 @@ extension Tests {
 
             let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
 
-            if case .error(let e, _) = userCopy.ownedGroup.lastEvent {
+            if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
                 XCTFail(e.localizedDescription)
             } else {
                 XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == userCopy.ownedGroup.unwrapped?.dbKey)
@@ -342,7 +349,7 @@ extension Tests {
 
             let conversationCopy = try Conversation(fireData: data.child(forPath: conversation.node!.rootPath), strongly: false)
 
-            if case .error(let e, _) = conversation.chairman.lastEvent {
+            if case .error(let e, _)? = conversation.chairman.lastEvent {
                 XCTFail(e.localizedDescription)
             } else {
                 XCTAssertTrue(conversationCopy.secretary.unwrapped?.dbKey == conversation.secretary.unwrapped?.dbKey)
@@ -355,8 +362,7 @@ extension Tests {
     }
 
     func testRepresenterOptional() {
-        let options = RealtimeRelation<TestObject>.Options(rootLevelsUp: nil, ownerLevelsUp: 1, property: .oneToOne("prop"))
-        let representer = Representer<TestObject>.relation(options.property, rootLevelsUp: options.rootLevelsUp, ownerNode: options.ownerNode).optional()
+        let representer = Representer<TestObject>.relation(.oneToOne("prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil)).optional()
         do {
             let object = try representer.decode(ValueNode(node: Node(key: ""), value: nil))
             XCTAssertNil(object)
