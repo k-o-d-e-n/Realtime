@@ -82,16 +82,16 @@ public protocol FireDataRepresented {
     ///
     /// - Parameters:
     ///   - snapshot: Snapshot value
-    ///   - strongly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
+    ///   - exactly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
     ///               Pass `false` if snapshot represents part of data (for example filtered list).
-    mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws
+    mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws
 }
 extension FireDataRepresented {
-    mutating public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+    mutating public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
         self = try Self.init(fireData: data)
     }
     mutating func apply(_ data: FireDataProtocol) throws {
-        try apply(data, strongly: true)
+        try apply(data, exactly: true)
     }
 }
 public protocol FireDataValueRepresented {

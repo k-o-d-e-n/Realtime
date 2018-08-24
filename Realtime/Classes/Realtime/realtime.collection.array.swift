@@ -102,7 +102,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 
         query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
             do {
-                try self.apply(data, strongly: false)
+                try self.apply(data, exactly: false)
                 completion(self.filter { data.hasChild($0.dbKey) }, nil)
             } catch let e {
                 completion(self.filter { data.hasChild($0.dbKey) }, e)
@@ -270,26 +270,26 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 
     public required convenience init(fireData: FireDataProtocol) throws {
         self.init(in: fireData.dataRef.map(Node.from))
-        try apply(fireData, strongly: true)
+        try apply(fireData, exactly: true)
     }
 
     var _snapshot: (FireDataProtocol, Bool)?
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
         guard _view.isPrepared else {
-            _snapshot = (data, strongly)
+            _snapshot = (data, exactly)
             return
         }
         _snapshot = nil
         try _view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if strongly { storage.elements.removeValue(forKey: key.dbKey) }
+                if exactly { storage.elements.removeValue(forKey: key.dbKey) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
             if var element = storage.elements[key.dbKey] {
-                try element.apply(childData, strongly: strongly)
+                try element.apply(childData, exactly: exactly)
             } else {
-                storage.elements[key.dbKey] = try Element(fireData: childData, strongly: strongly)
+                storage.elements[key.dbKey] = try Element(fireData: childData, exactly: exactly)
             }
         }
     }

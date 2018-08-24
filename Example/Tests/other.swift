@@ -50,7 +50,7 @@ extension OtherTests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any, .initialValue: [0]])
+        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any.requiredProperty(), .initialValue: [0]])
         let one = AnyRealtimeCollectionView<[Int], RealtimeArray<RealtimeObject>>(source)//SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)

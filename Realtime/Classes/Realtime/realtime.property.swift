@@ -177,9 +177,9 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
         }
     }
 
-    public override func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        _apply_RealtimeValue(data, strongly: strongly)
-        try super.apply(data, strongly: strongly)
+    public override func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        _apply_RealtimeValue(data, exactly: exactly)
+        try super.apply(data, exactly: exactly)
     }
 
     private func removeOldValueIfExists(in transaction: RealtimeTransaction, by node: Node) {
@@ -494,14 +494,14 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
 
     public convenience required init(fireData: FireDataProtocol) throws {
         self.init(in: fireData.dataRef.map(Node.from))
-        try apply(fireData, strongly: true)
+        try apply(fireData, exactly: true)
     }
 
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-//        super.apply(data, strongly: strongly)
+    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+//        super.apply(data, exactly: exactly)
         do {
             if let value = try representer.decode(data) {
-                _setValue(.remote(value, strong: strongly))
+                _setValue(.remote(value, strong: exactly))
             } else {
                 _setRemoved()
             }
@@ -701,11 +701,11 @@ public final class SharedProperty<T>: _RealtimeValue where T: FireDataValue & Ha
 
     public convenience required init(fireData: FireDataProtocol) throws {
         self.init(in: fireData.dataRef.map(Node.from))
-        try apply(fireData, strongly: true)
+        try apply(fireData, exactly: true)
     }
 
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        try super.apply(data, strongly: strongly)
+    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        try super.apply(data, exactly: exactly)
         setValue(try representer.decode(data))
     }
 

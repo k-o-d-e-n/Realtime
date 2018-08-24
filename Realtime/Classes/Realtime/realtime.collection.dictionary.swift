@@ -123,7 +123,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
         query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
             do {
-                try self.apply(data, strongly: false)
+                try self.apply(data, exactly: false)
                 completion(self.filter { data.hasChild($0.key.dbKey) }, nil)
             } catch let e {
                 completion(self.filter { data.hasChild($0.key.dbKey) }, e)
@@ -278,27 +278,27 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
     public convenience init(fireData: FireDataProtocol, keysNode: Node) throws {
         self.init(in: fireData.dataRef.map(Node.from), options: [.keysNode: keysNode])
-        try apply(fireData, strongly: true)
+        try apply(fireData, exactly: true)
     }
 
     var _snapshot: (FireDataProtocol, Bool)?
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
         guard _view.isPrepared else {
-            _snapshot = (data, strongly)
+            _snapshot = (data, exactly)
             return
         }
         _snapshot = nil
         try _view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if strongly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }
+                if exactly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
             if var element = storage.elements.first(where: { $0.0.dbKey == key.dbKey })?.value {
-                try element.apply(childData, strongly: strongly)
+                try element.apply(childData, exactly: exactly)
             } else {
                 let keyEntity = Key(in: storage.keysNode.child(with: key.dbKey))
-                storage.elements[keyEntity] = try Value(fireData: childData, strongly: strongly)
+                storage.elements[keyEntity] = try Value(fireData: childData, exactly: exactly)
             }
         }
     }

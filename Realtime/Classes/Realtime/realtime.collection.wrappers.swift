@@ -37,7 +37,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(after i: Int) -> Int { fatalError() }
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
-    func apply(_ data: FireDataProtocol, strongly: Bool) throws { fatalError() }
+    func apply(_ data: FireDataProtocol, exactly: Bool) throws { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
     func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
@@ -75,7 +75,7 @@ where C.Index == Int {
     override func index(before i: Int) -> Int { return base.index(before: i) }
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
-    override func apply(_ data: FireDataProtocol, strongly: Bool) throws { try base.apply(data, strongly: strongly) }
+    override func apply(_ data: FireDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving() -> Bool { return base.runObserving() }
@@ -117,7 +117,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
     public convenience required init(fireData: FireDataProtocol) throws { fatalError() }
-    public func apply(_ data: FireDataProtocol, strongly: Bool) throws { try base.apply(data, strongly: strongly) }
+    public func apply(_ data: FireDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
 }
 
 // TODO: Create wrapper that would sort array (sorting by default) (example array from tournament table)
@@ -236,8 +236,8 @@ where Element: RealtimeValue {
         fatalError("Cannot use this initializer")
     }
 
-    public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        try base.apply(data, strongly: strongly)
+    public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        try base.apply(data, exactly: exactly)
     }
 
     public func didPrepare() { fatalError() }
@@ -299,8 +299,8 @@ where Base.Index == Int {
         fatalError("Cannot use this initializer")
     }
 
-    public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        try base.apply(data, strongly: strongly)
+    public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        try base.apply(data, exactly: exactly)
     }
 
     public func didPrepare() {

@@ -96,11 +96,11 @@ class TestObject: RealtimeObject {
 
         required convenience init(fireData: FireDataProtocol) throws {
             self.init(in: fireData.dataRef.map(Node.from))
-            try apply(fireData, strongly: true)
+            try apply(fireData, exactly: true)
         }
 
-        override func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-            try super.apply(data, strongly: strongly)
+        override func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+            try super.apply(data, exactly: exactly)
         }
 
         override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
@@ -241,11 +241,11 @@ extension Tests {
 
             let data = try element.update(in: transaction).updateNode
 
-            let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), strongly: false)
+            let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), exactly: false)
             object.array.listening {
                 exp.fulfill()
             }.add(to: &store)
-            try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), strongly: true)
+            try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), exactly: true)
 
             XCTAssertNotNil(object.file.wrapped)
 //            XCTAssertEqual(object.file.wrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
@@ -276,9 +276,9 @@ extension Tests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
+            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
 
-            try group.apply(data.child(forPath: group.node!.rootPath), strongly: false)
+            try group.apply(data.child(forPath: group.node!.rootPath), exactly: false)
 
             XCTAssertTrue(group.manager.unwrapped.dbKey == user.dbKey)
             XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == group.dbKey)
@@ -300,10 +300,10 @@ extension Tests {
 
             let data = try group.update(in: transaction).updateNode
 
-            let groupCopy = try RealtimeGroup(fireData: data.child(forPath: group.node!.rootPath), strongly: false)
+            let groupCopy = try RealtimeGroup(fireData: data.child(forPath: group.node!.rootPath), exactly: false)
 
             let groupBackwardRelation: RealtimeRelation<RealtimeGroup> = group._manager.options.property.path(for: group.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
-            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), strongly: false)
+            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: false)
 
             XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
             XCTAssertTrue(group._manager.wrapped?.dbKey == user.dbKey)
@@ -324,7 +324,7 @@ extension Tests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
+            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
 
             if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -347,7 +347,7 @@ extension Tests {
 
             let data = try conversation.update(in: transaction).updateNode
 
-            let conversationCopy = try Conversation(fireData: data.child(forPath: conversation.node!.rootPath), strongly: false)
+            let conversationCopy = try Conversation(fireData: data.child(forPath: conversation.node!.rootPath), exactly: false)
 
             if case .error(let e, _)? = conversation.chairman.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -475,8 +475,8 @@ extension Tests {
             }
         }
 
-        mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-            try value.apply(data, strongly: strongly)
+        mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+            try value.apply(data, exactly: exactly)
             let r = data.rawValue as? Int ?? 0
             if raw as? Int != r {
                 switch r {

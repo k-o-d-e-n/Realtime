@@ -54,7 +54,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 
     public convenience init(fireData: FireDataProtocol, elementsNode: Node) throws {
         self.init(in: fireData.dataRef.map(Node.from), options: [.elementsNode: elementsNode])
-        try apply(fireData, strongly: true)
+        try apply(fireData, exactly: true)
     }
 
     public required init(fireData: FireDataProtocol) throws {
@@ -81,10 +81,10 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
     override public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        try super.apply(data, strongly: strongly)
-        try _view.source.apply(data, strongly: strongly)
-        _view.isPrepared = strongly
+    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        try super.apply(data, exactly: exactly)
+        try _view.source.apply(data, exactly: exactly)
+        _view.isPrepared = exactly
     }
 
     override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
