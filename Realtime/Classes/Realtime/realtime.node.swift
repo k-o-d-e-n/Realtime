@@ -23,7 +23,8 @@ enum InternalKeys: String {
 public class Node: Equatable {
     public static let root: Node = Root()
     class Root: Node {
-        init() { super.init(key: "") }
+        init() { super.init(key: "", parent: nil) }
+        override var parent: Node? { set {} get { return nil } }
         override var isRoot: Bool { return true }
         override var isRooted: Bool { return true }
         override var root: Node? { return nil }
@@ -31,22 +32,25 @@ public class Node: Equatable {
         override var rootPath: String { return "" }
         override func path(from node: Node) -> String { fatalError("Root node cannot have parent nodes") }
         override func hasParent(node: Node) -> Bool { return false }
-        override func reference(for database: Database) -> DatabaseReference { return .root(of: database) }
         override var description: String { return "root" }
     }
 
     public let key: String
-    public var parent: Node?
+    public internal(set) var parent: Node?
 
     public convenience init(parent: Node? = nil) {
-        self.init(key: DatabaseReference.root().childByAutoId().key, parent: parent)
+        self.init(key: RealtimeApp.app.database.generateAutoID(), parent: parent)
     }
 
     public convenience init<Key: RawRepresentable>(key: Key, parent: Node? = nil) where Key.RawValue == String {
         self.init(key: key.rawValue, parent: parent)
     }
 
-    public init(key: String, parent: Node? = nil) {
+    public convenience init(key: String) {
+        self.init(key: key, parent: nil)
+    }
+
+    public init(key: String, parent: Node?) {
         self.key = key
         self.parent = parent
     }
@@ -127,6 +131,15 @@ public class Node: Equatable {
 
     public var description: String { return rootPath }
     public var debugDescription: String { return description }
+}
+extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
+public extension Node {
+    static func root<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
+        return Node.root.child(with: path.rawValue)
+    }
+    static func from(_ reference: DatabaseReference) -> Node {
+        return Node.root.child(with: reference.rootPath)
+    }
 
     public func reference(for database: Database = Database.database()) -> DatabaseReference {
         return .fromRoot(rootPath, of: database)
@@ -134,18 +147,7 @@ public class Node: Equatable {
     public func file(for storage: Storage = Storage.storage()) -> StorageReference {
         return storage.reference(withPath: rootPath)
     }
-}
-extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
-public extension Node {
-    static func root<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
-        return Node.root.child(with: path.rawValue)
-    }
-    static func from(_ snapshot: FireDataProtocol) -> Node? {
-        return snapshot.dataRef.map(Node.from)
-    }
-    static func from(_ reference: DatabaseReference) -> Node {
-        return Node.root.child(with: reference.rootPath)
-    }
+
     func childByAutoId() -> Node {
         return Node(parent: self)
     }
@@ -206,7 +208,7 @@ public extension Node {
     }
 }
 public extension Node {
-    static var linksNode: Node { return Node.root.child(with: InternalKeys.links) }
+    static var linksNode: Node { return RealtimeApp.app.linksNode }
     var linksNode: Node {
         guard isRooted else { fatalError("Try get links node from not rooted node: \(self)") }
         return copy(to: Node.linksNode)
@@ -215,7 +217,7 @@ public extension Node {
         return generate(linkTo: [targetNode])
     }
     internal func generate(linkTo targetNodes: [Node]) -> (node: Node, link: SourceLink) {
-        return generate(linkKeyedBy: DatabaseReference.root().childByAutoId().key, to: targetNodes)
+        return generate(linkKeyedBy: RealtimeApp.app.database.generateAutoID(), to: targetNodes)
     }
     internal func generate(linkKeyedBy linkKey: String, to targetNodes: [Node]) -> (node: Node, link: SourceLink) {
         return (linksNode.child(with: linkKey), SourceLink(id: linkKey, links: targetNodes.map { $0.rootPath }))

@@ -52,17 +52,9 @@ class RealtimeGroup: RealtimeObject {
 class RealtimeUser: RealtimeObject {
     lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
     lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
-    lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png.optional())
+    lazy var photo: File<UIImage?> = File(in: Node(key: "photo", parent: self.node), representer: Representer.png)
     //    lazy var gender: String?
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
-    //    @objc dynamic var items: [String] = []
-    //    @objc dynamic var location: CLLocation?
-    //    @objc dynamic var url: URL?
-    //    @objc dynamic var birth: Date?
-    //    @objc dynamic var thumbnail: File?
-    //    @objc dynamic var cover: File?
-    //    @objc dynamic var type: UserType = .first
-    //    @objc dynamic var testItems: Set<String> = []
     lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
     lazy var scheduledConversations: RealtimeArray<Conversation> = "scheduledConversations".array(from: self.node)
 
@@ -108,6 +100,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         FirebaseApp.configure()
+        RealtimeApp.initialize()
         return true
     }
 

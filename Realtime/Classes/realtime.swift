@@ -8,14 +8,17 @@
 import Foundation
 import FirebaseDatabase
 
-struct RealtimeApp {
-    let database: RealtimeDatabase
+public struct RealtimeApp {
+    public let database: RealtimeDatabase
+    let linksNode: Node
 //    let storage:
 
-    static func initialize(with database: RealtimeDatabase = Database.database()) {
-        RealtimeApp.app = RealtimeApp(database: database)
+    public static func initialize(with database: RealtimeDatabase = Database.database(),
+                           linksNode: Node? = nil) {
+        RealtimeApp._app = RealtimeApp(database: database, linksNode: linksNode ?? Node(key: InternalKeys.links, parent: .root))
     }
 }
 extension RealtimeApp {
-    static var app: RealtimeApp!
+    fileprivate static var _app: RealtimeApp!
+    public static var app: RealtimeApp { return _app }
 }

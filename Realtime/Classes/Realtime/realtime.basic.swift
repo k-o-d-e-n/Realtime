@@ -9,19 +9,24 @@ import Foundation
 import FirebaseDatabase
 
 public struct RealtimeError: Error {
-    let localizedDescription: String
+    let description: String
     let source: Source
+
+    public var localizedDescription: String { return description }
 
     init(source: Source, description: String) {
         self.source = source
-        self.localizedDescription = description
+        self.description = description
     }
 
     enum Source {
         case value
+        case collection
+
+        case listening
         case coding
         case transaction([Error])
-        case collection
+        case cache
     }
 
     init<T>(initialization type: T.Type, _ data: Any) {
@@ -31,7 +36,7 @@ public struct RealtimeError: Error {
         self.init(source: .coding, description: "Failed decoding data: \(data) to type: \(T.self). Reason: \(reason)")
     }
     init<T>(encoding value: T, reason: String) {
-        self.init(source: .coding, description: "Failed encoding value: \(value). Reason: \(reason)")
+        self.init(source: .coding, description: "Failed encoding value of type: \(value). Reason: \(reason)")
     }
 }
 
@@ -53,6 +58,7 @@ public struct RealtimeValueOption: Hashable {
     }
 }
 public extension RealtimeValueOption {
+    static let database: RealtimeValueOption = RealtimeValueOption("realtime.database")
     static let payload: RealtimeValueOption = RealtimeValueOption("realtime.value.payload")
     internal static let internalPayload: RealtimeValueOption = RealtimeValueOption("realtime.value.internalPayload")
 }
@@ -98,14 +104,14 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: Realt
     public init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))
     }
-    public mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        try self?.apply(data, strongly: strongly)
+    public mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        try self?.apply(data, exactly: exactly)
     }
 }
 extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
-    public init(fireData: FireDataProtocol) throws {
+    public init(fireData: FireDataProtocol, exactly: Bool) throws {
         if fireData.exists() {
-            self = .some(try Wrapped(fireData: fireData))
+            self = .some(try Wrapped(fireData: fireData, exactly: exactly))
         } else {
             self = .none
         }
@@ -114,9 +120,6 @@ extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
 
 public extension RealtimeValue {
     var dbKey: String! { return node?.key }
-    func dbRef(_ database: Database = Database.database()) -> DatabaseReference? {
-        return node.flatMap { $0.isRooted ? $0.reference(for: database) : nil }
-    }
 
     var isInserted: Bool { return isRooted }
     var isStandalone: Bool { return !isRooted }
@@ -125,19 +128,11 @@ public extension RealtimeValue {
 
     init(in node: Node?) { self.init(in: node, options: [:]) }
     init() { self.init(in: nil) }
-    init(fireData: FireDataProtocol, strongly: Bool) throws {
-        if strongly {
-            try self.init(fireData: fireData)
-        } else {
-            self.init(in: fireData.dataRef.map(Node.from))
-            try apply(fireData, strongly: false)
-        }
-    }
 
-    mutating func apply(parentDataIfNeeded parent: FireDataProtocol, strongly: Bool) throws {
-        guard strongly || dbKey.has(in: parent) else { return }
+    mutating func apply(parentDataIfNeeded parent: FireDataProtocol, exactly: Bool) throws {
+        guard exactly || dbKey.has(in: parent) else { return }
 
-        try apply(dbKey.child(from: parent), strongly: strongly)
+        try apply(dbKey.child(from: parent), exactly: exactly)
     }
 }
 extension HasDefaultLiteral where Self: RealtimeValue {}
@@ -177,7 +172,7 @@ public protocol RealtimeValueEvents {
     ///
     /// - Parameter parent: Parent node
     /// - Parameter key: Location in parent node
-    func didSave(in parent: Node, by key: String)
+    func didSave(in database: RealtimeDatabase, in parent: Node, by key: String)
     /// Must call always before removing action
     ///
     /// - Parameters:
@@ -196,16 +191,16 @@ extension RealtimeValueEvents where Self: RealtimeValue {
         }
         willSave(in: transaction, in: parent, by: node.key)
     }
-    func didSave(in parent: Node) {
+    func didSave(in database: RealtimeDatabase, in parent: Node) {
         if let node = self.node {
-            didSave(in: parent, by: node.key)
+            didSave(in: database, in: parent, by: node.key)
         } else {
             debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.rootPath)")
         }
     }
-    func didSave() {
+    func didSave(in database: RealtimeDatabase) {
         if let parent = node?.parent, let node = self.node {
-            didSave(in: parent, by: node.key)
+            didSave(in: database, in: parent, by: node.key)
         } else {
             debugFatalError("Rootless value has been saved to undefined location")
         }

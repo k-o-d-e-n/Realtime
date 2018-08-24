@@ -51,16 +51,17 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 
     // MARK: Realtime
 
-    public convenience init(fireData: FireDataProtocol, elementsNode: Node) throws {
-        self.init(in: fireData.dataRef.map(Node.from), options: [.elementsNode: elementsNode])
-        try apply(fireData, strongly: true)
+    public convenience init(fireData: FireDataProtocol, exactly: Bool, elementsNode: Node) throws {
+        self.init(in: fireData.node, options: [.elementsNode: elementsNode,
+                                               .database: fireData.database as Any])
+        try apply(fireData, exactly: exactly)
     }
 
-    public required init(fireData: FireDataProtocol) throws {
+    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
         #if DEBUG
-            fatalError("LinkedRealtimeArray does not supported init(fireData:) yet.")
+            fatalError("LinkedRealtimeArray does not supported init(fireData:exactly:) yet.")
         #else
-            throw RealtimeError(source: .collection, description: "LinkedRealtimeArray does not supported init(fireData:) yet.")
+            throw RealtimeError(source: .collection, description: "LinkedRealtimeArray does not supported init(fireData:exactly:) yet.")
         #endif
     }
 
@@ -80,10 +81,10 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
     override public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        try super.apply(data, strongly: strongly)
-        try _view.source.apply(data, strongly: strongly)
-        _view.isPrepared = strongly
+    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        try super.apply(data, exactly: exactly)
+        try _view.source.apply(data, exactly: exactly)
+        _view.isPrepared = exactly
     }
 
     override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
@@ -103,12 +104,9 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 
     public func didPrepare() {}
 
-//    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
-
-//    }
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
-        _view.source.didSave(in: parent)
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
+        _view.source.didSave(in: database, in: parent)
     }
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
@@ -133,12 +131,15 @@ public extension LinkedRealtimeArray {
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    guard err == nil else { return promise.fulfill(err) }
-                    do {
-                        try collection._write(element, at: index, in: transaction)
-                        promise.fulfill(nil)
-                    } catch let e {
-                        promise.fulfill(e)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        do {
+                            try collection._write(element, at: index, in: transaction)
+                            promise.fulfill()
+                        } catch let e {
+                            promise.reject(e)
+                        }
                     }
                 })
             }
@@ -167,11 +168,6 @@ public extension LinkedRealtimeArray {
 
         let transaction = transaction ?? RealtimeTransaction()
         try _write(element, at: index ?? count, by: node!, in: transaction)
-        transaction.addCompletion { [weak self] (result) in
-            if result {
-                self?.didSave()
-            }
-        }
         return transaction
     }
 
@@ -205,8 +201,12 @@ public extension LinkedRealtimeArray {
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection._remove(element, in: transaction)
-                    promise.fulfill(err)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        collection._remove(element, in: transaction)
+                        promise.fulfill()
+                    }
                 })
             }
             return transaction
@@ -224,8 +224,12 @@ public extension LinkedRealtimeArray {
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection._remove(at: index, in: transaction)
-                    promise.fulfill(err)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        collection._remove(at: index, in: transaction)
+                        promise.fulfill()
+                    }
                 })
             }
             return transaction
@@ -257,11 +261,6 @@ public extension LinkedRealtimeArray {
             with: item.dbKey.subpath(with: item.linkID)
         )
         transaction.removeValue(by: elementLinksNode)
-        transaction.addCompletion { [weak self] (result) in
-            if result {
-                self?.didSave()
-            }
-        }
     }
 }
 

@@ -9,7 +9,7 @@
 
 import UIKit
 
-public class ReuseItem<View: AnyObject>: InsiderOwner {
+public class ReuseItem<View: AnyObject> {
     private weak var view: View? {
         didSet {
             if let v = view, v !== oldValue {
@@ -19,7 +19,6 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
     }
     private var listeningItems: [ListeningItem] = []
 
-
     init() {}
     deinit { free() }
 
@@ -28,11 +27,11 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
             set { view.map { v in assign(v, newValue) } }
             get { fatalError() }
         }
-        listeningItems.append(value.listeningItem({ data = $0 }))
+        listeningItems.append(value.listeningItem(onValue: { data = $0 }))
 
         guard source.canObserve else { return }
         if source.runObserving() {
-            listeningItems.append(ListeningItem(start: { () }, stop: source.stopObserving, notify: {}, token: nil))
+            listeningItems.append(ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
         } else {
             debugFatalError("Observing is not running")
         }
@@ -43,18 +42,18 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
             set { view.map { v in assign(v, newValue) } }
             get { fatalError() }
         }
-        listeningItems.append(value.listeningItem({ data = $0 }))
+        listeningItems.append(value.listeningItem(onValue: { data = $0 }))
 
         guard value.canObserve else { return }
         if value.runObserving() {
-            listeningItems.append(ListeningItem(start: { () }, stop: value.stopObserving, notify: {}, token: nil))
+            listeningItems.append(ListeningItem(resume: { () }, pause: value.stopObserving, token: nil))
         } else {
             debugFatalError("Observing is not running")
         }
     }
 
     public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
-        listeningItems.append(filter({ $0 != nil }).map({ $0! }).listeningItem({ assign($0, value) }))
+        listeningItems.append(filter({ $0 != nil }).map({ $0! }).listeningItem(onValue: { assign($0, value) }))
     }
 
     func free() {
@@ -65,14 +64,19 @@ public class ReuseItem<View: AnyObject>: InsiderOwner {
 
     func set(view: View) {
         self.view = view
-        insider.dataDidChange()
+        repeater.send(.value(view))
     }
 
     func reload() {
-        listeningItems.forEach { $0.start() }
+        listeningItems.forEach { $0.resume() }
     }
 
-    public lazy var insider: Insider<View?> = Insider(source: { [unowned self] in self.view })
+    lazy var repeater: Repeater<View?> = Repeater.unsafe()
+}
+extension ReuseItem: Listenable {
+    public func listening(_ assign: Assign<ListenEvent<View?>>) -> Disposable {
+        return repeater.listening(assign)
+    }
 }
 
 public class ReuseController<View: AnyObject, Key: Hashable> {

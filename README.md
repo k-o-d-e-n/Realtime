@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/cocoapods/l/Realtime.svg?style=flat)](http://cocoapods.org/pods/Realtime)
 [![Platform](https://img.shields.io/cocoapods/p/Realtime.svg?style=flat)](http://cocoapods.org/pods/Realtime)
 
-Realtime is database framework based on Firebase that makes the creation of complex database structures is simple. :exclamation:
+Realtime is database framework based on Firebase that makes the creation of complex database structures is simple.
 Realtime can help you to create app quicker than if use clear Firebase API herewith to apply complex structures to store data in Firebase database, to update UI using reactive behaviors.
 Realtime provides lightweight data traffic, lazy initialization of data, good distribution of data.
 
@@ -37,7 +37,7 @@ Example:
 class User: RealtimeObject {
     lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
     lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
-    lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png.optional())
+    lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png)
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
     lazy var scheduledConversations: RealtimeArray<Conversation> = "scheduledConversations".array(from: self.node)
     lazy var ownedGroup: RealtimeRelation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, "manager")
@@ -135,7 +135,7 @@ do {
 do {
     let transaction = RealtimeTransaction()
     ...
-    let element = Element() // you should take new element from target collection location
+    let element = Element()
     try dictionary.write(element: element, key: key, in: transaction)
     try otherDictionary.remove(by: key, in: transaction)
 

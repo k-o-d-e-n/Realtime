@@ -58,7 +58,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         self.init(
             in: node,
             options: options,
-            viewSource: InternalKeys.items._property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty())
+            viewSource: InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty())
         )
     }
 
@@ -83,7 +83,7 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
-        return _view.source.map { _ in }.listeningItem(handler)
+        return _view.source.map { _ in }.listeningItem(onValue: handler)
     }
     @discardableResult
     override public func runObserving() -> Bool { return _view.source.runObserving() }
@@ -98,11 +98,14 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
     }
     
     public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+        guard let ref = node?.reference() else  {
+            fatalError("Can`t get database reference")
+        }
         checkPreparation()
 
-        query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
+        query(ref).observeSingleEvent(of: .value, with: { (data) in
             do {
-                try self.apply(data, strongly: false)
+                try self.apply(data, exactly: false)
                 completion(self.filter { data.hasChild($0.dbKey) }, nil)
             } catch let e {
                 completion(self.filter { data.hasChild($0.dbKey) }, e)
@@ -123,12 +126,15 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
             let transaction = transaction ?? RealtimeTransaction()
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    guard err == nil else { return promise.fulfill(err) }
-                    do {
-                        try collection._insert(element, at: index, in: transaction)
-                        promise.fulfill(nil)
-                    } catch let e {
-                        promise.fulfill(e)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        do {
+                            try collection._insert(element, at: index, in: transaction)
+                            promise.fulfill()
+                        } catch let e {
+                            promise.reject(e)
+                        }
                     }
                 })
             }
@@ -160,11 +166,6 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 
         let transaction = transaction ?? RealtimeTransaction()
         try _write(element, at: index ?? count, by: (storage: node!, itms: _view.source.node!), in: transaction)
-        transaction.addCompletion { [weak self] (result) in
-            if result {
-                self?.didSave()
-            }
-        }
         return transaction
     }
 
@@ -200,8 +201,12 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection._remove(element, in: transaction)
-                    promise.fulfill(err)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        collection._remove(element, in: transaction)
+                        promise.fulfill()
+                    }
                 })
             }
             return transaction
@@ -219,8 +224,12 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
-                    collection._remove(at: index, in: transaction)
-                    promise.fulfill(err)
+                    if let e = err {
+                        promise.reject(e)
+                    } else {
+                        collection._remove(at: index, in: transaction)
+                        promise.fulfill()
+                    }
                 })
             }
             return transaction
@@ -250,38 +259,41 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         }
         transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) // remove item element
         transaction.removeValue(by: storage.sourceNode.child(with: item.dbKey)) // remove element
-        transaction.addCompletion { [weak self] result in
+        transaction.addCompletion { result in
             if result {
                 element.didRemove()
-                self?.didSave()
             }
         }
     }
     
     // MARK: Realtime
 
-    public required convenience init(fireData: FireDataProtocol) throws {
-        self.init(in: fireData.dataRef.map(Node.from))
-        try apply(fireData, strongly: true)
+    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
+        let node = fireData.node
+        let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
+        self.storage = RCArrayStorage(sourceNode: node, elementBuilder: Element.init, elements: [:])
+        self._view = AnyRealtimeCollectionView(InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty()))
+        try super.init(fireData: fireData, exactly: exactly)
+        self._view.collection = self
     }
 
     var _snapshot: (FireDataProtocol, Bool)?
-    override public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
         guard _view.isPrepared else {
-            _snapshot = (data, strongly)
+            _snapshot = (data, exactly)
             return
         }
         _snapshot = nil
         try _view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if strongly { storage.elements.removeValue(forKey: key.dbKey) }
+                if exactly { storage.elements.removeValue(forKey: key.dbKey) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
             if var element = storage.elements[key.dbKey] {
-                try element.apply(childData, strongly: strongly)
+                try element.apply(childData, exactly: exactly)
             } else {
-                storage.elements[key.dbKey] = try Element(fireData: childData, strongly: strongly)
+                storage.elements[key.dbKey] = try Element(fireData: childData, exactly: exactly)
             }
         }
     }
@@ -311,16 +323,13 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         try? _snapshot.map(apply)
     }
 
-//    override public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
-
-//    }
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
-            _view.source.didSave(in: node.linksNode)
+            _view.source.didSave(in: database, in: node.linksNode)
             storage.sourceNode = node
         }
-        storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0) }
+        storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0) }
     }
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {  // TODO: Elements don't receive willRemove event

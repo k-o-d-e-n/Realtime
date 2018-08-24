@@ -25,7 +25,7 @@ struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
         let v: [String: FireDataValue] = [CodingKeys.ref.stringValue: ref]
         return v
     }
-    init(fireData: FireDataProtocol) throws {
+    init(fireData: FireDataProtocol, exactly: Bool) throws {
         guard let ref: String = CodingKeys.ref.stringValue.map(from: fireData) else { throw RealtimeError(initialization: Reference.self, fireData) }
         self.ref = ref
     }
@@ -78,7 +78,7 @@ struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
         return v
     }
 
-    init(fireData: FireDataProtocol) throws {
+    init(fireData: FireDataProtocol, exactly: Bool) throws {
         guard fireData.hasChildren() else { // TODO: For test, remove!
             guard let val = fireData.value as? [String: String],
                 let path = val[CodingKeys.targetPath.rawValue],
@@ -111,9 +111,9 @@ struct SourceLink: FireDataRepresented, FireDataValueRepresented, Codable {
     }
 
     var fireValue: FireDataValue { return links }
-    init(fireData: FireDataProtocol) throws {
+    init(fireData: FireDataProtocol, exactly: Bool) throws {
         guard
-            let id = fireData.dataKey,
+            let id = fireData.node?.key,
             let links: [String] = fireData.flatMap()
         else { throw RealtimeError(initialization: SourceLink.self, fireData) }
         
