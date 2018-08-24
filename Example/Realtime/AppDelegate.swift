@@ -52,7 +52,7 @@ class RealtimeGroup: RealtimeObject {
 class RealtimeUser: RealtimeObject {
     lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
     lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
-    lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png.optional())
+    lazy var photo: File<UIImage?> = File(in: Node(key: "photo", parent: self.node), representer: Representer.png)
     //    lazy var gender: String?
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
     lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)

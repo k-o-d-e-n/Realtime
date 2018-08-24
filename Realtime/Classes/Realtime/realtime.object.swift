@@ -47,7 +47,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
         database.load(for: node, completion: { d in
             do {
-                try self.apply(d, strongly: true)
+                try self.apply(d, exactly: true)
                 completion?.assign(nil)
             } catch let e {
                 completion?.assign(e)
@@ -86,7 +86,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         }
         return database.observe(event, on: node, onUpdate: { d in
             do {
-                try self.apply(d, strongly: event == .value)
+                try self.apply(d, exactly: event == .value)
                 onUpdate?(nil)
             } catch let e {
                 onUpdate?(e)
@@ -168,19 +168,19 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
     // MARK: Realtime Value
 
-    public required init(fireData: FireDataProtocol, strongly: Bool) throws {
+    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
         self.database = fireData.database
         self.node = fireData.node
-        try apply(fireData, strongly: strongly)
+        try apply(fireData, exactly: exactly)
     }
 
-    func _apply_RealtimeValue(_ data: FireDataProtocol, strongly: Bool) {
+    func _apply_RealtimeValue(_ data: FireDataProtocol, exactly: Bool) {
         version = data.version
         raw = data.rawValue
         payload = InternalKeys.payload.map(from: data)
     }
-    open func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        _apply_RealtimeValue(data, strongly: strongly)
+    open func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        _apply_RealtimeValue(data, exactly: exactly)
     }
     
     public var debugDescription: String { return "\n{\n\tref: \(node?.rootPath ?? "not referred");\n\tvalue: \("TODO:");\n\tchanges: \(String(describing: /*localChanges*/"TODO: Make local changes"));\n}" }
@@ -263,12 +263,12 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
                     refs.flatMap { $0.links.map(Node.root.child) }.forEach(transaction.removeValue)
                     do {
                         try transaction.delete(links)
-                        promise.fulfill(nil)
+                        promise.fulfill()
                     } catch let e {
-                        promise.fulfill(e)
+                        promise.reject(e)
                     }
                 }),
-                fail: .just(promise.fulfill)
+                fail: .just(promise.reject)
             )
         }
     }
@@ -283,18 +283,18 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         super.didRemove(from: ancestor)
     }
     
-    override open func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        try super.apply(data, strongly: strongly)
+    override open func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        try super.apply(data, exactly: exactly)
         try reflect { (mirror) in
-            try apply(data, strongly: strongly, to: mirror)
+            try apply(data, exactly: exactly, to: mirror)
         }
     }
-    private func apply(_ data: FireDataProtocol, strongly: Bool, to mirror: Mirror) throws {
+    private func apply(_ data: FireDataProtocol, exactly: Bool, to mirror: Mirror) throws {
         try mirror.children.forEach { (child) in
             guard isNotIgnoredLabel(child.label) else { return }
 
             if var value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
-                try value.apply(parentDataIfNeeded: data, strongly: strongly)
+                try value.apply(parentDataIfNeeded: data, exactly: exactly)
             }
         }
     }
@@ -316,7 +316,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
             try mirror.children.forEach({ (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
 
-                if let value: _RealtimeValue = realtimeValue(from: child.value) {
+                if let value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
                     if let valNode = value.node {
                         try value._write(to: transaction, by: node.child(with: valNode.key))
                     } else {
@@ -446,22 +446,37 @@ extension RealtimeObject {
         guard let key = self.dbKey else { fatalError("Object has not key. If you cannot set key manually use RealtimeTransaction.set(_:by:) method instead") }
 
         let transaction = transaction ?? RealtimeTransaction()
-        try transaction.set(self, by: Node(key: key, parent: parent))
-        return transaction
+        do {
+            try transaction.set(self, by: Node(key: key, parent: parent))
+            return transaction
+        } catch let e {
+            transaction.revert()
+            throw e
+        }
     }
 
     /// writes changes of RealtimeObject in transaction as independed values
     @discardableResult
     public func update(in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
-        try transaction.update(self)
-        return transaction
+        do {
+            try transaction.update(self)
+            return transaction
+        } catch let e {
+            transaction.revert()
+            throw e
+        }
     }
 
     /// writes empty value by RealtimeObject reference in transaction 
     public func delete(in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         let transaction = transaction ?? RealtimeTransaction()
-        try transaction.delete(self)
-        return transaction
+        do {
+            try transaction.delete(self)
+            return transaction
+        } catch let e {
+            transaction.revert()
+            throw e
+        }
     }
 }

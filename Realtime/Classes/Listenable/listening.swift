@@ -7,274 +7,64 @@
 
 import Foundation
 
-// MARK: Listenings
-
-// TODO: sendData, onStop should be private
-/// Represents connection data source and data receiver
-public protocol AnyListening {
-    var isInvalidated: Bool { get }
-    func sendData()
-    func onStop() // TODO: is not used now
-}
-public extension AnyListening {
-    /// calls if closure returns true
-    func `if`(_ itRight: @autoclosure @escaping () -> Bool) -> AnyListening {
-        return IfListening(base: self, ifRight: itRight)
-    }
-    /// calls if closure returns true
-    func `if`(_ itRight: @escaping () -> Bool) -> AnyListening {
-        return IfListening(base: self, ifRight: itRight)
-    }
-
-	/// calls closure on disconnect
-    func onFire(_ todo: @escaping () -> Void) -> AnyListening {
-        return OnFireListening(base: self, onFire: todo)
-    }
-
-    /// connection to receive single value
-    func once() -> AnyListening {
-        return OnceListening(base: self)
-    }
-
-    /// calls connection on specific queue
-    func queue(_ queue: DispatchQueue) -> AnyListening {
-        return ConcurrencyListening(base: self, queue: queue)
-    }
-
-    /// works until time has not reached deadline
-    func deadline(_ time: DispatchTime) -> AnyListening {
-        return DeadlineListening(base: self, deadline: time)
-    }
-
-    /// works until alive specified object
-    func livetime(_ byItem: AnyObject) -> AnyListening {
-        return LivetimeListening(base: self, living: byItem)
-    }
-
-    /// each next event are calling not earlier a specified period
-    func debounce(_ time: DispatchTimeInterval) -> AnyListening {
-        return DebounceListening(base: self, time: time)
-    }
-}
-
-// TODO: Add possible to make depended listenings
-struct Listening: AnyListening {
-    private let bridge: () -> Void
-    var isInvalidated: Bool { return false }
-    init(bridge: @escaping () -> Void) {
-        self.bridge = bridge
-    }
-
-    func sendData() {
-        bridge()
-    }
-
-    func onStop() {}
-}
-
-struct IfListening: AnyListening {
-    private let base: AnyListening
-    private let ifRight: () -> Bool
-    var isInvalidated: Bool { return base.isInvalidated }
-
-    init(base: AnyListening, ifRight: @escaping () -> Bool) {
-        self.base = base
-        self.ifRight = ifRight
-    }
-
-    func sendData() {
-        if ifRight() {
-            base.sendData()
-        }
-    }
-
-    func onStop() {
-        base.onStop()
-    }
-}
-
-struct OnFireListening: AnyListening {
-    private let listening: AnyListening
-    private let onFire: () -> Void
-    var isInvalidated: Bool { return listening.isInvalidated }
-
-    init(base: AnyListening, onFire: @escaping () -> Void) {
-        self.listening = base
-        self.onFire = onFire
-    }
-
-    func sendData() {
-        listening.sendData()
-    }
-
-    func onStop() {
-        listening.onStop()
-        onFire()
-    }
-}
-
-struct OnceListening: AnyListening {
-    private let listening: AnyListening
-    var isInvalidated: Bool { return true }
-    init(base: AnyListening) {
-        self.listening = base
-    }
-
-    func sendData() {
-        listening.sendData()
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
-
-struct ConcurrencyListening: AnyListening {
-    private let listening: AnyListening
-    private let queue: DispatchQueue
-    var isInvalidated: Bool { return listening.isInvalidated }
-
-    init(base: AnyListening, queue: DispatchQueue) {
-        self.listening = base
-        self.queue = queue
-    }
-
-    func sendData() {
-        queue.async { self.listening.sendData() }
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
-
-struct DeadlineListening: AnyListening {
-    private let listening: AnyListening
-    private let deadline: DispatchTime
-    private var _isInvalidated: Bool { return deadline <= .now() }
-    var isInvalidated: Bool { return listening.isInvalidated || _isInvalidated }
-
-    init(base: AnyListening, deadline: DispatchTime) {
-        self.listening = base
-        self.deadline = deadline
-    }
-
-    func sendData() {
-        guard !isInvalidated else { return }
-
-        listening.sendData()
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
-
-struct LivetimeListening: AnyListening {
-    private let listening: AnyListening
-    private weak var livingItem: AnyObject?
-    private var _isInvalidated: Bool { return livingItem == nil }
-    var isInvalidated: Bool { return listening.isInvalidated || _isInvalidated }
-
-    init(base: AnyListening, living: AnyObject) {
-        self.listening = base
-        self.livingItem = living
-    }
-
-    func sendData() {
-        guard !isInvalidated else { return }
-
-        listening.sendData()
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
-
-class DebounceListening: AnyListening {
-    private let listening: AnyListening
-    private let repeatTime: DispatchTimeInterval
-    private var isNeedSend: Bool = true
-    private var fireDate: DispatchTime
-    var isInvalidated: Bool { return listening.isInvalidated }
-
-    init(base: AnyListening, time: DispatchTimeInterval) {
-        self.listening = base
-        self.repeatTime = time
-        self.fireDate = .now()
-    }
-
-    func sendData() {
-        guard !isInvalidated else { return }
-
-        guard fireDate <= .now() else { isNeedSend = true; return }
-
-        isNeedSend = false
-        listening.sendData()
-        fireDate = .now() + repeatTime
-        DispatchQueue.main.asyncAfter(deadline: fireDate, execute: {
-            if self.isNeedSend {
-                self.sendData()
-            }
-        })
-    }
-
-    func onStop() {
-        listening.onStop()
-    }
-}
 // MARK: Cancellable listenings
 
-// TODO: Disposable and ListeningItem does not have information about real active state listening (lifetime, delay listenings with autostop)
 /// Disposes existing connection
 public protocol Disposable {
-    var dispose: () -> Void { get }
+    func dispose()
 }
 
-struct ListeningDispose: Disposable {
-    let dispose: () -> Void
+class ListeningDispose: Disposable {
+    let _dispose: () -> Void
     init(_ dispose: @escaping () -> Void) {
-        self.dispose = dispose
+        self._dispose = dispose
+    }
+    func dispose() {
+        _dispose()
+    }
+    deinit {
+        _dispose()
     }
 }
 
 /// Listening with possibility to control connection state
-public struct ListeningItem {
-    private let start: () -> Void
-    public let stop: () -> Void
-    let notify: () -> Void
-    let isListen: () -> Bool
+public class ListeningItem {
+    let _start: () -> Void
+    let _stop: () -> Void
+    let _isListen: () -> Bool
 
-    init<Token>(start: @escaping () -> Token?, stop: @escaping (Token) -> Void, notify: @escaping () -> Void, token: Token?) {
+    public var isListen: Bool { return _isListen() }
+
+    init<Token>(resume: @escaping () -> Token?, pause: @escaping (Token) -> Void, token: Token?) {
         var tkn = token
-        self.notify = notify
-        self.isListen = { tkn != nil }
-        self.start = {
+        self._isListen = { tkn != nil }
+        self._start = {
             guard tkn == nil else { return }
-            tkn = start()
+            tkn = resume()
         }
-        self.stop = {
+        self._stop = {
             guard let token = tkn else { return }
-            stop(token)
+            pause(token)
             tkn = nil
         }
     }
 
-    public func start(_ needNotify: Bool = true) {
-        start()
-        if needNotify { notify() }
+    public func resume() {
+        _start()
+    }
+
+    public func pause() {
+        _stop()
+    }
+
+    deinit {
+        print("Deinit ListeningItem")
+        dispose()
     }
 }
 extension ListeningItem: Disposable {
-    public var dispose: () -> Void { return stop }
-}
-public extension ListeningItem {
-    init<Token>(start: @escaping (AnyListening) -> Token?, stop: @escaping (Token) -> Void, listeningToken: (Token, AnyListening)) {
-        self.init(start: { return start(listeningToken.1) },
-                  stop: stop,
-                  notify: { listeningToken.1.sendData() },
-                  token: listeningToken.0)
+    public func dispose() {
+        _stop()
     }
 }
 
@@ -307,20 +97,15 @@ public struct ListeningDisposeStore {
     public mutating func dispose() {
         disposes.forEach { $0.dispose() }
         disposes.removeAll()
-        listeningItems.forEach { $0.stop() }
+        listeningItems.forEach { $0.dispose() }
         listeningItems.removeAll()
     }
 
     public func pause() {
-        listeningItems.forEach { $0.stop() }
+        listeningItems.forEach { $0.pause() }
     }
 
-    public func resume(_ needNotify: Bool = true) {
-        listeningItems.forEach { $0.start(needNotify) }
-    }
-
-    func `deinit`() {
-        disposes.forEach { $0.dispose() }
-        listeningItems.forEach { $0.stop() }
+    public func resume() {
+        listeningItems.forEach { $0.resume() }
     }
 }

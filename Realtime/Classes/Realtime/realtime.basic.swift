@@ -9,18 +9,21 @@ import Foundation
 import FirebaseDatabase
 
 public struct RealtimeError: Error {
-    let localizedDescription: String
+    let description: String
     let source: Source
+
+    public var localizedDescription: String { return description }
 
     init(source: Source, description: String) {
         self.source = source
-        self.localizedDescription = description
+        self.description = description
     }
 
     enum Source {
         case value
         case collection
 
+        case listening
         case coding
         case transaction([Error])
         case cache
@@ -33,7 +36,7 @@ public struct RealtimeError: Error {
         self.init(source: .coding, description: "Failed decoding data: \(data) to type: \(T.self). Reason: \(reason)")
     }
     init<T>(encoding value: T, reason: String) {
-        self.init(source: .coding, description: "Failed encoding value: \(value). Reason: \(reason)")
+        self.init(source: .coding, description: "Failed encoding value of type: \(value). Reason: \(reason)")
     }
 }
 
@@ -101,14 +104,14 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: Realt
     public init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))
     }
-    public mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        try self?.apply(data, strongly: strongly)
+    public mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        try self?.apply(data, exactly: exactly)
     }
 }
 extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
-    public init(fireData: FireDataProtocol, strongly: Bool) throws {
+    public init(fireData: FireDataProtocol, exactly: Bool) throws {
         if fireData.exists() {
-            self = .some(try Wrapped(fireData: fireData, strongly: strongly))
+            self = .some(try Wrapped(fireData: fireData, exactly: exactly))
         } else {
             self = .none
         }
@@ -126,10 +129,10 @@ public extension RealtimeValue {
     init(in node: Node?) { self.init(in: node, options: [:]) }
     init() { self.init(in: nil) }
 
-    mutating func apply(parentDataIfNeeded parent: FireDataProtocol, strongly: Bool) throws {
-        guard strongly || dbKey.has(in: parent) else { return }
+    mutating func apply(parentDataIfNeeded parent: FireDataProtocol, exactly: Bool) throws {
+        guard exactly || dbKey.has(in: parent) else { return }
 
-        try apply(dbKey.child(from: parent), strongly: strongly)
+        try apply(dbKey.child(from: parent), exactly: exactly)
     }
 }
 extension HasDefaultLiteral where Self: RealtimeValue {}

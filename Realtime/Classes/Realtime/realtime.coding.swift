@@ -66,25 +66,25 @@ extension MutableData: FireDataProtocol, Sequence {
 }
 
 public protocol FireDataRepresented {
-    init(fireData: FireDataProtocol, strongly: Bool) throws
+    init(fireData: FireDataProtocol, exactly: Bool) throws
 
     /// Applies value of data snapshot
     ///
     /// - Parameters:
     ///   - snapshot: Snapshot value
-    ///   - strongly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
+    ///   - exactly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
     ///               Pass `false` if snapshot represents part of data (for example filtered list).
-    mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws
+    mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws
 }
 extension FireDataRepresented {
     init(fireData: FireDataProtocol) throws {
-        try self.init(fireData: fireData, strongly: true)
+        try self.init(fireData: fireData, exactly: true)
     }
-    mutating public func apply(_ data: FireDataProtocol, strongly: Bool) throws {
+    mutating public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
         self = try Self.init(fireData: data)
     }
     mutating func apply(_ data: FireDataProtocol) throws {
-        try apply(data, strongly: true)
+        try apply(data, exactly: true)
     }
 }
 public protocol FireDataValueRepresented {
@@ -109,7 +109,7 @@ extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatabl
 /// You shouldn't apply for some custom values.
 public protocol FireDataValue: FireDataRepresented {}
 extension FireDataValue {
-    public init(fireData: FireDataProtocol, strongly: Bool) throws {
+    public init(fireData: FireDataProtocol, exactly: Bool) throws {
         guard let v = fireData.value as? Self else {
             throw RealtimeError(initialization: Self.self, fireData.value as Any)
         }
@@ -128,7 +128,7 @@ extension FireDataValue {
 //    }
 //}
 extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue {
-    public init(fireData: FireDataProtocol, strongly: Bool) throws {
+    public init(fireData: FireDataProtocol, exactly: Bool) throws {
         guard let v = fireData.value as? Array<Element> else {
             throw RealtimeError(initialization: Array<Element>.self, fireData.value as Any)
         }
@@ -149,7 +149,7 @@ extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue
 //}
 
 extension Dictionary: FireDataValue, FireDataRepresented where Key: FireDataValue, Value == FireDataValue {
-    public init(fireData: FireDataProtocol, strongly: Bool) throws {
+    public init(fireData: FireDataProtocol, exactly: Bool) throws {
         guard let v = fireData.value as? [Key: Value] else {
             throw RealtimeError(initialization: [Key: Value].self, fireData.value as Any)
         }
@@ -218,13 +218,6 @@ public extension RepresenterProtocol {
     func optional() -> Representer<V?> {
         return Representer(optional: self)
     }
-//    func encode(_ value: V?) throws -> Any? {
-//        return try value.map(encode)
-//    }
-//    func decode(_ data: FireDataProtocol) throws -> V? {
-//        guard data.exists() else { return nil }
-//        return try decode(data)
-//    }
 }
 extension RepresenterProtocol where V: HasDefaultLiteral & _ComparableWithDefaultLiteral {
     func defaultOnEmpty() -> Representer<V> {
@@ -232,10 +225,10 @@ extension RepresenterProtocol where V: HasDefaultLiteral & _ComparableWithDefaul
     }
 }
 public extension Representer {
-    func encode<T: _Optional>(_: T.Type = T.self, _ value: V) throws -> Any? where V == Optional<T.Wrapped> {
+    func encode<T>(_ value: V) throws -> Any? where V == Optional<T> {
         return try value.map(encode)
     }
-    func decode<T: _Optional>(_: T.Type = T.self, _ data: FireDataProtocol) throws -> V where V == Optional<T.Wrapped> {
+    func decode<T>(_ data: FireDataProtocol) throws -> V where V == Optional<T> {
         guard data.exists() else { return nil }
         return try decode(data)
     }
@@ -250,11 +243,11 @@ public struct Representer<V>: RepresenterProtocol {
     public func encode(_ value: V) throws -> Any? {
         return try encoding(value)
     }
-    public init(_: V.Type = V.self, encoding: @escaping (V) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> V) {
+    public init(encoding: @escaping (V) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> V) {
         self.encoding = encoding
         self.decoding = decoding
     }
-    public init<T: _Optional>(_: T.Type = T.self, encoding: @escaping (T.Wrapped) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> T.Wrapped) where V == Optional<T.Wrapped> {
+    public init<T>(encoding: @escaping (T) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> T) where V == Optional<T> {
         self.encoding = { v -> Any? in
             return try v.map(encoding)
         }
@@ -265,11 +258,11 @@ public struct Representer<V>: RepresenterProtocol {
     }
 }
 public extension Representer {
-    init<R: RepresenterProtocol>(_ base: R) where V == R.V {
+    public init<R: RepresenterProtocol>(_ base: R) where V == R.V {
         self.encoding = base.encode
         self.decoding = base.decode
     }
-    init<R: RepresenterProtocol>(optional base: R) where V == R.V? {
+    public init<R: RepresenterProtocol>(optional base: R) where V == R.V? {
         self.encoding = { (v) -> Any? in
             return try v.map(base.encode)
         }
@@ -278,7 +271,7 @@ public extension Representer {
             return try base.decode(data)
         }
     }
-    init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleByArrayLiteral, V.ArrayLiteralElement == V.Element {
+    public init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleByArrayLiteral, V.ArrayLiteralElement == V.Element {
         self.encoding = { (v) -> Any? in
             return try v.map(base.encode)
         }
@@ -286,7 +279,7 @@ public extension Representer {
             return try data.map(base.decode) as! V
         }
     }
-    init<R: RepresenterProtocol>(defaultOnEmpty base: R) where R.V: HasDefaultLiteral & _ComparableWithDefaultLiteral, V == R.V {
+    public init<R: RepresenterProtocol>(defaultOnEmpty base: R) where R.V: HasDefaultLiteral & _ComparableWithDefaultLiteral, V == R.V {
         self.encoding = { (v) -> Any? in
             if V._isDefaultLiteral(v) {
                 return nil
@@ -297,6 +290,19 @@ public extension Representer {
         self.decoding = { (data) -> V in
             guard data.exists() else { return V() }
             return try base.decode(data)
+        }
+    }
+    init<R: RepresenterProtocol, T>(defaultOnEmpty base: R) where T: HasDefaultLiteral & _ComparableWithDefaultLiteral, Optional<T> == R.V, Optional<T> == V {
+        self.encoding = { (v) -> Any? in
+            if v.map(T._isDefaultLiteral) ?? true {
+                return nil
+            } else {
+                return try base.encode(v)
+            }
+        }
+        self.decoding = { (data) -> T? in
+            guard data.exists() else { return T() }
+            return try base.decode(data) ?? T()
         }
     }
     init<S: _Serializer>(serializer base: S.Type) where V == S.Entity {
@@ -356,6 +362,47 @@ public extension Representer {
 public extension Representer where V: FireDataRepresented & FireDataValueRepresented {
     static var fireData: Representer<V> {
         return Representer<V>(encoding: { $0.fireValue }, decoding: V.init)
+    }
+}
+
+extension Representer {
+    public func requiredProperty() -> Representer<V?> {
+        return Representer<V?>(required: self)
+    }
+
+    init<R: RepresenterProtocol>(required base: R) where V == R.V? {
+        self.encoding = { (value) -> Any? in
+            switch value {
+            case .none: throw RealtimeError(encoding: R.V.self, reason: "Required property has not been set")
+            case .some(let v): return try base.encode(v)
+            }
+        }
+        self.decoding = { data -> V in
+            guard data.exists() else {
+                return nil
+            }
+            return .some(try base.decode(data))
+        }
+    }
+
+    public func optionalProperty() -> Representer<V??> {
+        return Representer<V??>(optionalProperty: self)
+    }
+
+    init<R: RepresenterProtocol>(optionalProperty base: R) where V == R.V?? {
+        self.encoding = { (value) -> Any? in
+            switch value {
+            case .none, .some(nil): return nil
+            case .some(.some(let v)): return try base.encode(v)
+            }
+        }
+        self.decoding = { data -> V in
+            guard data.exists() else {
+                return .some(nil)
+            }
+
+            return .some(try base.decode(data))
+        }
     }
 }
 
