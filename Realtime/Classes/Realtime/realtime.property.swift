@@ -442,7 +442,9 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
     public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
         guard case let representer as Representer<T?> = options[.representer] else { fatalError("Bad options") }
 
-        self._value = (options[.initialValue] as? T).map { .local($0) }
+        if let inital = options[.initialValue], let v = inital as? T {
+            self._value = .local(v)
+        }
         self.representer = representer
         super.init(in: node, options: options)
     }
