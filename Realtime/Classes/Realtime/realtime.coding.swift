@@ -380,7 +380,7 @@ extension Representer {
     init<R: RepresenterProtocol>(required base: R) where V == R.V? {
         self.encoding = { (value) -> Any? in
             switch value {
-            case .none: throw RealtimeError(encoding: ListenValue<R.V>.self, reason: "Required property has not been set")
+            case .none: throw RealtimeError(encoding: R.V.self, reason: "Required property has not been set")
             case .some(let v): return try base.encode(v)
             }
         }
