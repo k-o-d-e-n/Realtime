@@ -11,6 +11,13 @@ extension RealtimeValueOption {
     static let elementBuilder = RealtimeValueOption("realtime.collection.builder")
 }
 
+public typealias Changes = (deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)])
+public enum RCEvent {
+    case initial
+    case updated(Changes)
+    case error(Error)
+}
+
 /// -----------------------------------------
 
 // TODO: For Value of RealtimeDictionary is not defined payloads
@@ -149,7 +156,11 @@ public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, Real
     //    associatedtype View: RealtimeCollectionView
     var view: RealtimeCollectionView { get }
 
-    func listening(changes handler: @escaping () -> Void) -> ListeningItem // TODO: Add current changes as parameter to handler
+    func listening(changes handler: @escaping () -> Void) -> ListeningItem
+//    func listening(changes handler: @escaping (RCEvent) -> Void) -> Disposable
+}
+public extension RealtimeCollection {
+
 }
 protocol RC: RealtimeCollection, RealtimeValueEvents where Storage: RCStorage {
     associatedtype View: RCView
@@ -267,7 +278,7 @@ public extension RealtimeCollection {
         let current = self
         current.forEach { element in
             let value = values(element)
-            let listeningItem = value.once().listeningItem(onValue: <-{ (val) in
+            let listening = value.once().listening(onValue: <-{ (val) in
                 released = current.index(after: released)
                 guard predicate(val) else {
                     completeIfNeeded(released)
@@ -278,7 +289,9 @@ public extension RealtimeCollection {
                 completeIfNeeded(released)
             })
 
-            value.load(completion: nil)
+            value.load(completion: .just { err in
+                listening.dispose()
+            })
         }
     }
 }
@@ -327,7 +340,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
             .filter { [unowned self] _ in !self.isPrepared }
             .listening(onValue: .guarded(self) { event, view in
                 switch event {
-                case .remote(_, strong: let s): view.isPrepared = s
+                case .remote(_, exact: let s): view.isPrepared = s
                 default: break
                 }
             })
@@ -370,11 +383,23 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
         value.insert(element, at: index)
         source._setLocalValue(value)
     }
+    func insertRemote(_ element: RCItem, at index: Int) {
+        var value = self.value
+        value.insert(element, at: index)
+        source._setValue(.remote(value, exact: false))
+    }
     func remove(at index: Int) -> RCItem {
         var value = self.value
         let removed = value.remove(at: index)
         source._setLocalValue(value)
         return removed
+    }
+    func removeRemote(_ item: RCItem) -> Int? {
+        var value = self.value
+        guard let i = value.index(of: item) else { return nil }
+        value.remove(at: i)
+        source._setValue(.remote(value, exact: false))
+        return i
     }
 }
 

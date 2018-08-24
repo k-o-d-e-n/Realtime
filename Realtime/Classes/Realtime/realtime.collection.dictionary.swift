@@ -92,7 +92,33 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
+
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
+    public func listeningEvents() -> Accumulator<RCEvent> {
+        guard let ref = _view.source.dbRef else {
+            fatalError("Can`t get reference")
+        }
+
+        let repeater = Repeater<RCEvent>.unsafe()
+        return Accumulator(
+            repeater: repeater,
+            ref.snapshot(.childAdded).map({ (data) -> RCEvent in
+                let item = try RCItem(fireData: data)
+                self._view.insert(item, at: item.index)
+                return .updated((deleted: [], inserted: [item.index], modified: [], moved: []))
+            }),
+            ref.snapshot(.childRemoved).map { (data) -> RCEvent in
+                let item = try RCItem(fireData: data)
+                let index = self._view.removeRemote(item)
+                return .updated((deleted: index.map { [$0] } ?? [], inserted: [], modified: [], moved: []))
+            },
+            ref.snapshot(.childChanged).map { (data) -> RCEvent in
+                let item = try RCItem(fireData: data)
+                let index = self._view.first(where: { $0.dbKey == item.dbKey })?.index
+                return .updated((deleted: [], inserted: [], modified: [], moved: index.map { [($0, item.index)] } ?? []))
+            }
+        )
+    }
     @discardableResult
     override public func runObserving() -> Bool { return _view.source.runObserving() }
     override public func stopObserving() { _view.source.stopObserving() }

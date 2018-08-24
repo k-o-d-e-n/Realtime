@@ -917,3 +917,70 @@ extension ListenableTests {
 }
 
 // MARK: Concepts
+
+extension ListenableTests {
+    func testAccumulator() {
+        let source1 = Repeater<Int>.unsafe()
+        let source2 = Repeater<Int>.unsafe()
+
+        let accumulator = Accumulator<Int>(repeater: Repeater.unsafe(), source1, source2)
+
+        var value_counter = 0
+        accumulator.listening(onValue: { v in
+            defer { value_counter += 1 }
+            switch value_counter {
+            case 0: XCTAssertEqual(v, 5)
+            case 1: XCTAssertEqual(v, 199)
+            default: XCTFail()
+            }
+        }).add(to: &store)
+
+        source1.send(.value(5))
+        source2.send(.value(199))
+
+        var error_counter = 0
+        accumulator.listening(onError: { e in
+            defer { error_counter += 1 }
+            switch error_counter {
+            case 0: XCTAssertTrue(e is RealtimeError) //XCTAssertEqual(e.localizedDescription, "Source1 error")
+            case 1: XCTAssertTrue(e is RealtimeError) //XCTAssertEqual(e.localizedDescription, "Source2 error")
+            default: XCTFail()
+            }
+        }).add(to: &store)
+
+        source1.send(.error(RealtimeError(source: .listening, description: "Source1 error")))
+        source1.send(.error(RealtimeError(source: .listening, description: "Source2 error")))
+    }
+
+    func testAccumulator2() {
+        let source1 = Repeater<Int>.unsafe()
+        let source2 = Repeater<String>.unsafe()
+
+        let accumulator = Accumulator<(Int, String)>(repeater: Repeater.unsafe(), source1, source2)
+
+//        var value_counter = 0
+        accumulator.listening(onValue: { v in
+//            defer { value_counter += 1 }
+            switch v {
+            case (5, "199"): print("true")
+            default: XCTFail()
+            }
+        }).add(to: &store)
+
+        source1.send(.value(5))
+        source2.send(.value("199"))
+
+        var error_counter = 0
+        accumulator.listening(onError: { e in
+            defer { error_counter += 1 }
+            switch error_counter {
+            case 0: XCTAssertTrue(e is RealtimeError) //XCTAssertEqual(e.localizedDescription, "Source1 error")
+            case 1: XCTAssertTrue(e is RealtimeError) //XCTAssertEqual(e.localizedDescription, "Source2 error")
+            default: XCTFail()
+            }
+        }).add(to: &store)
+
+        source1.send(.error(RealtimeError(source: .listening, description: "Source1 error")))
+        source1.send(.error(RealtimeError(source: .listening, description: "Source2 error")))
+    }
+}

@@ -295,3 +295,50 @@ public extension Listenable {
         return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem), bridgeMaker: Bridge(debounce: time))
     }
 }
+
+public class Accumulator<T>: Listenable {
+    let repeater: Repeater<T>
+    var store: ListeningDisposeStore = ListeningDisposeStore()
+
+    public init<L: Listenable>(repeater: Repeater<T>, _ inputs: L...) where L.OutData == T {
+        self.repeater = repeater
+        inputs.forEach { l in
+            repeater.depends(on: l).add(to: &store)
+        }
+    }
+
+    public init<L1: Listenable, L2: Listenable>(repeater: Repeater<T>, _ one: L1, _ two: L2) where T == (L1.OutData, L2.OutData) {
+        self.repeater = repeater
+
+        var event: (one: ListenEvent<L1.OutData>?, two: ListenEvent<L2.OutData>?) {
+            didSet {
+                switch event {
+                case (.some(.value(let v1)), .some(.value(let v2))):
+                    repeater.send(.value((v1, v2)))
+                case (.some(.value), .some(.error(let e2))):
+                    repeater.send(.error(e2))
+                case (.some(.error(let e1)), .some(.value)):
+                    repeater.send(.error(e1))
+                case (.some(.error(let e1)), .some(.error(let e2))):
+                    repeater.send(
+                        .error(
+                            RealtimeError(source: .listening, description:
+                                """
+                                    Error #1: \(e1.localizedDescription),
+                                    Error #2: \(e2.localizedDescription)
+                                """
+                            )
+                        )
+                    )
+                default: break
+                }
+            }
+        }
+        one.listening({ event.one = $0 }).add(to: &store)
+        two.listening({ event.two = $0 }).add(to: &store)
+    }
+
+    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        return repeater.listening(assign)
+    }
+}
