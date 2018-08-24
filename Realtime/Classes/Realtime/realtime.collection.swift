@@ -250,10 +250,11 @@ func prepareElementsRecursive<RC: Collection>(_ collection: RC, completion: @esc
 public extension RealtimeCollection {
     /// RealtimeCollection actions
 
-    func filtered<ValueGetter: InsiderOwner & RealtimeValueActions>(map values: @escaping (Iterator.Element) -> ValueGetter,
-                                                                    fetchIf: ((ValueGetter) -> Bool)? = nil,
-                                                                    predicate: @escaping (ValueGetter.OutData) -> Bool,
-                                                                    onCompleted: @escaping ([Iterator.Element]) -> ()) {
+    func filtered<ValueGetter: Listenable & RealtimeValueActions>(
+        map values: @escaping (Iterator.Element) -> ValueGetter,
+        predicate: @escaping (ValueGetter.OutData) -> Bool,
+        onCompleted: @escaping ([Iterator.Element]) -> ()
+    ) {
         var filteredElements: [Iterator.Element] = []
         let count = endIndex
         let completeIfNeeded = { (releasedCount: Index) in
@@ -266,7 +267,7 @@ public extension RealtimeCollection {
         let current = self
         current.forEach { element in
             let value = values(element)
-            let listeningItem = value.listeningItem(as: { $0.once() }, .just { (val) in
+            let listeningItem = value.once().listeningItem(onValue: <-{ (val) in
                 released = current.index(after: released)
                 guard predicate(val) else {
                     completeIfNeeded(released)
@@ -277,11 +278,7 @@ public extension RealtimeCollection {
                 completeIfNeeded(released)
             })
 
-            if fetchIf?(value) ?? true {
-                value.load(completion: nil)
-            } else {
-                listeningItem.notify()
-            }
+            value.load(completion: nil)
         }
     }
 }
@@ -325,13 +322,15 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
 
     init(_ source: RealtimeProperty<Source>) {
         self.source = source
-        let isPrepared: () -> Bool = { [unowned self] in !self.isPrepared }
-        self.listening = source.listening(as: { $0.if(isPrepared) }, .guarded(self) { event, view in
-            switch event {
-            case .remote(_, strong: let s): view.isPrepared = s
-            default: break
-            }
-        })
+        self.listening = source
+            .livetime(self)
+            .filter { [unowned self] _ in !self.isPrepared }
+            .listening(onValue: .guarded(self) { event, view in
+                switch event {
+                case .remote(_, strong: let s): view.isPrepared = s
+                default: break
+                }
+            })
     }
 
     deinit {
@@ -369,12 +368,12 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
     func insert(_ element: RCItem, at index: Int) {
         var value = self.value
         value.insert(element, at: index)
-        source._setValue(value)
+        source._setLocalValue(value)
     }
     func remove(at index: Int) -> RCItem {
         var value = self.value
         let removed = value.remove(at: index)
-        source._setValue(value)
+        source._setLocalValue(value)
         return removed
     }
 }

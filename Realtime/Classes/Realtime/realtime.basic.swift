@@ -9,16 +9,19 @@ import Foundation
 import FirebaseDatabase
 
 public struct RealtimeError: Error {
-    let localizedDescription: String
+    let description: String
     let source: Source
+
+    public var localizedDescription: String { return description }
 
     init(source: Source, description: String) {
         self.source = source
-        self.localizedDescription = description
+        self.description = description
     }
 
     enum Source {
         case value
+        case listening
         case coding
         case transaction([Error])
         case collection
@@ -98,8 +101,8 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: Realt
     public init(in node: Node?, options: [RealtimeValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))
     }
-    public mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-        try self?.apply(data, strongly: strongly)
+    public mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        try self?.apply(data, exactly: exactly)
     }
 }
 extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
@@ -125,19 +128,19 @@ public extension RealtimeValue {
 
     init(in node: Node?) { self.init(in: node, options: [:]) }
     init() { self.init(in: nil) }
-    init(fireData: FireDataProtocol, strongly: Bool) throws {
-        if strongly {
+    init(fireData: FireDataProtocol, exactly: Bool) throws {
+        if exactly {
             try self.init(fireData: fireData)
         } else {
             self.init(in: fireData.dataRef.map(Node.from))
-            try apply(fireData, strongly: false)
+            try apply(fireData, exactly: false)
         }
     }
 
-    mutating func apply(parentDataIfNeeded parent: FireDataProtocol, strongly: Bool) throws {
-        guard strongly || dbKey.has(in: parent) else { return }
+    mutating func apply(parentDataIfNeeded parent: FireDataProtocol, exactly: Bool) throws {
+        guard exactly || dbKey.has(in: parent) else { return }
 
-        try apply(dbKey.child(from: parent), strongly: strongly)
+        try apply(dbKey.child(from: parent), exactly: exactly)
     }
 }
 extension HasDefaultLiteral where Self: RealtimeValue {}

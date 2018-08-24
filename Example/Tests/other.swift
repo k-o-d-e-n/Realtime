@@ -16,9 +16,9 @@ class OtherTests: XCTestCase {
         var counter = 0
         let control = UIControl()
 
-        let disposable = control.listening(events: .touchUpInside, .just {
+        let disposable = control.onEvent(.touchUpInside).listening({ _ in
             counter += 1
-            })
+        })
 
         control.sendActions(for: .touchUpInside)
 
@@ -50,7 +50,7 @@ extension OtherTests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any, .initialValue: [0]])
+        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any.requiredProperty(), .initialValue: [0]])
         let one = AnyRealtimeCollectionView<[Int], RealtimeArray<RealtimeObject>>(source)//SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)
@@ -58,7 +58,7 @@ extension OtherTests {
         XCTAssertTrue(calculator == 1)
         let anyLazyOne = AnySharedCollection(lazyOne)
         XCTAssertTrue(calculator == 1)
-        source._setValue([0, 0])
+        source._setLocalValue([0, 0])
         XCTAssertTrue(one.count == 2)
         XCTAssertTrue(lazyOne.count == 2)
         XCTAssertTrue(anyLazyOne.count == 2)

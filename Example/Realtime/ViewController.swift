@@ -9,47 +9,11 @@
 import UIKit
 import Realtime
 
-enum Some: Int {
-    case first
-}
-
-class Object: RealtimeObject {
-    lazy var id: RealtimeProperty<String?> = "id".property(from: self.node)
-    lazy var array: RealtimeArray<Object> = "array".array(from: self.node)
-
-    lazy var name: RealtimeProperty<String?> = "human/name/firstname".property(from: self.node)
-
-    lazy var some: RealtimeProperty<Some?> = "some".enum(from: self.node)
-}
-
 class ViewController: UIViewController {
     var disposeBag = ListeningDisposeStore()
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        
-        var logo = AsyncReadonlyProperty<String?>(value: nil) { (setter) in
-        }
-
-        _ = logo.insider.listen(.just { print($0 as Any) })
-        _ = logo.insider.listen(as: { $0.queue(.main) }, .guarded(self) { _, _ in
-
-        })
-        var count = 0
-        _ = logo.insider.listen(as: { $0.livetime(self) }, preprocessor: { $0.map { $0!.count } }, .just {
-            count = $0
-        })
-        print(count)
-
-        let object = Object(in: .root)
-        object.id.listening(Assign.guarded(self) { (v, o) in
-
-        }.on(queue: .main)).add(to: &disposeBag)
-        object.id.listeningItem(.on(.main) { v in
-
-        }).add(to: &disposeBag)
-
-        _ = object.array.contains(object)
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -57,18 +21,6 @@ class ViewController: UIViewController {
 
         /// for testing implement your auth function in Auth.swift
         auth {
-//            let users: RealtimeArray<Object> = "users".array(from: .root())
-//            let usersController = TableViewController(list: users) { (adapter) in
-//                adapter.register(UITableViewCell.self) { (proto, entity) -> [ListeningItem] in
-//                    entity.name.runObserving()
-//                    let assign: (String?) -> Void = proto.assign { cell, data in
-//                        cell.textLabel?.text = data ?? "No name"
-//                    }
-//
-//                    return [entity.name.listeningItem(.just(assign))]
-//                }
-//                adapter.cellForIndexPath = { _ in UITableViewCell.self }
-//            }
             let realtimeViewController = touches.first!.location(in: self.view).x > self.view.frame.width / 2 ? RealtimeViewController() : RealtimeTableController()
             self.navigationController?.pushViewController(realtimeViewController, animated: true)
         }

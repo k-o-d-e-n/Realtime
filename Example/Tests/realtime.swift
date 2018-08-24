@@ -17,10 +17,17 @@ extension XCTestCase {
 extension XCTestCase {
     func performWaitExpectation(_ description: String,
                                 timeout: TimeInterval,
-                                performBlock:(_ expectation: XCTestExpectation) -> Void) {
+                                performBlock: (_ expectation: XCTestExpectation) -> Void,
+                                onFulfill: XCWaitCompletionHandler? = nil) {
         let expectation = self.expectation(description: description)
         performBlock(expectation)
-        waitForExpectations(timeout: timeout, handler: nil)
+        waitForExpectations(timeout: timeout, handler: onFulfill)
+    }
+
+    func performWaitExpectation(_ description: String,
+                                timeout: TimeInterval,
+                                performBlock: (_ expectation: XCTestExpectation) -> Void) {
+        performWaitExpectation(description, timeout: timeout, performBlock: performBlock, onFulfill: nil)
     }
 
     func expectation(with description: String,
@@ -35,6 +42,8 @@ extension XCTestCase {
 }
 
 class Tests: XCTestCase {
+    var store: ListeningDisposeStore = ListeningDisposeStore()
+
     override func setUp() {
         super.setUp()
         // Put setup code here. This method is called before the invocation of each test method in the class.
@@ -55,8 +64,8 @@ class TestObject: RealtimeObject {
     lazy var array: RealtimeArray<TestObject> = "array".array(from: self.node)
     lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
-    lazy var readonlyFile: ReadonlyStorageProperty<UIImage> = ReadonlyStorageProperty(in: Node(key: "readonlyFile", parent: self.node), representer: .png)
-    lazy var file: StorageProperty<UIImage> = StorageProperty(in: Node(key: "file", parent: self.node), representer: .jpeg())
+    lazy var readonlyFile: ReadonlyFile<UIImage> = ReadonlyFile(in: Node(key: "readonlyFile", parent: self.node), representer: .png)
+    lazy var file: File<UIImage> = File(in: Node(key: "file", parent: self.node), representer: .jpeg())
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -76,9 +85,9 @@ class TestObject: RealtimeObject {
         return [\TestObject.property, \TestObject.linkedArray, \TestObject.array, \TestObject.dictionary, \TestObject.nestedObject]
     }
 
-    class NestedObject: TestObject {
+    class NestedObject: RealtimeObject {
         lazy var lazyProperty: RealtimeProperty<String?> = "lazyprop".property(from: self.node)
-        var usualProperty: RealtimeProperty<String?>?
+        var usualProperty: RealtimeProperty<String?>
 
         required init(in node: Node?, options: [RealtimeValueOption : Any]) {
             self.usualProperty = "usualprop".property(from: node)
@@ -87,11 +96,11 @@ class TestObject: RealtimeObject {
 
         required convenience init(fireData: FireDataProtocol) throws {
             self.init(in: fireData.dataRef.map(Node.from))
-            try apply(fireData, strongly: true)
+            try apply(fireData, exactly: true)
         }
 
-        override func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-            try super.apply(data, strongly: strongly)
+        override func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+            try super.apply(data, exactly: exactly)
         }
 
         override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
@@ -105,15 +114,16 @@ class TestObject: RealtimeObject {
 
 extension Tests {
     func testNestedObjectChanges() {
-        let testObject = TestObject(in: .root)
+        let testObject = TestObject(in: Node(key: "t_obj"))
 
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
+        testObject.file <== #imageLiteral(resourceName: "pw")
 
         do {
-            let trans = try testObject.update()
+            let trans = try testObject.save(in: .root)
             let value = trans.updateNode.updateValue
-            let expectedValue = ["/prop":"string", "/nestedObject/lazyprop":"nested_string"] as [String: Any?]
+            let expectedValue = ["/t_obj/prop":"string", "/t_obj/nestedObject/lazyprop":"nested_string"] as [String: Any?]
 
             XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
             trans.revert()
@@ -159,11 +169,13 @@ extension Tests {
         XCTAssertNoThrow(try testObject.linkedArray.write(element: linkedObject, in: transaction))
 
         let object = TestObject(in: Node(key: "elem_1"))
+        object.file <== #imageLiteral(resourceName: "pw")
         object.property <== "prop"
         testObject.array._view.isPrepared = true
         XCTAssertNoThrow(try testObject.array.write(element: object, in: transaction))
 
         let element = TestObject()
+        element.file <== #imageLiteral(resourceName: "pw")
         element.property <== "element #1"
         testObject.dictionary._view.isPrepared = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
@@ -179,16 +191,19 @@ extension Tests {
 
     func testCollectionOnStandaloneObject() {
         let testObject = TestObject(in: Node(key: "test_obj"))
+        testObject.file <== #imageLiteral(resourceName: "pw")
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
         linkedObject.property <== "#1"
         testObject.linkedArray.insert(element: linkedObject)
 
         let object = TestObject(in: Node(key: "elem_1"))
+        object.file <== #imageLiteral(resourceName: "pw")
         object.property <== "prop"
         testObject.array.insert(element: object)
 
         let element = TestObject()
+        element.file <== #imageLiteral(resourceName: "pw")
         element.property <== "element #1"
         testObject.dictionary.set(element: element, for: linkedObject)
 
@@ -207,6 +222,7 @@ extension Tests {
     }
 
     func testDecoding() {
+        let exp = expectation(description: "")
         let transaction = RealtimeTransaction()
 
         do {
@@ -215,6 +231,7 @@ extension Tests {
             element.nestedObject.lazyProperty <== "value"
             let child = TestObject()
             child.property <== "element #1"
+            child.file <== #imageLiteral(resourceName: "pw")
             element.array._view.isPrepared = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
@@ -224,8 +241,11 @@ extension Tests {
 
             let data = try element.update(in: transaction).updateNode
 
-            let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), strongly: false)
-            try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), strongly: true)
+            let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), exactly: false)
+            object.array.listening {
+                exp.fulfill()
+            }.add(to: &store)
+            try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), exactly: true)
 
             XCTAssertNotNil(object.file.wrapped)
 //            XCTAssertEqual(object.file.wrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
@@ -234,8 +254,11 @@ extension Tests {
             XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
-            XCTAssertTrue(object.array.isPrepared)
-            XCTAssertEqual(object.array.first?.property.unwrapped, element.array.first?.property.unwrapped)
+            waitForExpectations(timeout: 2) { (err) in
+                err.map({ XCTFail($0.localizedDescription) })
+                XCTAssertTrue(object.array.isPrepared)
+                XCTAssertEqual(object.array.first?.property.unwrapped, element.array.first?.property.unwrapped)
+            }
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -253,9 +276,9 @@ extension Tests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
+            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
 
-            try group.apply(data.child(forPath: group.node!.rootPath), strongly: false)
+            try group.apply(data.child(forPath: group.node!.rootPath), exactly: false)
 
             XCTAssertTrue(group.manager.unwrapped.dbKey == user.dbKey)
             XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == group.dbKey)
@@ -277,10 +300,10 @@ extension Tests {
 
             let data = try group.update(in: transaction).updateNode
 
-            let groupCopy = try RealtimeGroup(fireData: data.child(forPath: group.node!.rootPath), strongly: false)
+            let groupCopy = try RealtimeGroup(fireData: data.child(forPath: group.node!.rootPath), exactly: false)
 
             let groupBackwardRelation: RealtimeRelation<RealtimeGroup> = group._manager.options.property.path(for: group.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
-            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), strongly: false)
+            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: false)
 
             XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
             XCTAssertTrue(group._manager.wrapped?.dbKey == user.dbKey)
@@ -301,9 +324,9 @@ extension Tests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), strongly: false)
+            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
 
-            if case .error(let e, _) = userCopy.ownedGroup.lastEvent {
+            if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
                 XCTFail(e.localizedDescription)
             } else {
                 XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == userCopy.ownedGroup.unwrapped?.dbKey)
@@ -324,9 +347,9 @@ extension Tests {
 
             let data = try conversation.update(in: transaction).updateNode
 
-            let conversationCopy = try Conversation(fireData: data.child(forPath: conversation.node!.rootPath), strongly: false)
+            let conversationCopy = try Conversation(fireData: data.child(forPath: conversation.node!.rootPath), exactly: false)
 
-            if case .error(let e, _) = conversation.chairman.lastEvent {
+            if case .error(let e, _)? = conversation.chairman.lastEvent {
                 XCTFail(e.localizedDescription)
             } else {
                 XCTAssertTrue(conversationCopy.secretary.unwrapped?.dbKey == conversation.secretary.unwrapped?.dbKey)
@@ -339,8 +362,7 @@ extension Tests {
     }
 
     func testRepresenterOptional() {
-        let options = RealtimeRelation<TestObject>.Options(rootLevelsUp: nil, ownerLevelsUp: 1, property: .oneToOne("prop"))
-        let representer = Representer<TestObject>.relation(options.property, rootLevelsUp: options.rootLevelsUp, ownerNode: options.ownerNode).optional()
+        let representer = Representer<TestObject>.relation(.oneToOne("prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil)).optional()
         do {
             let object = try representer.decode(ValueNode(node: Node(key: ""), value: nil))
             XCTAssertNil(object)
@@ -453,8 +475,8 @@ extension Tests {
             }
         }
 
-        mutating func apply(_ data: FireDataProtocol, strongly: Bool) throws {
-            try value.apply(data, strongly: strongly)
+        mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+            try value.apply(data, exactly: exactly)
             let r = data.rawValue as? Int ?? 0
             if raw as? Int != r {
                 switch r {

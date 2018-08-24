@@ -89,7 +89,7 @@ extension Collection {
 
 @available(*, deprecated: 0.1.0)
 public class ReuseViewPrototype<View: AnyObject> {
-    fileprivate let weakView = WeakPropertyValue<View>(nil)
+    fileprivate let weakView: Property<View?> = Property.unsafe(weak: nil)
     weak var view: View? {
         set { weakView.set(newValue) }
         get { return weakView.get() }
@@ -213,7 +213,7 @@ public class _RealtimeTableAdapter<Models: ModelDataSource> {
             guard let proto = parent._prototypeCache[indexPath] else { return }
 
             proto.view = cell
-            proto.disposeStore.resume(true)
+            proto.disposeStore.resume()
         }
 
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
