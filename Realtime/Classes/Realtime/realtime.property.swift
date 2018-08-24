@@ -96,6 +96,18 @@ public final class RealtimeReference<Referenced: RealtimeValue>: RealtimePropert
         super.init(in: node, options: [.representer: o.representer])
     }
 
+    public init(fireData: FireDataProtocol, exactly: Bool, mode: Mode) throws {
+        try super.init(fireData: fireData, exactly: exactly, representer: mode.representer)
+    }
+
+    required public init(fireData: FireDataProtocol, exactly: Bool) throws {
+        fatalError("init(fireData:strongly:) cannot be called. Use init(fireData:exactly:options) instead")
+    }
+
+    required public init(fireData: FireDataProtocol, exactly: Bool, representer: Representer<Referenced?>) throws {
+        fatalError("init(fireData:strongly:representer:) cannot be called. Use init(fireData:exactly:options) instead")
+    }
+
     @discardableResult
     public override func setValue(_ value: Referenced, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
         guard value.isRooted else { fatalError("Value must with rooted node") }
@@ -137,6 +149,19 @@ public final class RealtimeRelation<Related: RealtimeValue>: RealtimeProperty<Re
 
         self.options = relation
         super.init(in: node, options: [.representer: relation.representer])
+    }
+
+    public init(fireData: FireDataProtocol, exactly: Bool, options: Options) throws {
+        self.options = options
+        try super.init(fireData: fireData, exactly: exactly, representer: options.representer)
+    }
+
+    required public init(fireData: FireDataProtocol, exactly: Bool) throws {
+        fatalError("init(fireData:strongly:) cannot be called. Use init(fireData:exactly:options) instead")
+    }
+
+    required public init(fireData: FireDataProtocol, exactly: Bool, representer: Representer<Related?>) throws {
+        fatalError("init(fireData:strongly:representer:) cannot be called. Use init(fireData:exactly:options) instead")
     }
 
     @discardableResult
@@ -421,6 +446,15 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
         self.representer = representer
         super.init(in: node, options: options)
     }
+
+    public required init(fireData: FireDataProtocol, exactly: Bool, representer: Representer<T?>) throws {
+        self.representer = representer
+        try super.init(fireData: fireData, exactly: exactly)
+    }
+
+    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
+        fatalError("init(fireData:strongly:) cannot be called. Use init(fireData:exactly:representer:)")
+    }
     
     public override func load(completion: Assign<Error?>?) {
         super.load(
@@ -473,8 +507,8 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
     
     // MARK: Events
     
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
+    override public func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
         switch _value {
         case .some(.local(let v)):
             _setValue(.remote(v, exact: true))
@@ -491,11 +525,6 @@ public class ReadonlyRealtimeProperty<T>: _RealtimeValue {
     }
     
     // MARK: Changeable
-
-    public convenience required init(fireData: FireDataProtocol) throws {
-        self.init(in: fireData.dataRef.map(Node.from))
-        try apply(fireData, exactly: true)
-    }
 
     override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
 //        super.apply(data, exactly: exactly)
@@ -688,10 +717,6 @@ public final class SharedProperty<T>: _RealtimeValue where T: FireDataValue & Ha
 
     // MARK: Events
 
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
-    }
-
     override public func didRemove(from node: Node) {
         super.didRemove(from: node)
         setValue(T())
@@ -699,9 +724,9 @@ public final class SharedProperty<T>: _RealtimeValue where T: FireDataValue & Ha
 
     // MARK: Changeable
 
-    public convenience required init(fireData: FireDataProtocol) throws {
-        self.init(in: fireData.dataRef.map(Node.from))
-        try apply(fireData, exactly: true)
+    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
+        self._value = T()
+        try super.init(fireData: fireData, exactly: exactly)
     }
 
     override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
@@ -721,8 +746,9 @@ extension SharedProperty: Listenable {
 }
 
 public extension SharedProperty {
-    public func changeValue(use changing: @escaping (T) throws -> T, completion: ((Bool, T) -> Void)? = nil) {
-        guard let ref = dbRef else  {
+    public func changeValue(use changing: @escaping (T) throws -> T,
+                            completion: ((Bool, T) -> Void)? = nil) {
+        guard let ref = node?.reference() else  {
             fatalError("Can`t get database reference")
         }
         ref.runTransactionBlock({ data in

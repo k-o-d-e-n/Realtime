@@ -98,9 +98,12 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
     }
     
     public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+        guard let ref = node?.reference() else  {
+            fatalError("Can`t get database reference")
+        }
         checkPreparation()
 
-        query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
+        query(ref).observeSingleEvent(of: .value, with: { (data) in
             do {
                 try self.apply(data, exactly: false)
                 completion(self.filter { data.hasChild($0.dbKey) }, nil)
@@ -160,11 +163,6 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 
         let transaction = transaction ?? RealtimeTransaction()
         try _write(element, at: index ?? count, by: (storage: node!, itms: _view.source.node!), in: transaction)
-        transaction.addCompletion { [weak self] (result) in
-            if result {
-                self?.didSave()
-            }
-        }
         return transaction
     }
 
@@ -258,19 +256,22 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
         }
         transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) // remove item element
         transaction.removeValue(by: storage.sourceNode.child(with: item.dbKey)) // remove element
-        transaction.addCompletion { [weak self] result in
+        transaction.addCompletion { result in
             if result {
                 element.didRemove()
-                self?.didSave()
             }
         }
     }
     
     // MARK: Realtime
 
-    public required convenience init(fireData: FireDataProtocol) throws {
-        self.init(in: fireData.dataRef.map(Node.from))
-        try apply(fireData, exactly: true)
+    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
+        let node = fireData.node
+        let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
+        self.storage = RCArrayStorage(sourceNode: node, elementBuilder: Element.init, elements: [:], localElements: [])
+        self._view = AnyRealtimeCollectionView(InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty()))
+        try super.init(fireData: fireData, exactly: exactly)
+        self._view.collection = self
     }
 
     var _snapshot: (FireDataProtocol, Bool)?
@@ -319,14 +320,14 @@ public final class RealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeVal
 //    override public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
 
 //    }
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
-            _view.source.didSave(in: node.linksNode)
+            _view.source.didSave(in: database, in: node.linksNode)
             storage.sourceNode = node
         }
         storage.localElements.removeAll()
-        storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0) }
+        storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0) }
     }
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {  // TODO: Elements don't receive willRemove event

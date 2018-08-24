@@ -11,10 +11,10 @@ import FirebaseDatabase
 // MARK: FireDataProtocol ---------------------------------------------------------------
 
 public protocol FireDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
+    var database: RealtimeDatabase? { get }
+    var node: Node? { get }
     var value: Any? { get }
     var priority: Any? { get }
-    var dataKey: String? { get }
-    var dataRef: DatabaseReference? { get }
     var childrenCount: UInt { get }
     func makeIterator() -> AnyIterator<FireDataProtocol>
     func exists() -> Bool
@@ -27,13 +27,8 @@ public protocol FireDataProtocol: Decoder, CustomDebugStringConvertible, CustomS
 }
 
 extension DataSnapshot: FireDataProtocol, Sequence {
-    public var dataKey: String? {
-        return key
-    }
-
-    public var dataRef: DatabaseReference? {
-        return ref
-    }
+    public var database: RealtimeDatabase? { return ref.database }
+    public var node: Node? { return Node.from(ref) }
 
     public func child(forPath path: String) -> FireDataProtocol {
         return childSnapshot(forPath: path)
@@ -47,13 +42,8 @@ extension DataSnapshot: FireDataProtocol, Sequence {
     }
 }
 extension MutableData: FireDataProtocol, Sequence {
-    public var dataKey: String? {
-        return key
-    }
-
-    public var dataRef: DatabaseReference? {
-        return nil
-    }
+    public var database: RealtimeDatabase? { return nil }
+    public var node: Node? { return key.map(Node.init) }
 
     public func exists() -> Bool {
         return value.map { !($0 is NSNull) } ?? false
@@ -76,7 +66,7 @@ extension MutableData: FireDataProtocol, Sequence {
 }
 
 public protocol FireDataRepresented {
-    init(fireData: FireDataProtocol) throws // TODO: May be need remove from protocol declaration and add as extension.
+    init(fireData: FireDataProtocol, exactly: Bool) throws
 
     /// Applies value of data snapshot
     ///
@@ -87,6 +77,9 @@ public protocol FireDataRepresented {
     mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws
 }
 extension FireDataRepresented {
+    init(fireData: FireDataProtocol) throws {
+        try self.init(fireData: fireData, exactly: true)
+    }
     mutating public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
         self = try Self.init(fireData: data)
     }
@@ -116,7 +109,7 @@ extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatabl
 /// You shouldn't apply for some custom values.
 public protocol FireDataValue: FireDataRepresented {}
 extension FireDataValue {
-    public init(fireData: FireDataProtocol) throws {
+    public init(fireData: FireDataProtocol, exactly: Bool) throws {
         guard let v = fireData.value as? Self else {
             throw RealtimeError(initialization: Self.self, fireData.value as Any)
         }
@@ -135,7 +128,7 @@ extension FireDataValue {
 //    }
 //}
 extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue {
-    public init(fireData: FireDataProtocol) throws {
+    public init(fireData: FireDataProtocol, exactly: Bool) throws {
         guard let v = fireData.value as? Array<Element> else {
             throw RealtimeError(initialization: Array<Element>.self, fireData.value as Any)
         }
@@ -156,7 +149,7 @@ extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue
 //}
 
 extension Dictionary: FireDataValue, FireDataRepresented where Key: FireDataValue, Value == FireDataValue {
-    public init(fireData: FireDataProtocol) throws {
+    public init(fireData: FireDataProtocol, exactly: Bool) throws {
         guard let v = fireData.value as? [Key: Value] else {
             throw RealtimeError(initialization: [Key: Value].self, fireData.value as Any)
         }
@@ -554,7 +547,7 @@ extension Decoder where Self: FireDataProtocol {
     }
 
     public var userInfo: [CodingUserInfoKey : Any] {
-        return [CodingUserInfoKey(rawValue: "ref")!: dataRef as Any]
+        return [CodingUserInfoKey(rawValue: "node")!: node as Any]
     }
 
     public func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
@@ -682,7 +675,7 @@ struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtoc
     let snapshot: FireDataProtocol
 
     var codingPath: [CodingKey] { return [] }
-    var allKeys: [Key] { return snapshot.compactMap { $0.dataKey.flatMap(Key.init) } }
+    var allKeys: [Key] { return snapshot.compactMap { $0.node.flatMap { Key(stringValue: $0.key) } } }
 
     private func _decode<T>(_ type: T.Type, forKey key: Key) throws -> T {
         let child = try snapshot.childDecoder(forKey: key)

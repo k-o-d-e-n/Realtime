@@ -119,9 +119,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     }
 
     public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+        guard let ref = node?.reference() else  {
+            fatalError("Can`t get database reference")
+        }
         checkPreparation()
 
-        query(dbRef!).observeSingleEvent(of: .value, with: { (data) in
+        query(ref).observeSingleEvent(of: .value, with: { (data) in
             do {
                 try self.apply(data, exactly: false)
                 completion(self.filter { data.hasChild($0.key.dbKey) }, nil)
@@ -178,11 +181,6 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
         try _write(element, for: key,
                    by: (storage: node!, itms: _view.source.node!), in: transaction)
-        transaction.addCompletion { [weak self] result in
-            if result {
-                self?.didSave()
-            }
-        }
     }
 
     func _write(_ element: Value, for key: Key,
@@ -252,10 +250,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         transaction.removeValue(by: _view.source.node!.child(with: key.dbKey)) // remove item element
         transaction.removeValue(by: storage.sourceNode.child(with: key.dbKey)) // remove element
         transaction.removeValue(by: key.node!.linksNode.child(with: item.linkID)) // remove link from key object
-        transaction.addCompletion { [weak self] result in
+        transaction.addCompletion { result in
             if result {
                 element.didRemove()
-                self?.didSave()
             }
         }
         return transaction
@@ -268,17 +265,17 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         fatalError("Realtime dictionary cannot be initialized with init(in:) initializer")
     }
 
-    public required convenience init(fireData: FireDataProtocol) throws {
+    public required convenience init(fireData: FireDataProtocol, exactly: Bool) throws {
         #if DEBUG
-        fatalError("RealtimeDictionary does not supported init(fireData:) yet.")
+        fatalError("RealtimeDictionary does not supported init(fireData:exactly:) yet.")
         #else
-        throw RealtimeError(source: .collection, description: "RealtimeDictionary does not supported init(fireData:) yet.")
+        throw RealtimeError(source: .collection, description: "RealtimeDictionary does not supported init(fireData:exactly:) yet.")
         #endif
     }
 
-    public convenience init(fireData: FireDataProtocol, keysNode: Node) throws {
-        self.init(in: fireData.dataRef.map(Node.from), options: [.keysNode: keysNode])
-        try apply(fireData, exactly: true)
+    public convenience init(fireData: FireDataProtocol, exactly: Bool, keysNode: Node) throws {
+        self.init(in: fireData.node, options: [.keysNode: keysNode, .database: fireData.database as Any])
+        try apply(fireData, exactly: exactly)
     }
 
     var _snapshot: (FireDataProtocol, Bool)?
@@ -328,14 +325,14 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 //    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
 //
 //    }
-    override public func didSave(in parent: Node, by key: String) {
-        super.didSave(in: parent, by: key)
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
-            _view.source.didSave(in: node.linksNode)
+            _view.source.didSave(in: database, in: node.linksNode)
             storage.sourceNode = node
         }
         storage.localElements.removeAll()
-        storage.elements.forEach { $1.didSave(in: storage.sourceNode, by: $0.dbKey) }
+        storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0.dbKey) }
     }
 
     public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {  // TODO: Elements don't receive willRemove event

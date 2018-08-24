@@ -37,8 +37,8 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
         self.internalPayload = (element.version, element.raw)
     }
 
-    init(fireData: FireDataProtocol) throws {
-        guard let key = fireData.dataKey else {
+    init(fireData: FireDataProtocol, exactly: Bool) throws {
+        guard let key = fireData.node?.key else {
             throw RealtimeError(initialization: RCItem.self, fireData)
         }
         guard fireData.hasChildren() else { // TODO: For test, remove!
@@ -60,7 +60,7 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
         guard let value = fireData.makeIterator().next() else {
             throw RealtimeError(initialization: RCItem.self, fireData)
         }
-        guard let linkID = value.dataKey else {
+        guard let linkID = value.node?.key else {
             throw RealtimeError(initialization: RCItem.self, fireData)
         }
         guard let index: Int = InternalKeys.index.map(from: value) else {
@@ -327,7 +327,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
             .filter { [unowned self] _ in !self.isPrepared }
             .listening(onValue: .guarded(self) { event, view in
                 switch event {
-                case .remote(_, strong: let s): view.isPrepared = s
+                case .remote(_, exact: let s): view.isPrepared = s
                 default: break
                 }
             })

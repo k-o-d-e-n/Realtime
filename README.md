@@ -37,7 +37,7 @@ Example:
 class User: RealtimeObject {
     lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
     lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
-    lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png.optional())
+    lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png)
     lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
     lazy var scheduledConversations: RealtimeArray<Conversation> = "scheduledConversations".array(from: self.node)
     lazy var ownedGroup: RealtimeRelation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, "manager")
@@ -135,7 +135,7 @@ do {
 do {
     let transaction = RealtimeTransaction()
     ...
-    let element = Element() // you should take new element from target collection location
+    let element = Element()
     try dictionary.write(element: element, key: key, in: transaction)
     try otherDictionary.remove(by: key, in: transaction)
 
