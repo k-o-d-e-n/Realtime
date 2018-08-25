@@ -224,6 +224,12 @@ public extension RepresenterProtocol {
     func optional() -> Representer<V?> {
         return Representer(optional: self)
     }
+    func collection<T>() -> Representer<T> where T: Collection & ExpressibleByArrayLiteral, T.Element == V, T.ArrayLiteralElement == V {
+        return Representer(collection: self)
+    }
+    func array() -> Representer<[V]> {
+        return Representer(collection: self)
+    }
 }
 extension RepresenterProtocol where V: HasDefaultLiteral & _ComparableWithDefaultLiteral {
     func defaultOnEmpty() -> Representer<V> {

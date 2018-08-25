@@ -8,17 +8,32 @@
 import Foundation
 import FirebaseDatabase
 
-public struct RealtimeApp {
+public class RealtimeApp {
     public let database: RealtimeDatabase
+    //    let storage:
     let linksNode: Node
-//    let storage:
+    var cachePolicy: CachePolicy = .noCache
 
-    public static func initialize(with database: RealtimeDatabase = Database.database(),
-                           linksNode: Node? = nil) {
-        RealtimeApp._app = RealtimeApp(database: database, linksNode: linksNode ?? Node(key: InternalKeys.links, parent: .root))
+    init(db: RealtimeDatabase, linksNode: Node) {
+        self.database = db
+        self.linksNode = linksNode
+    }
+
+    public static func initialize(
+        with database: RealtimeDatabase = Database.database(),
+        cachePolicy: CachePolicy,
+        linksNode: Node? = nil
+        ) {
+        RealtimeApp._app = RealtimeApp(db: database, linksNode: linksNode ?? Node(key: InternalKeys.links, parent: .root))
+        database.cachePolicy = cachePolicy
     }
 }
 extension RealtimeApp {
-    fileprivate static var _app: RealtimeApp!
-    public static var app: RealtimeApp { return _app }
+    fileprivate static var _app: RealtimeApp?
+    public static var app: RealtimeApp {
+        guard let app = _app else {
+            fatalError("Realtime is not initialized. Call please RealtimeApp.initialize(...) in application(_:didFinishLaunchingWithOptions:)")
+        }
+        return app
+    }
 }

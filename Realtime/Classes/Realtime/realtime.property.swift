@@ -822,7 +822,7 @@ public extension SharedProperty {
 public final class MutationPoint<T> {
     let database: RealtimeDatabase
     public let node: Node
-    public required init(in database: RealtimeDatabase, by node: Node) {
+    public required init(in database: RealtimeDatabase = RealtimeApp.app.database, by node: Node) {
         guard node.isRooted else { fatalError("Node must be rooted") }
 
         self.node = node

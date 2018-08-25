@@ -23,7 +23,15 @@ extension DatabaseReference: DatabaseNode {
     }
 }
 
-public protocol RealtimeDatabase {
+public enum CachePolicy {
+    case noCache
+    case inMemory
+    case persistance
+//    case custom(RealtimeDatabase)
+}
+
+public protocol RealtimeDatabase: class {
+    var cachePolicy: CachePolicy { get set }
     func generateAutoID() -> String
 
     func node(with valueNode: Node) -> DatabaseNode
@@ -47,6 +55,25 @@ public protocol RealtimeDatabase {
     func removeObserver(for node: Node, with token: UInt)
 }
 extension Database: RealtimeDatabase {
+    public var cachePolicy: CachePolicy {
+        set {
+            switch newValue {
+            case .persistance:
+                isPersistenceEnabled = true
+            default:
+                RealtimeApp.app.cachePolicy = newValue
+                isPersistenceEnabled = false
+            }
+        }
+        get {
+            if isPersistenceEnabled {
+                return .persistance
+            } else {
+                return RealtimeApp.app.cachePolicy
+            }
+        }
+    }
+
     public func generateAutoID() -> String {
         return reference().childByAutoId().key
     }
@@ -139,6 +166,17 @@ class FileNode: ValueNode {
 
 class CacheNode: ObjectNode, RealtimeDatabase {
     static let root: CacheNode = CacheNode(node: .root)
+
+    var cachePolicy: CachePolicy {
+        set {
+            switch newValue {
+            case .persistance: break
+                /// makes persistance configuration
+            default: break
+            }
+        }
+        get { return .inMemory }
+    }
 
     func generateAutoID() -> String {
         return Database.database().generateAutoID()
