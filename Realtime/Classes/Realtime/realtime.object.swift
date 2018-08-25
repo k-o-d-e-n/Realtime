@@ -11,12 +11,19 @@ import FirebaseDatabase
 
 /// Base class for any database value
 open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
+    /// Database that associated with this value
     public fileprivate(set) var database: RealtimeDatabase?
+    /// Node of database tree
     public fileprivate(set) var node: Node?
+    /// Version of representation
     public fileprivate(set) var version: Int?
-    public fileprivate(set) var raw: FireDataValue?
-    public fileprivate(set) var payload: [String : FireDataValue]?
+    /// Raw value if Realtime value represented as enumerated type
+    public fileprivate(set) var raw: RealtimeDataValue?
+    /// User defined payload related with this value
+    public fileprivate(set) var payload: [String : RealtimeDataValue]?
+    /// Indicates that value already observed
     public var isObserved: Bool { return observing != nil }
+    /// Indicates that value can observe
     public var canObserve: Bool { return isRooted }
 
     private var observing: (token: UInt, counter: Int)?
@@ -24,7 +31,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     public required init(in node: Node?, options: [ValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
-        if case let pl as [String: FireDataValue] = options[.payload] {
+        if case let pl as [String: RealtimeDataValue] = options[.payload] {
             self.payload = pl
         }
         if case let ipl as InternalPayload = options[.internalPayload] {
@@ -105,14 +112,14 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     public func willRemove(in transaction: Transaction, from ancestor: Node) {
         debugFatalError(condition: self.node == nil || !self.node!.isRooted,
                         "Value will be removed from node: \(ancestor), but has not been inserted before. Current: \(self.node?.description ?? "")")
-        debugFatalError(condition: !self.node!.hasParent(node: ancestor),
+        debugFatalError(condition: !self.node!.hasAncestor(node: ancestor),
                         "Value will be removed from node: \(ancestor), that is not ancestor for this location: \(self.node!.description)")
         debugFatalError(condition: !ancestor.isRooted, "Value will be removed from non rooted node: \(ancestor)")
     }
     public func didRemove(from ancestor: Node) {
         debugFatalError(condition: self.node == nil || !self.node!.isRooted,
                         "Value has been removed from node: \(ancestor), but has not been inserted before. Current: \(self.node?.description ?? "")")
-        debugFatalError(condition: !self.node!.hasParent(node: ancestor),
+        debugFatalError(condition: !self.node!.hasAncestor(node: ancestor),
                         "Value has been removed from node: \(ancestor), that is not ancestor for this location: \(self.node!.description)")
         debugFatalError(condition: !ancestor.isRooted, "Value has been removed from non rooted node: \(ancestor)")
 
@@ -168,18 +175,18 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
     // MARK: Realtime Value
 
-    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
-        self.database = fireData.database
-        self.node = fireData.node
-        try apply(fireData, exactly: exactly)
+    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        self.database = data.database
+        self.node = data.node
+        try apply(data, exactly: exactly)
     }
 
-    func _apply_RealtimeValue(_ data: FireDataProtocol, exactly: Bool) {
+    func _apply_RealtimeValue(_ data: RealtimeDataProtocol, exactly: Bool) {
         version = data.version
         raw = data.rawValue
         payload = InternalKeys.payload.map(from: data)
     }
-    open func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         _apply_RealtimeValue(data, exactly: exactly)
     }
     
@@ -234,8 +241,10 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
+    /// Parent object
     open weak var parent: Object?
 
+    /// Labels of properties that shouldn`t represent as database data
     open var ignoredLabels: [String] {
         return []
     }
@@ -292,13 +301,13 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         super.didRemove(from: ancestor)
     }
     
-    override open func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    override open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try super.apply(data, exactly: exactly)
         try reflect { (mirror) in
             try apply(data, exactly: exactly, to: mirror)
         }
     }
-    private func apply(_ data: FireDataProtocol, exactly: Bool, to mirror: Mirror) throws {
+    private func apply(_ data: RealtimeDataProtocol, exactly: Bool, to mirror: Mirror) throws {
         try mirror.children.forEach { (child) in
             guard isNotIgnoredLabel(child.label) else { return }
 
@@ -476,7 +485,16 @@ extension Object: Reverting {
     }
 }
 
-extension Object {
+public extension Object {
+    /// Creates new instance associated with database node
+    ///
+    /// - Parameter node: Node location for value
+    convenience init(in node: Node?) { self.init(in: node, options: [:]) }
+    /// Creates new standalone instance with undefined node
+    convenience init() { self.init(in: nil) }
+}
+
+public extension Object {
     /// writes Object in transaction like as single value
     @discardableResult
     public func save(in parent: Node, in transaction: Transaction? = nil) throws -> Transaction {
@@ -507,7 +525,7 @@ extension Object {
         }
     }
 
-    /// writes empty value by Object reference in transaction 
+    /// writes empty value by Object node in transaction 
     public func delete(in transaction: Transaction? = nil) throws -> Transaction {
         guard let database = self.database else { fatalError("Object has not database reference, because was not saved") }
 

@@ -27,8 +27,8 @@ struct AnyCollectionKey: Hashable, DatabaseKeyRepresentable {
 internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var node: Node? { fatalError() }
     var version: Int? { fatalError() }
-    var raw: FireDataValue? { fatalError() }
-    var payload: [String : FireDataValue]? { fatalError() }
+    var raw: RealtimeDataValue? { fatalError() }
+    var payload: [String : RealtimeDataValue]? { fatalError() }
     var view: RealtimeCollectionView { fatalError() }
     var isPrepared: Bool { fatalError() }
     func makeIterator() -> AnyIterator<Element> { fatalError() }
@@ -37,7 +37,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(after i: Int) -> Int { fatalError() }
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
-    func apply(_ data: FireDataProtocol, exactly: Bool) throws { fatalError() }
+    func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
     func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
@@ -54,8 +54,8 @@ where C.Index == Int {
         self.base = base
     }
 
-    convenience required init(fireData: FireDataProtocol) throws {
-        let base = try C(fireData: fireData)
+    required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        let base = try C(data: data, exactly: exactly)
         self.init(base: base)
     }
 
@@ -64,7 +64,7 @@ where C.Index == Int {
     }
 
     override var node: Node? { return base.node }
-    override var payload: [String : FireDataValue]? { return base.payload }
+    override var payload: [String : RealtimeDataValue]? { return base.payload }
     override var view: RealtimeCollectionView { return base.view }
     override var isPrepared: Bool { return base.isPrepared }
 
@@ -75,7 +75,7 @@ where C.Index == Int {
     override func index(before i: Int) -> Int { return base.index(before: i) }
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
-    override func apply(_ data: FireDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
+    override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving() -> Bool { return base.runObserving() }
@@ -98,8 +98,8 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
 
     public var node: Node? { return base.node }
     public var version: Int? { return base.version }
-    public var raw: FireDataValue? { return base.raw }
-    public var payload: [String : FireDataValue]? { return base.payload }
+    public var raw: RealtimeDataValue? { return base.raw }
+    public var payload: [String : RealtimeDataValue]? { return base.payload }
     public var storage: AnyArrayStorage = AnyArrayStorage()
     public var view: RealtimeCollectionView { return base.view }
     public var isPrepared: Bool { return base.isPrepared }
@@ -116,8 +116,8 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var canObserve: Bool { return base.canObserve }
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
-    public convenience required init(fireData: FireDataProtocol, exactly: Bool) throws { fatalError() }
-    public func apply(_ data: FireDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
+    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
+    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
 }
 
 // TODO: Create wrapper that would sort array (sorting by default) (example array from tournament table)
@@ -205,8 +205,8 @@ where Element: RealtimeValue {
 
     public var node: Node? { return base.node }
     public var version: Int? { return base.version }
-    public var raw: FireDataValue? { return base.raw }
-    public var payload: [String : FireDataValue]? { return base.payload }
+    public var raw: RealtimeDataValue? { return base.raw }
+    public var payload: [String : RealtimeDataValue]? { return base.payload }
     public var view: RealtimeCollectionView { return base.view }
     public var storage: KeyedCollectionStorage<Element>
     public var isPrepared: Bool { return base.isPrepared }
@@ -232,11 +232,11 @@ where Element: RealtimeValue {
         base.stopObserving()
     }
 
-    public convenience required init(fireData: FireDataProtocol, exactly: Bool) throws {
+    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         fatalError("Cannot use this initializer")
     }
 
-    public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try base.apply(data, exactly: exactly)
     }
 
@@ -268,8 +268,8 @@ where Base.Index == Int {
 
     public var node: Node? { return base.node }
     public var version: Int? { return base.version }
-    public var raw: FireDataValue? { return base.raw }
-    public var payload: [String : FireDataValue]? { return base.payload }
+    public var raw: RealtimeDataValue? { return base.raw }
+    public var payload: [String : RealtimeDataValue]? { return base.payload }
     public var view: RealtimeCollectionView { return base.view }
     public var storage: AnyArrayStorage
     public var isPrepared: Bool { return base.isPrepared }
@@ -295,11 +295,11 @@ where Base.Index == Int {
         base.stopObserving()
     }
 
-    public convenience required init(fireData: FireDataProtocol, exactly: Bool) throws {
+    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         fatalError("Cannot use this initializer")
     }
 
-    public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try base.apply(data, exactly: exactly)
     }
 

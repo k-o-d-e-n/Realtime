@@ -9,11 +9,11 @@ import Foundation
 import FirebaseDatabase
 
 public protocol DatabaseNode {
-    var cachedData: FireDataProtocol? { get }
+    var cachedData: RealtimeDataProtocol? { get }
     func update(use keyValuePairs: [String: Any], completion: ((Error?, DatabaseNode) -> Void)?)
 }
 extension DatabaseReference: DatabaseNode {
-    public var cachedData: FireDataProtocol? { return nil }
+    public var cachedData: RealtimeDataProtocol? { return nil }
     public func update(use keyValuePairs: [String : Any], completion: ((Error?, DatabaseNode) -> Void)?) {
         if let completion = completion {
             updateChildValues(keyValuePairs, withCompletionBlock: completion)
@@ -40,14 +40,14 @@ public protocol RealtimeDatabase: class {
 
     func load(
         for node: Node,
-        completion: @escaping (FireDataProtocol) -> Void,
+        completion: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error?) -> Void)?
     )
 
     func observe(
         _ event: DataEventType,
         on node: Node,
-        onUpdate: @escaping (FireDataProtocol) -> Void,
+        onUpdate: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error?) -> Void)?
     ) -> UInt
 
@@ -104,7 +104,7 @@ extension Database: RealtimeDatabase {
 
     public func load(
         for node: Node,
-        completion: @escaping (FireDataProtocol) -> Void,
+        completion: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error?) -> Void)?) {
         node.reference(for: self).observeSingleEvent(
             of: .value,
@@ -116,7 +116,7 @@ extension Database: RealtimeDatabase {
     public func observe(
         _ event: DataEventType,
         on node: Node,
-        onUpdate: @escaping (FireDataProtocol) -> Void,
+        onUpdate: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error?) -> Void)?) -> UInt {
         return node.reference(for: self).observe(event, with: onUpdate, withCancel: onCancel)
     }
@@ -130,13 +130,13 @@ extension Database: RealtimeDatabase {
     }
 }
 
-public protocol UpdateNode: FireDataProtocol, DatabaseNode {
+public protocol UpdateNode: RealtimeDataProtocol, DatabaseNode {
     var location: Node { get }
     var value: Any? { get }
     func fill(from ancestor: Node, into container: inout [String: Any])
 }
 extension UpdateNode {
-    public var cachedData: FireDataProtocol? { return self }
+    public var cachedData: RealtimeDataProtocol? { return self }
     public var database: RealtimeDatabase? { return CacheNode.root }
     public var node: Node? { return location }
 }
@@ -208,11 +208,11 @@ class CacheNode: ObjectNode, RealtimeDatabase {
         fatalError()
     }
 
-    func load(for node: Node, completion: @escaping (FireDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) {
+    func load(for node: Node, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) {
         completion(child(forPath: node.rootPath))
     }
 
-    func observe(_ event: DataEventType, on node: Node, onUpdate: @escaping (FireDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) -> UInt {
+    func observe(_ event: DataEventType, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) -> UInt {
         fatalError()
     }
 }
@@ -361,35 +361,35 @@ extension ObjectNode {
     }
 }
 
-extension UpdateNode where Self: FireDataProtocol {
+extension UpdateNode where Self: RealtimeDataProtocol {
     public var priority: Any? { return nil }
 }
 
-extension ValueNode: FireDataProtocol, Sequence {
+extension ValueNode: RealtimeDataProtocol, Sequence {
     var priority: Any? { return nil }
     var childrenCount: UInt { return 0 }
-    func makeIterator() -> AnyIterator<FireDataProtocol> { return AnyIterator(EmptyIterator()) }
+    func makeIterator() -> AnyIterator<RealtimeDataProtocol> { return AnyIterator(EmptyIterator()) }
     func exists() -> Bool { return value != nil }
     func hasChildren() -> Bool { return false }
     func hasChild(_ childPathString: String) -> Bool { return false }
-    func child(forPath path: String) -> FireDataProtocol { return ValueNode(node: Node(key: path, parent: location), value: nil) }
-    func compactMap<ElementOfResult>(_ transform: (FireDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
+    func child(forPath path: String) -> RealtimeDataProtocol { return ValueNode(node: Node(key: path, parent: location), value: nil) }
+    func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
         return []
     }
-    func forEach(_ body: (FireDataProtocol) throws -> Void) rethrows {}
-    func map<T>(_ transform: (FireDataProtocol) throws -> T) rethrows -> [T] { return [] }
+    func forEach(_ body: (RealtimeDataProtocol) throws -> Void) rethrows {}
+    func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] { return [] }
     var debugDescription: String { return "\(location.rootPath): \(value as Any)" }
     var description: String { return debugDescription }
 }
 
 /// Cache in future
-extension ObjectNode: FireDataProtocol, Sequence {
+extension ObjectNode: RealtimeDataProtocol, Sequence {
     public var childrenCount: UInt {
         return UInt(childs.count)
     }
 
-    public func makeIterator() -> AnyIterator<FireDataProtocol> {
-        return AnyIterator(childs.lazy.map { $0 as FireDataProtocol }.makeIterator())
+    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
+        return AnyIterator(childs.lazy.map { $0 as RealtimeDataProtocol }.makeIterator())
     }
 
     public func exists() -> Bool {
@@ -404,19 +404,19 @@ extension ObjectNode: FireDataProtocol, Sequence {
         return child(by: childPathString.split(separator: "/").lazy.map(String.init)) != nil
     }
 
-    public func child(forPath path: String) -> FireDataProtocol {
+    public func child(forPath path: String) -> RealtimeDataProtocol {
         return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: location), value: nil)
     }
 
-    public func map<T>(_ transform: (FireDataProtocol) throws -> T) rethrows -> [T] {
+    public func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
         return try childs.map(transform)
     }
 
-    public func compactMap<ElementOfResult>(_ transform: (FireDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
+    public func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
         return try childs.compactMap(transform)
     }
 
-    public func forEach(_ body: (FireDataProtocol) throws -> Void) rethrows {
+    public func forEach(_ body: (RealtimeDataProtocol) throws -> Void) rethrows {
         return try childs.forEach(body)
     }
 

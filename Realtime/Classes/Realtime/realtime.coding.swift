@@ -8,40 +8,41 @@
 import Foundation
 import FirebaseDatabase
 
-// MARK: FireDataProtocol ---------------------------------------------------------------
+// MARK: RealtimeDataProtocol ---------------------------------------------------------------
 
-public protocol FireDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
+/// A type that contains data associated with database node.
+public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
     var database: RealtimeDatabase? { get }
     var node: Node? { get }
     var value: Any? { get }
     var priority: Any? { get }
     var childrenCount: UInt { get }
-    func makeIterator() -> AnyIterator<FireDataProtocol>
+    func makeIterator() -> AnyIterator<RealtimeDataProtocol>
     func exists() -> Bool
     func hasChildren() -> Bool
     func hasChild(_ childPathString: String) -> Bool
-    func child(forPath path: String) -> FireDataProtocol
-    func map<T>(_ transform: (FireDataProtocol) throws -> T) rethrows -> [T]
-    func compactMap<ElementOfResult>(_ transform: (FireDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult]
-    func forEach(_ body: (FireDataProtocol) throws -> Swift.Void) rethrows
+    func child(forPath path: String) -> RealtimeDataProtocol
+    func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T]
+    func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult]
+    func forEach(_ body: (RealtimeDataProtocol) throws -> Swift.Void) rethrows
 }
 
-extension DataSnapshot: FireDataProtocol, Sequence {
+extension DataSnapshot: RealtimeDataProtocol, Sequence {
     public var database: RealtimeDatabase? { return ref.database }
     public var node: Node? { return Node.from(ref) }
 
-    public func child(forPath path: String) -> FireDataProtocol {
+    public func child(forPath path: String) -> RealtimeDataProtocol {
         return childSnapshot(forPath: path)
     }
 
-    public func makeIterator() -> AnyIterator<FireDataProtocol> {
+    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
         let childs = children
         return AnyIterator {
             return childs.nextObject() as? DataSnapshot
         }
     }
 }
-extension MutableData: FireDataProtocol, Sequence {
+extension MutableData: RealtimeDataProtocol, Sequence {
     public var database: RealtimeDatabase? { return nil }
     public var node: Node? { return key.map(Node.init) }
 
@@ -49,7 +50,7 @@ extension MutableData: FireDataProtocol, Sequence {
         return value.map { !($0 is NSNull) } ?? false
     }
 
-    public func child(forPath path: String) -> FireDataProtocol {
+    public func child(forPath path: String) -> RealtimeDataProtocol {
         return childData(byAppendingPath: path)
     }
 
@@ -57,7 +58,7 @@ extension MutableData: FireDataProtocol, Sequence {
         return hasChild(atPath: childPathString)
     }
 
-    public func makeIterator() -> AnyIterator<FireDataProtocol> {
+    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
         let childs = children
         return AnyIterator {
             return childs.nextObject() as? MutableData
@@ -65,38 +66,56 @@ extension MutableData: FireDataProtocol, Sequence {
     }
 }
 
-public protocol FireDataRepresented {
-    init(fireData: FireDataProtocol, exactly: Bool) throws
+/// A type that represented someone value of Realtime database
+public protocol RealtimeDataRepresented {
+    /// Creates a new instance by decoding from the given data.
+    ///
+    /// This initializer throws an error if data does not correspond
+    /// requirements of this type
+    ///
+    /// - Parameters:
+    ///   - data: Realtime database data
+    ///   - exactly: Indicates that data should be applied as is (for example, empty values will be set to `nil`).
+    init(data: RealtimeDataProtocol, exactly: Bool) throws
 
     /// Applies value of data snapshot
     ///
     /// - Parameters:
-    ///   - snapshot: Snapshot value
+    ///   - data: Realtime database data
     ///   - exactly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
     ///               Pass `false` if snapshot represents part of data (for example filtered list).
-    mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws
+    mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws
 }
-extension FireDataRepresented {
-    init(fireData: FireDataProtocol) throws {
-        try self.init(fireData: fireData, exactly: true)
+extension RealtimeDataRepresented {
+    init(data: RealtimeDataProtocol) throws {
+        try self.init(data: data, exactly: true)
     }
-    mutating public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
-        self = try Self.init(fireData: data)
+    mutating public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        self = try Self.init(data: data)
     }
-    mutating func apply(_ data: FireDataProtocol) throws {
+    mutating func apply(_ data: RealtimeDataProtocol) throws {
         try apply(data, exactly: true)
     }
 }
-public protocol FireDataValueRepresented {
-    var fireValue: FireDataValue { get } // TODO: Instead add variable that will return representer, or method `func represented()`
+
+/// A type that can represented to an adopted Realtime database value
+public protocol RealtimeDataValueRepresented {
+    /// Value adopted for Realtime database
+    var rdbValue: RealtimeDataValue { get } // TODO: Instead add variable that will return representer, or method `func represented()`
 }
 
-// MARK: FireDataValue ------------------------------------------------------------------
+// MARK: RealtimeDataValue ------------------------------------------------------------------
 
+/// A type that can be initialized using with nothing.
 public protocol HasDefaultLiteral {
     init()
 }
+/// Internal protocol to compare HasDefaultLiteral type.
 public protocol _ComparableWithDefaultLiteral {
+    /// Checks that argument is default.
+    ///
+    /// - Parameter lhs: Value is conformed HasDefaultLiteral
+    /// - Returns: Comparison result
     static func _isDefaultLiteral(_ lhs: Self) -> Bool
 }
 extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatable {
@@ -107,30 +126,30 @@ extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatabl
 
 /// Protocol for values that only valid for Realtime Database, e.g. `(NS)Array`, `(NS)Dictionary` and etc.
 /// You shouldn't apply for some custom values.
-public protocol FireDataValue: FireDataRepresented {}
-extension FireDataValue {
-    public init(fireData: FireDataProtocol, exactly: Bool) throws {
-        guard let v = fireData.value as? Self else {
-            throw RealtimeError(initialization: Self.self, fireData.value as Any)
+public protocol RealtimeDataValue: RealtimeDataRepresented {}
+extension RealtimeDataValue {
+    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard let v = data.value as? Self else {
+            throw RealtimeError(initialization: Self.self, data.value as Any)
         }
 
         self = v
     }
 }
 
-//extension Optional: FireDataValue where Wrapped: FireDataValue {
-//    public init(fireData: FireDataProtocol) throws {
-//        if fireData.exists() {
-//            self = try Wrapped(fireData: fireData)
+//extension Optional: RealtimeDataValue where Wrapped: RealtimeDataValue {
+//    public init(data: RealtimeDataProtocol) throws {
+//        if data.exists() {
+//            self = try Wrapped(data: data)
 //        } else {
 //            self = .none
 //        }
 //    }
 //}
-extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue {
-    public init(fireData: FireDataProtocol, exactly: Bool) throws {
-        guard let v = fireData.value as? Array<Element> else {
-            throw RealtimeError(initialization: Array<Element>.self, fireData.value as Any)
+extension Array: RealtimeDataValue, RealtimeDataRepresented where Element: RealtimeDataValue {
+    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard let v = data.value as? Array<Element> else {
+            throw RealtimeError(initialization: Array<Element>.self, data.value as Any)
         }
 
         self = v
@@ -138,20 +157,19 @@ extension Array: FireDataValue, FireDataRepresented where Element: FireDataValue
 }
 
 // TODO: Swift 4.2
-//extension Dictionary: FireDataValue, FireDataRepresented where Key: FireDataValue, Value: FireDataValue {
-//    public init(fireData: FireDataProtocol) throws {
-//        guard let v = fireData.value as? [Key: Value] else {
+//extension Dictionary: RealtimeDataValue, FireDataRepresented where Key: RealtimeDataValue, Value: RealtimeDataValue {
+//    public init(data: RealtimeDataProtocol) throws {
+//        guard let v = data.value as? [Key: Value] else {
 //            throw RealtimeError("Failed data for type: \([Key: Value].self)")
 //        }
 //
 //        self = v
 //    }
 //}
-
-extension Dictionary: FireDataValue, FireDataRepresented where Key: FireDataValue, Value == FireDataValue {
-    public init(fireData: FireDataProtocol, exactly: Bool) throws {
-        guard let v = fireData.value as? [Key: Value] else {
-            throw RealtimeError(initialization: [Key: Value].self, fireData.value as Any)
+extension Dictionary: RealtimeDataValue, RealtimeDataRepresented where Key: RealtimeDataValue, Value == RealtimeDataValue {
+    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard let v = data.value as? [Key: Value] else {
+            throw RealtimeError(initialization: [Key: Value].self, data.value as Any)
         }
 
         self = v
@@ -170,20 +188,21 @@ extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral {
 //        return lhs.map(Wrapped._isDefaultLiteral) ?? lhs == nil
 //    }
 //}
-extension Bool      : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension Int       : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension Double    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension Float     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension Int8      : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension Int16     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension Int32     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension Int64     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension UInt      : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension UInt8     : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension UInt16    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension UInt32    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension UInt64    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
-extension String    : HasDefaultLiteral, _ComparableWithDefaultLiteral, FireDataValue {}
+extension Bool      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension Int       : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension Double    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension Float     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension Int8      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension Int16     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension Int32     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension Int64     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension UInt      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension UInt8     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension UInt16    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension UInt32    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension UInt64    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension CGFloat   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension String    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
 extension Data      : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
 extension Array     : HasDefaultLiteral {}
 extension Dictionary: HasDefaultLiteral {}
@@ -215,51 +234,85 @@ extension Dictionary: _ComparableWithDefaultLiteral {
 //    var customRepresenter: Representer<Represented> { get }
 //}
 
+/// A type that can convert itself into and out of an external representation.
 public protocol RepresenterProtocol {
     associatedtype V
+    /// Encodes this value to untyped value
+    ///
+    /// - Parameter value:
+    /// - Returns: Untyped value
     func encode(_ value: V) throws -> Any?
-    func decode(_ data: FireDataProtocol) throws -> V
+    /// Decodes a data of Realtime database to defined type.
+    ///
+    /// - Parameter data: A data of database.
+    /// - Returns: Value of defined type.
+    func decode(_ data: RealtimeDataProtocol) throws -> V
 }
 public extension RepresenterProtocol {
+    /// Representer that no throws error on empty data
+    ///
+    /// - Returns: Wrapped representer
     func optional() -> Representer<V?> {
         return Representer(optional: self)
     }
+    /// Representer that convert data to collection
+    /// where element of collection is type of base representer
+    ///
+    /// - Returns: Wrapped representer
     func collection<T>() -> Representer<T> where T: Collection & ExpressibleByArrayLiteral, T.Element == V, T.ArrayLiteralElement == V {
         return Representer(collection: self)
     }
+    /// Representer that convert data to array
+    /// where element of collection is type of base representer
+    ///
+    /// - Returns: Wrapped representer
     func array() -> Representer<[V]> {
         return Representer(collection: self)
     }
 }
 extension RepresenterProtocol where V: HasDefaultLiteral & _ComparableWithDefaultLiteral {
+    /// Representer that convert empty data as default literal
+    ///
+    /// - Returns: Wrapped representer
     func defaultOnEmpty() -> Representer<V> {
         return Representer(defaultOnEmpty: self)
     }
 }
 public extension Representer {
+    /// Encodes optional wrapped value if exists
+    /// else returns nil
+    ///
+    /// - Parameter value: Optional of base value
+    /// - Returns: Encoding result
     func encode<T>(_ value: V) throws -> Any? where V == Optional<T> {
         return try value.map(encode)
     }
-    func decode<T>(_ data: FireDataProtocol) throws -> V where V == Optional<T> {
+    /// Decodes a data of Realtime database to defined type.
+    /// If data is empty return nil.
+    ///
+    /// - Parameter data: A data of database.
+    /// - Returns: Value of defined type.
+    func decode<T>(_ data: RealtimeDataProtocol) throws -> V where V == Optional<T> {
         guard data.exists() else { return nil }
         return try decode(data)
     }
 }
 
+/// Any representer
 public struct Representer<V>: RepresenterProtocol {
     fileprivate let encoding: (V) throws -> Any?
-    fileprivate let decoding: (FireDataProtocol) throws -> V
-    public func decode(_ data: FireDataProtocol) throws -> V {
+    fileprivate let decoding: (RealtimeDataProtocol) throws -> V
+    public func decode(_ data: RealtimeDataProtocol) throws -> V {
         return try decoding(data)
     }
     public func encode(_ value: V) throws -> Any? {
         return try encoding(value)
     }
-    public init(encoding: @escaping (V) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> V) {
+    public init(encoding: @escaping (V) throws -> Any?, decoding: @escaping (RealtimeDataProtocol) throws -> V) {
         self.encoding = encoding
         self.decoding = decoding
     }
-    public init<T>(encoding: @escaping (T) throws -> Any?, decoding: @escaping (FireDataProtocol) throws -> T) where V == Optional<T> {
+    public init<T>(encoding: @escaping (T) throws -> Any?, decoding: @escaping (RealtimeDataProtocol) throws -> T) where V == Optional<T> {
         self.encoding = { v -> Any? in
             return try v.map(encoding)
         }
@@ -323,44 +376,55 @@ public extension Representer {
     }
 }
 public extension Representer where V: RealtimeValue {
-    static func relation(_ property: RelationMode, rootLevelsUp: Int?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
+    /// Representer that convert `RealtimeValue` as database relation.
+    ///
+    /// - Parameters:
+    ///   - mode: Relation type
+    ///   - rootLevelsUp: Level of root node to do relation path
+    ///   - ownerNode: Database node of relation owner
+    /// - Returns: Relation representer
+    static func relation(_ mode: RelationMode, rootLevelsUp: Int?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
                 guard let node = v.node else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation value node.") }
 
-                return RelationRepresentation(path: rootLevelsUp.map(node.path) ?? node.rootPath, property: property.path(for: owner)).fireValue
+                return RelationRepresentation(path: rootLevelsUp.map(node.path) ?? node.rootPath, property: mode.path(for: owner)).rdbValue
         },
             decoding: { d in
-                let relation = try RelationRepresentation(fireData: d)
+                let relation = try RelationRepresentation(data: d)
                 return V(in: Node.root.child(with: relation.targetPath), options: [:])
         })
     }
 
+    /// Representer that convert `RealtimeValue` as database reference.
+    ///
+    /// - Parameter mode: Representation mode
+    /// - Returns: Reference representer
     static func reference(_ mode: ReferenceMode) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 switch mode {
                 case .fullPath:
                     if let ref = v.reference() {
-                        return ref.fireValue
+                        return ref.rdbValue
                     } else {
                         throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
                     }
-                case .key(from: let n):
+                case .path(from: let n):
                     if let ref = v.reference(from: n) {
-                        return ref.fireValue
+                        return ref.rdbValue
                     } else {
                         throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
                     }
                 }
         },
             decoding: { (data) in
-                let reference = try ReferenceRepresentation(fireData: data)
+                let reference = try ReferenceRepresentation(data: data)
                 let options: [ValueOption: Any] = [.internalPayload: InternalPayload(data.version, data.rawValue)]
                 switch mode {
                 case .fullPath: return reference.make(options: options)
-                case .key(from: let n): return reference.make(in: n, options: options)
+                case .path(from: let n): return reference.make(in: n, options: options)
                 }
         }
         )
@@ -371,9 +435,9 @@ public extension Representer {
         return Representer<V>(encoding: { $0 }, decoding: { try $0.unbox(as: V.self) })
     }
 }
-public extension Representer where V: FireDataRepresented & FireDataValueRepresented {
-    static var fireData: Representer<V> {
-        return Representer<V>(encoding: { $0.fireValue }, decoding: V.init)
+public extension Representer where V: RealtimeDataRepresented & RealtimeDataValueRepresented {
+    static var realtimeData: Representer<V> {
+        return Representer<V>(encoding: { $0.rdbValue }, decoding: V.init)
     }
 }
 
@@ -544,7 +608,7 @@ public extension Representer where V == Date {
 
 /// --------------------------- DataSnapshot Decoder ------------------------------
 
-public extension FireDataProtocol {
+public extension RealtimeDataProtocol {
     func unbox<T>(as type: T.Type) throws -> T {
         guard case let v as T = value else {
             throw RealtimeError(decoding: T.self, self, reason: "Mismatch type")
@@ -553,7 +617,7 @@ public extension FireDataProtocol {
     }
 }
 
-extension Decoder where Self: FireDataProtocol {
+extension Decoder where Self: RealtimeDataProtocol {
     public var codingPath: [CodingKey] {
         return []
     }
@@ -574,7 +638,7 @@ extension Decoder where Self: FireDataProtocol {
         return DataSnapshotSingleValueContainer(snapshot: self)
     }
 
-    fileprivate func childDecoder<Key: CodingKey>(forKey key: Key) throws -> FireDataProtocol {
+    fileprivate func childDecoder<Key: CodingKey>(forKey key: Key) throws -> RealtimeDataProtocol {
         guard hasChild(key.stringValue) else {
             throw DecodingError.keyNotFound(key, DecodingError.Context(codingPath: [key], debugDescription: debugDescription))
         }
@@ -585,7 +649,7 @@ extension DataSnapshot: Decoder {}
 extension MutableData: Decoder {}
 
 fileprivate struct DataSnapshotSingleValueContainer: SingleValueDecodingContainer {
-    let snapshot: FireDataProtocol
+    let snapshot: RealtimeDataProtocol
     var codingPath: [CodingKey] { return snapshot.codingPath }
 
     func decodeNil() -> Bool {
@@ -620,10 +684,10 @@ fileprivate struct DataSnapshotSingleValueContainer: SingleValueDecodingContaine
 }
 
 fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContainer {
-    let snapshot: FireDataProtocol
-    let iterator: AnyIterator<FireDataProtocol>
+    let snapshot: RealtimeDataProtocol
+    let iterator: AnyIterator<RealtimeDataProtocol>
 
-    init(snapshot: FireDataProtocol & Decoder) {
+    init(snapshot: RealtimeDataProtocol & Decoder) {
         self.snapshot = snapshot
         self.iterator = snapshot.makeIterator()
         self.currentIndex = 0
@@ -641,7 +705,7 @@ fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContaine
         return true
     }
 
-    private mutating func nextDecoder() throws -> FireDataProtocol {
+    private mutating func nextDecoder() throws -> RealtimeDataProtocol {
         guard let next = iterator.next() else {
             throw DecodingError.dataCorruptedError(in: self, debugDescription: snapshot.debugDescription)
         }
@@ -684,7 +748,7 @@ fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContaine
 
 struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtocol {
     typealias Key = K
-    let snapshot: FireDataProtocol
+    let snapshot: RealtimeDataProtocol
 
     var codingPath: [CodingKey] { return [] }
     var allKeys: [Key] { return snapshot.compactMap { $0.node.flatMap { Key(stringValue: $0.key) } } }

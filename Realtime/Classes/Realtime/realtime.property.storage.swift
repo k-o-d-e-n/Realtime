@@ -23,6 +23,7 @@ public extension RawRepresentable where Self.RawValue == String {
     }
 }
 
+/// Defines readonly property for files storage
 public class ReadonlyFile<T>: ReadonlyProperty<T> {
     override var updateType: ValueNode.Type { return FileNode.self }
 
@@ -52,6 +53,7 @@ public class ReadonlyFile<T>: ReadonlyProperty<T> {
     }
 }
 
+/// Defines read/write property for files storage
 public class File<T>: Property<T> {
     override var updateType: ValueNode.Type { return FileNode.self }
 

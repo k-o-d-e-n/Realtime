@@ -44,8 +44,8 @@ public extension Values {
 /// Comment writing guide
 public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC where Element: WritableRealtimeValue & RealtimeValueEvents {
     public override var version: Int? { return nil }
-    public override var raw: FireDataValue? { return nil }
-    public override var payload: [String : FireDataValue]? { return nil }
+    public override var raw: RealtimeDataValue? { return nil }
+    public override var payload: [String : RealtimeDataValue]? { return nil }
     override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
@@ -64,7 +64,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
             options: options,
             viewSource: InternalKeys.items.property(
                 from: viewParentNode,
-                representer: Representer<[RCItem]>(collection: Representer.fireData)
+                representer: Representer<[RCItem]>(collection: Representer.realtimeData)
             ).defaultOnEmpty()
         )
     }
@@ -195,8 +195,8 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         transaction.addReversion(reversion)
         _view.insert(item, at: item.index)
         storage.store(value: element, by: item)
-        transaction.addValue(item.fireValue, by: itemNode)
-        transaction.addValue(link.link.fireValue, by: link.node)
+        transaction.addValue(item.rdbValue, by: itemNode)
+        transaction.addValue(link.link.rdbValue, by: link.node)
         try transaction.set(element, by: elementNode)
     }
 
@@ -275,17 +275,17 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     
     // MARK: Realtime
 
-    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
-        let node = fireData.node
+    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        let node = data.node
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         self.storage = RCArrayStorage(sourceNode: node, elementBuilder: Element.init, elements: [:])
-        self._view = AnyRealtimeCollectionView(InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.fireData).defaultOnEmpty()))
-        try super.init(fireData: fireData, exactly: exactly)
+        self._view = AnyRealtimeCollectionView(InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.realtimeData).defaultOnEmpty()))
+        try super.init(data: data, exactly: exactly)
         self._view.collection = self
     }
 
-    var _snapshot: (FireDataProtocol, Bool)?
-    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    var _snapshot: (RealtimeDataProtocol, Bool)?
+    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         guard _view.isPrepared else {
             _snapshot = (data, exactly)
             return
@@ -300,7 +300,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
             if var element = storage.elements[key.dbKey] {
                 try element.apply(childData, exactly: exactly)
             } else {
-                storage.elements[key.dbKey] = try Element(fireData: childData, exactly: exactly)
+                storage.elements[key.dbKey] = try Element(data: childData, exactly: exactly)
             }
         }
     }

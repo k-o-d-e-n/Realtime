@@ -115,7 +115,13 @@ public class Transaction {
 
 extension Transaction {
     public typealias CommitState = (state: State, substate: Substate)
-    // TODO: Add configuration commit as single value or update value
+
+    /// Applies made changes in the database
+    ///
+    /// - Parameters:
+    ///   - revertOnError: Indicates that all changes will be reverted on error
+    ///   - completion: Completion closure with results
+    ///   - filesCompletion: Completion closure with results
     public func commit(revertOnError: Bool = true,
                        with completion: ((CommitState, [Error]?) -> Void)?,
                        filesCompletion: (([(StorageMetadata?, Error?)]) -> Void)? = nil) {
@@ -155,24 +161,42 @@ extension Transaction {
         }
     }
 
+    /// Adds `Data` value as file
+    ///
+    /// - Parameters:
+    ///   - value: `Data` type value
+    ///   - node: Target node
     public func addFile(_ value: Any, by node: Realtime.Node) {
         guard node.isRooted else { fatalError("Node should be rooted") }
 
         _addValue(FileNode.self, value, by: node)
     }
 
+    /// Removes file by specified node
+    ///
+    /// - Parameters:
+    ///   - node: Target node
     public func removeFile(by node: Realtime.Node) {
         guard node.isRooted else { fatalError("Node should be rooted") }
 
         _addValue(FileNode.self, nil, by: node)
     }
 
+    /// Adds Realtime database value
+    ///
+    /// - Parameters:
+    ///   - value: Untyped value
+    ///   - node: Target node
     public func addValue(_ value: Any, by node: Realtime.Node) {
         guard node.isRooted else { fatalError("Node should be rooted") }
 
         _addValue(ValueNode.self, value, by: node)
     }
 
+    /// Removes Realtime data by specified node
+    ///
+    /// - Parameters:
+    ///   - node: Target node
     public func removeValue(by node: Realtime.Node) {
         guard node.isRooted else { fatalError("Node should be rooted") }
         
@@ -180,7 +204,7 @@ extension Transaction {
     }
 
     /// registers new single value for specified reference
-    func _addValue(_ valueType: ValueNode.Type = ValueNode.self, _ value: Any?/*FireDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
+    func _addValue(_ valueType: ValueNode.Type = ValueNode.self, _ value: Any?/*RealtimeDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
         let nodes = node.reversed().dropFirst()
         guard nodes.count > 0 else {
             fatalError("Tries set value to root node")
@@ -382,6 +406,6 @@ public extension Transaction {
 
 extension Transaction {
     func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) {
-        addValue(link.fireValue, by: value.node!.linksNode.child(with: link.id))
+        addValue(link.rdbValue, by: value.node!.linksNode.child(with: link.id))
     }
 }

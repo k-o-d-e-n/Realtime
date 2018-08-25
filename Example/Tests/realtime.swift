@@ -94,12 +94,12 @@ class TestObject: Object {
             super.init(in: node, options: options)
         }
 
-        required init(fireData: FireDataProtocol, exactly: Bool) throws {
-            self.usualProperty = "usualprop".property(from: fireData.node)
-            try super.init(fireData: fireData, exactly: exactly)
+        required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+            self.usualProperty = "usualprop".property(from: data.node)
+            try super.init(data: data, exactly: exactly)
         }
 
-        override func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
             try super.apply(data, exactly: exactly)
         }
 
@@ -257,7 +257,7 @@ extension Tests {
 
             let data = try element.update(in: transaction).updateNode
 
-            let object = try TestObject(fireData: data.child(forPath: element.node!.rootPath), exactly: false)
+            let object = try TestObject(data: data.child(forPath: element.node!.rootPath), exactly: false)
             object.array.listening {
                 exp.fulfill()
             }.add(to: &store)
@@ -329,7 +329,7 @@ extension Tests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try User(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
+            let userCopy = try User(data: data.child(forPath: user.node!.rootPath), exactly: false)
 
             try group.apply(data.child(forPath: group.node!.rootPath), exactly: false)
 
@@ -353,7 +353,7 @@ extension Tests {
 
             let data = try group.update(in: transaction).updateNode
 
-            let groupCopy = try Group(fireData: data.child(forPath: group.node!.rootPath), exactly: false)
+            let groupCopy = try Group(data: data.child(forPath: group.node!.rootPath), exactly: false)
 
             let groupBackwardRelation: Relation<Group> = group._manager.options.property.path(for: group.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
             try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: false)
@@ -377,7 +377,7 @@ extension Tests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try User(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
+            let userCopy = try User(data: data.child(forPath: user.node!.rootPath), exactly: false)
 
             if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -400,7 +400,7 @@ extension Tests {
 
             let data = try conversation.update(in: transaction).updateNode
 
-            let conversationCopy = try Conversation(fireData: data.child(forPath: conversation.node!.rootPath), exactly: false)
+            let conversationCopy = try Conversation(data: data.child(forPath: conversation.node!.rootPath), exactly: false)
 
             if case .error(let e, _)? = conversation.chairman.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -430,19 +430,19 @@ extension Tests {
         let second = Node(key: "second", parent: first)
         XCTAssertEqual(second.rootPath, "/first/second")
         XCTAssertEqual(second.path(from: first), "/second")
-        XCTAssertTrue(second.hasParent(node: first))
+        XCTAssertTrue(second.hasAncestor(node: first))
         XCTAssertTrue(second.isRooted)
 
         let third = second.child(with: "third")
         XCTAssertEqual(third.rootPath, "/first/second/third")
         XCTAssertEqual(third.path(from: first), "/second/third")
-        XCTAssertTrue(third.hasParent(node: first))
+        XCTAssertTrue(third.hasAncestor(node: first))
         XCTAssertTrue(third.isRooted)
 
         let fourth = third.child(with: "fourth")
         XCTAssertEqual(fourth.rootPath, "/first/second/third/fourth")
         XCTAssertEqual(fourth.path(from: first), "/second/third/fourth")
-        XCTAssertTrue(fourth.hasParent(node: first))
+        XCTAssertTrue(fourth.hasAncestor(node: first))
         XCTAssertTrue(fourth.isRooted)
     }
 
@@ -490,16 +490,16 @@ extension Tests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
     }
 
-    enum ValueWithPayload: WritableRealtimeValue, FireDataRepresented, RealtimeValueActions {
+    enum ValueWithPayload: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
         var version: Int? { return value.version }
-        var raw: FireDataValue? {
+        var raw: RealtimeDataValue? {
             switch self {
             case .two: return 1
             default: return nil
             }
         }
         var node: Node? { return value.node }
-        var payload: [String : FireDataValue]? { return value.payload }
+        var payload: [String : RealtimeDataValue]? { return value.payload }
         var value: TestObject {
             switch self {
             case .one(let v): return v
@@ -519,16 +519,16 @@ extension Tests {
             }
         }
 
-        init(fireData: FireDataProtocol, exactly: Bool) throws {
-            let raw: CShort = fireData.rawValue as? CShort ?? 0
+        init(data: RealtimeDataProtocol, exactly: Bool) throws {
+            let raw: CShort = data.rawValue as? CShort ?? 0
 
             switch raw {
-            case 1: self = .two(try TestObject(fireData: fireData, exactly: exactly))
-            default: self = .one(try TestObject(fireData: fireData, exactly: exactly))
+            case 1: self = .two(try TestObject(data: data, exactly: exactly))
+            default: self = .one(try TestObject(data: data, exactly: exactly))
             }
         }
 
-        mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+        mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
             try value.apply(data, exactly: exactly)
             let r = data.rawValue as? Int ?? 0
             if raw as? Int != r {
@@ -624,7 +624,7 @@ extension Tests {
 
     func testReferenceFireValue() {
         let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").rootPath)
-        let fireValue = ref.fireValue
+        let fireValue = ref.rdbValue
         XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "/first/two"])
     }
 
@@ -643,7 +643,7 @@ extension Tests {
                     XCTFail(e.localizedDescription)
                 } else {
                     do {
-                        let restoredObj = try TestObject(fireData: CacheNode.root, exactly: false)
+                        let restoredObj = try TestObject(data: CacheNode.root, exactly: false)
 
                         XCTAssertEqual(testObject.property.unwrapped, restoredObj.property.unwrapped)
                         XCTAssertEqual(testObject.nestedObject.lazyProperty.unwrapped,

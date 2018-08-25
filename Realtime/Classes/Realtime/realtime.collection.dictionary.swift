@@ -61,8 +61,8 @@ public typealias HashableValue = Hashable & RealtimeValue
 public final class AssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RC
 where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     public override var version: Int? { return nil }
-    public override var raw: FireDataValue? { return nil }
-    public override var payload: [String : FireDataValue]? { return nil }
+    public override var raw: RealtimeDataValue? { return nil }
+    public override var payload: [String : RealtimeDataValue]? { return nil }
     override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
     public var view: RealtimeCollectionView { return _view }
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
@@ -80,7 +80,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         self._view = AnyRealtimeCollectionView(
             InternalKeys.items.property(
                 from: viewParentNode,
-                representer: Representer<[RCItem]>(collection: Representer.fireData)
+                representer: Representer<[RCItem]>(collection: Representer.realtimeData)
             ).defaultOnEmpty()
         )
         super.init(in: node, options: options)
@@ -210,12 +210,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         storage.store(value: element, by: key)
 
         if needLink {
-            transaction.addValue(link.link.fireValue, by: link.node)
+            transaction.addValue(link.link.rdbValue, by: link.node)
             let valueLink = elementNode.generate(linkKeyedBy: link.link.id,
                                                  to: [itemNode, link.node])
-            transaction.addValue(valueLink.link.fireValue, by: valueLink.node)
+            transaction.addValue(valueLink.link.rdbValue, by: valueLink.node)
         }
-        transaction.addValue(item.fireValue, by: itemNode)
+        transaction.addValue(item.rdbValue, by: itemNode)
         try transaction.set(element, by: elementNode)
     }
 
@@ -270,21 +270,21 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         fatalError("Realtime dictionary cannot be initialized with init(in:) initializer")
     }
 
-    public required convenience init(fireData: FireDataProtocol, exactly: Bool) throws {
+    public required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
         #if DEBUG
-        fatalError("AssociatedValues does not supported init(fireData:exactly:) yet.")
+        fatalError("AssociatedValues does not supported init(data:exactly:) yet.")
         #else
-        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(fireData:exactly:) yet.")
+        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:exactly:) yet.")
         #endif
     }
 
-    public convenience init(fireData: FireDataProtocol, exactly: Bool, keysNode: Node) throws {
-        self.init(in: fireData.node, options: [.keysNode: keysNode, .database: fireData.database as Any])
-        try apply(fireData, exactly: exactly)
+    public convenience init(data: RealtimeDataProtocol, exactly: Bool, keysNode: Node) throws {
+        self.init(in: data.node, options: [.keysNode: keysNode, .database: data.database as Any])
+        try apply(data, exactly: exactly)
     }
 
-    var _snapshot: (FireDataProtocol, Bool)?
-    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    var _snapshot: (RealtimeDataProtocol, Bool)?
+    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         guard _view.isPrepared else {
             _snapshot = (data, exactly)
             return
@@ -300,7 +300,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
                 try element.apply(childData, exactly: exactly)
             } else {
                 let keyEntity = Key(in: storage.keysNode.child(with: key.dbKey), options: [:])
-                storage.elements[keyEntity] = try Value(fireData: childData, exactly: exactly)
+                storage.elements[keyEntity] = try Value(data: childData, exactly: exactly)
             }
         }
     }

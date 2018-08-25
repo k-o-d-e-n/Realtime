@@ -17,16 +17,16 @@ public extension RawRepresentable where Self.RawValue == String {
         return Property(in: Node(key: rawValue, parent: node), representer: representer)
     }
 
-    func readonlyProperty<T: FireDataValue>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyProperty<T> {
+    func readonlyProperty<T: RealtimeDataValue>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyProperty<T> {
         return ReadonlyProperty(in: Node(key: rawValue, parent: node), representer: representer)
     }
-    func readonlyProperty<T: FireDataValue>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyProperty<T?> {
+    func readonlyProperty<T: RealtimeDataValue>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyProperty<T?> {
         return ReadonlyProperty(in: Node(key: rawValue, parent: node), representer: representer)
     }
-    func property<T: FireDataValue>(from node: Node?) -> Property<T> {
+    func property<T: RealtimeDataValue>(from node: Node?) -> Property<T> {
         return property(from: node, representer: .any)
     }
-    func property<T: FireDataValue>(from node: Node?) -> Property<T?> {
+    func property<T: RealtimeDataValue>(from node: Node?) -> Property<T?> {
         return Property(in: Node(key: rawValue, parent: node), representer: .any)
     }
 
@@ -82,10 +82,11 @@ public extension ValueOption {
     static let reference = ValueOption("realtime.reference")
 }
 
+/// Defines read/write property where value is Realtime database reference
 public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities>: Property<Referenced> {
     public override var version: Int? { return super._version }
-    public override var raw: FireDataValue? { return super._raw }
-    public override var payload: [String : FireDataValue]? { return super._payload }
+    public override var raw: RealtimeDataValue? { return super._raw }
+    public override var payload: [String : RealtimeDataValue]? { return super._payload }
 
     public convenience init(in node: Node?, mode: Mode) {
         self.init(in: node, options: [.reference: mode])
@@ -96,16 +97,16 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
         super.init(in: node, options: [.representer: o.representer])
     }
 
-    public init(fireData: FireDataProtocol, exactly: Bool, mode: Mode) throws {
-        try super.init(fireData: fireData, exactly: exactly, representer: mode.representer)
+    public init(data: RealtimeDataProtocol, exactly: Bool, mode: Mode) throws {
+        try super.init(data: data, exactly: exactly, representer: mode.representer)
     }
 
-    required public init(fireData: FireDataProtocol, exactly: Bool) throws {
-        fatalError("init(fireData:strongly:) cannot be called. Use init(fireData:exactly:options) instead")
+    required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:options) instead")
     }
 
-    required public init(fireData: FireDataProtocol, exactly: Bool, representer: Representer<Referenced?>) throws {
-        fatalError("init(fireData:strongly:representer:) cannot be called. Use init(fireData:exactly:options) instead")
+    required public init(data: RealtimeDataProtocol, exactly: Bool, representer: Representer<Referenced?>) throws {
+        fatalError("init(data:strongly:representer:) cannot be called. Use init(data:exactly:options) instead")
     }
 
     @discardableResult
@@ -113,6 +114,11 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
         guard Referenced._isValid(asReference: value) else { fatalError("Value must with rooted node") }
 
         return try super.setValue(value, in: transaction)
+    }
+
+    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        _apply_RealtimeValue(data, exactly: exactly)
+        try super.apply(data, exactly: exactly)
     }
 
     override func _write(to transaction: Transaction, by node: Node) throws {
@@ -131,13 +137,18 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
             return Mode(representer: Representer.reference(mode).optionalProperty())
         }
     }
+
+    public static func readonly(in node: Node, mode: Mode) -> ReadonlyProperty<Referenced> {
+        return ReadonlyProperty(in: node, representer: mode.representer)
+    }
 }
 
+/// Defines read/write property where value is Realtime database relation
 public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: Property<Related> {
     var options: Options
     public override var version: Int? { return super._version }
-    public override var raw: FireDataValue? { return super._raw }
-    public override var payload: [String : FireDataValue]? { return super._payload }
+    public override var raw: RealtimeDataValue? { return super._raw }
+    public override var payload: [String : RealtimeDataValue]? { return super._payload }
 
     public convenience init(in node: Node?, config: Options) {
         self.init(in: node, options: [.relation: config])
@@ -151,17 +162,17 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         super.init(in: node, options: [.representer: relation.representer])
     }
 
-    public init(fireData: FireDataProtocol, exactly: Bool, options: Options) throws {
+    public init(data: RealtimeDataProtocol, exactly: Bool, options: Options) throws {
         self.options = options
-        try super.init(fireData: fireData, exactly: exactly, representer: options.representer)
+        try super.init(data: data, exactly: exactly, representer: options.representer)
     }
 
-    required public init(fireData: FireDataProtocol, exactly: Bool) throws {
-        fatalError("init(fireData:strongly:) cannot be called. Use init(fireData:exactly:options) instead")
+    required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:options) instead")
     }
 
-    required public init(fireData: FireDataProtocol, exactly: Bool, representer: Representer<Related?>) throws {
-        fatalError("init(fireData:strongly:representer:) cannot be called. Use init(fireData:exactly:options) instead")
+    required public init(data: RealtimeDataProtocol, exactly: Bool, representer: Representer<Related?>) throws {
+        fatalError("init(data:strongly:representer:) cannot be called. Use init(data:exactly:options) instead")
     }
 
     @discardableResult
@@ -188,7 +199,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                 let backwardPropertyNode = backwardValueNode.child(with: options.property.path(for: ownerNode))
                 let thisProperty = node.path(from: ownerNode)
                 let backwardRelation = RelationRepresentation(path: options.rootLevelsUp.map(ownerNode.path) ?? ownerNode.rootPath, property: thisProperty)
-                transaction.addValue(backwardRelation.fireValue, by: backwardPropertyNode)
+                transaction.addValue(backwardRelation.rdbValue, by: backwardPropertyNode)
             }
         } else {
             throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
@@ -203,7 +214,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         }
     }
 
-    public override func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         _apply_RealtimeValue(data, exactly: exactly)
         try super.apply(data, exactly: exactly)
     }
@@ -213,7 +224,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
             node.reference().observeSingleEvent(of: .value, with: { (data) in
                 guard data.exists() else { return promise.fulfill() }
                 do {
-                    let relation = try RelationRepresentation(fireData: data)
+                    let relation = try RelationRepresentation(data: data)
                     transaction.removeValue(by: Node.root.child(with: relation.targetPath).child(with: relation.relatedProperty))
                     promise.fulfill()
                 } catch let e {
@@ -266,6 +277,10 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         }
         """
     }
+
+    public static func readonly(in node: Node, config: Options) -> ReadonlyProperty<Related> {
+        return ReadonlyProperty(in: node, representer: config.representer)
+    }
 }
 
 // MARK: Listenable realtime property
@@ -281,7 +296,7 @@ public extension _RealtimeValue {
         case remote(T, exact: Bool)
         case removed
         indirect case error(Error, last: State<T>?)
-        //    case reverted(ListenValue<T>?)
+//        case reverted(ListenValue<T>?)
     }
 }
 extension _RealtimeValue.State: _Optional {
@@ -354,6 +369,7 @@ public extension _RealtimeValue.State {
     }
 }
 
+/// Defines read/write property with any value
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
     fileprivate var oldValue: State<T>?
     internal var _changedValue: T? {
@@ -375,6 +391,13 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
         }
     }
 
+    /// Writes new value to property using passed transaction
+    ///
+    /// - Parameters:
+    ///   - value: New value
+    ///   - transaction: Current write transaction
+    /// - Returns: Passed or created transaction
+    /// - Throws: If value cannot represented using property representer
     @discardableResult
     public func setValue(_ value: T, in transaction: Transaction? = nil) throws -> Transaction {
         guard let node = self.node, node.isRooted, let database = self.database else { fatalError("Mutation cannot be done. Value is not rooted") }
@@ -449,6 +472,7 @@ public extension Property {
     }
 }
 
+/// Defines readonly property with any value
 @available(*, introduced: 0.4.3)
 public class ReadonlyProperty<T>: _RealtimeValue {
     fileprivate var _value: State<T>?
@@ -456,12 +480,12 @@ public class ReadonlyProperty<T>: _RealtimeValue {
     fileprivate(set) var representer: Representer<T?>
 
     public override var version: Int? { return nil }
-    public override var raw: FireDataValue? { return nil }
-    public override var payload: [String : FireDataValue]? { return nil }
+    public override var raw: RealtimeDataValue? { return nil }
+    public override var payload: [String : RealtimeDataValue]? { return nil }
 
     internal var _version: Int? { return super.version }
-    internal var _raw: FireDataValue? { return super.raw }
-    internal var _payload: [String : FireDataValue]? { return super.payload }
+    internal var _raw: RealtimeDataValue? { return super.raw }
+    internal var _payload: [String : RealtimeDataValue]? { return super.payload }
     
     // MARK: Initializers, deinitializer
 
@@ -483,13 +507,13 @@ public class ReadonlyProperty<T>: _RealtimeValue {
         super.init(in: node, options: options)
     }
 
-    public required init(fireData: FireDataProtocol, exactly: Bool, representer: Representer<T?>) throws {
+    public required init(data: RealtimeDataProtocol, exactly: Bool, representer: Representer<T?>) throws {
         self.representer = representer
-        try super.init(fireData: fireData, exactly: exactly)
+        try super.init(data: data, exactly: exactly)
     }
 
-    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
-        fatalError("init(fireData:strongly:) cannot be called. Use init(fireData:exactly:representer:)")
+    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:representer:)")
     }
     
     public override func load(completion: Assign<Error?>?) {
@@ -562,8 +586,8 @@ public class ReadonlyProperty<T>: _RealtimeValue {
     
     // MARK: Changeable
 
-    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
-//        super.apply(data, exactly: exactly)
+    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        /// skip the call of super
         do {
             if let value = try representer.decode(data) {
                 _setValue(.remote(value, exact: exactly))
@@ -606,10 +630,13 @@ extension ReadonlyProperty: Listenable {
     }
 }
 public extension ReadonlyProperty {
+    /// Last property state
     var lastEvent: State<T>? {
         return _value
     }
 
+    /// Current value of property
+    /// `nil` if property has no value, or has been removed
     var wrapped: T? {
         return _value?.wrapped
     }
@@ -738,7 +765,7 @@ public extension ReadonlyProperty where T: HasDefaultLiteral & _ComparableWithDe
 }
 
 // TODO: Reconsider usage it. Some RealtimeValue things are not need here.
-public final class SharedProperty<T>: _RealtimeValue where T: FireDataValue & HasDefaultLiteral {
+public final class SharedProperty<T>: _RealtimeValue where T: RealtimeDataValue & HasDefaultLiteral {
     private var _value: T
     public var value: T { return _value }
     let repeater: Repeater<T> = Repeater.unsafe()
@@ -760,12 +787,12 @@ public final class SharedProperty<T>: _RealtimeValue where T: FireDataValue & Ha
 
     // MARK: Changeable
 
-    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         self._value = T()
-        try super.init(fireData: fireData, exactly: exactly)
+        try super.init(data: data, exactly: exactly)
     }
 
-    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try super.apply(data, exactly: exactly)
         setValue(try representer.decode(data))
     }
@@ -789,7 +816,7 @@ public extension SharedProperty {
         }
         ref.runTransactionBlock({ data in
             do {
-                let dataValue = data.exists() ? try T.init(fireData: data) : T()
+                let dataValue = data.exists() ? try T.init(data: data) : T()
                 data.value = try changing(dataValue)
             } catch let e {
                 debugFatalError(e.localizedDescription)
@@ -829,21 +856,21 @@ public final class MutationPoint<T> {
         self.database = database
     }
 }
-public extension MutationPoint where T: FireDataRepresented & FireDataValueRepresented {
+public extension MutationPoint where T: RealtimeDataRepresented & RealtimeDataValueRepresented {
     func set(value: T, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(value.fireValue, by: node)
+        transaction.addValue(value.rdbValue, by: node)
 
         return transaction
     }
     func mutate(by key: String? = nil, use value: T, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(value.fireValue, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+        transaction.addValue(value.rdbValue, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
 
         return transaction
     }
 }
-public extension MutationPoint where T: FireDataValue {
+public extension MutationPoint where T: RealtimeDataValue {
     func set(value: T, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.addValue(value, by: node)

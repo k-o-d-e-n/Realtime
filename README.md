@@ -23,12 +23,28 @@ Realtime provides lightweight data traffic, lazy initialization of data, good di
 
 ## Usage
 
+### Initialization
+
+In `AppDelegate` in `func application(_:didFinishLaunchingWithOptions:)` you must call code below, to configure working environment.
+Now for cache policy is valid values `case .noCache, .persistance` only. Cache in memory is not implemented yet.
+```swift
+func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
+    /// ...
+
+    /// initialize Realtime
+    RealtimeApp.initialize(with:cachePolicy:linksNode:)
+
+    ///...
+    return true
+}
+```
+
 ### Model
 
 To create any model data structure you can make by subclassing `Object`.
 You can define child properties using classes:
 + `Object` subclasses;
-+ `Property` (typealias `Property`);
++ `Property`;
 + `References`, `Values`, `AssociatedValues`;
 If you use lazy properties, you need implement class function `lazyPropertyKeyPath(for:)`. (Please tell me if you know how avoid it, without inheriting NSObject).
 This function called for each subclass, therefore you don't need call super implementation. 
@@ -37,20 +53,20 @@ Example:
 class User: Object {
     lazy var name: Property<String> = "name".property(from: self.node)
     lazy var age: Property<Int> = "age".property(from: self.node)
-    lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png)
-    lazy var groups: References<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
+    lazy var photo: File<UIImage?> = File(in: Node(key: "photo", parent: self.node), representer: Representer.png)
+    lazy var groups: References<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: .groups)
     lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".array(from: self.node)
     lazy var ownedGroup: Relation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, "manager")
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
-        case "name": return \RealtimeUser.name
-        case "age": return \RealtimeUser.age
-        case "photo": return \RealtimeUser.photo
-        case "groups": return \RealtimeUser.groups
-        case "followers": return \RealtimeUser.followers
-        case "ownedGroup": return \RealtimeUser.ownedGroup
-        case "scheduledConversations": return \RealtimeUser.scheduledConversations
+        case "name": return \User.name
+        case "age": return \User.age
+        case "photo": return \User.photo
+        case "groups": return \User.groups
+        case "followers": return \User.followers
+        case "ownedGroup": return \User.ownedGroup
+        case "scheduledConversations": return \User.scheduledConversations
         default: return nil
         }
     }
@@ -72,7 +88,7 @@ transaction.commit(with: { state, err in
 
 ***Property*** - stored property for any value.
 
-***SharedRealtimeProperty*** - stored property similar `Property`, but uses concurrency transaction to update value. Use this property if value assumes shared access (for example 'number of likes' value).
+***SharedProperty*** - stored property similar `Property`, but uses concurrency transaction to update value. Use this property if value assumes shared access (for example 'number of likes' value).
 
 ### References
 
@@ -90,14 +106,14 @@ transaction.commit(with: { state, err in
 ```swift
 class Some: Object {
     lazy var array: Values<Object> = "some_array".array(from: self.node)
-    lazy var linkedArray: References<Object> = "some_linked_array".linkedArray(from: self.node, elements: .root("linked_objects"))
-    lazy var dictionary: AssociatedValues<Object> = "some_dictionary".dictionary(from: self.node, keys: .root("key_objects"))
+    lazy var linkedArray: References<Object> = "some_linked_array".linkedArray(from: self.node, elements: .linkedObjects)
+    lazy var dictionary: AssociatedValues<Object> = "some_dictionary".dictionary(from: self.node, keys: .keyObjects)
 }
 ```
 All collections conform to protocol `RealtimeCollection`.
 Collections are entities that require preparation before using. In common case you call one time for each collection object:
 ```swift
-let users = Values<User>(in: .root("users"))
+let users = Values<User>(in: .users)
 users.prepare(forUse: { (users, err) in
     /// working with collection
 })
@@ -130,7 +146,7 @@ do {
 
 ***AssociatedValues*** is dictionary where keys are references, but values are objects. On save value creates link on side key object.
 
-`LinkedRealtimeDictionary`, `AssociatedValues` mutating:
+`AssociatedValues` mutating:
 ```swift
 do {
     let transaction = Transaction()
@@ -154,8 +170,16 @@ let userNames = Values<User>(in: usersNode).keyed(by: Nodes.name)
 
 ***MapRealtimeCollection*** is immutable collection that gets elements from map function. This is the result of x.lazyMap(_ transform:) method, where x is any RealtimeCollection. 
 ```swift
-let userNames = Values<User>(in: usersNode).keyed(by: Nodes.name)
+let userNames = Values<User>(in: usersNode).lazyMap { user in
+    return user.name
+}
 ```
+
+### Operators
+
+`<==`  - assignment operator. Can use to assign (or to retrieve) value to (from) any Realtime property.
+`====`, `!===` - comparison operators. Can use to compare any Realtime properties where their values conform to `Equatable` protocol.
+`??` - infix operator, that performs a nil-coalescing operation, returning the wrapped value of an Realtime property or a default value.
 
 ### Transactions
 
@@ -163,7 +187,7 @@ let userNames = Values<User>(in: usersNode).keyed(by: Nodes.name)
 Almost all data changes perform using this object.
 The most mutable operations just take transaction as parameter, but to create custom complex operations you can use this methods:
 ```swift
-/// adds operation of save RealtimeValue as single value
+/// adds operation of save RealtimeValue as single value as is
 func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Node)
 /// adds operation of delete RealtimeValue
 func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T)
@@ -181,16 +205,16 @@ For more details see Example project.
 
 ### Local listening
 
-To receive changes on local level use objects that conform this protocol.
+To receive changes on local level use objects that conform this protocol. It has similar RxSwift interface.
 ```swift
 public protocol Listenable {
     associatedtype OutData
 
     /// Disposable listening of value
-    func listening(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> Disposable
+    func listening(_ assign: Assign<OutData>) -> Disposable
 
     /// Listening with possibility to control active state
-    func listeningItem(as config: (AnyListening) -> AnyListening, _ assign: Assign<OutData>) -> ListeningItem
+    func listeningItem(_ assign: Assign<OutData>) -> ListeningItem
 }
 ```
 

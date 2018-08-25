@@ -28,8 +28,8 @@ public extension ValueOption {
 
 public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue, RC where Element: RealtimeValue {
     public override var version: Int? { return nil }
-    public override var raw: FireDataValue? { return nil }
-    public override var payload: [String : FireDataValue]? { return nil }
+    public override var raw: RealtimeDataValue? { return nil }
+    public override var payload: [String : RealtimeDataValue]? { return nil }
     override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
@@ -44,24 +44,24 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         self.storage = RCArrayStorage(sourceNode: elements,
                                       elementBuilder: builder,
                                       elements: [:])
-        self._view = AnyRealtimeCollectionView(Property(in: node, representer: Representer<[RCItem]>(collection: Representer.fireData)).defaultOnEmpty())
+        self._view = AnyRealtimeCollectionView(Property(in: node, representer: Representer<[RCItem]>(collection: Representer.realtimeData)).defaultOnEmpty())
         super.init(in: node, options: options)
         self._view.collection = self
     }
 
     // MARK: Realtime
 
-    public convenience init(fireData: FireDataProtocol, exactly: Bool, elementsNode: Node) throws {
-        self.init(in: fireData.node, options: [.elementsNode: elementsNode,
-                                               .database: fireData.database as Any])
-        try apply(fireData, exactly: exactly)
+    public convenience init(data: RealtimeDataProtocol, exactly: Bool, elementsNode: Node) throws {
+        self.init(in: data.node, options: [.elementsNode: elementsNode,
+                                               .database: data.database as Any])
+        try apply(data, exactly: exactly)
     }
 
-    public required init(fireData: FireDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         #if DEBUG
-            fatalError("References does not supported init(fireData:exactly:) yet.")
+            fatalError("References does not supported init(data:exactly:) yet.")
         #else
-            throw RealtimeError(source: .collection, description: "References does not supported init(fireData:exactly:) yet.")
+            throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
         #endif
     }
 
@@ -81,7 +81,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     override public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
-    override public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try super.apply(data, exactly: exactly)
         try _view.source.apply(data, exactly: exactly)
         _view.isPrepared = exactly
@@ -184,8 +184,8 @@ public extension References {
         transaction.addReversion(reversion)
         _view.insert(item, at: item.index)
         storage.store(value: element, by: item)
-        transaction.addValue(item.fireValue, by: itemNode)
-        transaction.addValue(link.link.fireValue, by: link.node)
+        transaction.addValue(item.rdbValue, by: itemNode)
+        transaction.addValue(link.link.rdbValue, by: link.node)
     }
 
     @discardableResult

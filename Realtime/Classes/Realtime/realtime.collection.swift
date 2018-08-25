@@ -14,12 +14,12 @@ extension ValueOption {
 /// -----------------------------------------
 
 // TODO: For Value of AssociatedValues is not defined payloads
-struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireDataValueRepresented {
+struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
     let dbKey: String!
     let linkID: String
     let index: Int
-    let internalPayload: (mv: Int?, raw: FireDataValue?)
-    let payload: [String: FireDataValue]?
+    let internalPayload: (mv: Int?, raw: RealtimeDataValue?)
+    let payload: [String: RealtimeDataValue]?
 
     init<T: RealtimeValue>(element: T, key: String, linkID: String, index: Int) {
         self.dbKey = key
@@ -37,46 +37,46 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
         self.internalPayload = (element.version, element.raw)
     }
 
-    init(fireData: FireDataProtocol, exactly: Bool) throws {
-        guard let key = fireData.node?.key else {
-            throw RealtimeError(initialization: RCItem.self, fireData)
+    init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard let key = data.node?.key else {
+            throw RealtimeError(initialization: RCItem.self, data)
         }
-        guard fireData.hasChildren() else { // TODO: For test, remove!
-            guard let val = fireData.value as? [String: FireDataValue],
+        guard data.hasChildren() else { // TODO: For test, remove!
+            guard let val = data.value as? [String: RealtimeDataValue],
                 let value = val.first,
                 let linkValue = value.value as? [String: Any],
                 let index = linkValue[InternalKeys.index.rawValue] as? Int
             else {
-                throw RealtimeError(initialization: RCItem.self, fireData)
+                throw RealtimeError(initialization: RCItem.self, data)
             }
 
             self.dbKey = key
             self.linkID = value.key
             self.index = index
-            self.payload = linkValue[InternalKeys.payload.rawValue] as? [String: FireDataValue]
-            self.internalPayload = (linkValue[InternalKeys.modelVersion.rawValue] as? Int, linkValue[InternalKeys.raw.rawValue] as? FireDataValue)
+            self.payload = linkValue[InternalKeys.payload.rawValue] as? [String: RealtimeDataValue]
+            self.internalPayload = (linkValue[InternalKeys.modelVersion.rawValue] as? Int, linkValue[InternalKeys.raw.rawValue] as? RealtimeDataValue)
             return
         }
-        guard let value = fireData.makeIterator().next() else {
-            throw RealtimeError(initialization: RCItem.self, fireData)
+        guard let value = data.makeIterator().next() else {
+            throw RealtimeError(initialization: RCItem.self, data)
         }
         guard let linkID = value.node?.key else {
-            throw RealtimeError(initialization: RCItem.self, fireData)
+            throw RealtimeError(initialization: RCItem.self, data)
         }
         guard let index: Int = InternalKeys.index.map(from: value) else {
-            throw RealtimeError(initialization: RCItem.self, fireData)
+            throw RealtimeError(initialization: RCItem.self, data)
         }
 
         self.dbKey = key
         self.linkID = linkID
         self.index = index
         self.payload = InternalKeys.payload.map(from: value)
-        self.internalPayload = (InternalKeys.modelVersion.map(from: fireData), InternalKeys.raw.map(from: fireData))
+        self.internalPayload = (InternalKeys.modelVersion.map(from: data), InternalKeys.raw.map(from: data))
     }
 
-    var fireValue: FireDataValue {
-        var value: [String: FireDataValue] = [:]
-        let link: [String: FireDataValue] = [InternalKeys.index.rawValue: index]
+    var rdbValue: RealtimeDataValue {
+        var value: [String: RealtimeDataValue] = [:]
+        let link: [String: RealtimeDataValue] = [InternalKeys.index.rawValue: index]
         value[linkID] = link
         if let mv = internalPayload.mv {
             value[InternalKeys.modelVersion.rawValue] = mv

@@ -20,7 +20,9 @@ enum InternalKeys: String {
     case raw = "__raw"
 }
 
+/// Represents reference to database tree node
 public class Node: Equatable {
+    /// Root node
     public static let root: Node = Root()
     class Root: Node {
         init() { super.init(key: "", parent: nil) }
@@ -31,11 +33,13 @@ public class Node: Equatable {
         override var first: Node? { return nil }
         override var rootPath: String { return "" }
         override func path(from node: Node) -> String { fatalError("Root node cannot have parent nodes") }
-        override func hasParent(node: Node) -> Bool { return false }
+        override func hasAncestor(node: Node) -> Bool { return false }
         override var description: String { return "root" }
     }
 
+    /// Node key
     public let key: String
+    /// Parent node
     public internal(set) var parent: Node?
 
     public convenience init(parent: Node? = nil) {
@@ -55,15 +59,24 @@ public class Node: Equatable {
         self.parent = parent
     }
 
+    /// True if node is instance stored in Node.root
     var isRoot: Bool { return false }
+    /// True if node has root ancestor
     var isRooted: Bool { return root === Node.root }
+    /// Returns the most senior node. It may no equal Node.root
     var root: Node? { return parent.map { $0.root ?? $0 } }
+    /// Returns the most senior node excluding Node.root instance.
     var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
 
+    /// Returns path from the most senior node.
     public var rootPath: String {
         return parent.map { $0.rootPath + "/" + key } ?? key
     }
 
+    /// Returns path from passed node.
+    ///
+    /// - Parameter node: Ancestor node.
+    /// - Returns: String representation of path from ancestor node to current
     func path(from node: Node) -> String {
         guard node != self else { fatalError("Path does not exists for the same nodes") }
 
@@ -81,6 +94,10 @@ public class Node: Equatable {
         fatalError("Path cannot be get from non parent node")
     }
 
+    /// Returns ancestor node on specified level up
+    ///
+    /// - Parameter level: Number of levels up to ancestor
+    /// - Returns: Ancestor node
     func ancestor(onLevelUp level: Int) -> Node? {
         guard level > 0 else { fatalError("Level must be more than 0") }
         
@@ -94,6 +111,10 @@ public class Node: Equatable {
         return ancestor
     }
 
+    /// Returns path from ancestor node on level up
+    ///
+    /// - Parameter level: Level up
+    /// - Returns: String of path
     func path(fromLevelUp level: Int) -> String {
         var path = key
         var currentLevel = 0
@@ -111,7 +132,11 @@ public class Node: Equatable {
         return path
     }
 
-    func hasParent(node: Node) -> Bool {
+    /// Finds ancestor
+    ///
+    /// - Parameter node: Ancestor node
+    /// - Returns: Result of search
+    func hasAncestor(node: Node) -> Bool {
         var current: Node = self
         while let parent = current.parent {
             if node == parent {
@@ -159,6 +184,10 @@ public extension Node {
             .split(separator: "/", omittingEmptySubsequences: true)
             .reduce(self) { Node(key: String($1), parent: $0) }
     }
+    /// Copies full chain of nodes to passed node
+    ///
+    /// - Parameter node: Some node
+    /// - Returns: Copied node
     func copy(to node: Node) -> Node {
         var copying: Node = self
         var current: Node = Node(key: copying.key)
@@ -170,14 +199,21 @@ public extension Node {
         current.moveTo(node)
         return copied
     }
-    func movedToNode(keyedBy key: String) -> Node {
+    internal func movedToNode(keyedBy key: String) -> Node {
         let parent = Node(key: key)
         self.parent = parent
         return parent
     }
+    /// Changed parent to passed node
+    ///
+    /// - Parameter node: Target node
     func moveTo(_ node: Node) {
         self.parent = node
     }
+    /// Slices chain of nodes
+    ///
+    /// - Parameter count: Number of first nodes to slice
+    /// - Returns: Two piece of chain
     func slicedFirst(_ count: Int = 1) -> (dropped: Node, sliced: Node)? {
         guard count != 0, parent != nil else { return nil }
 
@@ -234,32 +270,32 @@ extension Node: Sequence {
     }
 }
 
-public extension FireDataProtocol {
+public extension RealtimeDataProtocol {
     func map<Mapped>(_ transform: (Any) -> Mapped = { $0 as! Mapped }) -> Mapped? { return value.map(transform) }
     func flatMap<Mapped>(_ transform: (Any) -> Mapped? = { $0 as? Mapped }) -> Mapped? { return value.flatMap(transform) }
-    func map<Mapped>(child path: String, map: (FireDataProtocol) -> Mapped? = { $0.flatMap() }) -> Mapped? {
+    func map<Mapped>(child path: String, map: (RealtimeDataProtocol) -> Mapped? = { $0.flatMap() }) -> Mapped? {
         guard hasChild(path) else { return nil }
         return map(child(forPath: path))
     }
-    func mapExactly(if truth: Bool, child path: String, map: (FireDataProtocol) -> Void) { if truth || hasChild(path) { map(child(forPath: path)) } }
+    func mapExactly(if truth: Bool, child path: String, map: (RealtimeDataProtocol) -> Void) { if truth || hasChild(path) { map(child(forPath: path)) } }
 }
 
 public extension RawRepresentable where Self.RawValue == String {
     /// checks availability child in snapshot with node name   
-    func has(in snapshot: FireDataProtocol) -> Bool {
+    func has(in snapshot: RealtimeDataProtocol) -> Bool {
         return snapshot.hasChild(rawValue)
     }
 
     /// gets child snapshot by node name
-    func child(from parent: FireDataProtocol) -> FireDataProtocol {
+    func child(from parent: RealtimeDataProtocol) -> RealtimeDataProtocol {
         return parent.child(forPath: rawValue)
     }
 
-    func map<Returned>(from parent: FireDataProtocol) -> Returned? {
+    func map<Returned>(from parent: RealtimeDataProtocol) -> Returned? {
         return parent.map(child: rawValue) { $0.value as? Returned }
     }
 
-    func take(from parent: FireDataProtocol, exactly: Bool, map: (FireDataProtocol) -> Void) {
+    func take(from parent: RealtimeDataProtocol, exactly: Bool, map: (RealtimeDataProtocol) -> Void) {
         parent.mapExactly(if: exactly, child: rawValue, map: map)
     }
 

@@ -8,6 +8,8 @@
 import Foundation
 import FirebaseDatabase
 
+internal let lazyStoragePath = ".storage"
+
 public struct RealtimeError: LocalizedError {
     let description: String
     let source: Source
@@ -19,6 +21,14 @@ public struct RealtimeError: LocalizedError {
         self.description = description
     }
 
+    /// Shows part or process of Realtime where error is happened.
+    ///
+    /// - value: Error from someone class of property
+    /// - collection: Error from someone class of collection
+    /// - listening: Error from Listenable part
+    /// - coding: Error on coding process
+    /// - transaction: Error in `Transaction`
+    /// - cache: Error in cache
     enum Source {
         case value
         case collection
@@ -40,16 +50,15 @@ public struct RealtimeError: LocalizedError {
     }
 }
 
-internal let lazyStoragePath = ".storage"
-
 public protocol DatabaseKeyRepresentable {
     var dbKey: String! { get }
 }
 
 // MARK: RealtimeValue
 
-typealias InternalPayload = (version: Int?, raw: FireDataValue?)
+typealias InternalPayload = (version: Int?, raw: RealtimeDataValue?)
 
+/// Key of RealtimeValue option
 public struct ValueOption: Hashable {
     let rawValue: String
 
@@ -66,15 +75,15 @@ public extension Dictionary where Key == ValueOption {
     var version: Int? {
         return (self[.internalPayload] as? InternalPayload)?.version
     }
-    var rawValue: FireDataValue? {
+    var rawValue: RealtimeDataValue? {
         return (self[.internalPayload] as? InternalPayload)?.raw
     }
 }
-public extension FireDataProtocol {
+public extension RealtimeDataProtocol {
     var version: Int? {
         return InternalKeys.modelVersion.map(from: self)
     }
-    var rawValue: FireDataValue? {
+    var rawValue: RealtimeDataValue? {
         return InternalKeys.raw.map(from: self)
     }
 }
@@ -94,31 +103,32 @@ extension _RealtimeValueUtilities where Self: _RealtimeValue {
 extension _RealtimeValue: _RealtimeValueUtilities {}
 
 /// Base protocol for all database entities
-public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
+public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented {
     /// Current version of value.
     var version: Int? { get }
     /// Indicates specific representation of this value, e.g. subclass or enum associated value
-    var raw: FireDataValue? { get }
+    var raw: RealtimeDataValue? { get }
     /// Some data associated with value
-    var payload: [String: FireDataValue]? { get }
+    var payload: [String: RealtimeDataValue]? { get }
     /// Node location in database
     var node: Node? { get }
 
-    /// Designed initializer
+    /// Creates new instance associated with database node
     ///
     /// - Parameter node: Node location for value
+    /// - Parameter options: Dictionary of options
     init(in node: Node?, options: [ValueOption: Any])
 }
 
 extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
     public var version: Int? { return self?.version }
-    public var raw: FireDataValue? { return self?.raw }
-    public var payload: [String : FireDataValue]? { return self?.payload }
+    public var raw: RealtimeDataValue? { return self?.raw }
+    public var payload: [String : RealtimeDataValue]? { return self?.payload }
     public var node: Node? { return self?.node }
     public init(in node: Node?, options: [ValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))
     }
-    public mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    public mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try self?.apply(data, exactly: exactly)
     }
 
@@ -129,10 +139,10 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtili
         return value.map { $0.isRooted } ?? true
     }
 }
-extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
-    public init(fireData: FireDataProtocol, exactly: Bool) throws {
-        if fireData.exists() {
-            self = .some(try Wrapped(fireData: fireData, exactly: exactly))
+extension Optional: RealtimeDataRepresented where Wrapped: RealtimeDataRepresented {
+    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        if data.exists() {
+            self = .some(try Wrapped(data: data, exactly: exactly))
         } else {
             self = .none
         }
@@ -142,21 +152,20 @@ extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
 public extension RealtimeValue {
     var dbKey: String! { return node?.key }
 
+    /// Equals `isRooted`
     var isInserted: Bool { return isRooted }
+    /// Indicates that value has no rooted node
     var isStandalone: Bool { return !isRooted }
+    /// Indicates that value has parent node
     var isReferred: Bool { return node?.parent != nil }
+    /// Indicates that value has rooted node
     var isRooted: Bool { return node?.isRooted ?? false }
 
-    mutating func apply(parentDataIfNeeded parent: FireDataProtocol, exactly: Bool) throws {
+    internal mutating func apply(parentDataIfNeeded parent: RealtimeDataProtocol, exactly: Bool) throws {
         guard exactly || dbKey.has(in: parent) else { return }
 
         try apply(dbKey.child(from: parent), exactly: exactly)
     }
-}
-extension HasDefaultLiteral where Self: RealtimeValue {}
-public extension Object {
-    convenience init(in node: Node?) { self.init(in: node, options: [:]) }
-    convenience init() { self.init(in: nil) }
 }
 
 public extension Hashable where Self: RealtimeValue {
@@ -168,6 +177,7 @@ public extension Hashable where Self: RealtimeValue {
 
 // MARK: Extended Realtime Value
 
+/// A type that makes possible to do someone actions related with value
 public protocol RealtimeValueActions: RealtimeValueEvents {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
@@ -182,6 +192,7 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     /// Stops observing, if observers no more.
     func stopObserving()
 }
+/// A type that can receive Realtime database events
 public protocol RealtimeValueEvents {
     /// Must call always before save(update) action
     ///
