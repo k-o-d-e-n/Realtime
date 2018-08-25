@@ -1,5 +1,5 @@
 //
-//  LinkedRealtimeArray.swift
+//  References.swift
 //  Realtime
 //
 //  Created by Denis Koryttsev on 16/03/2018.
@@ -8,25 +8,25 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func linkedArray<Element>(from node: Node?, elements: Node) -> LinkedRealtimeArray<Element> {
-        return LinkedRealtimeArray(in: Node(key: rawValue, parent: node), options: [.elementsNode: elements])
+    func linkedArray<Element>(from node: Node?, elements: Node) -> References<Element> {
+        return References(in: Node(key: rawValue, parent: node), options: [.elementsNode: elements])
     }
-    func linkedArray<Element>(from node: Node?, elements: Node, elementOptions: [RealtimeValueOption: Any]) -> LinkedRealtimeArray<Element> {
+    func linkedArray<Element>(from node: Node?, elements: Node, elementOptions: [ValueOption: Any]) -> References<Element> {
         return linkedArray(from: node, elements: elements, builder: { (node, options) in
             let compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
             return Element(in: node, options: compoundOptions)
         })
     }
-    func linkedArray<Element>(from node: Node?, elements: Node, builder: @escaping RCElementBuilder<Element>) -> LinkedRealtimeArray<Element> {
-        return LinkedRealtimeArray(in: node, options: [.elementsNode: elements, .elementBuilder: builder])
+    func linkedArray<Element>(from node: Node?, elements: Node, builder: @escaping RCElementBuilder<Element>) -> References<Element> {
+        return References(in: node, options: [.elementsNode: elements, .elementBuilder: builder])
     }
 }
 
-public extension RealtimeValueOption {
-    static let elementsNode = RealtimeValueOption("realtime.linkedarray.elements")
+public extension ValueOption {
+    static let elementsNode = ValueOption("realtime.linkedarray.elements")
 }
 
-public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealtimeValue, RC where Element: RealtimeValue {
+public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue, RC where Element: RealtimeValue {
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
     public override var payload: [String : FireDataValue]? { return nil }
@@ -35,16 +35,16 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<[RCItem], LinkedRealtimeArray>
+    let _view: AnyRealtimeCollectionView<[RCItem], References>
 
-    public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
+    public required init(in node: Node?, options: [ValueOption: Any]) {
         guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
         let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
 
         self.storage = RCArrayStorage(sourceNode: elements,
                                       elementBuilder: builder,
                                       elements: [:])
-        self._view = AnyRealtimeCollectionView(RealtimeProperty(in: node, representer: Representer<[RCItem]>(collection: Representer.fireData)).defaultOnEmpty())
+        self._view = AnyRealtimeCollectionView(Property(in: node, representer: Representer<[RCItem]>(collection: Representer.fireData)).defaultOnEmpty())
         super.init(in: node, options: options)
         self._view.collection = self
     }
@@ -59,9 +59,9 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 
     public required init(fireData: FireDataProtocol, exactly: Bool) throws {
         #if DEBUG
-            fatalError("LinkedRealtimeArray does not supported init(fireData:exactly:) yet.")
+            fatalError("References does not supported init(fireData:exactly:) yet.")
         #else
-            throw RealtimeError(source: .collection, description: "LinkedRealtimeArray does not supported init(fireData:exactly:) yet.")
+            throw RealtimeError(source: .collection, description: "References does not supported init(fireData:exactly:) yet.")
         #endif
     }
 
@@ -89,7 +89,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
-    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
+    override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super
         for (index, element) in storage.elements.enumerated() {
             _view.remove(at: index)
@@ -104,7 +104,7 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
         _view.source.didSave(in: database, in: parent)
     }
 
-    public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+    public override func willRemove(in transaction: Transaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
         _view.source.willRemove(in: transaction, from: ancestor)
     }
@@ -116,14 +116,14 @@ public final class LinkedRealtimeArray<Element>: _RealtimeValue, ChangeableRealt
 
 // MARK: Mutating
 
-public extension LinkedRealtimeArray {
+public extension References {
     @discardableResult
     func write(element: Element, at index: Int? = nil,
-                in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+                in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
         guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
         guard isPrepared else {
-            let transaction = transaction ?? RealtimeTransaction(database: database)
+            let transaction = transaction ?? Transaction(database: database)
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
                     if let e = err {
@@ -158,16 +158,16 @@ public extension LinkedRealtimeArray {
     }
 
     @discardableResult
-    func _write(_ element: Element, at index: Int? = nil, in database: RealtimeDatabase, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+    func _write(_ element: Element, at index: Int? = nil, in database: RealtimeDatabase, in transaction: Transaction? = nil) throws -> Transaction {
         guard !contains(element) else { throw RealtimeError(source: .collection, description: "Element already contains. Element: \(element)") }
 
-        let transaction = transaction ?? RealtimeTransaction(database: database)
+        let transaction = transaction ?? Transaction(database: database)
         try _write(element, at: index ?? count, by: node!, in: transaction)
         return transaction
     }
 
     func _write(_ element: Element, at index: Int,
-                by location: Node, in transaction: RealtimeTransaction) throws {
+                by location: Node, in transaction: Transaction) throws {
         let itemNode = location.child(with: element.dbKey)
         let link = element.node!.generate(linkTo: itemNode)
         let item = RCItem(element: element, linkID: link.link.id, index: index)
@@ -189,10 +189,10 @@ public extension LinkedRealtimeArray {
     }
 
     @discardableResult
-    func remove(element: Element, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
+    func remove(element: Element, in transaction: Transaction? = nil) -> Transaction? {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
 
-        let transaction = transaction ?? RealtimeTransaction(database: database)
+        let transaction = transaction ?? Transaction(database: database)
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
@@ -212,10 +212,10 @@ public extension LinkedRealtimeArray {
     }
 
     @discardableResult
-    func remove(at index: Int, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction {
+    func remove(at index: Int, in transaction: Transaction? = nil) -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
 
-        let transaction = transaction ?? RealtimeTransaction(database: database)
+        let transaction = transaction ?? Transaction(database: database)
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
@@ -234,7 +234,7 @@ public extension LinkedRealtimeArray {
         return transaction
     }
 
-    private func _remove(_ element: Element, in transaction: RealtimeTransaction) {
+    private func _remove(_ element: Element, in transaction: Transaction) {
         if let index = _view.index(where: { $0.dbKey == element.dbKey }) {
             _remove(at: index, in: transaction)
         } else {
@@ -242,7 +242,7 @@ public extension LinkedRealtimeArray {
         }
     }
 
-    private func _remove(at index: Int, in transaction: RealtimeTransaction) {
+    private func _remove(at index: Int, in transaction: Transaction) {
         if !_view.source.hasChanges {
             transaction.addReversion(_view.source.currentReversion())
         }

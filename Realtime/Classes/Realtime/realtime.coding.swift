@@ -323,16 +323,16 @@ public extension Representer {
     }
 }
 public extension Representer where V: RealtimeValue {
-    static func relation(_ property: RelationMode, rootLevelsUp: Int?, ownerNode: Property<Node?>) -> Representer<V> {
+    static func relation(_ property: RelationMode, rootLevelsUp: Int?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
                 guard let node = v.node else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation value node.") }
 
-                return Relation(path: rootLevelsUp.map(node.path) ?? node.rootPath, property: property.path(for: owner)).fireValue
+                return RelationRepresentation(path: rootLevelsUp.map(node.path) ?? node.rootPath, property: property.path(for: owner)).fireValue
         },
             decoding: { d in
-                let relation = try Relation(fireData: d)
+                let relation = try RelationRepresentation(fireData: d)
                 return V(in: Node.root.child(with: relation.targetPath), options: [:])
         })
     }
@@ -356,8 +356,8 @@ public extension Representer where V: RealtimeValue {
                 }
         },
             decoding: { (data) in
-                let reference = try Reference(fireData: data)
-                let options: [RealtimeValueOption: Any] = [.internalPayload: InternalPayload(data.version, data.rawValue)]
+                let reference = try ReferenceRepresentation(fireData: data)
+                let options: [ValueOption: Any] = [.internalPayload: InternalPayload(data.version, data.rawValue)]
                 switch mode {
                 case .fullPath: return reference.make(options: options)
                 case .key(from: let n): return reference.make(in: n, options: options)

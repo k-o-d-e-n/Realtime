@@ -93,7 +93,7 @@ public struct Repeater<T>: Listenable {
     }
 }
 
-public struct Property<T>: Listenable, ValueWrapper {
+public struct ValueStorage<T>: Listenable, ValueWrapper {
     let get: () -> T
     let set: (T) -> Void
     let listen: (Assign<ListenEvent<T>>) -> Disposable
@@ -149,7 +149,7 @@ public struct Property<T>: Listenable, ValueWrapper {
                 val = $0
                 lock.unlock()
             },
-            listen: Property.disposed(lock, repeater: repeater)
+            listen: ValueStorage.disposed(lock, repeater: repeater)
         )
     }
 
@@ -189,37 +189,37 @@ public struct Property<T>: Listenable, ValueWrapper {
                 val = $0
                 lock.unlock()
             },
-            listen: Property.disposed(lock, repeater: repeater)
+            listen: ValueStorage.disposed(lock, repeater: repeater)
         )
     }
 
     public static func unsafe(
         strong value: T,
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
-        ) -> Property {
-        return Property(unsafeStrong: value, dispatcher: dispatcher)
+        ) -> ValueStorage {
+        return ValueStorage(unsafeStrong: value, dispatcher: dispatcher)
     }
 
     public static func unsafe<O: AnyObject>(
         weak value: O?,
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
-        ) -> Property where Optional<O> == T {
-        return Property(unsafeWeak: value, dispatcher: dispatcher)
+        ) -> ValueStorage where Optional<O> == T {
+        return ValueStorage(unsafeWeak: value, dispatcher: dispatcher)
     }
 
     public static func locked(
         strong value: T,
         lock: NSLocking = NSRecursiveLock(),
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
-        ) -> Property {
-        return Property(lockedStrong: value, lock: lock, dispatcher: dispatcher)
+        ) -> ValueStorage {
+        return ValueStorage(lockedStrong: value, lock: lock, dispatcher: dispatcher)
     }
 
     public static func locked<O: AnyObject>(
         weak value: O?,
         lock: NSLocking = NSRecursiveLock(),
-        dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }) -> Property where Optional<O> == T {
-        return Property(lockedWeak: value, lock: lock, dispatcher: dispatcher)
+        dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }) -> ValueStorage where Optional<O> == T {
+        return ValueStorage(lockedWeak: value, lock: lock, dispatcher: dispatcher)
     }
 
     public func sendError(_ error: Error) {
@@ -243,7 +243,7 @@ public struct Property<T>: Listenable, ValueWrapper {
         }
     }
 }
-extension Property where T: AnyObject {
+extension ValueStorage where T: AnyObject {
     public init(unsafeUnowned value: T, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         let repeater = Repeater(dispatcher: dispatcher)
         unowned var val = value {
@@ -280,22 +280,22 @@ extension Property where T: AnyObject {
                 val = $0
                 lock.unlock()
         },
-            listen: Property.disposed(lock, repeater: repeater)
+            listen: ValueStorage.disposed(lock, repeater: repeater)
         )
     }
 
     public static func unsafe(
         unowned value: T,
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
-        ) -> Property {
-        return Property(unsafeUnowned: value, dispatcher: dispatcher)
+        ) -> ValueStorage {
+        return ValueStorage(unsafeUnowned: value, dispatcher: dispatcher)
     }
     public static func locked(
         unowned value: T,
         lock: NSLocking = NSRecursiveLock(),
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
-        ) -> Property {
-        return Property(lockedUnowned: value, lock: lock, dispatcher: dispatcher)
+        ) -> ValueStorage {
+        return ValueStorage(lockedUnowned: value, lock: lock, dispatcher: dispatcher)
     }
 }
 

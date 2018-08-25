@@ -50,8 +50,8 @@ extension OtherTests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = RealtimeProperty<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any.requiredProperty(), .initialValue: [0]])
-        let one = AnyRealtimeCollectionView<[Int], RealtimeArray<RealtimeObject>>(source)//SharedCollection([1])
+        let source = Property<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any.requiredProperty(), .initialValue: [0]])
+        let one = AnyRealtimeCollectionView<[Int], Values<Object>>(source)//SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)
         _ = lazyOne.first
@@ -64,7 +64,7 @@ extension OtherTests {
         XCTAssertTrue(anyLazyOne.count == 2)
     }
     func testMirror() {
-        let object = RealtimeObject(in: .root)
+        let object = Object(in: .root)
         let mirror = Mirror(reflecting: object)
 
         XCTAssert(mirror.children.count > 0)

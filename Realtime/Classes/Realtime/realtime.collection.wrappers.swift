@@ -59,7 +59,7 @@ where C.Index == Int {
         self.init(base: base)
     }
 
-    convenience required init(in node: Node, options: [RealtimeValueOption: Any]) {
+    convenience required init(in node: Node, options: [ValueOption: Any]) {
         self.init(base: C(in: node, options: options))
     }
 
@@ -92,7 +92,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
         self.base = __AnyRealtimeCollection<C>(base: base)
     }
 
-    public convenience init(in node: Node?, options: [RealtimeValueOption: Any]) {
+    public convenience init(in node: Node?, options: [ValueOption: Any]) {
         fatalError("Cannot use this initializer")
     }
 
@@ -124,19 +124,19 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
 // 1) Sorting performs before save prototype (storing sorted array)
 // 2) Sorting performs after load prototype (runtime sorting)
 
-public extension RealtimeArray {
+public extension Values {
     func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
         -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
     }
 }
-public extension LinkedRealtimeArray {
+public extension References {
     func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
         -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
     }
 }
-public extension RealtimeDictionary {
+public extension AssociatedValues {
     func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
         -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
@@ -199,7 +199,7 @@ where Element: RealtimeValue {
             self.baseView = AnySharedCollection(base._view.lazy.map(AnyCollectionKey.init))
     }
 
-    public init(in node: Node?, options: [RealtimeValueOption: Any]) {
+    public init(in node: Node?, options: [ValueOption: Any]) {
         fatalError()
     }
 
@@ -262,7 +262,7 @@ where Base.Index == Int {
         self.transform = transform
     }
 
-    public init(in node: Node?, options: [RealtimeValueOption: Any]) {
+    public init(in node: Node?, options: [ValueOption: Any]) {
         fatalError()
     }
 

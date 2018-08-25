@@ -25,22 +25,22 @@ Realtime provides lightweight data traffic, lazy initialization of data, good di
 
 ### Model
 
-To create any model data structure you can make by subclassing `RealtimeObject`.
+To create any model data structure you can make by subclassing `Object`.
 You can define child properties using classes:
-+ `RealtimeObject` subclasses;
-+ `RealtimeProperty` (typealias `RealtimeProperty`);
-+ `LinkedRealtimeArray`, `RealtimeArray`, `RealtimeDictionary`;
++ `Object` subclasses;
++ `Property` (typealias `Property`);
++ `References`, `Values`, `AssociatedValues`;
 If you use lazy properties, you need implement class function `lazyPropertyKeyPath(for:)`. (Please tell me if you know how avoid it, without inheriting NSObject).
 This function called for each subclass, therefore you don't need call super implementation. 
 Example:
 ```swift
-class User: RealtimeObject {
-    lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
-    lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
+class User: Object {
+    lazy var name: Property<String> = "name".property(from: self.node)
+    lazy var age: Property<Int> = "age".property(from: self.node)
     lazy var photo: StorageProperty<UIImage?> = StorageProperty(in: Node(key: "photo", parent: self.node), representer: Representer.png)
-    lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
-    lazy var scheduledConversations: RealtimeArray<Conversation> = "scheduledConversations".array(from: self.node)
-    lazy var ownedGroup: RealtimeRelation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, "manager")
+    lazy var groups: References<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
+    lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".array(from: self.node)
+    lazy var ownedGroup: Relation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, "manager")
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -68,17 +68,17 @@ transaction.commit(with: { state, err in
 
 ### Properties
 
-***ReadonlyRealtimeProperty*** - readonly stored property for any value.
+***ReadonlyProperty*** - readonly stored property for any value.
 
-***RealtimeProperty*** - stored property for any value.
+***Property*** - stored property for any value.
 
-***SharedRealtimeProperty*** - stored property similar `RealtimeProperty`, but uses concurrency transaction to update value. Use this property if value assumes shared access (for example 'number of likes' value).
+***SharedRealtimeProperty*** - stored property similar `Property`, but uses concurrency transaction to update value. Use this property if value assumes shared access (for example 'number of likes' value).
 
 ### References
 
-***RealtimeReference*** - stores reference on any database value. Doesn't imply referential integrity. Use it if record won't be removed or else other reason that doesn't need referential integrity.
+***Reference*** - stores reference on any database value. Doesn't imply referential integrity. Use it if record won't be removed or else other reason that doesn't need referential integrity.
 
-***RealtimeRelation*** - stores reference on any database value. It creates link on side related object. On deletion related object will be deleted reference.
+***Relation*** - stores reference on any database value. It creates link on side related object. On deletion related object will be deleted reference.
 
 ### Files
 
@@ -88,31 +88,31 @@ transaction.commit(with: { state, err in
 
 ### Collections
 ```swift
-class Object: RealtimeObject {
-    lazy var array: RealtimeArray<Object> = "some_array".array(from: self.node)
-    lazy var linkedArray: LinkedRealtimeArray<Object> = "some_linked_array".linkedArray(from: self.node, elements: .root("linked_objects"))
-    lazy var dictionary: RealtimeDictionary<Object> = "some_dictionary".dictionary(from: self.node, keys: .root("key_objects"))
+class Some: Object {
+    lazy var array: Values<Object> = "some_array".array(from: self.node)
+    lazy var linkedArray: References<Object> = "some_linked_array".linkedArray(from: self.node, elements: .root("linked_objects"))
+    lazy var dictionary: AssociatedValues<Object> = "some_dictionary".dictionary(from: self.node, keys: .root("key_objects"))
 }
 ```
 All collections conform to protocol `RealtimeCollection`.
 Collections are entities that require preparation before using. In common case you call one time for each collection object:
 ```swift
-let users = RealtimeArray<User>(in: .root("users"))
+let users = Values<User>(in: .root("users"))
 users.prepare(forUse: { (users, err) in
     /// working with collection
 })
 ```
 But in mutable operations include auto preparation, that allows to avoid explicity call this method.
 
-***LinkedRealtimeArray*** is array that stores objects as references.
+***References*** is array that stores objects as references.
 Source elements must locate in the same reference. On insertion of object to this array creates link on side object.
 
-***RealtimeArray*** is array that stores objects by value in itself location.
+***Values*** is array that stores objects by value in itself location.
 
-`LinkedRealtimeArray`, `RealtimeArray` mutating:
+`References`, `Values` mutating:
 ```swift
 do {
-    let transaction = RealtimeTransaction()
+    let transaction = Transaction()
     ...
     let element = Element()
     try array.write(element: element, in: transaction)
@@ -128,12 +128,12 @@ do {
 }
 ```
 
-***RealtimeDictionary*** is dictionary where keys are references, but values are objects. On save value creates link on side key object.
+***AssociatedValues*** is dictionary where keys are references, but values are objects. On save value creates link on side key object.
 
-`LinkedRealtimeDictionary`, `RealtimeDictionary` mutating:
+`LinkedRealtimeDictionary`, `AssociatedValues` mutating:
 ```swift
 do {
-    let transaction = RealtimeTransaction()
+    let transaction = Transaction()
     ...
     let element = Element()
     try dictionary.write(element: element, key: key, in: transaction)
@@ -149,17 +149,17 @@ do {
 
 ***KeyedRealtimeCollection*** *(Deprecated)* is immutable collection that gets elements from elements of base collection by specific key path. This is the result of x.keyed(by:elementBuilder:) method, where x is any RealtimeCollection. 
 ```swift
-let userNames = RealtimeArray<User>(in: usersNode).keyed(by: Nodes.name)
+let userNames = Values<User>(in: usersNode).keyed(by: Nodes.name)
 ```
 
 ***MapRealtimeCollection*** is immutable collection that gets elements from map function. This is the result of x.lazyMap(_ transform:) method, where x is any RealtimeCollection. 
 ```swift
-let userNames = RealtimeArray<User>(in: usersNode).keyed(by: Nodes.name)
+let userNames = Values<User>(in: usersNode).keyed(by: Nodes.name)
 ```
 
 ### Transactions
 
-***RealtimeTransaction*** - object that contains all information about write transactions.
+***Transaction*** - object that contains all information about write transactions.
 Almost all data changes perform using this object.
 The most mutable operations just take transaction as parameter, but to create custom complex operations you can use this methods:
 ```swift
@@ -170,7 +170,7 @@ func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T)
 /// adds operation of update RealtimeValue
 func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T)
 /// method to merge actions of other transaction
-func merge(_ other: RealtimeTransaction)
+func merge(_ other: Transaction)
 ```
 For more details see Example project.
 

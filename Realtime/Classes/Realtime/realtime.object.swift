@@ -1,5 +1,5 @@
 //
-//  RealtimeObject.swift
+//  Object.swift
 //  LinkInTeam
 //
 //  Created by Denis Koryttsev on 14/01/17.
@@ -21,7 +21,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
     private var observing: (token: UInt, counter: Int)?
 
-    public required init(in node: Node?, options: [RealtimeValueOption : Any]) {
+    public required init(in node: Node?, options: [ValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
         if case let pl as [String: FireDataValue] = options[.payload] {
@@ -102,7 +102,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         database.removeObserver(for: node, with: token)
     }
 
-    public func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+    public func willRemove(in transaction: Transaction, from ancestor: Node) {
         debugFatalError(condition: self.node == nil || !self.node!.isRooted,
                         "Value will be removed from node: \(ancestor), but has not been inserted before. Current: \(self.node?.description ?? "")")
         debugFatalError(condition: !self.node!.hasParent(node: ancestor),
@@ -124,7 +124,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
             self.database = nil
         }
     }
-    public func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
+    public func willSave(in transaction: Transaction, in parent: Node, by key: String) {
         debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value will be saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
         debugFatalError(condition: !parent.isRooted, "Value will be saved non rooted node: \(parent)")
     }
@@ -144,13 +144,13 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
     internal var _hasChanges: Bool { return false }
 
-    internal func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
+    internal func _writeChanges(to transaction: Transaction, by node: Node) throws {
         if _hasChanges {
             try _write(to: transaction, by: node)
         }
     }
 
-    internal final func _write_RealtimeValue(to transaction: RealtimeTransaction, by node: Node) {
+    internal final func _write_RealtimeValue(to transaction: Transaction, by node: Node) {
         if let mv = version {
             transaction.addValue(mv, by: Node(key: InternalKeys.modelVersion, parent: node))
         }
@@ -162,7 +162,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         }
     }
 
-    internal func _write(to transaction: RealtimeTransaction, by node: Node) throws {
+    internal func _write(to transaction: Transaction, by node: Node) throws {
         _write_RealtimeValue(to: transaction, by: node)
     }
 
@@ -195,13 +195,13 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     }
 }
 extension WritableRealtimeValue where Self: _RealtimeValue {
-    public func write(to transaction: RealtimeTransaction, by node: Node) throws {
+    public func write(to transaction: Transaction, by node: Node) throws {
         try _write(to: transaction, by: node)
     }
 }
 extension ChangeableRealtimeValue where Self: _RealtimeValue {
     public var hasChanges: Bool { return _hasChanges }
-    public func writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
+    public func writeChanges(to transaction: Transaction, by node: Node) throws {
         try _writeChanges(to: transaction, by: node)
     }
 }
@@ -209,9 +209,9 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 /// Main class to define Realtime models objects.
 /// You can define child properties using classes:
 ///
-/// - RealtimeObject subclasses;
-/// - RealtimeProperty;
-/// - LinkedRealtimeArray, RealtimeArray, RealtimeDictionary;
+/// - Object subclasses;
+/// - ReadonlyProperty subclasses;
+/// - References, Values, AssociatedValues;
 ///
 /// If you use lazy properties, you need implement class function function **lazyPropertyKeyPath(for:)**.
 /// Show it description for details.
@@ -220,8 +220,8 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///
 /// Example:
 ///
-///     class User: RealtimeObject {
-///         lazy var name: RealtimeProperty<String?> = "user_name".property(from: self.node)
+///     class User: Object {
+///         lazy var name: Property<String?> = "user_name".property(from: self.node)
 ///     
 ///         open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
 ///             switch label {
@@ -231,16 +231,16 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///         }
 ///     }
 ///
-open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
-    open weak var parent: RealtimeObject?
+    open weak var parent: Object?
 
     open var ignoredLabels: [String] {
         return []
     }
 
-    public override func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
+    public override func willSave(in transaction: Transaction, in parent: Node, by key: String) {
         super.willSave(in: transaction, in: parent, by: key)
         let node = parent.child(with: key)
         enumerateLoadedChilds { (_, value: _RealtimeValue) in
@@ -259,8 +259,8 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         }
     }
 
-    typealias Links = RealtimeProperty<[SourceLink]>
-    public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+    typealias Links = Property<[SourceLink]>
+    public override func willRemove(in transaction: Transaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
         forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
@@ -319,7 +319,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         fatalError("You should implement class func lazyPropertyKeyPath(for:)")
     }
 
-    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
+    override func _write(to transaction: Transaction, by node: Node) throws {
         try super._write(to: transaction, by: node)
         try reflect { (mirror) in
             try mirror.children.forEach({ (child) in
@@ -336,7 +336,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         }
     }
 
-    override func _writeChanges(to transaction: RealtimeTransaction, by node: Node) throws {
+    override func _writeChanges(to transaction: Transaction, by node: Node) throws {
 //        super._writeChanges(to: transaction, by: node)
         try reflect { (mirror) in
             try mirror.children.forEach({ (child) in
@@ -353,7 +353,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         }
     }
 
-    // MARK: RealtimeObject
+    // MARK: Object
 
     private func realtimeValue<T>(from value: Any) -> T? {
         guard case let child as T = value else { return nil }
@@ -369,7 +369,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
 
             label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
 
-            guard let keyPath = (mirror.subjectType as! RealtimeObject.Type).lazyPropertyKeyPath(for: label) else {
+            guard let keyPath = (mirror.subjectType as! Object.Type).lazyPropertyKeyPath(for: label) else {
                 return nil
             }
             guard case let value as T = self[keyPath: keyPath] else {
@@ -380,7 +380,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         }
         return value
     }
-    fileprivate func forceEnumerateAllChilds<As>(from type: Any.Type = RealtimeObject.self, _ block: (String?, As) -> Void) {
+    fileprivate func forceEnumerateAllChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
@@ -390,7 +390,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
             })
         }
     }
-    fileprivate func enumerateLoadedChilds<As>(from type: Any.Type = RealtimeObject.self, _ block: (String?, As) -> Void) {
+    fileprivate func enumerateLoadedChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
@@ -400,7 +400,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
             })
         }
     }
-    private func containsInLoadedChild<As>(from type: Any.Type = RealtimeObject.self, where block: (String?, As) -> Bool) -> Bool {
+    private func containsInLoadedChild<As>(from type: Any.Type = Object.self, where block: (String?, As) -> Bool) -> Bool {
         var contains = false
         reflect(to: type) { (mirror) in
             guard !contains else { return }
@@ -413,7 +413,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
         }
         return contains
     }
-    private func reflect(to type: Any.Type = RealtimeObject.self, _ block: (Mirror) throws -> Void) rethrows {
+    private func reflect(to type: Any.Type = Object.self, _ block: (Mirror) throws -> Void) rethrows {
         var mirror = Mirror(reflecting: self)
         try block(mirror)
         while let _mirror = mirror.superclassMirror, _mirror.subjectType != type {
@@ -461,7 +461,7 @@ open class RealtimeObject: _RealtimeValue, ChangeableRealtimeValue, WritableReal
     }
 }
 
-extension RealtimeObject: Reverting {
+extension Object: Reverting {
     public func revert() {
         enumerateLoadedChilds { (_, value: Reverting) in
             value.revert()
@@ -476,13 +476,13 @@ extension RealtimeObject: Reverting {
     }
 }
 
-extension RealtimeObject {
-    /// writes RealtimeObject in transaction like as single value
+extension Object {
+    /// writes Object in transaction like as single value
     @discardableResult
-    public func save(in parent: Node, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
-        guard let key = self.dbKey, let database = self.database else { fatalError("Object has not key. If you cannot set key manually use RealtimeTransaction.set(_:by:) method instead") }
+    public func save(in parent: Node, in transaction: Transaction? = nil) throws -> Transaction {
+        guard let key = self.dbKey, let database = self.database else { fatalError("Object has not key. If you cannot set key manually use Transaction.set(_:by:) method instead") }
 
-        let transaction = transaction ?? RealtimeTransaction(database: database)
+        let transaction = transaction ?? Transaction(database: database)
         do {
             try transaction.set(self, by: Node(key: key, parent: parent))
             return transaction
@@ -492,12 +492,12 @@ extension RealtimeObject {
         }
     }
 
-    /// writes changes of RealtimeObject in transaction as independed values
+    /// writes changes of Object in transaction as independed values
     @discardableResult
-    public func update(in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+    public func update(in transaction: Transaction? = nil) throws -> Transaction {
         guard let database = self.database else { fatalError("Object has not database reference, because was not saved") }
 
-        let transaction = transaction ?? RealtimeTransaction(database: database)
+        let transaction = transaction ?? Transaction(database: database)
         do {
             try transaction.update(self)
             return transaction
@@ -507,11 +507,11 @@ extension RealtimeObject {
         }
     }
 
-    /// writes empty value by RealtimeObject reference in transaction 
-    public func delete(in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+    /// writes empty value by Object reference in transaction 
+    public func delete(in transaction: Transaction? = nil) throws -> Transaction {
         guard let database = self.database else { fatalError("Object has not database reference, because was not saved") }
 
-        let transaction = transaction ?? RealtimeTransaction(database: database)
+        let transaction = transaction ?? Transaction(database: database)
         do {
             try transaction.delete(self)
             return transaction

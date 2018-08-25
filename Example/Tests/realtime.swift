@@ -57,12 +57,12 @@ class Tests: XCTestCase {
 
 // MARK: Realtime
 
-class TestObject: RealtimeObject {
-    lazy var property: RealtimeProperty<String?> = "prop".property(from: self.node)
-    lazy var readonlyProperty: ReadonlyRealtimeProperty<Int> = "readonlyProp".readonlyProperty(from: self.node).defaultOnEmpty()
-    lazy var linkedArray: LinkedRealtimeArray<RealtimeObject> = "linked_array".linkedArray(from: self.node, elements: .root)
-    lazy var array: RealtimeArray<TestObject> = "array".array(from: self.node)
-    lazy var dictionary: RealtimeDictionary<RealtimeObject, TestObject> = "dict".dictionary(from: self.node, keys: .root)
+class TestObject: Object {
+    lazy var property: Property<String?> = "prop".property(from: self.node)
+    lazy var readonlyProperty: ReadonlyProperty<Int> = "readonlyProp".readonlyProperty(from: self.node).defaultOnEmpty()
+    lazy var linkedArray: References<Object> = "linked_array".linkedArray(from: self.node, elements: .root)
+    lazy var array: Values<TestObject> = "array".array(from: self.node)
+    lazy var dictionary: AssociatedValues<Object, TestObject> = "dict".dictionary(from: self.node, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
     lazy var readonlyFile: ReadonlyFile<UIImage> = ReadonlyFile(in: Node(key: "readonlyFile", parent: self.node), representer: .png)
     lazy var file: File<UIImage> = File(in: Node(key: "file", parent: self.node), representer: .jpeg())
@@ -85,11 +85,11 @@ class TestObject: RealtimeObject {
         return [\TestObject.property, \TestObject.linkedArray, \TestObject.array, \TestObject.dictionary, \TestObject.nestedObject]
     }
 
-    class NestedObject: RealtimeObject {
-        lazy var lazyProperty: RealtimeProperty<String?> = "lazyprop".property(from: self.node)
-        var usualProperty: RealtimeProperty<String?>
+    class NestedObject: Object {
+        lazy var lazyProperty: Property<String?> = "lazyprop".property(from: self.node)
+        var usualProperty: Property<String?>
 
-        required init(in node: Node?, options: [RealtimeValueOption : Any]) {
+        required init(in node: Node?, options: [ValueOption : Any]) {
             self.usualProperty = "usualprop".property(from: node)
             super.init(in: node, options: options)
         }
@@ -114,9 +114,9 @@ class TestObject: RealtimeObject {
 
 extension Tests {
     func testPropertySetValueFunc() {
-        let property = RealtimeProperty<String>(in: Node(key: "value", parent: .root), representer: Representer<String>.any)
+        let property = Property<String>(in: Node(key: "value", parent: .root), representer: Representer<String>.any)
 
-        let transaction = RealtimeTransaction(database: CacheNode.root)
+        let transaction = Transaction(database: CacheNode.root)
         do {
             try property.setValue("Some string", in: transaction)
 
@@ -177,7 +177,7 @@ extension Tests {
     func testCollectionOnRootObject() {
         let testObject = TestObject(in: .root)
 
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
         linkedObject.property <== "#1"
@@ -239,7 +239,7 @@ extension Tests {
 
     func testDecoding() {
         let exp = expectation(description: "")
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
 
         do {
             let element = TestObject(in: Node.root.child(with: "element_1"))
@@ -283,8 +283,8 @@ extension Tests {
     }
 
     func testUpdateFileAfterSave() {
-        let group = RealtimeGroup(in: Node(key: "group", parent: Global.rtGroups.node))
-        let user = RealtimeUser(in: Node(key: "user"))
+        let group = Group(in: Node(key: "group", parent: Global.rtGroups.node))
+        let user = User(in: Node(key: "user"))
         group.manager <== user
         user.name <== "name"
         user.age <== 0
@@ -293,7 +293,7 @@ extension Tests {
         user.ownedGroup <== group
 
         do {
-            let cache = RealtimeTransaction(database: CacheNode.root)
+            let cache = Transaction(database: CacheNode.root)
             let transaction = try user.save(in: .root, in: cache)
             transaction.commit(with: { (_, errors) in
                 errors.map { _ in XCTFail() }
@@ -320,16 +320,16 @@ extension Tests {
     }
 
     func testRelationOneToOne() {
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
 
         do {
-            let user = RealtimeUser(in: Node(key: "user", parent: .root))
-            let group = RealtimeGroup(in: Node(key: "group", parent: .root))
+            let user = User(in: Node(key: "user", parent: .root))
+            let group = Group(in: Node(key: "group", parent: .root))
             user.ownedGroup <== group
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
+            let userCopy = try User(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
 
             try group.apply(data.child(forPath: group.node!.rootPath), exactly: false)
 
@@ -344,18 +344,18 @@ extension Tests {
     }
 
     func testRelationOneToMany() {
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
 
         do {
-            let user = RealtimeUser(in: Node(key: "user", parent: .root))
-            let group = RealtimeGroup(in: Node(key: "group", parent: .root))
+            let user = User(in: Node(key: "user", parent: .root))
+            let group = Group(in: Node(key: "group", parent: .root))
             group._manager <== user
 
             let data = try group.update(in: transaction).updateNode
 
-            let groupCopy = try RealtimeGroup(fireData: data.child(forPath: group.node!.rootPath), exactly: false)
+            let groupCopy = try Group(fireData: data.child(forPath: group.node!.rootPath), exactly: false)
 
-            let groupBackwardRelation: RealtimeRelation<RealtimeGroup> = group._manager.options.property.path(for: group.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
+            let groupBackwardRelation: Relation<Group> = group._manager.options.property.path(for: group.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
             try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: false)
 
             XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
@@ -369,15 +369,15 @@ extension Tests {
     }
 
     func testOptionalRelation() {
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
 
         do {
-            let user = RealtimeUser(in: Node(key: "user", parent: .root))
+            let user = User(in: Node(key: "user", parent: .root))
             user.ownedGroup <== nil
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try RealtimeUser(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
+            let userCopy = try User(fireData: data.child(forPath: user.node!.rootPath), exactly: false)
 
             if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -392,7 +392,7 @@ extension Tests {
     }
 
     func testOptionalReference() {
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
 
         do {
             let conversation = Conversation(in: Node(key: "conv_1", parent: .root))
@@ -510,7 +510,7 @@ extension Tests {
         case one(TestObject)
         case two(TestObject)
 
-        init(in node: Node?, options: [RealtimeValueOption : Any]) {
+        init(in node: Node?, options: [ValueOption : Any]) {
             let raw = options.rawValue as? Int ?? 0
 
             switch raw {
@@ -553,7 +553,7 @@ extension Tests {
             value.stopObserving()
         }
 
-        func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String) {
+        func willSave(in transaction: Transaction, in parent: Node, by key: String) {
             value.willSave(in: transaction, in: parent, by: key)
         }
 
@@ -565,19 +565,19 @@ extension Tests {
             value.didRemove(from: ancestor)
         }
 
-        func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+        func willRemove(in transaction: Transaction, from ancestor: Node) {
             value.willRemove(in: transaction, from: ancestor)
         }
 
-        func write(to transaction: RealtimeTransaction, by node: Node) throws {
+        func write(to transaction: Transaction, by node: Node) throws {
             try value.write(to: transaction, by: node)
         }
     }
 
     func testPayload() {
-        let array = RealtimeArray<ValueWithPayload>(in: Node.root.child(with: "__tests/array"))
+        let array = Values<ValueWithPayload>(in: Node.root.child(with: "__tests/array"))
         let exp = expectation(description: "")
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
 
         array.prepare(forUse: .just { (a, err) in
             XCTAssertNil(err)
@@ -623,13 +623,13 @@ extension Tests {
     }
 
     func testReferenceFireValue() {
-        let ref = Reference(ref: Node.root.child(with: "first/two").rootPath)
+        let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").rootPath)
         let fireValue = ref.fireValue
         XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "/first/two"])
     }
 
     func testLocalDatabase() {
-        let transaction = RealtimeTransaction(database: CacheNode.root)
+        let transaction = Transaction(database: CacheNode.root)
         let testObject = TestObject(in: .root)
 
         testObject.property <== "string"
@@ -659,7 +659,7 @@ extension Tests {
     }
 
     func testCacheObject() {
-        let transaction = RealtimeTransaction(database: CacheNode.root)
+        let transaction = Transaction(database: CacheNode.root)
         let testObject = TestObject(in: .root)
 
         testObject.property <== "string"
@@ -694,7 +694,7 @@ extension Tests {
 
 // MARK: Collections
 
-extension LinkedRealtimeArray: Reverting {
+extension References: Reverting {
     public func revert() {
         guard _hasChanges else { return }
         storage.elements.removeAll()
@@ -707,7 +707,7 @@ extension LinkedRealtimeArray: Reverting {
         }
     }
 }
-extension RealtimeArray: Reverting {
+extension Values: Reverting {
     public func revert() {
         guard _hasChanges else { return }
         storage.elements.removeAll()
@@ -720,7 +720,7 @@ extension RealtimeArray: Reverting {
         }
     }
 }
-extension RealtimeDictionary: Reverting {
+extension AssociatedValues: Reverting {
     public func revert() {
         guard _hasChanges else { return }
         storage.elements.removeAll()
@@ -736,7 +736,7 @@ extension RealtimeDictionary: Reverting {
 
 extension Tests {
     func testLocalChangesLinkedArray() {
-        let linkedArray: LinkedRealtimeArray<TestObject> = "l_array".linkedArray(from: nil, elements: .root)
+        let linkedArray: References<TestObject> = "l_array".linkedArray(from: nil, elements: .root)
 
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
@@ -749,7 +749,7 @@ extension Tests {
         XCTAssertEqual(linkedArray.count, 2)
         XCTAssertEqual(counter, 2)
 
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
         do {
             try transaction._update(linkedArray, by: .root)
             XCTAssertEqual(linkedArray.storage.elements.count, 2)
@@ -760,7 +760,7 @@ extension Tests {
         transaction.revert()
     }
     func testLocalChangesArray() {
-        let array: RealtimeArray<TestObject> = "array".array(from: nil)
+        let array: Values<TestObject> = "array".array(from: nil)
 
         let one = TestObject()
         one.file <== #imageLiteral(resourceName: "pw")
@@ -777,7 +777,7 @@ extension Tests {
         XCTAssertEqual(array.count, 2)
         XCTAssertEqual(counter, 2)
 
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
         do {
             try transaction._update(array, by: .root)
             XCTAssertEqual(array.storage.elements.count, 2)
@@ -788,7 +788,7 @@ extension Tests {
         transaction.revert()
     }
     func testLocalChangesDictionary() {
-        let dict: RealtimeDictionary<TestObject, TestObject> = "dict".dictionary(from: nil, keys: .root)
+        let dict: AssociatedValues<TestObject, TestObject> = "dict".dictionary(from: nil, keys: .root)
 
         let one = TestObject()
         one.file <== #imageLiteral(resourceName: "pw")
@@ -805,7 +805,7 @@ extension Tests {
         XCTAssertEqual(dict.count, 2)
         XCTAssertEqual(counter, 2)
 
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
         do {
             try transaction._update(dict, by: .root)
             XCTAssertEqual(dict.storage.elements.count, 2)

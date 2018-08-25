@@ -282,7 +282,7 @@ struct AnyListenable<Out>: Listenable {
 }
 
 /// Provides calculated listening value
-public struct ReadonlyProperty<Value>: Listenable {
+public struct ReadonlyValue<Value>: Listenable {
     let repeater: Repeater<Value>
     private let store: ListeningDisposeStore
 
@@ -299,7 +299,7 @@ public struct ReadonlyProperty<Value>: Listenable {
 }
 
 /// Provides listening value based on async action
-public struct AsyncReadonlyProperty<Value>: Listenable {
+public struct AsyncReadonlyValue<Value>: Listenable {
     let repeater: Repeater<Value>
     private let store: ListeningDisposeStore
     
@@ -385,7 +385,7 @@ public extension Listenable {
     /// - Parameter other: Repeater that will be receive value
     /// - Returns: Disposable
     @discardableResult
-    func bind(to other: Property<OutData>) -> Disposable {
+    func bind(to other: ValueStorage<OutData>) -> Disposable {
         return listening({ (e) in
             switch e {
             case .value(let v): other.value = v

@@ -7,13 +7,13 @@
 
 import Foundation
 
-extension RealtimeValueOption {
-    static let elementBuilder = RealtimeValueOption("realtime.collection.builder")
+extension ValueOption {
+    static let elementBuilder = ValueOption("realtime.collection.builder")
 }
 
 /// -----------------------------------------
 
-// TODO: For Value of RealtimeDictionary is not defined payloads
+// TODO: For Value of AssociatedValues is not defined payloads
 struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireDataValueRepresented {
     let dbKey: String!
     let linkID: String
@@ -156,7 +156,7 @@ protocol RC: RealtimeCollection, RealtimeValueEvents where Storage: RCStorage {
     var _view: View { get }
 }
 
-/// MARK: RealtimeArray separated, new version
+/// MARK: Values separated, new version
 
 protocol KeyValueAccessableCollection {
     associatedtype Key
@@ -283,7 +283,7 @@ public extension RealtimeCollection {
     }
 }
 
-public typealias RCElementBuilder<Element> = (Node, [RealtimeValueOption: Any]) -> Element
+public typealias RCElementBuilder<Element> = (Node, [ValueOption: Any]) -> Element
 public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     public typealias Value = V
     var sourceNode: Node!
@@ -303,7 +303,7 @@ public struct AnyArrayStorage: RealtimeCollectionStorage {
 }
 
 public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyObject>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
-    let source: RealtimeProperty<Source>
+    let source: Property<Source>
     weak var collection: Viewed?
     var listening: Disposable!
 
@@ -319,7 +319,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
         }
     }
 
-    init(_ source: RealtimeProperty<Source>) {
+    init(_ source: Property<Source>) {
         self.source = source
         self.listening = source
             .livetime(self)

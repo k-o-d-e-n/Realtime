@@ -1,5 +1,5 @@
 //
-//  RealtimeDictionary.swift
+//  AssociatedValues.swift
 //  Realtime
 //
 //  Created by Denis Koryttsev on 16/03/2018.
@@ -9,25 +9,25 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where RawValue == String {
-    func dictionary<Key, Value>(from node: Node?, keys: Node) -> RealtimeDictionary<Key, Value> {
-        return RealtimeDictionary(in: Node(key: rawValue, parent: node), options: [.keysNode: keys])
+    func dictionary<Key, Value>(from node: Node?, keys: Node) -> AssociatedValues<Key, Value> {
+        return AssociatedValues(in: Node(key: rawValue, parent: node), options: [.keysNode: keys])
     }
-    func dictionary<Key, Value>(from node: Node?, keys: Node, elementOptions: [RealtimeValueOption: Any]) -> RealtimeDictionary<Key, Value> {
+    func dictionary<Key, Value>(from node: Node?, keys: Node, elementOptions: [ValueOption: Any]) -> AssociatedValues<Key, Value> {
         return dictionary(from: node, keys: keys, builder: { (node, options) in
             let compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
             return Value(in: node, options: compoundOptions)
         })
     }
-    func dictionary<Key, Value>(from node: Node?, keys: Node, builder: @escaping RCElementBuilder<Value>) -> RealtimeDictionary<Key, Value> {
-        return RealtimeDictionary(in: Node(key: rawValue, parent: node), options: [.keysNode: keys, .elementBuilder: builder])
+    func dictionary<Key, Value>(from node: Node?, keys: Node, builder: @escaping RCElementBuilder<Value>) -> AssociatedValues<Key, Value> {
+        return AssociatedValues(in: Node(key: rawValue, parent: node), options: [.keysNode: keys, .elementBuilder: builder])
     }
 }
 
-public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDictionaryKey {
+public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: HashableValue {
     public typealias Value = V
     var sourceNode: Node!
     let keysNode: Node
-    let elementBuilder: (Node, [RealtimeValueOption: Any]) -> Value
+    let elementBuilder: (Node, [ValueOption: Any]) -> Value
     var elements: [K: Value] = [:]
 
     func buildElement(with key: K) -> V {
@@ -53,13 +53,13 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: RealtimeDicti
     }
 }
 
-extension RealtimeValueOption {
-    static let keysNode = RealtimeValueOption("realtime.dictionary.keys")
+extension ValueOption {
+    static let keysNode = ValueOption("realtime.dictionary.keys")
 }
 
-public typealias RealtimeDictionaryKey = Hashable & RealtimeValue
-public final class RealtimeDictionary<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RC
-where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionaryKey {
+public typealias HashableValue = Hashable & RealtimeValue
+public final class AssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RC
+where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     public override var version: Int? { return nil }
     public override var raw: FireDataValue? { return nil }
     public override var payload: [String : FireDataValue]? { return nil }
@@ -68,9 +68,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<[RCItem], RealtimeDictionary>
+    let _view: AnyRealtimeCollectionView<[RCItem], AssociatedValues>
 
-    public required init(in node: Node?, options: [RealtimeValueOption: Any]) {
+    public required init(in node: Node?, options: [ValueOption: Any]) {
         guard case let keysNode as Node = options[.keysNode] else { fatalError("Skipped required options") }
         guard keysNode.isRooted else { fatalError("Keys must has rooted location") }
 
@@ -90,7 +90,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     // MARK: Implementation
 
     private var shouldLinking = true // TODO: Create class family for such cases
-    public func unlinked() -> RealtimeDictionary<Key, Value> { shouldLinking = false; return self }
+    public func unlinked() -> AssociatedValues<Key, Value> { shouldLinking = false; return self }
 
     public var startIndex: Int { return _view.startIndex }
     public var endIndex: Int { return _view.endIndex }
@@ -105,7 +105,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
     public typealias Element = (key: Key, value: Value)
 
-    public func makeIterator() -> IndexingIterator<RealtimeDictionary> { return IndexingIterator(_elements: self) }
+    public func makeIterator() -> IndexingIterator<AssociatedValues> { return IndexingIterator(_elements: self) }
     public subscript(position: Int) -> Element { return storage.element(by: _view[position].dbKey) }
     public subscript(key: Key) -> Value? { return contains(valueBy: key) ? storage.object(for: key) : nil }
 
@@ -153,13 +153,13 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     }
 
     @discardableResult
-    public func write(element: Value, for key: Key, in transaction: RealtimeTransaction? = nil) throws -> RealtimeTransaction {
+    public func write(element: Value, for key: Key, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method set(element:for:)") }
         guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
-        let transaction = transaction ?? RealtimeTransaction(database: database)
+        let transaction = transaction ?? Transaction(database: database)
         guard isPrepared else {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
@@ -179,7 +179,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         return transaction
     }
 
-    func _write(_ element: Value, for key: Key, in transaction: RealtimeTransaction) throws {
+    func _write(_ element: Value, for key: Key, in transaction: Transaction) throws {
         if contains(valueBy: key) {
             throw RealtimeError(source: .collection, description: "Value by key \(key) already exists. Replacing is not supported yet.")
         }
@@ -189,7 +189,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     }
 
     func _write(_ element: Value, for key: Key,
-                by location: (storage: Node, itms: Node), in transaction: RealtimeTransaction) throws {
+                by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
         let needLink = shouldLinking
         let itemNode = location.itms.child(with: key.dbKey)
         let elementNode = location.storage.child(with: key.dbKey)
@@ -220,11 +220,11 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
     }
 
     @discardableResult
-    public func remove(for key: Key, in transaction: RealtimeTransaction? = nil) -> RealtimeTransaction? {
+    public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction? {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
         guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         guard isPrepared else {
-            let transaction = transaction ?? RealtimeTransaction(database: database)
+            let transaction = transaction ?? Transaction(database: database)
             transaction.addPrecondition { [unowned transaction] promise in
                 self.prepare(forUse: .just { collection, err in
                     if let e = err {
@@ -240,7 +240,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
         guard let index = _view.index(where: { $0.dbKey == key.dbKey }) else { return transaction }
 
-        let transaction = transaction ?? RealtimeTransaction(database: database)
+        let transaction = transaction ?? Transaction(database: database)
 
         let element = storage.elements.removeValue(forKey: key) ?? storage.object(for: key)
         element.willRemove(in: transaction, from: storage.sourceNode)
@@ -272,9 +272,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
     public required convenience init(fireData: FireDataProtocol, exactly: Bool) throws {
         #if DEBUG
-        fatalError("RealtimeDictionary does not supported init(fireData:exactly:) yet.")
+        fatalError("AssociatedValues does not supported init(fireData:exactly:) yet.")
         #else
-        throw RealtimeError(source: .collection, description: "RealtimeDictionary does not supported init(fireData:exactly:) yet.")
+        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(fireData:exactly:) yet.")
         #endif
     }
 
@@ -307,7 +307,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
 
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
-    override func _write(to transaction: RealtimeTransaction, by node: Node) throws {
+    override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super (_RealtimeValue)
         for (i, (key: key, value: value)) in storage.elements.enumerated() {
             _view.remove(at: i)
@@ -332,7 +332,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: RealtimeDictionar
         storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0.dbKey) }
     }
 
-    public override func willRemove(in transaction: RealtimeTransaction, from ancestor: Node) {
+    public override func willRemove(in transaction: Transaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
         if ancestor == node?.parent {
             transaction.removeValue(by: node!.linksNode)

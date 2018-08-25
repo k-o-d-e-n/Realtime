@@ -14,7 +14,7 @@ public enum ReferenceMode {
 }
 
 /// Link value describing reference to some location of database.
-struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
+struct ReferenceRepresentation: FireDataRepresented, FireDataValueRepresented, Codable {
     let ref: String
 
     init(ref: String) {
@@ -26,21 +26,21 @@ struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
         return v
     }
     init(fireData: FireDataProtocol, exactly: Bool) throws {
-        guard let ref: String = CodingKeys.ref.stringValue.map(from: fireData) else { throw RealtimeError(initialization: Reference.self, fireData) }
+        guard let ref: String = CodingKeys.ref.stringValue.map(from: fireData) else { throw RealtimeError(initialization: ReferenceRepresentation.self, fireData) }
         self.ref = ref
     }
 }
-extension Reference {
-    func make<V: RealtimeValue>(in node: Node = .root, options: [RealtimeValueOption: Any]) -> V {
+extension ReferenceRepresentation {
+    func make<V: RealtimeValue>(in node: Node = .root, options: [ValueOption: Any]) -> V {
         return V(in: node.child(with: ref), options: options)
     }
 }
 extension RealtimeValue {
-    func reference(from node: Node = .root) -> Reference? {
-        return self.node.map { Reference(ref: $0.path(from: node)) }
+    func reference(from node: Node = .root) -> ReferenceRepresentation? {
+        return self.node.map { ReferenceRepresentation(ref: $0.path(from: node)) }
     }
-    func relation(use property: String) -> Relation? {
-        return node.map { Relation(path: $0.rootPath, property: property) }
+    func relation(use property: String) -> RelationRepresentation? {
+        return node.map { RelationRepresentation(path: $0.rootPath, property: property) }
     }
 }
 
@@ -56,7 +56,7 @@ public enum RelationMode {
     }
 }
 
-struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
+struct RelationRepresentation: FireDataRepresented, FireDataValueRepresented, Codable {
     /// Path to related object
     let targetPath: String
     /// Property of related object that represented this relation
@@ -84,7 +84,7 @@ struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
                 let path = val[CodingKeys.targetPath.rawValue],
                 let prop = val[CodingKeys.relatedProperty.rawValue]
             else {
-                    throw RealtimeError(initialization: Relation.self, fireData)
+                    throw RealtimeError(initialization: RelationRepresentation.self, fireData)
             }
 
             self.targetPath = path
@@ -94,7 +94,7 @@ struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
         guard
             let path: String = CodingKeys.targetPath.map(from: fireData),
             let property: String = CodingKeys.relatedProperty.map(from: fireData)
-        else { throw RealtimeError(initialization: Relation.self, fireData) }
+        else { throw RealtimeError(initialization: RelationRepresentation.self, fireData) }
 
         self.targetPath = path
         self.relatedProperty = property

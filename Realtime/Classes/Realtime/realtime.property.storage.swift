@@ -23,7 +23,7 @@ public extension RawRepresentable where Self.RawValue == String {
     }
 }
 
-public class ReadonlyFile<T>: ReadonlyRealtimeProperty<T> {
+public class ReadonlyFile<T>: ReadonlyProperty<T> {
     override var updateType: ValueNode.Type { return FileNode.self }
 
     public override func load(completion: Assign<Error?>?) {
@@ -52,7 +52,7 @@ public class ReadonlyFile<T>: ReadonlyRealtimeProperty<T> {
     }
 }
 
-public class File<T>: RealtimeProperty<T> {
+public class File<T>: Property<T> {
     override var updateType: ValueNode.Type { return FileNode.self }
 
     public override func load(completion: Assign<Error?>?) {

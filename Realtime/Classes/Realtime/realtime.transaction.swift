@@ -1,5 +1,5 @@
 //
-//  RealtimeTransaction.swift
+//  Transaction.swift
 //  Realtime
 //
 //  Created by Denis Koryttsev on 16/03/2018.
@@ -27,14 +27,14 @@ extension Reverting where Self: ChangeableRealtimeValue {
 
 /// Helps to make complex write transactions.
 /// Provides addition of operations with completion handler, cancelation, and async preconditions.
-public class RealtimeTransaction {
+public class Transaction {
     let database: RealtimeDatabase
     let storage: Storage
     internal var updateNode: ObjectNode = ObjectNode(node: .root)
     fileprivate var preconditions: [(Promise) -> Void] = []
     fileprivate var completions: [(Bool) -> Void] = []
     fileprivate var cancelations: [() -> Void] = []
-    fileprivate var scheduledMerges: [RealtimeTransaction]?
+    fileprivate var scheduledMerges: [Transaction]?
     fileprivate var state: State = .waiting
     fileprivate var substate: Substate = .none
 
@@ -108,12 +108,12 @@ public class RealtimeTransaction {
 
     deinit {
         if !isInvalidated {
-            fatalError("RealtimeTransaction requires performing, reversion or merging")
+            fatalError("Transaction requires performing, reversion or merging")
         }
     }
 }
 
-extension RealtimeTransaction {
+extension Transaction {
     public typealias CommitState = (state: State, substate: Substate)
     // TODO: Add configuration commit as single value or update value
     public func commit(revertOnError: Bool = true,
@@ -262,27 +262,27 @@ extension RealtimeTransaction {
 
     /// registers new cancelation of made changes
     public func addReversion(_ reversion: @escaping () -> Void) {
-        guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
+        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
 
         cancelations.insert(reversion, at: 0)
     }
 
     /// registers new completion handler for transaction
     public func addCompletion(_ completion: @escaping (Bool) -> Void) {
-        guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
+        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
 
         completions.append(completion)
     }
 
     /// registers new precondition action
     public func addPrecondition(_ precondition: @escaping (Promise) -> Void) {
-        guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
+        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
 
         preconditions.append(precondition)
     }
 }
 
-extension RealtimeTransaction: Reverting {
+extension Transaction: Reverting {
     /// reverts all changes for which cancellations have been added
     public func revert() {
         guard state == .waiting || isFailed else { fatalError("Reversion cannot be made") }
@@ -293,16 +293,16 @@ extension RealtimeTransaction: Reverting {
 
     /// returns closure to revert last change
     public func currentReversion() -> () -> Void {
-        guard !isInvalidated else { fatalError("RealtimeTransaction is invalidated. Create new.") }
+        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
 
         let cancels = cancelations
         return { cancels.forEach { $0() } }
     }
 }
-extension RealtimeTransaction: CustomStringConvertible {
+extension Transaction: CustomStringConvertible {
     public var description: String { return updateNode.description }
 }
-public extension RealtimeTransaction {
+public extension Transaction {
     /// adds operation of save RealtimeValue as single value
     func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) throws {
         let database = self.database
@@ -365,7 +365,7 @@ public extension RealtimeTransaction {
     }
 
     /// method to merge actions of other transaction
-    public func merge(_ other: RealtimeTransaction, conflictResolver: (UpdateNode, UpdateNode) -> Any? = { f, s in f.value }) throws {
+    public func merge(_ other: Transaction, conflictResolver: (UpdateNode, UpdateNode) -> Any? = { f, s in f.value }) throws {
         guard other !== self else { fatalError("Attemption merge the same transaction") }
         guard other.preconditions.isEmpty else {
             other.preconditions.forEach(addPrecondition)
@@ -380,7 +380,7 @@ public extension RealtimeTransaction {
     }
 }
 
-extension RealtimeTransaction {
+extension Transaction {
     func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) {
         addValue(link.fireValue, by: value.node!.linksNode.child(with: link.id))
     }

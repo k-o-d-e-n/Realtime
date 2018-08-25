@@ -36,7 +36,7 @@ public protocol RealtimeDatabase: class {
 
     func node(with valueNode: Node) -> DatabaseNode
 
-    func commit(transaction: RealtimeTransaction, completion: ((Error?, DatabaseNode) -> Void)?)
+    func commit(transaction: Transaction, completion: ((Error?, DatabaseNode) -> Void)?)
 
     func load(
         for node: Node,
@@ -86,7 +86,7 @@ extension Database: RealtimeDatabase {
         }
     }
 
-    public func commit(transaction: RealtimeTransaction, completion: ((Error?, DatabaseNode) -> Void)?) {
+    public func commit(transaction: Transaction, completion: ((Error?, DatabaseNode) -> Void)?) {
         let updateNode = transaction.updateNode
         guard updateNode.childs.count > 0 else {
             fatalError("Try commit empty transaction")
@@ -191,7 +191,7 @@ class CacheNode: ObjectNode, RealtimeDatabase {
         }
     }
 
-    func commit(transaction: RealtimeTransaction, completion: ((Error?, DatabaseNode) -> Void)?) {
+    func commit(transaction: Transaction, completion: ((Error?, DatabaseNode) -> Void)?) {
         do {
             try merge(with: transaction.updateNode, conflictResolver: { _, new in new.value })
             completion?(nil, self)

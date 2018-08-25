@@ -89,7 +89,7 @@ extension Collection {
 
 @available(*, deprecated: 0.1.0)
 public class ReuseViewPrototype<View: AnyObject> {
-    fileprivate let weakView: Property<View?> = Property.unsafe(weak: nil)
+    fileprivate let weakView: ValueStorage<View?> = ValueStorage.unsafe(weak: nil)
     weak var view: View? {
         set { weakView.set(newValue) }
         get { return weakView.get() }

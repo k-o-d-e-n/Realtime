@@ -50,19 +50,19 @@ public protocol DatabaseKeyRepresentable {
 
 typealias InternalPayload = (version: Int?, raw: FireDataValue?)
 
-public struct RealtimeValueOption: Hashable {
+public struct ValueOption: Hashable {
     let rawValue: String
 
     init(_ rawValue: String) {
         self.rawValue = rawValue
     }
 }
-public extension RealtimeValueOption {
-    static let database: RealtimeValueOption = RealtimeValueOption("realtime.database")
-    static let payload: RealtimeValueOption = RealtimeValueOption("realtime.value.payload")
-    internal static let internalPayload: RealtimeValueOption = RealtimeValueOption("realtime.value.internalPayload")
+public extension ValueOption {
+    static let database: ValueOption = ValueOption("realtime.database")
+    static let payload: ValueOption = ValueOption("realtime.value.payload")
+    internal static let internalPayload: ValueOption = ValueOption("realtime.value.internalPayload")
 }
-public extension Dictionary where Key == RealtimeValueOption {
+public extension Dictionary where Key == ValueOption {
     var version: Int? {
         return (self[.internalPayload] as? InternalPayload)?.version
     }
@@ -107,7 +107,7 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
     /// Designed initializer
     ///
     /// - Parameter node: Node location for value
-    init(in node: Node?, options: [RealtimeValueOption: Any])
+    init(in node: Node?, options: [ValueOption: Any])
 }
 
 extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
@@ -115,7 +115,7 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtili
     public var raw: FireDataValue? { return self?.raw }
     public var payload: [String : FireDataValue]? { return self?.payload }
     public var node: Node? { return self?.node }
-    public init(in node: Node?, options: [RealtimeValueOption : Any]) {
+    public init(in node: Node?, options: [ValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))
     }
     public mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
@@ -154,7 +154,7 @@ public extension RealtimeValue {
     }
 }
 extension HasDefaultLiteral where Self: RealtimeValue {}
-public extension RealtimeObject {
+public extension Object {
     convenience init(in node: Node?) { self.init(in: node, options: [:]) }
     convenience init() { self.init(in: nil) }
 }
@@ -189,7 +189,7 @@ public protocol RealtimeValueEvents {
     ///   - transaction: Save transaction
     ///   - parent: Parent node to save
     ///   - key: Location in parent node
-    func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String)
+    func willSave(in transaction: Transaction, in parent: Node, by key: String)
     /// Notifies object that it has been saved in specified parent node
     ///
     /// - Parameter parent: Parent node
@@ -200,14 +200,14 @@ public protocol RealtimeValueEvents {
     /// - Parameters:
     ///   - transaction: Remove transaction
     ///   - ancestor: Ancestor where remove action called
-    func willRemove(in transaction: RealtimeTransaction, from ancestor: Node)
+    func willRemove(in transaction: Transaction, from ancestor: Node)
     /// Notifies object that it has been removed from specified ancestor node
     ///
     /// - Parameter ancestor: Ancestor node
     func didRemove(from ancestor: Node)
 }
 extension RealtimeValueEvents where Self: RealtimeValue {
-    func willSave(in transaction: RealtimeTransaction, in parent: Node) {
+    func willSave(in transaction: Transaction, in parent: Node) {
         guard let node = self.node else {
             return debugFatalError("Unkeyed value will be saved to undefined location in parent node: \(parent.rootPath)")
         }
@@ -227,7 +227,7 @@ extension RealtimeValueEvents where Self: RealtimeValue {
             debugFatalError("Rootless value has been saved to undefined location")
         }
     }
-    func willRemove(in transaction: RealtimeTransaction) {
+    func willRemove(in transaction: Transaction) {
         if let parent = node?.parent {
             willRemove(in: transaction, from: parent)
         } else {
@@ -250,7 +250,7 @@ public protocol WritableRealtimeValue: RealtimeValue {
     /// - Parameters:
     ///   - transaction: Current transaction
     ///   - node: Database node where data will be store
-    func write(to transaction: RealtimeTransaction, by node: Node) throws
+    func write(to transaction: Transaction, by node: Node) throws
 }
 
 /// Values that can be changed partially
@@ -263,6 +263,6 @@ public protocol ChangeableRealtimeValue: RealtimeValue {
     /// - Parameters:
     ///   - transaction: Current transaction
     ///   - node: Node for this value
-    func writeChanges(to transaction: RealtimeTransaction, by node: Node) throws
+    func writeChanges(to transaction: Transaction, by node: Node) throws
 }
 
