@@ -112,23 +112,172 @@ class TestObject: Object {
     }
 }
 
+enum RVType {
+    case unkeyed
+    case keyed
+    indirect case nested(parent: RVType)
+    case rooted
+}
+
+enum RVEvent {
+    case willSave(RVType), willRemove
+    case didSave, didRemove(RVType)
+}
+
+func checkStates(in v: RealtimeValue, for event: RVEvent, _ line: Int = #line) {
+    switch event {
+    case .didSave, .willRemove:
+        XCTAssertTrue(v.isReferred, "line: \(line)")
+        XCTAssertTrue(v.isInserted, "line: \(line)")
+        XCTAssertTrue(v.isRooted, "line: \(line)")
+        XCTAssertFalse(v.isStandalone, "line: \(line)")
+    case .willSave(let t), .didRemove(let t):
+        switch t {
+        case .rooted: return
+        case .unkeyed: XCTAssertFalse(v.isReferred, "line: \(line)")
+        case .keyed: XCTAssertFalse(v.isReferred, "line: \(line)")
+        case .nested(parent: let p):
+            switch p {
+            case .unkeyed: XCTAssertFalse(v.isReferred, "line: \(line)")
+            default: XCTAssertTrue(v.isReferred, "line: \(line)")
+            }
+        }
+        XCTAssertFalse(v.isInserted, "line: \(line)")
+        XCTAssertFalse(v.isRooted, "line: \(line)")
+        XCTAssertTrue(v.isStandalone, "line: \(line)")
+    }
+}
+
+func checkDidSave(_ v: RealtimeValue, nested: Bool = false, _ line: Int = #line) {
+    checkStates(in: v, for: .didSave, line)
+}
+
+func checkDidRemove(_ v: RealtimeValue, value type: RVType = .unkeyed, _ line: Int = #line) {
+    checkStates(in: v, for: .didRemove(type), line)
+}
+
+func checkWillSave(_ v: RealtimeValue, value type: RVType = .unkeyed, _ line: Int = #line) {
+    checkStates(in: v, for: .willSave(type), line)
+}
+
+func checkWillRemove(_ v: RealtimeValue, nested: Bool = false, _ line: Int = #line) {
+    checkStates(in: v, for: .willRemove, line)
+}
+
 extension Tests {
-    func testPropertySetValueFunc() {
-        let property = Property<String>(in: Node(key: "value", parent: .root), representer: Representer<String>.any)
+    func testObjectSave() {
+        let obj = TestObject()
 
-        let transaction = Transaction(database: CacheNode.root)
+        obj.property <== "value"
+        XCTAssertTrue(obj.property.hasChanges)
+        obj.file <== #imageLiteral(resourceName: "pw")
+        XCTAssertTrue(obj.file.hasChanges)
+        obj.nestedObject.usualProperty <== "usual"
+        XCTAssertTrue(obj.nestedObject.hasChanges)
+        XCTAssertTrue(obj.nestedObject.usualProperty.hasChanges)
+        obj.nestedObject.lazyProperty <== "lazy"
+        XCTAssertTrue(obj.nestedObject.lazyProperty.hasChanges)
+
+        XCTAssertTrue(obj.hasChanges)
+        checkWillSave(obj)
+        checkWillSave(obj.property, value: .nested(parent: .unkeyed))
+        checkWillSave(obj.readonlyProperty, value: .nested(parent: .unkeyed))
+        checkWillSave(obj.linkedArray, value: .nested(parent: .unkeyed))
+        checkWillSave(obj.array, value: .nested(parent: .unkeyed))
+        checkWillSave(obj.dictionary, value: .nested(parent: .unkeyed))
+        checkWillSave(obj.file, value: .nested(parent: .unkeyed))
+        checkWillSave(obj.readonlyFile, value: .nested(parent: .unkeyed))
+        checkWillSave(obj.nestedObject, value: .nested(parent: .unkeyed))
+        checkWillSave(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
+        checkWillSave(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
         do {
-            try property.setValue("Some string", in: transaction)
+            let save = try obj.save(by: .root, in: Transaction(database: CacheNode.root))
+            save.commit(with: { _, errs in
+                errs.map { _ in XCTFail() }
 
-            transaction.commit(with: { _, errors in
-                errors.map { _ in XCTFail() }
-
-                XCTAssertFalse(property.hasChanges)
+                XCTAssertFalse(obj.hasChanges)
+                checkDidSave(obj)
+                checkDidSave(obj.property, nested: true)
+                checkDidSave(obj.readonlyProperty, nested: true)
+                checkDidSave(obj.linkedArray, nested: true)
+                checkDidSave(obj.array, nested: true)
+                checkDidSave(obj.dictionary, nested: true)
+                checkDidSave(obj.file, nested: true)
+                checkDidSave(obj.readonlyFile, nested: true)
+                checkDidSave(obj.nestedObject, nested: true)
+                checkDidSave(obj.nestedObject.usualProperty, nested: true)
+                checkDidSave(obj.nestedObject.lazyProperty, nested: true)
             })
         } catch let e {
             XCTFail(e.localizedDescription)
         }
     }
+    func testPropertySetValue() {
+        let property = Property<String>(in: Node(key: "value", parent: .root), representer: Representer<String>.any)
+
+        XCTAssertFalse(property.hasChanges)
+        let transaction = Transaction(database: CacheNode.root)
+        do {
+            try property.setValue("Some string", in: transaction)
+            XCTAssertTrue(property.hasChanges)
+
+            transaction.commit(with: { _, errors in
+                errors.map { _ in XCTFail() }
+
+                XCTAssertFalse(property.hasChanges)
+                checkDidSave(property)
+            })
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+    }
+    func testObjectRemove() {
+        let obj = TestObject()
+
+        obj.property <== "value"
+        obj.file <== #imageLiteral(resourceName: "pw")
+        obj.nestedObject.usualProperty <== "usual"
+        obj.nestedObject.lazyProperty <== "lazy"
+
+        obj.didSave(in: CacheNode.root, in: .root, by: "obj")
+
+        XCTAssertFalse(obj.hasChanges)
+        checkWillRemove(obj)
+        checkWillRemove(obj.property, nested: true)
+        checkWillRemove(obj.readonlyProperty, nested: true)
+        checkWillRemove(obj.linkedArray, nested: true)
+        checkWillRemove(obj.array, nested: true)
+        checkWillRemove(obj.dictionary, nested: true)
+        checkWillRemove(obj.file, nested: true)
+        checkWillRemove(obj.readonlyFile, nested: true)
+        checkWillRemove(obj.nestedObject, nested: true)
+        checkWillRemove(obj.nestedObject.usualProperty, nested: true)
+        checkWillRemove(obj.nestedObject.lazyProperty, nested: true)
+        do {
+            let save = try obj.delete()
+            save.commit(with: { _, errs in
+                errs.map { _ in XCTFail() }
+
+                XCTAssertFalse(obj.hasChanges)
+                checkDidRemove(obj)
+                checkDidRemove(obj.property, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.readonlyProperty, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.linkedArray, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.array, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.dictionary, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.file, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.readonlyFile, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.nestedObject, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
+                checkDidRemove(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
+            })
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+    }
+}
+
+extension Tests {
     func testNestedObjectChanges() {
         let testObject = TestObject(in: Node(key: "t_obj"))
 

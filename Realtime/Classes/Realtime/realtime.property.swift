@@ -450,7 +450,9 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
                 debugFatalError("Required property has not been set")
                 throw e
             }
-        case .some(.local(let v)): transaction._addValue(updateType, try representer.encode(v), by: node)
+        case .some(.local(let v)):
+            transaction.addReversion(currentReversion())
+            transaction._addValue(updateType, try representer.encode(v), by: node)
         default:
             debugFatalError("Unexpected behavior")
             throw RealtimeError(encoding: T.self, reason: "Unexpected state for current operation")

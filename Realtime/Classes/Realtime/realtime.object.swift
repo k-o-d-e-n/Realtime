@@ -497,13 +497,40 @@ public extension Object {
 public extension Object {
     /// writes Object in transaction like as single value
     @discardableResult
-    public func save(in parent: Node, in transaction: Transaction? = nil) throws -> Transaction {
-        guard let key = self.dbKey, let database = self.database else { fatalError("Object has not key. If you cannot set key manually use Transaction.set(_:by:) method instead") }
+    public func save(by node: Node, in transaction: Transaction) throws -> Transaction {
+        try transaction.set(self, by: node)
+        return transaction
+    }
 
-        let transaction = transaction ?? Transaction(database: database)
+    /// writes Object in transaction like as single value
+    func save(by node: Node) throws -> Transaction {
+        guard let db = database else { fatalError("To create new instance `Transaction` object must has database reference") }
+
+        let transaction = Transaction(database: db)
         do {
-            try transaction.set(self, by: Node(key: key, parent: parent))
-            return transaction
+            return try save(by: node, in: transaction)
+        } catch let e {
+            transaction.revert()
+            throw e
+        }
+    }
+
+    /// writes Object in transaction like as single value
+    @discardableResult
+    public func save(in parent: Node, in transaction: Transaction) throws -> Transaction {
+        guard let key = self.dbKey else { fatalError("Object has no key. If you cannot set key manually use Object.save(by:in:) method instead") }
+
+        return try save(by: Node(key: key, parent: parent), in: transaction)
+    }
+
+    /// writes Object in transaction like as single value
+    func save(in parent: Node) throws -> Transaction {
+        guard let key = self.dbKey else { fatalError("Object has no key. If you cannot set key manually use Object.save(by:in:) method instead") }
+        guard let db = database else { fatalError("To create new instance `Transaction` object must has database reference") }
+
+        let transaction = Transaction(database: db)
+        do {
+            return try save(by: Node(key: key, parent: parent), in: transaction)
         } catch let e {
             transaction.revert()
             throw e
@@ -512,27 +539,36 @@ public extension Object {
 
     /// writes changes of Object in transaction as independed values
     @discardableResult
-    public func update(in transaction: Transaction? = nil) throws -> Transaction {
-        guard let database = self.database else { fatalError("Object has not database reference, because was not saved") }
+    public func update(in transaction: Transaction) throws -> Transaction {
+        try transaction.update(self)
+        return transaction
+    }
 
-        let transaction = transaction ?? Transaction(database: database)
+    public func update() throws -> Transaction {
+        guard let db = database else { fatalError("To create new instance `Transaction` object must has database reference") }
+
+        let transaction = Transaction(database: db)
         do {
-            try transaction.update(self)
-            return transaction
+            return try update(in: transaction)
         } catch let e {
             transaction.revert()
             throw e
         }
     }
 
-    /// writes empty value by Object node in transaction 
-    public func delete(in transaction: Transaction? = nil) throws -> Transaction {
-        guard let database = self.database else { fatalError("Object has not database reference, because was not saved") }
+    /// writes empty value by Object node in transaction
+    @discardableResult
+    public func delete(in transaction: Transaction) throws -> Transaction {
+        try transaction.delete(self)
+        return transaction
+    }
 
-        let transaction = transaction ?? Transaction(database: database)
+    public func delete() throws -> Transaction {
+        guard let db = self.database else { fatalError("Object has not database reference, because was not saved") }
+
+        let transaction = Transaction(database: db)
         do {
-            try transaction.delete(self)
-            return transaction
+            return try delete(in: transaction)
         } catch let e {
             transaction.revert()
             throw e

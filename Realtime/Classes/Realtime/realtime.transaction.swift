@@ -60,6 +60,32 @@ public class Transaction {
         self.storage = storage
     }
 
+    private func clear() {
+        updateNode.childs.removeAll()
+        cancelations.removeAll()
+        completions.removeAll()
+        preconditions.removeAll()
+    }
+
+    fileprivate func invalidate(_ success: Bool) {
+        completions.forEach { $0(success) }
+        state = success ? .completed : .failed
+        clear()
+    }
+
+    deinit {
+        if !isInvalidated {
+            fatalError("Transaction requires performing, reversion or merging")
+        }
+    }
+}
+extension Transaction: CustomStringConvertible {
+    public var description: String { return updateNode.description }
+}
+
+extension Transaction {
+    public typealias CommitState = (state: State, substate: Substate)
+
     fileprivate func runPreconditions(_ completion: @escaping ([Error]) -> Void) {
         guard !preconditions.isEmpty else { completion([]); return }
 
@@ -82,7 +108,7 @@ public class Transaction {
             error: { e in
                 addError(e)
                 group.leave()
-            }
+        }
         )
         currentPreconditions.forEach { $0(failPromise) }
 
@@ -91,116 +117,6 @@ public class Transaction {
                 completion(errors + errs)
             })
         }
-    }
-
-    private func clear() {
-        updateNode.childs.removeAll()
-        cancelations.removeAll()
-        completions.removeAll()
-        preconditions.removeAll()
-    }
-
-    fileprivate func invalidate(_ success: Bool) {
-        completions.forEach { $0(success) }
-        state = success ? .completed : .failed
-        clear()
-    }
-
-    deinit {
-        if !isInvalidated {
-            fatalError("Transaction requires performing, reversion or merging")
-        }
-    }
-}
-
-extension Transaction {
-    public typealias CommitState = (state: State, substate: Substate)
-
-    /// Applies made changes in the database
-    ///
-    /// - Parameters:
-    ///   - revertOnError: Indicates that all changes will be reverted on error
-    ///   - completion: Completion closure with results
-    ///   - filesCompletion: Completion closure with results
-    public func commit(revertOnError: Bool = true,
-                       with completion: ((CommitState, [Error]?) -> Void)?,
-                       filesCompletion: (([(StorageMetadata?, Error?)]) -> Void)? = nil) {
-        runPreconditions { (errors) in
-            guard errors.isEmpty else {
-                if revertOnError {
-                    self.revert()
-                }
-                debugFatalError(errors.description)
-                self.invalidate(false)
-                completion?((self.state, self.substate), errors)
-                return
-            }
-            do {
-                try self.scheduledMerges?.forEach { try self.merge($0) }
-                self.state = .performing
-
-                self.performUpdate({ (err, _) in
-                    let result = err == nil
-                    if !result {
-                        self.state = .failed
-                        debugFatalError(String(describing: err))
-                        if revertOnError {
-                            self.revert()
-                        }
-                    }
-                    self.invalidate(result)
-                    completion?((self.state, self.substate), err.map { [$0] })
-                })
-
-                self.updateFiles({ (res) in
-                    filesCompletion?(res)
-                })
-            } catch let e {
-                completion?((self.state, self.substate), [e])
-            }
-        }
-    }
-
-    /// Adds `Data` value as file
-    ///
-    /// - Parameters:
-    ///   - value: `Data` type value
-    ///   - node: Target node
-    public func addFile(_ value: Any, by node: Realtime.Node) {
-        guard node.isRooted else { fatalError("Node should be rooted") }
-
-        _addValue(FileNode.self, value, by: node)
-    }
-
-    /// Removes file by specified node
-    ///
-    /// - Parameters:
-    ///   - node: Target node
-    public func removeFile(by node: Realtime.Node) {
-        guard node.isRooted else { fatalError("Node should be rooted") }
-
-        _addValue(FileNode.self, nil, by: node)
-    }
-
-    /// Adds Realtime database value
-    ///
-    /// - Parameters:
-    ///   - value: Untyped value
-    ///   - node: Target node
-    public func addValue(_ value: Any, by node: Realtime.Node) {
-        guard node.isRooted else { fatalError("Node should be rooted") }
-
-        _addValue(ValueNode.self, value, by: node)
-    }
-
-    /// Removes Realtime data by specified node
-    ///
-    /// - Parameters:
-    ///   - node: Target node
-    public func removeValue(by node: Realtime.Node) {
-        guard node.isRooted else { fatalError("Node should be rooted") }
-        
-        _addValue(ValueNode.self, nil, by: node)
     }
 
     /// registers new single value for specified reference
@@ -284,6 +200,100 @@ extension Transaction {
         }
     }
 
+    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Realtime.Node) throws {
+        guard node.isRooted else { fatalError("Node to set must be rooted") }
+
+        try value.write(to: self, by: node)
+    }
+
+    /// adds operation of delete RealtimeValue
+    internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) throws {
+        guard let node = value.node, node.isRooted else { fatalError("Value must be rooted") }
+
+        value.willRemove(in: self)
+        removeValue(by: node)
+    }
+
+    internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) throws {
+        guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
+        guard value.hasChanges else { return debugFatalError("Value has not changes") }
+
+        try value.writeChanges(to: self, by: updatedNode)
+        reversion(for: value)
+    }
+}
+extension Transaction {
+    func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) {
+        addValue(link.rdbValue, by: value.node!.linksNode.child(with: link.id))
+    }
+}
+
+// MARK: Public
+
+extension Transaction: Reverting {
+    /// reverts all changes for which cancellations have been added
+    public func revert() {
+        guard state == .waiting || isFailed else { fatalError("Reversion cannot be made") }
+
+        cancelations.forEach { $0() }
+        substate = .reverted
+    }
+
+    /// returns closure to revert last change
+    public func currentReversion() -> () -> Void {
+        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
+
+        let cancels = cancelations
+        return { cancels.forEach { $0() } }
+    }
+}
+
+public extension Transaction {
+    /// Applies made changes in the database
+    ///
+    /// - Parameters:
+    ///   - revertOnError: Indicates that all changes will be reverted on error
+    ///   - completion: Completion closure with results
+    ///   - filesCompletion: Completion closure with results
+    public func commit(revertOnError: Bool = true,
+                       with completion: ((CommitState, [Error]?) -> Void)?,
+                       filesCompletion: (([(StorageMetadata?, Error?)]) -> Void)? = nil) {
+        runPreconditions { (errors) in
+            guard errors.isEmpty else {
+                if revertOnError {
+                    self.revert()
+                }
+                debugFatalError(errors.description)
+                self.invalidate(false)
+                completion?((self.state, self.substate), errors)
+                return
+            }
+            do {
+                try self.scheduledMerges?.forEach { try self.merge($0) }
+                self.state = .performing
+
+                self.performUpdate({ (err, _) in
+                    let result = err == nil
+                    if !result {
+                        self.state = .failed
+                        debugFatalError(String(describing: err))
+                        if revertOnError {
+                            self.revert()
+                        }
+                    }
+                    self.invalidate(result)
+                    completion?((self.state, self.substate), err.map { [$0] })
+                })
+
+                self.updateFiles({ (res) in
+                    filesCompletion?(res)
+                })
+            } catch let e {
+                completion?((self.state, self.substate), [e])
+            }
+        }
+    }
+
     /// registers new cancelation of made changes
     public func addReversion(_ reversion: @escaping () -> Void) {
         guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
@@ -304,29 +314,49 @@ extension Transaction {
 
         preconditions.append(precondition)
     }
-}
 
-extension Transaction: Reverting {
-    /// reverts all changes for which cancellations have been added
-    public func revert() {
-        guard state == .waiting || isFailed else { fatalError("Reversion cannot be made") }
+    /// Adds `Data` value as file
+    ///
+    /// - Parameters:
+    ///   - value: `Data` type value
+    ///   - node: Target node
+    public func addFile(_ value: Any, by node: Realtime.Node) {
+        guard node.isRooted else { fatalError("Node should be rooted") }
 
-        cancelations.forEach { $0() }
-        substate = .reverted
+        _addValue(FileNode.self, value, by: node)
     }
 
-    /// returns closure to revert last change
-    public func currentReversion() -> () -> Void {
-        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
+    /// Removes file by specified node
+    ///
+    /// - Parameters:
+    ///   - node: Target node
+    public func removeFile(by node: Realtime.Node) {
+        guard node.isRooted else { fatalError("Node should be rooted") }
 
-        let cancels = cancelations
-        return { cancels.forEach { $0() } }
+        _addValue(FileNode.self, nil, by: node)
     }
-}
-extension Transaction: CustomStringConvertible {
-    public var description: String { return updateNode.description }
-}
-public extension Transaction {
+
+    /// Adds Realtime database value
+    ///
+    /// - Parameters:
+    ///   - value: Untyped value
+    ///   - node: Target node
+    public func addValue(_ value: Any, by node: Realtime.Node) {
+        guard node.isRooted else { fatalError("Node should be rooted") }
+
+        _addValue(ValueNode.self, value, by: node)
+    }
+
+    /// Removes Realtime data by specified node
+    ///
+    /// - Parameters:
+    ///   - node: Target node
+    public func removeValue(by node: Realtime.Node) {
+        guard node.isRooted else { fatalError("Node should be rooted") }
+
+        _addValue(ValueNode.self, nil, by: node)
+    }
+
     /// adds operation of save RealtimeValue as single value
     func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) throws {
         let database = self.database
@@ -361,30 +391,8 @@ public extension Transaction {
         }
     }
 
-    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Realtime.Node) throws {
-        guard node.isRooted else { fatalError("Node to set must be rooted") }
-
-        try value.write(to: self, by: node)
-    }
-
-    /// adds operation of delete RealtimeValue
-    internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) throws {
-        guard let node = value.node, node.isRooted else { fatalError("Value must be rooted") }
-
-        value.willRemove(in: self)
-        removeValue(by: node)
-    }
-
-    internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) throws {
-        guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
-        guard value.hasChanges else { return debugFatalError("Value has not changes") }
-
-        try value.writeChanges(to: self, by: updatedNode)
-        revertion(for: value)
-    }
-
     /// adds current revertion action for reverting entity
-    public func revertion<T: Reverting>(for cancelable: T) {
+    public func reversion<T: Reverting>(for cancelable: T) {
         addReversion(cancelable.currentReversion())
     }
 
@@ -401,11 +409,5 @@ public extension Transaction {
         other.completions.forEach(addCompletion)
         addReversion(other.currentReversion())
         other.state = .merged
-    }
-}
-
-extension Transaction {
-    func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) {
-        addValue(link.rdbValue, by: value.node!.linksNode.child(with: link.id))
     }
 }
