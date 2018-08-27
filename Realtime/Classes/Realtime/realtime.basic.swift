@@ -8,6 +8,10 @@
 import Foundation
 import FirebaseDatabase
 
+// #
+// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
+// Comment writing guide
+
 internal let lazyStoragePath = ".storage"
 
 public struct RealtimeError: LocalizedError {
@@ -50,6 +54,7 @@ public struct RealtimeError: LocalizedError {
     }
 }
 
+/// A type that contains key of database node
 public protocol DatabaseKeyRepresentable {
     var dbKey: String! { get }
 }
@@ -88,6 +93,7 @@ public extension RealtimeDataProtocol {
     }
 }
 
+/// Internal protocol
 public protocol _RealtimeValueUtilities {
     static func _isValid(asReference value: Self) -> Bool
     static func _isValid(asRelation value: Self) -> Bool

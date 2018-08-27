@@ -8,8 +8,15 @@
 import Foundation
 import FirebaseDatabase
 
+/// A type that has access to the data is stored in associated database node
 public protocol DatabaseNode {
+    /// A Realtime data from database cache
     var cachedData: RealtimeDataProtocol? { get }
+    /// Updates database node is writing a passed dictionary.
+    ///
+    /// - Parameters:
+    ///   - keyValuePairs: Dictionary to write
+    ///   - completion: Closure to receive result of writing
     func update(use keyValuePairs: [String: Any], completion: ((Error?, DatabaseNode) -> Void)?)
 }
 extension DatabaseReference: DatabaseNode {
@@ -23,35 +30,93 @@ extension DatabaseReference: DatabaseNode {
     }
 }
 
+/// Realtime database cache policy
+///
+/// - default: Default cache policy (usually, it corresponds `inMemory` case)
+/// - noCache: No one cache is not used
+/// - inMemory: The data stored in memory
+/// - persistance: The data will be persisted to on-device (disk) storage.
 public enum CachePolicy {
+    case `default`
     case noCache
     case inMemory
     case persistance
 //    case custom(RealtimeDatabase)
 }
 
+/// A event that corresponds some type of data mutating
+///
+/// - childAdded: A new child node is added to a location.
+/// - childRemoved: A child node is removed from a location.
+/// - childChanged: A child node at a location changes.
+/// - childMoved: A child node moves relative to the other child nodes at a location.
+/// - value: Any data changes at a location or, recursively, at any child node.
+public enum DatabaseDataEvent: Int {
+    case childAdded
+    case childRemoved
+    case childChanged
+    case childMoved
+    case value
+}
+extension DatabaseDataEvent {
+    var firebase: DataEventType {
+        return DataEventType(rawValue: rawValue)!
+    }
+}
+
+/// A database that can used in `Realtime` framework.
 public protocol RealtimeDatabase: class {
+    /// A database cache policy.
     var cachePolicy: CachePolicy { get set }
+
+    /// Generates an automatically calculated database key
     func generateAutoID() -> String
-
-    func node(with valueNode: Node) -> DatabaseNode
-
+    /// Returns object is associated with database node,
+    /// that makes access to manage data.
+    ///
+    /// - Parameter valueNode:
+    /// - Returns: Object that has access to database data
+    func node(with referenceNode: Node) -> DatabaseNode
+    /// Performs the writing of a changes that contains in passed Transaction
+    ///
+    /// - Parameters:
+    ///   - transaction: Write transaction
+    ///   - completion: Closure to receive result of operation
     func commit(transaction: Transaction, completion: ((Error?, DatabaseNode) -> Void)?)
-
+    /// Loads data by database reference
+    ///
+    /// - Parameters:
+    ///   - node: Realtime database reference
+    ///   - completion: Closure to receive data
+    ///   - onCancel: Closure to receive cancel event
     func load(
         for node: Node,
         completion: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error?) -> Void)?
     )
-
+    /// Runs the observation of data by specified database reference
+    ///
+    /// - Parameters:
+    ///   - event: A type of data mutating
+    ///   - node: Realtime database reference
+    ///   - onUpdate: Closure to receive data
+    ///   - onCancel: Closure to receive cancel event
+    /// - Returns: A token that should use to stop the observation
     func observe(
-        _ event: DataEventType,
+        _ event: DatabaseDataEvent,
         on node: Node,
         onUpdate: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error?) -> Void)?
     ) -> UInt
-
+    /// Removes all of existing observers on passed database reference.
+    ///
+    /// - Parameter node: Database reference
     func removeAllObservers(for node: Node)
+    /// Removes observer of database data that is associated with token.
+    ///
+    /// - Parameters:
+    ///   - node: Database reference
+    ///   - token: An unsigned integer value
     func removeObserver(for node: Node, with token: UInt)
 }
 extension Database: RealtimeDatabase {
@@ -114,11 +179,11 @@ extension Database: RealtimeDatabase {
     }
 
     public func observe(
-        _ event: DataEventType,
+        _ event: DatabaseDataEvent,
         on node: Node,
         onUpdate: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error?) -> Void)?) -> UInt {
-        return node.reference(for: self).observe(event, with: onUpdate, withCancel: onCancel)
+        return node.reference(for: self).observe(event.firebase, with: onUpdate, withCancel: onCancel)
     }
 
     public func removeAllObservers(for node: Node) {
@@ -130,9 +195,17 @@ extension Database: RealtimeDatabase {
     }
 }
 
+/// An object that contains value is associated by database reference.
 public protocol UpdateNode: RealtimeDataProtocol, DatabaseNode {
+    /// Database location reference
     var location: Node { get }
+    /// Value
     var value: Any? { get }
+    /// Fills a contained values to container.
+    ///
+    /// - Parameters:
+    ///   - ancestor: An ancestor database reference
+    ///   - container: `inout` dictionary container.
     func fill(from ancestor: Node, into container: inout [String: Any])
 }
 extension UpdateNode {
@@ -212,7 +285,7 @@ class CacheNode: ObjectNode, RealtimeDatabase {
         completion(child(forPath: node.rootPath))
     }
 
-    func observe(_ event: DataEventType, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) -> UInt {
+    func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) -> UInt {
         fatalError()
     }
 }

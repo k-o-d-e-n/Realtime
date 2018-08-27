@@ -82,8 +82,8 @@ public protocol RealtimeDataRepresented {
     ///
     /// - Parameters:
     ///   - data: Realtime database data
-    ///   - exactly: Indicates that snapshot should be applied as is (for example, empty values will be set to `nil`).
-    ///               Pass `false` if snapshot represents part of data (for example filtered list).
+    ///   - exactly: Indicates that data should be applied as is (for example, empty values will be set to `nil`).
+    ///               Pass `false` if data represents part of data (for example filtered list).
     mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws
 }
 extension RealtimeDataRepresented {

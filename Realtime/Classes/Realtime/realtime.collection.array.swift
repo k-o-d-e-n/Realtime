@@ -39,24 +39,34 @@ public extension Values {
     }
 }
 
-/// # Realtime Array
-/// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
-/// Comment writing guide
+/// A Realtime database collection that stores elements in own database node as is, as full objects.
 public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC where Element: WritableRealtimeValue & RealtimeValueEvents {
     public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
     override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
+    /// Stores collection values and responsible for lazy initialization elements
     public internal(set) var storage: RCArrayStorage<Element>
+    /// Stores an abstract elements
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
     let _view: AnyRealtimeCollectionView<[RCItem], Values>
 
+    /// Create new instance with default element builder
+    ///
+    /// - Parameter node: Database node
     public convenience required init(in node: Node?) {
         self.init(in: node, options: [:])
     }
-
+    /// Creates new instance associated with database node
+    ///
+    /// Available options:
+    /// - database: Database reference
+    /// - elementBuilder: Closure that calls to build elements lazily.
+    ///
+    /// - Parameter node: Node location for value
+    /// - Parameter options: Dictionary of options
     public convenience required init(in node: Node?, options: [ValueOption: Any]) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         self.init(
@@ -81,6 +91,12 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
 
     // Implementation
 
+    /// Returns a Boolean value indicating whether the sequence contains an
+    /// element that has the same key.
+    ///
+    /// - Parameter element: The element to check for containment.
+    /// - Returns: `true` if `element` is contained in the range; otherwise,
+    ///   `false`.
     public func contains(_ element: Element) -> Bool {
         return _view.contains { $0.dbKey == element.dbKey }
     }
@@ -98,32 +114,18 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     override public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
     
-    // TODO: Create Realtime wrapper for DatabaseQuery
-    // TODO: Check filter with difficult values aka dictionary
-    public func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
-        filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
-    }
-    
-    public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
-        guard let ref = node?.reference() else  {
-            fatalError("Can`t get database reference")
-        }
-        checkPreparation()
-
-        query(ref).observeSingleEvent(of: .value, with: { (data) in
-            do {
-                try self.apply(data, exactly: false)
-                completion(self.filter { data.hasChild($0.dbKey) }, nil)
-            } catch let e {
-                completion(self.filter { data.hasChild($0.dbKey) }, e)
-            }
-        }) { (error) in
-            completion([], error)
-        }
-    }
-    
     // MARK: Mutating
 
+    /// Adds element to collection at passed index,
+    /// and writes a changes to transaction.
+    ///
+    /// If collection is standalone, use **func insert(element:at:)** instead.
+    ///
+    /// - Parameters:
+    ///   - element: The element to write
+    ///   - index: Index value or `nil` if you want to add to end of collection.
+    ///   - transaction: Write transaction to keep the changes
+    /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
     public func write(element: Element, at index: Int? = nil, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
@@ -151,6 +153,14 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         return try _insert(element, at: index, in: database, in: transaction)
     }
 
+    /// Adds element at passed index or if `nil` to end of collection
+    ///
+    /// This method is available only if collection is **standalone**,
+    /// otherwise use **func write(element:at:in:)**
+    ///
+    /// - Parameters:
+    ///   - element: The element to write
+    ///   - index: Index value or `nil` if you want to add to end of collection.
     public func insert(element: Element, at index: Int? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard !element.isReferred || element.node!.parent == storage.sourceNode
@@ -200,8 +210,14 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         try transaction.set(element, by: elementNode)
     }
 
+    /// Removes element from collection if collection contains this element.
+    ///
+    /// - Parameters:
+    ///   - element: The element to remove
+    ///   - transaction: Write transaction or `nil`
+    /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    public func remove(element: Element, in transaction: Transaction? = nil) -> Transaction? {
+    public func remove(element: Element, in transaction: Transaction? = nil) -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
 
         let transaction = transaction ?? Transaction(database: database)
@@ -223,6 +239,12 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         return transaction
     }
 
+    /// Removes element from collection at index.
+    ///
+    /// - Parameters:
+    ///   - index: Index value.
+    ///   - transaction: Write transaction or `nil`.
+    /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
     public func remove(at index: Int, in transaction: Transaction? = nil) -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }

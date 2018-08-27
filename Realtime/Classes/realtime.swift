@@ -21,7 +21,7 @@ public class RealtimeApp {
 
     public static func initialize(
         with database: RealtimeDatabase = Database.database(),
-        cachePolicy: CachePolicy,
+        cachePolicy: CachePolicy = .default,
         linksNode: Node? = nil
         ) {
         RealtimeApp._app = RealtimeApp(db: database, linksNode: linksNode ?? Node(key: InternalKeys.links, parent: .root))

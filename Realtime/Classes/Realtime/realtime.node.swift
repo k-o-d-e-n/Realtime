@@ -42,6 +42,9 @@ public class Node: Equatable {
     /// Parent node
     public internal(set) var parent: Node?
 
+    /// Creates new instance with automatically generated key
+    ///
+    /// - Parameter parent: Parent node reference of `nil`
     public convenience init(parent: Node? = nil) {
         self.init(key: RealtimeApp.app.database.generateAutoID(), parent: parent)
     }
@@ -147,6 +150,12 @@ public class Node: Equatable {
         return false
     }
 
+    internal func movedToNode(keyedBy key: String) -> Node {
+        let parent = Node(key: key)
+        self.parent = parent
+        return parent
+    }
+
     public static func ==(lhs: Node, rhs: Node) -> Bool {
         guard lhs !== rhs else { return true }
         guard lhs.key == rhs.key else { return false }
@@ -159,26 +168,40 @@ public class Node: Equatable {
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
 public extension Node {
-    static func root<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
-        return Node.root.child(with: path.rawValue)
-    }
     static func from(_ reference: DatabaseReference) -> Node {
         return Node.root.child(with: reference.rootPath)
     }
-
     public func reference(for database: Database = Database.database()) -> DatabaseReference {
         return .fromRoot(rootPath, of: database)
     }
     public func file(for storage: Storage = Storage.storage()) -> StorageReference {
         return storage.reference(withPath: rootPath)
     }
+}
+public extension Node {
+    /// Returns a child reference of database tree
+    ///
+    /// - Parameter path: Value that represents as path is separated `/` character.
+    /// - Returns: Database reference node
+    static func root<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
+        return Node.root.child(with: path.rawValue)
+    }
 
+    /// Generates an automatically calculated key of database.
     func childByAutoId() -> Node {
         return Node(parent: self)
     }
+    /// Returns a child reference of database tree
+    ///
+    /// - Parameter path: Value that represents as path is separated `/` character.
+    /// - Returns: Database reference node
     func child<Path: RawRepresentable>(with path: Path) -> Node where Path.RawValue == String {
         return child(with: path.rawValue)
     }
+    /// Returns a child reference of database tree
+    ///
+    /// - Parameter path: `String` value that represents as path is separated `/` character.
+    /// - Returns: Database reference node
     func child(with path: String) -> Node {
         return path
             .split(separator: "/", omittingEmptySubsequences: true)
@@ -198,11 +221,6 @@ public extension Node {
         }
         current.moveTo(node)
         return copied
-    }
-    internal func movedToNode(keyedBy key: String) -> Node {
-        let parent = Node(key: key)
-        self.parent = parent
-        return parent
     }
     /// Changed parent to passed node
     ///

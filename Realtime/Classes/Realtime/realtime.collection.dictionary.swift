@@ -57,7 +57,11 @@ extension ValueOption {
     static let keysNode = ValueOption("realtime.dictionary.keys")
 }
 
+/// A type that can used as key in `AssociatedValues` collection.
 public typealias HashableValue = Hashable & RealtimeValue
+
+/// A Realtime database collection that stores elements in own database node as is,
+/// as full objects, that keyed by database key of `Key` element.
 public final class AssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RC
 where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     public override var version: Int? { return nil }
@@ -70,6 +74,15 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
 
     let _view: AnyRealtimeCollectionView<[RCItem], AssociatedValues>
 
+    /// Creates new instance associated with database node
+    ///
+    /// Available options:
+    /// - keysNode(**required**): Database node where keys elements are located
+    /// - database: Database reference
+    /// - elementBuilder: Closure that calls to build elements lazily.
+    ///
+    /// - Parameter node: Node location for value
+    /// - Parameter options: Dictionary of options
     public required init(in node: Node?, options: [ValueOption: Any]) {
         guard case let keysNode as Node = options[.keysNode] else { fatalError("Skipped required options") }
         guard keysNode.isRooted else { fatalError("Keys must has rooted location") }
@@ -89,7 +102,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
 
     // MARK: Implementation
 
-    private var shouldLinking = true // TODO: Create class family for such cases
+    public typealias Element = (key: Key, value: Value)
+
+    private var shouldLinking = true // TODO: Fix it
     public func unlinked() -> AssociatedValues<Key, Value> { shouldLinking = false; return self }
 
     public var startIndex: Int { return _view.startIndex }
@@ -103,12 +118,16 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     override public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
-    public typealias Element = (key: Key, value: Value)
-
     public func makeIterator() -> IndexingIterator<AssociatedValues> { return IndexingIterator(_elements: self) }
     public subscript(position: Int) -> Element { return storage.element(by: _view[position].dbKey) }
     public subscript(key: Key) -> Value? { return contains(valueBy: key) ? storage.object(for: key) : nil }
 
+    /// Returns a Boolean value indicating whether the sequence contains an
+    /// element by passed key.
+    ///
+    /// - Parameter key: The key element to check for containment.
+    /// - Returns: `true` if element is contained in the range; otherwise,
+    ///   `false`.
     public func contains(valueBy key: Key) -> Bool {
         if isStandalone {
             return storage.elements[key] != nil
@@ -118,30 +137,16 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         }
     }
 
-    public func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
-        filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
-    }
-
-    public func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
-        guard let ref = node?.reference() else  {
-            fatalError("Can`t get database reference")
-        }
-        checkPreparation()
-
-        query(ref).observeSingleEvent(of: .value, with: { (data) in
-            do {
-                try self.apply(data, exactly: false)
-                completion(self.filter { data.hasChild($0.key.dbKey) }, nil)
-            } catch let e {
-                completion(self.filter { data.hasChild($0.key.dbKey) }, e)
-            }
-        }) { (error) in
-            completion([], error)
-        }
-    }
-
     // MARK: Mutating
 
+    /// Writes element to collection by database key of `Key` element.
+    ///
+    /// This method is available only if collection is **standalone**,
+    /// otherwise use **func write(element:for:in:)**
+    ///
+    /// - Parameters:
+    ///   - element: The element to write
+    ///   - key: The element to get database key.
     public func set(element: Value, for key: Key) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:for:in:)") }
         guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
@@ -152,6 +157,16 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         storage.store(value: element, by: key)
     }
 
+    /// Sets element to collection by database key of `Key` element,
+    /// and writes a changes to transaction.
+    ///
+    /// If collection is standalone, use **func insert(element:at:)** instead.
+    ///
+    /// - Parameters:
+    ///   - element: The element to write
+    ///   - key: The element to get database key.
+    ///   - transaction: Write transaction to keep the changes
+    /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
     public func write(element: Value, for key: Key, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method set(element:for:)") }
@@ -219,6 +234,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         try transaction.set(element, by: elementNode)
     }
 
+    /// Removes element from collection if collection contains this element.
+    ///
+    /// - Parameters:
+    ///   - element: The element to remove
+    ///   - transaction: Write transaction or `nil`
+    /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
     public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction? {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
@@ -265,11 +286,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
 
     // MARK: Realtime
 
-
-    public required init(in node: Node?) {
-        fatalError("Realtime dictionary cannot be initialized with init(in:) initializer")
-    }
-
+    /// Currently no available
     public required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
         #if DEBUG
         fatalError("AssociatedValues does not supported init(data:exactly:) yet.")

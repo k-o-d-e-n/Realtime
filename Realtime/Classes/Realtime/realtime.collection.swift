@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FirebaseDatabase
 
 extension ValueOption {
     static let elementBuilder = ValueOption("realtime.collection.builder")
@@ -100,6 +101,7 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, Real
     }
 }
 
+/// A type that stores collection values and responsible for lazy initialization elements
 public protocol RealtimeCollectionStorage {
     associatedtype Value
 }
@@ -125,9 +127,11 @@ extension MutableRCStorage {
     }
 }
 
+/// A type that stores an abstract elements, receives the notify about a change of collection
 public protocol RealtimeCollectionView {}
 protocol RCView: RealtimeCollectionView, BidirectionalCollection, RequiresPreparation {}
 
+/// A type that makes possible to do someone actions related with collection
 public protocol RealtimeCollectionActions {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
@@ -177,10 +181,23 @@ extension Dictionary: KeyValueAccessableCollection {
     }
 }
 
+/// A type that does not ready to use after instance initialization,
+/// or has limited using, because requires remote data.
 public protocol RequiresPreparation {
+    /// Indicates that instance is ready to use
     var isPrepared: Bool { get }
+    /// Calls loading required data
+    ///
+    /// - Parameter completion: Callback on result of loading
     func prepare(forUse completion: Assign<(Error?)>)
+    /// Calls loading required data recursivly
+    ///
+    /// If current type encapsulates some type conforms this protocol,
+    /// call his preparation in this method.
+    ///
+    /// - Parameter completion: Callback on result of loading
     func prepareRecursive(forUse completion: @escaping (Error?) -> Void)
+    /// Method that should call after successful preparation.
     func didPrepare()
 }
 
@@ -267,7 +284,7 @@ public extension RealtimeCollection {
         let current = self
         current.forEach { element in
             let value = values(element)
-            let listeningItem = value.once().listeningItem(onValue: <-{ (val) in
+            _ = value.once().listeningItem(onValue: <-{ (val) in
                 released = current.index(after: released)
                 guard predicate(val) else {
                     completeIfNeeded(released)
@@ -279,6 +296,30 @@ public extension RealtimeCollection {
             })
 
             value.load(completion: nil)
+        }
+    }
+}
+extension RealtimeCollection where Self: AnyObject, Element: RealtimeValue {
+    public mutating func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
+        filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
+    }
+
+    public mutating func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+        guard let ref = node?.reference() else  {
+            fatalError("Can`t get database reference")
+        }
+        checkPreparation()
+
+        var collection = self
+        query(ref).observeSingleEvent(of: .value, with: { (data) in
+            do {
+                try collection.apply(data, exactly: false)
+                completion(collection.filter { data.hasChild($0.dbKey) }, nil)
+            } catch let e {
+                completion(collection.filter { data.hasChild($0.dbKey) }, e)
+            }
+        }) { (error) in
+            completion([], error)
         }
     }
 }
@@ -298,11 +339,12 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     }
 }
 
-public struct AnyArrayStorage: RealtimeCollectionStorage {
+/// Type-erased Realtime collection storage
+public struct AnyRCStorage: RealtimeCollectionStorage {
     public typealias Value = Any
 }
 
-public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyObject>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
+final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyObject>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
     let source: Property<Source>
     weak var collection: Viewed?
     var listening: Disposable!
@@ -311,7 +353,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
         return source.wrapped ?? Source()
     }
 
-    public internal(set) var isPrepared: Bool = false {
+    internal(set) var isPrepared: Bool = false {
         didSet {
             if isPrepared, oldValue == false {
                 didPrepare()
@@ -336,7 +378,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
         listening.dispose()
     }
 
-    public func prepare(forUse completion: Assign<(Error?)>) {
+    func prepare(forUse completion: Assign<(Error?)>) {
         guard !isPrepared else { completion.assign(nil); return }
 
         source.load(completion:
@@ -345,19 +387,19 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
             })
         )
     }
-    public func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
+    func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
         // TODO:
     }
 
-    public func didPrepare() {
+    func didPrepare() {
         collection?.didPrepare()
     }
 
-    public var startIndex: Source.Index { return value.startIndex }
-    public var endIndex: Source.Index { return value.endIndex }
-    public func index(after i: Source.Index) -> Source.Index { return value.index(after: i) }
-    public func index(before i: Source.Index) -> Source.Index { return value.index(before: i) }
-    public subscript(position: Source.Index) -> Source.Element { return value[position] }
+    var startIndex: Source.Index { return value.startIndex }
+    var endIndex: Source.Index { return value.endIndex }
+    func index(after i: Source.Index) -> Source.Index { return value.index(after: i) }
+    func index(before i: Source.Index) -> Source.Index { return value.index(before: i) }
+    subscript(position: Source.Index) -> Source.Element { return value[position] }
 }
 
 extension AnyRealtimeCollectionView where Source == Array<RCItem> {

@@ -85,6 +85,7 @@ where C.Index == Int {
     override var canObserve: Bool { return base.canObserve }
 }
 
+/// A type-erased Realtime database collection.
 public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     private let base: _AnyRealtimeCollectionBase<Element>
 
@@ -92,6 +93,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
         self.base = __AnyRealtimeCollection<C>(base: base)
     }
 
+    /// Currently no available
     public convenience init(in node: Node?, options: [ValueOption: Any]) {
         fatalError("Cannot use this initializer")
     }
@@ -100,7 +102,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var version: Int? { return base.version }
     public var raw: RealtimeDataValue? { return base.raw }
     public var payload: [String : RealtimeDataValue]? { return base.payload }
-    public var storage: AnyArrayStorage = AnyArrayStorage()
+    public var storage: AnyRCStorage = AnyRCStorage()
     public var view: RealtimeCollectionView { return base.view }
     public var isPrepared: Bool { return base.isPrepared }
     public var startIndex: Int { return base.startIndex }
@@ -162,6 +164,7 @@ struct AnySharedCollection<Element>: Collection {
     public subscript(position: Int) -> Element { return _subscript(position) }
 }
 
+@available(*, deprecated: 0.3.7, message: "KeyedRealtimeCollection is deprecated. Use MapRealtimeCollection instead")
 public struct KeyedCollectionStorage<V>: MutableRCStorage {
     public typealias Value = V
     let key: String
@@ -244,11 +247,24 @@ where Element: RealtimeValue {
 }
 
 public extension RealtimeCollection {
+    /// Returns `MapRealtimeCollection` over this collection.
+    ///
+    /// The elements of the result are computed lazily, each time they are read,
+    /// by calling transform function on a base element.
+    ///
+    /// - Parameter transform: Closure to read element
+    /// - Returns: `MapRealtimeCollection` collection.
     func lazyMap<Mapped>(_ transform: @escaping (Element) -> Mapped) -> MapRealtimeCollection<Mapped, Self> {
         return MapRealtimeCollection(base: self, transform: transform)
     }
 }
 
+/// A immutable Realtime database collection whose elements consist of those in a `Base Collection`
+/// passed through a transform function returning `Element`.
+/// These elements are computed lazily, each time they’re read,
+/// by calling the transform function on a base element.
+///
+/// This is the result of `x.lazyMap(_ transform:)` method, where `x` is any RealtimeCollection.
 public final class MapRealtimeCollection<Element, Base: RealtimeCollection>: RealtimeCollection
 where Base.Index == Int {
     public typealias Index = Int
@@ -258,7 +274,7 @@ where Base.Index == Int {
     public required init(base: Base, transform: @escaping (Base.Element) -> Element) {
         guard base.isRooted else { fatalError("Only rooted collections can use in map collection") }
         self.base = __AnyRealtimeCollection<Base>(base: base)
-        self.storage = AnyArrayStorage()
+        self.storage = AnyRCStorage()
         self.transform = transform
     }
 
@@ -271,7 +287,7 @@ where Base.Index == Int {
     public var raw: RealtimeDataValue? { return base.raw }
     public var payload: [String : RealtimeDataValue]? { return base.payload }
     public var view: RealtimeCollectionView { return base.view }
-    public var storage: AnyArrayStorage
+    public var storage: AnyRCStorage
     public var isPrepared: Bool { return base.isPrepared }
 
     public var startIndex: Index { return base.startIndex }

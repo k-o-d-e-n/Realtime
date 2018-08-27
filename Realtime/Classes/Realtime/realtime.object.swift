@@ -87,7 +87,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         }
     }
     
-    func observe(_ event: DataEventType = .value, onUpdate: ((Error?) -> Void)? = nil) -> UInt? {
+    func observe(_ event: DatabaseDataEvent = .value, onUpdate: ((Error?) -> Void)? = nil) -> UInt? {
         guard let node = self.node, let database = self.database else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }

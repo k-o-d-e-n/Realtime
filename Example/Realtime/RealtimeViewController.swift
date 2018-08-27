@@ -169,7 +169,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtUsers.remove(element: u)
 
-            transaction?.commit(with: { _, errs in
+            transaction.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -208,7 +208,7 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtGroups.remove(element: grp)
 
-            transaction?.commit(with: { _, errs in
+            transaction.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {

@@ -254,10 +254,20 @@ public extension Transaction {
     /// - Parameters:
     ///   - revertOnError: Indicates that all changes will be reverted on error
     ///   - completion: Completion closure with results
+    public func commit(revertOnError: Bool = true,
+                       with completion: ((CommitState, [Error]?) -> Void)?) {
+        commit(with: completion, filesCompletion: nil)
+    }
+
+    /// Applies made changes in the database
+    ///
+    /// - Parameters:
+    ///   - revertOnError: Indicates that all changes will be reverted on error
+    ///   - completion: Completion closure with results
     ///   - filesCompletion: Completion closure with results
     public func commit(revertOnError: Bool = true,
                        with completion: ((CommitState, [Error]?) -> Void)?,
-                       filesCompletion: (([(StorageMetadata?, Error?)]) -> Void)? = nil) {
+                       filesCompletion: (([(StorageMetadata?, Error?)]) -> Void)?) {
         runPreconditions { (errors) in
             guard errors.isEmpty else {
                 if revertOnError {
