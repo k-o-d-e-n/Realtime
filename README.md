@@ -32,7 +32,7 @@ func application(_ application: UIApplication, didFinishLaunchingWithOptions lau
     /// ...
 
     /// initialize Realtime
-    RealtimeApp.initialize(with:cachePolicy:linksNode:)
+    RealtimeApp.initialize(...)
 
     ///...
     return true
@@ -180,6 +180,7 @@ let userNames = Values<User>(in: usersNode).lazyMap { user in
 `<==`  - assignment operator. Can use to assign (or to retrieve) value to (from) any Realtime property.
 `====`, `!===` - comparison operators. Can use to compare any Realtime properties where their values conform to `Equatable` protocol.
 `??` - infix operator, that performs a nil-coalescing operation, returning the wrapped value of an Realtime property or a default value.
+`<-` - prefix operator. Can use to convert instance of `Assign` type to explicit closure or backward.
 
 ### Transactions
 

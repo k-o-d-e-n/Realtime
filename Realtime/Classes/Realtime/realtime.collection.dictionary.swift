@@ -107,6 +107,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     private var shouldLinking = true // TODO: Fix it
     public func unlinked() -> AssociatedValues<Key, Value> { shouldLinking = false; return self }
 
+    public func makeIterator() -> IndexingIterator<AssociatedValues> { return IndexingIterator(_elements: self) }
+    public subscript(position: Int) -> Element { return storage.element(by: _view[position].dbKey) }
+    public subscript(key: Key) -> Value? { return contains(valueBy: key) ? storage.object(for: key) : nil }
     public var startIndex: Int { return _view.startIndex }
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
@@ -115,12 +118,17 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     @discardableResult
     override public func runObserving() -> Bool { return _view.source.runObserving() }
     override public func stopObserving() { _view.source.stopObserving() }
-    override public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
-    public func makeIterator() -> IndexingIterator<AssociatedValues> { return IndexingIterator(_elements: self) }
-    public subscript(position: Int) -> Element { return storage.element(by: _view[position].dbKey) }
-    public subscript(key: Key) -> Value? { return contains(valueBy: key) ? storage.object(for: key) : nil }
+    override public var debugDescription: String {
+        return """
+        {
+            ref: \(node?.rootPath ?? "not referred"),
+            prepared: \(isPrepared),
+            elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
+        }
+        """
+    }
 
     /// Returns a Boolean value indicating whether the sequence contains an
     /// element by passed key.

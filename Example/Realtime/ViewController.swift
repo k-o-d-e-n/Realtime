@@ -9,42 +9,52 @@
 import UIKit
 import Realtime
 
-class ViewController: UIViewController {
+class ViewController: UITableViewController {
     var disposeBag = ListeningDisposeStore()
+    weak var activityView: UIActivityIndicatorView!
 
     override func viewDidLoad() {
         super.viewDidLoad()
-    }
 
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesEnded(touches, with: event)
+        let iView = UIActivityIndicatorView(activityIndicatorStyle: .gray)
+        navigationItem.titleView = iView
+        self.activityView = iView
 
-        /// for testing implement your auth function in Auth.swift
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
+
+        iView.startAnimating()
+        tableView.isUserInteractionEnabled = false
+        /// for testing implement function `auth(_ completion: @escaping () -> Void)` in Auth.swift
         auth {
-            let realtimeViewController = touches.first!.location(in: self.view).x > self.view.frame.width / 2 ? RealtimeViewController() : RealtimeTableController()
-            self.navigationController?.pushViewController(realtimeViewController, animated: true)
+            iView.stopAnimating()
+            self.tableView.isUserInteractionEnabled = true
         }
     }
 }
-
-class TableViewController<Collection: RealtimeCollection>: UITableViewController where Collection.Index == Int {
-    let list: Collection
-    var realtimeAdapter: RealtimeTableAdapter<Collection>!
-
-    required init(list: Collection, configure: (RealtimeTableAdapter<Collection>) -> Void) {
-        self.list = list
-        super.init(style: .plain)
-        self.realtimeAdapter = RealtimeTableAdapter<Collection>(tableView: self.tableView, collection: list)
-        configure(self.realtimeAdapter)
+extension ViewController {
+    override func numberOfSections(in tableView: UITableView) -> Int {
+        return 1
     }
-
-    required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return 2
     }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        list.prepare(forUse: .just { _ in })
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        return tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
+    }
+    override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        switch indexPath.row {
+        case 0:
+            cell.textLabel?.text = "Console"
+        case 1:
+            cell.textLabel?.text = "Table"
+        default: break
+        }
+    }
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        switch indexPath.row {
+        case 0: navigationController?.pushViewController(RealtimeViewController(), animated: true)
+        case 1: navigationController?.pushViewController(RealtimeTableController(), animated: true)
+        default: break
+        }
     }
 }

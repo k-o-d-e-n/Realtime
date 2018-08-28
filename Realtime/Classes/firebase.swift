@@ -42,33 +42,6 @@ public extension DatabaseReference {
     }
 }
 
-// MARK: Storage
-
-
-/// TODO: Temporary
-
-extension Dictionary {
-    public init<Keys: Collection, Values: Collection>(keys: Keys, values: Values) where Keys.Iterator.Element: Hashable, Values.Index == Int, Key == Keys.Iterator.Element, Value == Values.Iterator.Element {
-        precondition(keys.count == values.count)
-
-        self.init()
-        for (index, key) in keys.enumerated() {
-            self[key] = values[index]
-        }
-    }
-    public init<OldKey, OldValue>(keyValues: [(OldKey, OldValue)],
-                                  mapKey: (OldKey) -> Key,
-                                  mapValue: (OldValue) -> Value) {
-        self.init()
-        keyValues.forEach { self[mapKey($0)] = mapValue($1) }
-    }
-    public init<OldKey>(keyValues: [(OldKey, Value)],
-                        mapKey: (OldKey) -> Key) {
-        self.init()
-        keyValues.forEach { self[mapKey($0)] = $1 }
-    }
-}
-
 extension DatabaseReference {
     public struct Event: Listenable {
         let ref: DatabaseReference

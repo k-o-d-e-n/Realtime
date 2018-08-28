@@ -79,6 +79,7 @@ public extension Disposable {
     }
 }
 
+/// Stores connections
 public struct ListeningDisposeStore {
     private var disposes = [Disposable]()
     private var listeningItems = [ListeningItem]()

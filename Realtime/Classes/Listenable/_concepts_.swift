@@ -7,15 +7,21 @@
 
 import Foundation
 
+/// Provides subscribing and delivering events to listeners
 public struct Repeater<T>: Listenable {
     let sender: (ListenEvent<T>) -> Void
     let listen: (Assign<ListenEvent<T>>) -> Disposable
     let dispatcher: (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void
 
+    /// Returns repeater that has no thread-safe context
+    ///
+    /// - Parameter dispatcher: Closure that implements method of dispatch events to listeners
     public static func unsafe(with dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }) -> Repeater<T> {
         return Repeater(dispatcher: dispatcher)
     }
-
+    /// Creates new instance that has no thread-safe working context
+    ///
+    /// - Parameter dispatcher: Closure that implements method of dispatch events to listeners
     public init(dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         self.dispatcher = dispatcher
         var nextToken = UInt.min
@@ -39,6 +45,9 @@ public struct Repeater<T>: Listenable {
         }
     }
 
+    /// Creates new instance that has no thread-safe working context
+    ///
+    /// - Parameter queue: Queue that is used to dispatch events in async manner
     public init(queue: DispatchQueue) {
         self.init { (e, a) in
             queue.async { a.assign(e) }
@@ -49,6 +58,11 @@ public struct Repeater<T>: Listenable {
         return Repeater(lockedBy: lock, dispatcher: dispatcher)
     }
 
+    /// Creates new instance that has thread-safe implementation using lock object.
+    ///
+    /// - Parameters:
+    ///   - lock: Lock object.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners
     public init(lockedBy lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         self.dispatcher = dispatcher
         var nextToken = UInt.min
@@ -78,12 +92,20 @@ public struct Repeater<T>: Listenable {
         }
     }
 
+    /// Creates new instance that has thread-safe implementation using lock object.
+    ///
+    /// - Parameters:
+    ///   - lock: Lock object.
+    ///   - queue: Queue that is used to dispatch events in async manner
     public init(lockedBy lock: NSLocking, queue: DispatchQueue) {
         self.init(lockedBy: lock) { (e, a) in
             queue.async { a.assign(e) }
         }
     }
 
+    /// Sends passed event to listeners
+    ///
+    /// - Parameter event: Event type with associated value
     public func send(_ event: ListenEvent<T>) {
         sender(event)
     }
@@ -93,12 +115,14 @@ public struct Repeater<T>: Listenable {
     }
 }
 
+/// Stores value and sends event on his change
 public struct ValueStorage<T>: Listenable, ValueWrapper {
     let get: () -> T
     let set: (T) -> Void
     let listen: (Assign<ListenEvent<T>>) -> Disposable
     let repeater: Repeater<T>
 
+    /// Stored value
     public var value: T {
         get { return get() }
         nonmutating set { set(newValue) }
@@ -113,6 +137,11 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         self.repeater = repeater
     }
 
+    /// Creates new instance with `strong` reference that has no thread-safe working context
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public init(unsafeStrong value: T, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         let repeater = Repeater(dispatcher: dispatcher)
         var val = value {
@@ -128,7 +157,14 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         )
     }
 
-    public init(lockedStrong value: T, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+    /// Creates new instance with `strong` reference that has thread-safe implementation
+    /// using lock object.
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - lock: Lock object.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
+    public init(strong value: T, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         let repeater = Repeater(dispatcher: dispatcher)
         var val = value {
             didSet {
@@ -153,6 +189,11 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         )
     }
 
+    /// Creates new instance with `weak` reference that has no thread-safe working context
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public init<O: AnyObject>(unsafeWeak value: O?, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) where Optional<O> == T {
         let repeater = Repeater(dispatcher: dispatcher)
         weak var val = value {
@@ -168,7 +209,14 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         )
     }
 
-    public init<O: AnyObject>(lockedWeak value: O?, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) where Optional<O> == T {
+    /// Creates new instance with `weak` reference that has thread-safe implementation
+    /// using lock object.
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - lock: Lock object.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
+    public init<O: AnyObject>(weak value: O?, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) where Optional<O> == T {
         let repeater = Repeater(dispatcher: dispatcher)
         weak var val = value {
             didSet {
@@ -193,6 +241,11 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         )
     }
 
+    /// Returns storage with `strong` reference that has no thread-safe working context
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func unsafe(
         strong value: T,
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
@@ -200,6 +253,11 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         return ValueStorage(unsafeStrong: value, dispatcher: dispatcher)
     }
 
+    /// Returns storage with `weak` reference that has no thread-safe working context
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func unsafe<O: AnyObject>(
         weak value: O?,
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
@@ -207,21 +265,38 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         return ValueStorage(unsafeWeak: value, dispatcher: dispatcher)
     }
 
+    /// Returns storage with `strong` reference that has thread-safe implementation
+    /// using lock object.
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - lock: Lock object.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func locked(
         strong value: T,
         lock: NSLocking = NSRecursiveLock(),
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
         ) -> ValueStorage {
-        return ValueStorage(lockedStrong: value, lock: lock, dispatcher: dispatcher)
+        return ValueStorage(strong: value, lock: lock, dispatcher: dispatcher)
     }
 
+    /// Returns storage with `weak` reference that has thread-safe implementation
+    /// using lock object.
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - lock: Lock object.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func locked<O: AnyObject>(
         weak value: O?,
         lock: NSLocking = NSRecursiveLock(),
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }) -> ValueStorage where Optional<O> == T {
-        return ValueStorage(lockedWeak: value, lock: lock, dispatcher: dispatcher)
+        return ValueStorage(weak: value, lock: lock, dispatcher: dispatcher)
     }
 
+    /// Sends error event to listeners
+    ///
+    /// - Parameter error: Error instance
     public func sendError(_ error: Error) {
         repeater.sender(.error(error))
     }
@@ -244,6 +319,11 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     }
 }
 extension ValueStorage where T: AnyObject {
+    /// Creates new instance with `unowned` reference that has no thread-safe working context
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public init(unsafeUnowned value: T, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         let repeater = Repeater(dispatcher: dispatcher)
         unowned var val = value {
@@ -259,7 +339,14 @@ extension ValueStorage where T: AnyObject {
         )
     }
 
-    public init(lockedUnowned value: T, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+    /// Creates new instance with `unowned` reference that has thread-safe implementation
+    /// using lock object.
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - lock: Lock object.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
+    public init(unowned value: T, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         let repeater = Repeater(dispatcher: dispatcher)
         unowned var val = value {
             didSet {
@@ -284,18 +371,30 @@ extension ValueStorage where T: AnyObject {
         )
     }
 
+    /// Returns storage with `unowned` reference that has no thread-safe working context
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func unsafe(
         unowned value: T,
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
         ) -> ValueStorage {
         return ValueStorage(unsafeUnowned: value, dispatcher: dispatcher)
     }
+    /// Returns storage with `unowned` reference that has thread-safe implementation
+    /// using lock object.
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - lock: Lock object.
+    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func locked(
         unowned value: T,
         lock: NSLocking = NSRecursiveLock(),
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
         ) -> ValueStorage {
-        return ValueStorage(lockedUnowned: value, lock: lock, dispatcher: dispatcher)
+        return ValueStorage(unowned: value, lock: lock, dispatcher: dispatcher)
     }
 }
 

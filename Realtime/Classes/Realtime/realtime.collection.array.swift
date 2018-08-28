@@ -111,8 +111,17 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     @discardableResult
     override public func runObserving() -> Bool { return _view.source.runObserving() }
     override public func stopObserving() { _view.source.stopObserving() }
-    override public var debugDescription: String { return _view.source.debugDescription }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
+
+    override public var debugDescription: String {
+        return """
+        {
+            ref: \(node?.rootPath ?? "not referred"),
+            prepared: \(isPrepared),
+            elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
+        }
+        """
+    }
     
     // MARK: Mutating
 

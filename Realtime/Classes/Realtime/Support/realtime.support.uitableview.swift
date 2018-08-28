@@ -9,18 +9,15 @@
 
 import UIKit
 
-public class ReuseItem<View: AnyObject> {
-    private weak var view: View? {
-        didSet {
-            if let v = view, v !== oldValue {
-                reload()
-            }
-        }
     }
+public class ReuseItem<View: AnyObject> {
+    lazy var view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil)
     private var listeningItems: [ListeningItem] = []
 
     init() {}
-    deinit { free() }
+    deinit {
+        free()
+    }
 
     /// Connects listanable value with view
     ///
@@ -30,9 +27,10 @@ public class ReuseItem<View: AnyObject> {
     ///   - value: Listenable value
     ///   - source: Source of value
     ///   - assign: Closure that calls on receieve value
-    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.OutData) -> Void) {
-        var data: T.OutData {
-            set { view.map { v in assign(v, newValue) } }
+    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
+        var v = view
+        var data: T.Out {
+            set { v.value.map { v in assign(v, newValue) } }
             get { fatalError() }
         }
         listeningItems.append(value.listeningItem(onValue: { data = $0 }))
@@ -50,9 +48,10 @@ public class ReuseItem<View: AnyObject> {
     /// - Parameters:
     ///   - value: Listenable value
     ///   - assign: Closure that calls on receieve value
-    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.OutData) -> Void) {
-        var data: T.OutData {
-            set { view.map { v in assign(v, newValue) } }
+    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
+        var v = view
+        var data: T.Out {
+            set { v.value.map { v in assign(v, newValue) } }
             get { fatalError() }
         }
         listeningItems.append(value.listeningItem(onValue: { data = $0 }))
@@ -77,23 +76,23 @@ public class ReuseItem<View: AnyObject> {
     func free() {
         listeningItems.forEach { $0.dispose() }
         listeningItems.removeAll()
-        view = nil
+        view.value = nil
     }
 
     func set(view: View) {
-        self.view = view
-        repeater.send(.value(view))
+        if self.view.value !== view {
+            reload()
+        }
+        self.view.value = view
     }
 
     func reload() {
         listeningItems.forEach { $0.resume() }
     }
-
-    lazy var repeater: Repeater<View?> = Repeater.unsafe()
 }
 extension ReuseItem: Listenable {
     public func listening(_ assign: Assign<ListenEvent<View?>>) -> Disposable {
-        return repeater.listening(assign)
+        return view.listening(assign)
     }
 }
 

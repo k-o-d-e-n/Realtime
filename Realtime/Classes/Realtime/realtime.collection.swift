@@ -269,7 +269,7 @@ public extension RealtimeCollection {
 
     func filtered<ValueGetter: Listenable & RealtimeValueActions>(
         map values: @escaping (Iterator.Element) -> ValueGetter,
-        predicate: @escaping (ValueGetter.OutData) -> Bool,
+        predicate: @escaping (ValueGetter.Out) -> Bool,
         onCompleted: @escaping ([Iterator.Element]) -> ()
     ) {
         var filteredElements: [Iterator.Element] = []

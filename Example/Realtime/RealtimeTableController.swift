@@ -34,9 +34,9 @@ class RealtimeTableController: UIViewController {
 
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: NSStringFromClass(UITableViewCell.self))
         tableView.register(TableCell.self, forCellReuseIdentifier: NSStringFromClass(TableCell.self))
-        let users = Values<User>(in: Node(key: "users", parent: .root))
+        let users = Global.rtUsers
         delegate = SingleSectionTableViewDelegate(users) { (table, ip, _) -> UITableViewCell in
-            return table.dequeueReusableCell(withIdentifier: NSStringFromClass(TableCell.self), for: ip)
+            return table.dequeueReusableCell(withIdentifier: NSStringFromClass(UITableViewCell.self), for: ip)
         }
         delegate.register(UITableViewCell.self) { (item, user) in
             item.bind(user.name) { (cell, val) in

@@ -459,7 +459,7 @@ class ListenableTests: XCTestCase {
     }
 
     func testPreprocessorAsListenable() {
-        func map<T: Listenable, U>(_ listenable: T, _ transform: @escaping (T.OutData) -> U) -> Preprocessor<T.OutData, U> {
+        func map<T: Listenable, U>(_ listenable: T, _ transform: @escaping (T.Out) -> U) -> Preprocessor<T.Out, U> {
             return listenable.map(transform)
         }
 
