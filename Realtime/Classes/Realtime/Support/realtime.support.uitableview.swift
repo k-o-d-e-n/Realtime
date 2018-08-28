@@ -9,7 +9,46 @@
 
 import UIKit
 
+struct Memoize<T>: Listenable {
+    let base: AnyListenable<T>
+    let maxCount: Int
+
+    func listening(_ assign: Assign<ListenEvent<[T]>>) -> Disposable {
+        var memoized: [T] = []
+        return base
+            .map({ (v) -> [T] in
+                memoized = Array((memoized + [v]).suffix(self.maxCount))
+                return memoized
+            })
+            .listening(assign)
     }
+
+    func listeningItem(_ assign: Assign<ListenEvent<[T]>>) -> ListeningItem {
+        var memoized: [T] = []
+        let item = base
+            .map({ (v) -> [T] in
+                memoized = Array((memoized + [v]).suffix(self.maxCount))
+                return memoized
+            })
+            .listeningItem(assign)
+        return ListeningItem(
+            resume: {
+                item.resume()
+                assign.call(.value(memoized))
+                return ()
+            },
+            pause: item.pause,
+            token: ()
+        )
+    }
+}
+
+extension Listenable {
+    func memoize(maxCount: Int) -> Memoize<Out> {
+        return Memoize(base: AnyListenable(self.listening, self.listeningItem), maxCount: maxCount)
+    }
+}
+
 public class ReuseItem<View: AnyObject> {
     lazy var view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil)
     private var listeningItems: [ListeningItem] = []
