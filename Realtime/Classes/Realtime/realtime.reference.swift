@@ -7,43 +7,51 @@
 
 import Foundation
 
-
+/// Defines the method of obtaining path for reference
+///
+/// - fullPath: Obtains path from root node
+/// - path: Obtains path from specified node
 public enum ReferenceMode {
     case fullPath
-    case key(from: Node)
+    case path(from: Node)
 }
 
 /// Link value describing reference to some location of database.
-struct Reference: FireDataRepresented, FireDataValueRepresented, Codable {
+struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented, Codable {
     let ref: String
 
     init(ref: String) {
         self.ref = ref
     }
 
-    var fireValue: FireDataValue {
-        let v: [String: FireDataValue] = [CodingKeys.ref.stringValue: ref]
+    var rdbValue: RealtimeDataValue {
+        let v: [String: RealtimeDataValue] = [CodingKeys.ref.stringValue: ref]
         return v
     }
-    init(fireData: FireDataProtocol) throws {
-        guard let ref: String = CodingKeys.ref.stringValue.map(from: fireData) else { throw RealtimeError(initialization: Reference.self, fireData) }
+    init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard let ref: String = CodingKeys.ref.stringValue.map(from: data) else { throw RealtimeError(initialization: ReferenceRepresentation.self, data) }
         self.ref = ref
     }
 }
-extension Reference {
-    func make<V: RealtimeValue>(in node: Node = .root, options: [RealtimeValueOption: Any]) -> V {
+extension ReferenceRepresentation {
+    func make<V: RealtimeValue>(in node: Node = .root, options: [ValueOption: Any]) -> V {
         return V(in: node.child(with: ref), options: options)
     }
 }
 extension RealtimeValue {
-    func reference(from node: Node = .root) -> Reference? {
-        return self.node.map { Reference(ref: $0.path(from: node)) }
+    func reference(from node: Node = .root) -> ReferenceRepresentation? {
+        return self.node.map { ReferenceRepresentation(ref: $0.path(from: node)) }
     }
-    func relation(use property: String) -> Relation? {
-        return node.map { Relation(path: $0.rootPath, property: property) }
+    func relation(use property: String) -> RelationRepresentation? {
+        return node.map { RelationRepresentation(path: $0.rootPath, property: property) }
     }
 }
 
+/// Defines relation type.
+/// Associated value is path to relation property
+///
+/// - oneToOne: Defines 'one to one' relation type
+/// - oneToMany: Defines 'one to many' relation type
 public enum RelationMode {
     case oneToOne(String)
     case oneToMany(String)
@@ -56,7 +64,7 @@ public enum RelationMode {
     }
 }
 
-struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
+struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented, Codable {
     /// Path to related object
     let targetPath: String
     /// Property of related object that represented this relation
@@ -72,19 +80,19 @@ struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
         case relatedProperty = "r_prop"
     }
 
-    var fireValue: FireDataValue {
-        let v: [String: FireDataValue] = [CodingKeys.targetPath.rawValue: targetPath,
+    var rdbValue: RealtimeDataValue {
+        let v: [String: RealtimeDataValue] = [CodingKeys.targetPath.rawValue: targetPath,
                                           CodingKeys.relatedProperty.rawValue: relatedProperty]
         return v
     }
 
-    init(fireData: FireDataProtocol) throws {
-        guard fireData.hasChildren() else { // TODO: For test, remove!
-            guard let val = fireData.value as? [String: String],
+    init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard data.hasChildren() else { // TODO: For test, remove!
+            guard let val = data.value as? [String: String],
                 let path = val[CodingKeys.targetPath.rawValue],
                 let prop = val[CodingKeys.relatedProperty.rawValue]
             else {
-                    throw RealtimeError(initialization: Relation.self, fireData)
+                    throw RealtimeError(initialization: RelationRepresentation.self, data)
             }
 
             self.targetPath = path
@@ -92,16 +100,16 @@ struct Relation: FireDataRepresented, FireDataValueRepresented, Codable {
             return
         }
         guard
-            let path: String = CodingKeys.targetPath.map(from: fireData),
-            let property: String = CodingKeys.relatedProperty.map(from: fireData)
-        else { throw RealtimeError(initialization: Relation.self, fireData) }
+            let path: String = CodingKeys.targetPath.map(from: data),
+            let property: String = CodingKeys.relatedProperty.map(from: data)
+        else { throw RealtimeError(initialization: RelationRepresentation.self, data) }
 
         self.targetPath = path
         self.relatedProperty = property
     }
 }
 
-struct SourceLink: FireDataRepresented, FireDataValueRepresented, Codable {
+struct SourceLink: RealtimeDataRepresented, RealtimeDataValueRepresented, Codable {
     let links: [String]
     let id: String
 
@@ -110,12 +118,12 @@ struct SourceLink: FireDataRepresented, FireDataValueRepresented, Codable {
         self.links = links
     }
 
-    var fireValue: FireDataValue { return links }
-    init(fireData: FireDataProtocol) throws {
+    var rdbValue: RealtimeDataValue { return links }
+    init(data: RealtimeDataProtocol, exactly: Bool) throws {
         guard
-            let id = fireData.dataKey,
-            let links: [String] = fireData.flatMap()
-        else { throw RealtimeError(initialization: SourceLink.self, fireData) }
+            let id = data.node?.key,
+            let links: [String] = data.flatMap()
+        else { throw RealtimeError(initialization: SourceLink.self, data) }
         
         self.id = id
         self.links = links
@@ -128,7 +136,7 @@ extension Representer where V == [SourceLink] {
             encoding: { (items) -> Any? in
                 return items.reduce([:], { (res, link) -> [String: Any] in
                     var res = res
-                    res[link.id] = link.fireValue
+                    res[link.id] = link.rdbValue
                     return res
                 })
             },

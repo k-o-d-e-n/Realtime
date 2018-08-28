@@ -11,13 +11,13 @@ import Firebase
 import Realtime
 
 enum Global {
-    static let rtUsers: RealtimeArray<RealtimeUser> = "___tests/_users".array(from: .root)
-    static let rtGroups: RealtimeArray<RealtimeGroup> = "___tests/_groups".array(from: .root)
+    static let rtUsers: Values<User> = "___tests/_users".array(from: .root)
+    static let rtGroups: Values<Group> = "___tests/_groups".array(from: .root)
 }
 
-class Conversation: RealtimeObject {
-    lazy var chairman: RealtimeReference<RealtimeUser> = "chairman".reference(from: self.node, mode: .fullPath)
-    lazy var secretary: RealtimeReference<RealtimeUser?> = "secretary".reference(from: self.node, mode: .fullPath)
+class Conversation: Object {
+    lazy var chairman: Reference<User> = "chairman".reference(from: self.node, mode: .fullPath)
+    lazy var secretary: Reference<User?> = "secretary".reference(from: self.node, mode: .fullPath)
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -28,45 +28,35 @@ class Conversation: RealtimeObject {
     }
 }
 
-class RealtimeGroup: RealtimeObject {
-    lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
-    //    @objc dynamic var cover: File?
-    lazy var users: LinkedRealtimeArray<RealtimeUser> = "users".linkedArray(from: self.node, elements: Global.rtUsers.node!)
-    lazy var conversations: RealtimeDictionary<RealtimeUser, RealtimeUser> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
-    lazy var manager: RealtimeRelation<RealtimeUser?> = "manager".relation(from: self.node, .oneToOne("ownedGroup"))
+class Group: Object {
+    lazy var name: Property<String> = "name".property(from: self.node)
+    lazy var users: References<User> = "users".linkedArray(from: self.node, elements: Global.rtUsers.node!)
+    lazy var conversations: AssociatedValues<User, User> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
+    lazy var manager: Relation<User?> = "manager".relation(from: self.node, .oneToOne("ownedGroup"))
 
-    lazy var _manager: RealtimeRelation<RealtimeUser> = "_manager".relation(from: self.node, rootLevelsUp: nil, .oneToMany("ownedGroups"))
+    lazy var _manager: Relation<User?> = "_manager".relation(from: self.node, rootLevelsUp: nil, .oneToMany("ownedGroups"))
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
-        case "name": return \RealtimeGroup.name
-        case "users": return \RealtimeGroup.users
-        case "conversations": return \RealtimeGroup.conversations
-        case "manager": return \RealtimeGroup.manager
-        case "_manager": return \RealtimeGroup._manager
+        case "name": return \Group.name
+        case "users": return \Group.users
+        case "conversations": return \Group.conversations
+        case "manager": return \Group.manager
+        case "_manager": return \Group._manager
         default: return nil
         }
     }
 }
 
-class RealtimeUser: RealtimeObject {
-    lazy var name: RealtimeProperty<String> = "name".property(from: self.node)
-    lazy var age: RealtimeProperty<Int> = "age".property(from: self.node)
-    lazy var photo: File<UIImage?> = File(in: Node(key: "photo", parent: self.node), representer: Representer.png.optional())
-    //    lazy var gender: String?
-    lazy var groups: LinkedRealtimeArray<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
-    //    @objc dynamic var items: [String] = []
-    //    @objc dynamic var location: CLLocation?
-    //    @objc dynamic var url: URL?
-    //    @objc dynamic var birth: Date?
-    //    @objc dynamic var thumbnail: File?
-    //    @objc dynamic var cover: File?
-    //    @objc dynamic var type: UserType = .first
-    //    @objc dynamic var testItems: Set<String> = []
-    lazy var followers: LinkedRealtimeArray<RealtimeUser> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
-    lazy var scheduledConversations: RealtimeArray<Conversation> = "scheduledConversations".array(from: self.node)
+class User: Object {
+    lazy var name: Property<String> = "name".property(from: self.node)
+    lazy var age: Property<Int> = "age".property(from: self.node)
+    lazy var photo: File<UIImage?> = File(in: Node(key: "photo", parent: self.node), representer: Representer.png)
+    lazy var groups: References<Group> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
+    lazy var followers: References<User> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
+    lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".array(from: self.node)
 
-    lazy var ownedGroup: RealtimeRelation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, .oneToOne("manager"))
+    lazy var ownedGroup: Relation<Group?> = "ownedGroup".relation(from: self.node, .oneToOne("manager"))
 
 //    lazy var ownedGroups: 
 
@@ -78,24 +68,24 @@ class RealtimeUser: RealtimeObject {
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
-        case "name": return \RealtimeUser.name
-        case "age": return \RealtimeUser.age
-        case "photo": return \RealtimeUser.photo
-        case "groups": return \RealtimeUser.groups
-        case "followers": return \RealtimeUser.followers
-        case "ownedGroup": return \RealtimeUser.ownedGroup
-        case "scheduledConversations": return \RealtimeUser.scheduledConversations
+        case "name": return \User.name
+        case "age": return \User.age
+        case "photo": return \User.photo
+        case "groups": return \User.groups
+        case "followers": return \User.followers
+        case "ownedGroup": return \User.ownedGroup
+        case "scheduledConversations": return \User.scheduledConversations
         default: return nil
         }
     }
 }
 
-class RealtimeUser2: RealtimeUser {
-    lazy var human: RealtimeProperty<[String: FireDataValue]> = "human".property(from: self.node)
+class User2: User {
+    lazy var human: Property<[String: RealtimeDataValue]> = "human".property(from: self.node)
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
-        case "human": return \RealtimeUser2.human
+        case "human": return \User2.human
         default: return nil
         }
     }
@@ -108,6 +98,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         FirebaseApp.configure()
+        RealtimeApp.initialize()
         return true
     }
 

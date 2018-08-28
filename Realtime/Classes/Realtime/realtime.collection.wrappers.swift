@@ -27,8 +27,8 @@ struct AnyCollectionKey: Hashable, DatabaseKeyRepresentable {
 internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var node: Node? { fatalError() }
     var version: Int? { fatalError() }
-    var raw: FireDataValue? { fatalError() }
-    var payload: [String : FireDataValue]? { fatalError() }
+    var raw: RealtimeDataValue? { fatalError() }
+    var payload: [String : RealtimeDataValue]? { fatalError() }
     var view: RealtimeCollectionView { fatalError() }
     var isPrepared: Bool { fatalError() }
     func makeIterator() -> AnyIterator<Element> { fatalError() }
@@ -37,7 +37,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(after i: Int) -> Int { fatalError() }
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
-    func apply(_ data: FireDataProtocol, exactly: Bool) throws { fatalError() }
+    func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
     func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
@@ -54,17 +54,17 @@ where C.Index == Int {
         self.base = base
     }
 
-    convenience required init(fireData: FireDataProtocol) throws {
-        let base = try C(fireData: fireData)
+    required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        let base = try C(data: data, exactly: exactly)
         self.init(base: base)
     }
 
-    convenience required init(in node: Node) {
-        self.init(base: C(in: node))
+    convenience required init(in node: Node, options: [ValueOption: Any]) {
+        self.init(base: C(in: node, options: options))
     }
 
     override var node: Node? { return base.node }
-    override var payload: [String : FireDataValue]? { return base.payload }
+    override var payload: [String : RealtimeDataValue]? { return base.payload }
     override var view: RealtimeCollectionView { return base.view }
     override var isPrepared: Bool { return base.isPrepared }
 
@@ -75,7 +75,7 @@ where C.Index == Int {
     override func index(before i: Int) -> Int { return base.index(before: i) }
     override subscript(position: Int) -> C.Iterator.Element { return base[position] }
 
-    override func apply(_ data: FireDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
+    override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving() -> Bool { return base.runObserving() }
@@ -85,6 +85,7 @@ where C.Index == Int {
     override var canObserve: Bool { return base.canObserve }
 }
 
+/// A type-erased Realtime database collection.
 public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     private let base: _AnyRealtimeCollectionBase<Element>
 
@@ -92,15 +93,16 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
         self.base = __AnyRealtimeCollection<C>(base: base)
     }
 
-    public convenience init(in node: Node?, options: [RealtimeValueOption: Any]) {
+    /// Currently no available
+    public convenience init(in node: Node?, options: [ValueOption: Any]) {
         fatalError("Cannot use this initializer")
     }
 
     public var node: Node? { return base.node }
     public var version: Int? { return base.version }
-    public var raw: FireDataValue? { return base.raw }
-    public var payload: [String : FireDataValue]? { return base.payload }
-    public var storage: AnyArrayStorage = AnyArrayStorage()
+    public var raw: RealtimeDataValue? { return base.raw }
+    public var payload: [String : RealtimeDataValue]? { return base.payload }
+    public var storage: AnyRCStorage = AnyRCStorage()
     public var view: RealtimeCollectionView { return base.view }
     public var isPrepared: Bool { return base.isPrepared }
     public var startIndex: Int { return base.startIndex }
@@ -116,28 +118,28 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var canObserve: Bool { return base.canObserve }
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
-    public convenience required init(fireData: FireDataProtocol) throws { fatalError() }
-    public func apply(_ data: FireDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
+    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
+    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
 }
 
 // TODO: Create wrapper that would sort array (sorting by default) (example array from tournament table)
 // 1) Sorting performs before save prototype (storing sorted array)
 // 2) Sorting performs after load prototype (runtime sorting)
 
-public extension RealtimeArray {
-    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed = Keyed.init)
+public extension Values {
+    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
         -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
     }
 }
-public extension LinkedRealtimeArray {
-    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed = Keyed.init)
+public extension References {
+    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
         -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
     }
 }
-public extension RealtimeDictionary {
-    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed = Keyed.init)
+public extension AssociatedValues {
+    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
         -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
             return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
     }
@@ -162,6 +164,7 @@ struct AnySharedCollection<Element>: Collection {
     public subscript(position: Int) -> Element { return _subscript(position) }
 }
 
+@available(*, deprecated: 0.3.7, message: "KeyedRealtimeCollection is deprecated. Use MapRealtimeCollection instead")
 public struct KeyedCollectionStorage<V>: MutableRCStorage {
     public typealias Value = V
     let key: String
@@ -190,7 +193,7 @@ where Element: RealtimeValue {
     private let base: _AnyRealtimeCollectionBase<BaseElement>
     private let baseView: AnySharedCollection<AnyCollectionKey>
 
-    init<B: RC, Key: RawRepresentable>(base: B, key: Key, elementBuilder: @escaping (Node) -> Element = Element.init)
+    init<B: RC, Key: RawRepresentable>(base: B, key: Key, elementBuilder: @escaping (Node) -> Element)
         where B.View.Iterator.Element: DatabaseKeyRepresentable,
         B.View.Index: SignedInteger, B.Iterator.Element == BaseElement, B.Index == Int, Key.RawValue == String {
             guard base.isRooted else { fatalError("Only rooted collections can use in keyed collection") }
@@ -199,14 +202,14 @@ where Element: RealtimeValue {
             self.baseView = AnySharedCollection(base._view.lazy.map(AnyCollectionKey.init))
     }
 
-    public init(in node: Node?, options: [RealtimeValueOption: Any]) {
+    public init(in node: Node?, options: [ValueOption: Any]) {
         fatalError()
     }
 
     public var node: Node? { return base.node }
     public var version: Int? { return base.version }
-    public var raw: FireDataValue? { return base.raw }
-    public var payload: [String : FireDataValue]? { return base.payload }
+    public var raw: RealtimeDataValue? { return base.raw }
+    public var payload: [String : RealtimeDataValue]? { return base.payload }
     public var view: RealtimeCollectionView { return base.view }
     public var storage: KeyedCollectionStorage<Element>
     public var isPrepared: Bool { return base.isPrepared }
@@ -232,11 +235,11 @@ where Element: RealtimeValue {
         base.stopObserving()
     }
 
-    public convenience required init(fireData: FireDataProtocol) throws {
+    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         fatalError("Cannot use this initializer")
     }
 
-    public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try base.apply(data, exactly: exactly)
     }
 
@@ -244,11 +247,24 @@ where Element: RealtimeValue {
 }
 
 public extension RealtimeCollection {
+    /// Returns `MapRealtimeCollection` over this collection.
+    ///
+    /// The elements of the result are computed lazily, each time they are read,
+    /// by calling transform function on a base element.
+    ///
+    /// - Parameter transform: Closure to read element
+    /// - Returns: `MapRealtimeCollection` collection.
     func lazyMap<Mapped>(_ transform: @escaping (Element) -> Mapped) -> MapRealtimeCollection<Mapped, Self> {
         return MapRealtimeCollection(base: self, transform: transform)
     }
 }
 
+/// A immutable Realtime database collection whose elements consist of those in a `Base Collection`
+/// passed through a transform function returning `Element`.
+/// These elements are computed lazily, each time they’re read,
+/// by calling the transform function on a base element.
+///
+/// This is the result of `x.lazyMap(_ transform:)` method, where `x` is any RealtimeCollection.
 public final class MapRealtimeCollection<Element, Base: RealtimeCollection>: RealtimeCollection
 where Base.Index == Int {
     public typealias Index = Int
@@ -258,20 +274,20 @@ where Base.Index == Int {
     public required init(base: Base, transform: @escaping (Base.Element) -> Element) {
         guard base.isRooted else { fatalError("Only rooted collections can use in map collection") }
         self.base = __AnyRealtimeCollection<Base>(base: base)
-        self.storage = AnyArrayStorage()
+        self.storage = AnyRCStorage()
         self.transform = transform
     }
 
-    public init(in node: Node?, options: [RealtimeValueOption: Any]) {
+    public init(in node: Node?, options: [ValueOption: Any]) {
         fatalError()
     }
 
     public var node: Node? { return base.node }
     public var version: Int? { return base.version }
-    public var raw: FireDataValue? { return base.raw }
-    public var payload: [String : FireDataValue]? { return base.payload }
+    public var raw: RealtimeDataValue? { return base.raw }
+    public var payload: [String : RealtimeDataValue]? { return base.payload }
     public var view: RealtimeCollectionView { return base.view }
-    public var storage: AnyArrayStorage
+    public var storage: AnyRCStorage
     public var isPrepared: Bool { return base.isPrepared }
 
     public var startIndex: Index { return base.startIndex }
@@ -295,11 +311,11 @@ where Base.Index == Int {
         base.stopObserving()
     }
 
-    public convenience required init(fireData: FireDataProtocol) throws {
+    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         fatalError("Cannot use this initializer")
     }
 
-    public func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try base.apply(data, exactly: exactly)
     }
 

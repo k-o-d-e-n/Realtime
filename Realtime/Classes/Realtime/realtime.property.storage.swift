@@ -10,20 +10,21 @@ import FirebaseStorage
 
 public extension RawRepresentable where Self.RawValue == String {
     func readonlyFile<T>(from node: Node?, representer: Representer<T>) -> ReadonlyFile<T> {
-        return ReadonlyFile(in: Node(key: rawValue, parent: node), options: [.representer: representer])
+        return ReadonlyFile(in: Node(key: rawValue, parent: node), representer: representer)
     }
-    func readonlyFile<T>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyFile<T?> {
-        return readonlyFile(from: node, representer: representer.optional())
+    func readonlyFile<T>(from node: Node?, representer: Representer<T>) -> ReadonlyFile<T?> {
+        return ReadonlyFile(in: Node(key: rawValue, parent: node), representer: representer)
     }
     func file<T>(from node: Node?, representer: Representer<T>) -> File<T> {
-        return File(in: Node(key: rawValue, parent: node), options: [.representer: representer])
+        return File(in: Node(key: rawValue, parent: node), representer: representer)
     }
     func file<T>(from node: Node?, representer: Representer<T>) -> File<T?> {
-        return file(from: node, representer: representer.optional())
+        return File(in: Node(key: rawValue, parent: node), representer: representer)
     }
 }
 
-public class ReadonlyFile<T>: ReadonlyRealtimeProperty<T> {
+/// Defines readonly property for files storage
+public class ReadonlyFile<T>: ReadonlyProperty<T> {
     override var updateType: ValueNode.Type { return FileNode.self }
 
     public override func load(completion: Assign<Error?>?) {
@@ -38,7 +39,7 @@ public class ReadonlyFile<T>: ReadonlyRealtimeProperty<T> {
             } else {
                 do {
                     if let value = try self.representer.decode(FileNode(node: node, value: data)) {
-                        self._setValue(.remote(value, strong: true))
+                        self._setValue(.remote(value, exact: true))
                     } else {
                         self._setRemoved()
                     }
@@ -52,7 +53,8 @@ public class ReadonlyFile<T>: ReadonlyRealtimeProperty<T> {
     }
 }
 
-public class File<T>: RealtimeProperty<T> {
+/// Defines read/write property for files storage
+public class File<T>: Property<T> {
     override var updateType: ValueNode.Type { return FileNode.self }
 
     public override func load(completion: Assign<Error?>?) {
@@ -67,7 +69,7 @@ public class File<T>: RealtimeProperty<T> {
             } else {
                 do {
                     if let value = try self.representer.decode(FileNode(node: node, value: data)) {
-                        self._setValue(.remote(value, strong: true))
+                        self._setValue(.remote(value, exact: true))
                     } else {
                         self._setRemoved()
                     }

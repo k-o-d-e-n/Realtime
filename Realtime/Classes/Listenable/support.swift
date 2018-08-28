@@ -46,6 +46,7 @@ public func onLoad<V>(_ value: V, _ completion: (V) -> Void) -> V {
     return value
 }
 
+/// Internal protocol
 public protocol _Optional: ExpressibleByNilLiteral {
     associatedtype Wrapped
     func map<U>(_ f: (Wrapped) throws -> U) rethrows -> U?
@@ -58,49 +59,28 @@ extension Optional: _Optional {
     public var wrapped: Wrapped? { return self }
 }
 
-public extension Listenable where OutData: RealtimeValueActions {
-	/// adds loading action on receive new value
-    func loadOnReceive() -> Preprocessor<OutData, OutData> {
-        return onReceive({ (v, p) in
-            v.load(completion: .just { _ in p.fulfill() })
-        })
-    }
-}
-
-public extension Listenable {
-    func asyncMap<U: RealtimeValueActions>(_ transform: @escaping (OutData) -> U) -> Preprocessor<U, U> {
-        return map(transform).onReceive({ (v, p) in
-            v.load(completion: .just { _ in p.fulfill() })
-        })
-    }
-    func loadRelated<Loaded: RealtimeValueActions>(_ transform: @escaping (OutData) -> Loaded?) -> Preprocessor<OutData, OutData> {
-        return onReceive({ (v, p) in
-            transform(v)?.load(completion: .just { _ in p.fulfill() })
-        })
-    }
-}
-
-public extension Listenable where OutData: _Optional {
-	/// skips nil values
-    func flatMap<U>(_ transform: @escaping (OutData.Wrapped) -> U) -> Preprocessor<OutData, U> {
-        return self
-            .filter { $0.map { _ in true } ?? false }
-            .map { transform($0.unsafelyUnwrapped) }
-    }
-    func asyncFlatMap<U: RealtimeValueActions>(_ transform: @escaping (OutData.Wrapped) -> U) -> Preprocessor<U, U> {
-        return flatMap(transform).onReceive({ (v, p) in
-            v.load(completion: .just { _ in p.fulfill() })
+public extension Listenable where Out: RealtimeValueActions {
+    /// Loads a value is associated with `RealtimeValueActions` value
+    func load() -> Preprocessor<Out, Out> {
+        return onReceive({ (prop, promise) in
+            prop.load(completion: <-{ err in
+                if let e = err {
+                    promise.reject(e)
+                } else {
+                    promise.fulfill()
+                }
+            })
         })
     }
 }
 
 // MARK: - UI
 
-public extension Listenable where Self.OutData == String? {
+public extension Listenable where Self.Out == String? {
     func bind(to label: UILabel) -> ListeningItem {
         return listeningItem(onValue: .weak(label) { data, l in l?.text = data })
     }
-    func bind(to label: UILabel, didSet: @escaping (UILabel, OutData) -> Void) -> ListeningItem {
+    func bind(to label: UILabel, didSet: @escaping (UILabel, Out) -> Void) -> ListeningItem {
         return listeningItem(onValue: .weak(label) { data, l in
             l.map { $0.text = data; didSet($0, data) }
         })
@@ -109,12 +89,12 @@ public extension Listenable where Self.OutData == String? {
         return bind(to: label, didSet: { v, _ in v.superview?.setNeedsLayout() })
     }
 }
-public extension Listenable where Self.OutData == String {
+public extension Listenable where Self.Out == String {
     func bind(to label: UILabel) -> ListeningItem {
         return listeningItem(onValue: .weak(label) { data, l in l?.text = data })
     }
 }
-public extension Listenable where Self.OutData == UIImage? {
+public extension Listenable where Self.Out == UIImage? {
     func bind(to imageView: UIImageView) -> ListeningItem {
         return listeningItem(onValue: .weak(imageView) { data, iv in iv?.image = data })
     }

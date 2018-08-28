@@ -114,37 +114,50 @@ public struct Assign<A> {
         return Assign.on(queue, assign: assign)
     }
 
+    /// returns new closure with encapsulated work closure
+    /// that calls before the call of main closure
     public func with(work: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: { (v) in
             work(v)
             self.assign(v)
         })
     }
+    /// returns new closure with encapsulated work closure
+    /// that calls after the call of main closure
     public func after(work: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: { (v) in
             self.assign(v)
             work(v)
         })
     }
+    /// returns new closure with encapsulated work closure
+    /// that calls before the call of main closure
     public func with(work: Assign<A>) -> Assign<A> {
         return with(work: work.assign)
     }
+    /// returns new closure with encapsulated work closure
+    /// that calls after the call of main closure
     public func after(work: Assign<A>) -> Assign<A> {
         return after(work: work.assign)
     }
+    /// returns new closure with encapsulated work closure
+    /// that calls before the call of main closure
     public func with(work: Assign<A>?) -> Assign<A> {
         return work.map(with) ?? self
     }
+    /// returns new closure with encapsulated work closure
+    /// that calls after the call of main closure
     public func after(work: Assign<A>?) -> Assign<A> {
         return work.map(after) ?? self
     }
 
+    /// returns new closure with transformed input parameter
     public func map<U>(_ transform: @escaping (U) -> A) -> Assign<U> {
         return Assign<U>(assign: { (u) in
             self.assign(transform(u))
         })
     }
-
+    /// returns new closure that filter input values using predicate closure
     public func filter(_ predicate: @escaping (A) -> Bool) -> Assign<A> {
         return Assign(assign: { (a) in
             if predicate(a) {
@@ -164,6 +177,10 @@ public prefix func <-<A>(rhs: @escaping (A) -> Void) -> Assign<A> {
 
 // MARK: Connections
 
+/// Event that sends to listeners
+///
+/// - value: Expected value event
+/// - error: Error event indicating that something went wrong
 public enum ListenEvent<T> {
     case value(T)
     case error(Error)
@@ -189,52 +206,47 @@ public extension ListenEvent {
         case .error: return nil
         }
     }
-    func map(to value: inout T) {
-        if let v = self.value {
-            value = v
-        }
-    }
 }
 
 /// Common protocol for all objects that ensures listening value. 
 public protocol Listenable {
-    associatedtype OutData
+    associatedtype Out
 
     /// Disposable listening of value
-    func listening(_ assign: Assign<ListenEvent<OutData>>) -> Disposable
+    func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable
 
     /// Listening with possibility to control active state
-    func listeningItem(_ assign: Assign<ListenEvent<OutData>>) -> ListeningItem
+    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem
 }
 public extension Listenable {
     /// Listening with possibility to control active state
-    func listeningItem(_ assign: Assign<ListenEvent<OutData>>) -> ListeningItem {
+    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
         return ListeningItem(resume: { self.listening(assign) }, pause: { $0.dispose() }, token: listening(assign))
     }
-    func listening(_ assign: @escaping (ListenEvent<OutData>) -> Void) -> Disposable {
+    func listening(_ assign: @escaping (ListenEvent<Out>) -> Void) -> Disposable {
         return listening(.just(assign))
     }
-    func listeningItem(_ assign: @escaping (ListenEvent<OutData>) -> Void) -> ListeningItem {
+    func listeningItem(_ assign: @escaping (ListenEvent<Out>) -> Void) -> ListeningItem {
         return listeningItem(.just(assign))
     }
-    func listening(onValue assign: Assign<OutData>) -> Disposable {
+    func listening(onValue assign: Assign<Out>) -> Disposable {
         return listening(Assign(assign: {
             if let v = $0.value {
                 assign.assign(v)
             }
         }))
     }
-    func listeningItem(onValue assign: Assign<OutData>) -> ListeningItem {
+    func listeningItem(onValue assign: Assign<Out>) -> ListeningItem {
         return listeningItem(Assign(assign: {
             if let v = $0.value {
                 assign.assign(v)
             }
         }))
     }
-    func listening(onValue assign: @escaping (OutData) -> Void) -> Disposable {
+    func listening(onValue assign: @escaping (Out) -> Void) -> Disposable {
         return listening(onValue: .just(assign))
     }
-    func listeningItem(onValue assign: @escaping (OutData) -> Void) -> ListeningItem {
+    func listeningItem(onValue assign: @escaping (Out) -> Void) -> ListeningItem {
         return listeningItem(onValue: .just(assign))
     }
 
@@ -259,11 +271,12 @@ public extension Listenable {
         return listeningItem(onError: .just(assign))
     }
 }
+
 struct AnyListenable<Out>: Listenable {
     let _listening: (Assign<ListenEvent<Out>>) -> Disposable
     let _listeningItem: (Assign<ListenEvent<Out>>) -> ListeningItem
 
-    init<L: Listenable>(_ base: L) where L.OutData == Out {
+    init<L: Listenable>(_ base: L) where L.Out == Out {
         self._listening = base.listening
         self._listeningItem = base.listeningItem
     }
@@ -282,11 +295,11 @@ struct AnyListenable<Out>: Listenable {
 }
 
 /// Provides calculated listening value
-public struct ReadonlyProperty<Value>: Listenable {
+public struct ReadonlyValue<Value>: Listenable {
     let repeater: Repeater<Value>
     private let store: ListeningDisposeStore
 
-    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), calculation: @escaping (L.OutData) -> Value) {
+    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), calculation: @escaping (L.Out) -> Value) {
         var store = ListeningDisposeStore()
         repeater.depends(on: source.map(calculation)).add(to: &store)
         self.repeater = repeater
@@ -299,11 +312,11 @@ public struct ReadonlyProperty<Value>: Listenable {
 }
 
 /// Provides listening value based on async action
-public struct AsyncReadonlyProperty<Value>: Listenable {
+public struct AsyncReadonlyValue<Value>: Listenable {
     let repeater: Repeater<Value>
     private let store: ListeningDisposeStore
     
-    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), fetching: @escaping (L.OutData, ResultPromise<Value>) -> Void) {
+    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
         var store = ListeningDisposeStore()
         repeater.depends(on: source.onReceiveMap(fetching)).add(to: &store)
         self.repeater = repeater
@@ -355,7 +368,7 @@ public extension Repeater {
     /// - Parameter other: Listenable that will be invoke notifications himself listenings
     /// - Returns: Disposable
     @discardableResult
-    func depends<L: Listenable>(on other: L) -> Disposable where L.OutData == T {
+    func depends<L: Listenable>(on other: L) -> Disposable where L.Out == T {
         return other.listening(self.send)
     }
 }
@@ -365,7 +378,7 @@ public extension Listenable {
     /// - Parameter other: Value wrapper that will be receive value
     /// - Returns: Disposable
     @discardableResult
-    func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.OutData {
+    func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.Out {
         return livetime(other).listening(onValue: { [weak other] val in
             other?.value = val
         })
@@ -376,7 +389,7 @@ public extension Listenable {
     /// - Parameter other: Repeater that will be receive value
     /// - Returns: Disposable
     @discardableResult
-    func bind(to other: Repeater<OutData>) -> Disposable {
+    func bind(to other: Repeater<Out>) -> Disposable {
         return other.depends(on: self)
     }
 
@@ -385,7 +398,7 @@ public extension Listenable {
     /// - Parameter other: Repeater that will be receive value
     /// - Returns: Disposable
     @discardableResult
-    func bind(to other: Property<OutData>) -> Disposable {
+    func bind(to other: ValueStorage<Out>) -> Disposable {
         return listening({ (e) in
             switch e {
             case .value(let v): other.value = v

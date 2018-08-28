@@ -8,7 +8,13 @@
 import Foundation
 import FirebaseDatabase
 
-public struct RealtimeError: Error {
+// #
+// ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
+// Comment writing guide
+
+internal let lazyStoragePath = ".storage"
+
+public struct RealtimeError: LocalizedError {
     let description: String
     let source: Source
 
@@ -19,12 +25,22 @@ public struct RealtimeError: Error {
         self.description = description
     }
 
+    /// Shows part or process of Realtime where error is happened.
+    ///
+    /// - value: Error from someone class of property
+    /// - collection: Error from someone class of collection
+    /// - listening: Error from Listenable part
+    /// - coding: Error on coding process
+    /// - transaction: Error in `Transaction`
+    /// - cache: Error in cache
     enum Source {
         case value
+        case collection
+
         case listening
         case coding
         case transaction([Error])
-        case collection
+        case cache
     }
 
     init<T>(initialization type: T.Type, _ data: Any) {
@@ -34,81 +50,105 @@ public struct RealtimeError: Error {
         self.init(source: .coding, description: "Failed decoding data: \(data) to type: \(T.self). Reason: \(reason)")
     }
     init<T>(encoding value: T, reason: String) {
-        self.init(source: .coding, description: "Failed encoding value: \(value). Reason: \(reason)")
+        self.init(source: .coding, description: "Failed encoding value of type: \(value). Reason: \(reason)")
     }
 }
 
-internal let lazyStoragePath = ".storage"
-
+/// A type that contains key of database node
 public protocol DatabaseKeyRepresentable {
     var dbKey: String! { get }
 }
 
 // MARK: RealtimeValue
 
-typealias InternalPayload = (version: Int?, raw: FireDataValue?)
+typealias InternalPayload = (version: Int?, raw: RealtimeDataValue?)
 
-public struct RealtimeValueOption: Hashable {
+/// Key of RealtimeValue option
+public struct ValueOption: Hashable {
     let rawValue: String
 
     init(_ rawValue: String) {
         self.rawValue = rawValue
     }
 }
-public extension RealtimeValueOption {
-    static let payload: RealtimeValueOption = RealtimeValueOption("realtime.value.payload")
-    internal static let internalPayload: RealtimeValueOption = RealtimeValueOption("realtime.value.internalPayload")
+public extension ValueOption {
+    static let database: ValueOption = ValueOption("realtime.database")
+    static let payload: ValueOption = ValueOption("realtime.value.payload")
+    internal static let internalPayload: ValueOption = ValueOption("realtime.value.internalPayload")
 }
-public extension Dictionary where Key == RealtimeValueOption {
+public extension Dictionary where Key == ValueOption {
     var version: Int? {
         return (self[.internalPayload] as? InternalPayload)?.version
     }
-    var rawValue: FireDataValue? {
+    var rawValue: RealtimeDataValue? {
         return (self[.internalPayload] as? InternalPayload)?.raw
     }
 }
-public extension FireDataProtocol {
+public extension RealtimeDataProtocol {
     var version: Int? {
         return InternalKeys.modelVersion.map(from: self)
     }
-    var rawValue: FireDataValue? {
+    var rawValue: RealtimeDataValue? {
         return InternalKeys.raw.map(from: self)
     }
 }
 
+/// Internal protocol
+public protocol _RealtimeValueUtilities {
+    static func _isValid(asReference value: Self) -> Bool
+    static func _isValid(asRelation value: Self) -> Bool
+}
+extension _RealtimeValueUtilities where Self: _RealtimeValue {
+    public static func _isValid(asReference value: Self) -> Bool {
+        return value.isRooted
+    }
+    public static func _isValid(asRelation value: Self) -> Bool {
+        return value.isRooted
+    }
+}
+extension _RealtimeValue: _RealtimeValueUtilities {}
+
 /// Base protocol for all database entities
-public protocol RealtimeValue: DatabaseKeyRepresentable, FireDataRepresented {
+public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented {
     /// Current version of value.
     var version: Int? { get }
     /// Indicates specific representation of this value, e.g. subclass or enum associated value
-    var raw: FireDataValue? { get }
+    var raw: RealtimeDataValue? { get }
     /// Some data associated with value
-    var payload: [String: FireDataValue]? { get }
+    var payload: [String: RealtimeDataValue]? { get }
     /// Node location in database
     var node: Node? { get }
 
-    /// Designed initializer
+    /// Creates new instance associated with database node
     ///
     /// - Parameter node: Node location for value
-    init(in node: Node?, options: [RealtimeValueOption: Any])
+    /// - Parameter options: Dictionary of options
+    init(in node: Node?, options: [ValueOption: Any])
 }
 
-extension Optional: RealtimeValue, DatabaseKeyRepresentable where Wrapped: RealtimeValue {
+extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
     public var version: Int? { return self?.version }
-    public var raw: FireDataValue? { return self?.raw }
-    public var payload: [String : FireDataValue]? { return self?.payload }
+    public var raw: RealtimeDataValue? { return self?.raw }
+    public var payload: [String : RealtimeDataValue]? { return self?.payload }
     public var node: Node? { return self?.node }
-    public init(in node: Node?, options: [RealtimeValueOption : Any]) {
+    public init(in node: Node?, options: [ValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))
     }
-    public mutating func apply(_ data: FireDataProtocol, exactly: Bool) throws {
+    public mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try self?.apply(data, exactly: exactly)
     }
+
+    public static func _isValid(asReference value: Optional<Wrapped>) -> Bool {
+        return value.map { $0.isRooted } ?? true
+    }
+    public static func _isValid(asRelation value: Optional<Wrapped>) -> Bool {
+        return value.map { $0.isRooted } ?? true
+    }
 }
-extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
-    public init(fireData: FireDataProtocol) throws {
-        if fireData.exists() {
-            self = .some(try Wrapped(fireData: fireData))
+extension Optional: RealtimeDataRepresented where Wrapped: RealtimeDataRepresented {
+    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        if data.exists() {
+            self = .some(try Wrapped(data: data, exactly: exactly))
         } else {
             self = .none
         }
@@ -117,33 +157,22 @@ extension Optional: FireDataRepresented where Wrapped: FireDataRepresented {
 
 public extension RealtimeValue {
     var dbKey: String! { return node?.key }
-    func dbRef(_ database: Database = Database.database()) -> DatabaseReference? {
-        return node.flatMap { $0.isRooted ? $0.reference(for: database) : nil }
-    }
 
+    /// Equals `isRooted`
     var isInserted: Bool { return isRooted }
+    /// Indicates that value has no rooted node
     var isStandalone: Bool { return !isRooted }
+    /// Indicates that value has parent node
     var isReferred: Bool { return node?.parent != nil }
+    /// Indicates that value has rooted node
     var isRooted: Bool { return node?.isRooted ?? false }
 
-    init(in node: Node?) { self.init(in: node, options: [:]) }
-    init() { self.init(in: nil) }
-    init(fireData: FireDataProtocol, exactly: Bool) throws {
-        if exactly {
-            try self.init(fireData: fireData)
-        } else {
-            self.init(in: fireData.dataRef.map(Node.from))
-            try apply(fireData, exactly: false)
-        }
-    }
-
-    mutating func apply(parentDataIfNeeded parent: FireDataProtocol, exactly: Bool) throws {
+    internal mutating func apply(parentDataIfNeeded parent: RealtimeDataProtocol, exactly: Bool) throws {
         guard exactly || dbKey.has(in: parent) else { return }
 
         try apply(dbKey.child(from: parent), exactly: exactly)
     }
 }
-extension HasDefaultLiteral where Self: RealtimeValue {}
 
 public extension Hashable where Self: RealtimeValue {
     var hashValue: Int { return dbKey.hashValue }
@@ -154,6 +183,7 @@ public extension Hashable where Self: RealtimeValue {
 
 // MARK: Extended Realtime Value
 
+/// A type that makes possible to do someone actions related with value
 public protocol RealtimeValueActions: RealtimeValueEvents {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
@@ -168,6 +198,7 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     /// Stops observing, if observers no more.
     func stopObserving()
 }
+/// A type that can receive Realtime database events
 public protocol RealtimeValueEvents {
     /// Must call always before save(update) action
     ///
@@ -175,45 +206,45 @@ public protocol RealtimeValueEvents {
     ///   - transaction: Save transaction
     ///   - parent: Parent node to save
     ///   - key: Location in parent node
-    func willSave(in transaction: RealtimeTransaction, in parent: Node, by key: String)
+    func willSave(in transaction: Transaction, in parent: Node, by key: String)
     /// Notifies object that it has been saved in specified parent node
     ///
     /// - Parameter parent: Parent node
     /// - Parameter key: Location in parent node
-    func didSave(in parent: Node, by key: String)
+    func didSave(in database: RealtimeDatabase, in parent: Node, by key: String)
     /// Must call always before removing action
     ///
     /// - Parameters:
     ///   - transaction: Remove transaction
     ///   - ancestor: Ancestor where remove action called
-    func willRemove(in transaction: RealtimeTransaction, from ancestor: Node)
+    func willRemove(in transaction: Transaction, from ancestor: Node)
     /// Notifies object that it has been removed from specified ancestor node
     ///
     /// - Parameter ancestor: Ancestor node
     func didRemove(from ancestor: Node)
 }
 extension RealtimeValueEvents where Self: RealtimeValue {
-    func willSave(in transaction: RealtimeTransaction, in parent: Node) {
+    func willSave(in transaction: Transaction, in parent: Node) {
         guard let node = self.node else {
             return debugFatalError("Unkeyed value will be saved to undefined location in parent node: \(parent.rootPath)")
         }
         willSave(in: transaction, in: parent, by: node.key)
     }
-    func didSave(in parent: Node) {
+    func didSave(in database: RealtimeDatabase, in parent: Node) {
         if let node = self.node {
-            didSave(in: parent, by: node.key)
+            didSave(in: database, in: parent, by: node.key)
         } else {
             debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.rootPath)")
         }
     }
-    func didSave() {
+    func didSave(in database: RealtimeDatabase) {
         if let parent = node?.parent, let node = self.node {
-            didSave(in: parent, by: node.key)
+            didSave(in: database, in: parent, by: node.key)
         } else {
             debugFatalError("Rootless value has been saved to undefined location")
         }
     }
-    func willRemove(in transaction: RealtimeTransaction) {
+    func willRemove(in transaction: Transaction) {
         if let parent = node?.parent {
             willRemove(in: transaction, from: parent)
         } else {
@@ -236,7 +267,7 @@ public protocol WritableRealtimeValue: RealtimeValue {
     /// - Parameters:
     ///   - transaction: Current transaction
     ///   - node: Database node where data will be store
-    func write(to transaction: RealtimeTransaction, by node: Node) throws
+    func write(to transaction: Transaction, by node: Node) throws
 }
 
 /// Values that can be changed partially
@@ -249,6 +280,6 @@ public protocol ChangeableRealtimeValue: RealtimeValue {
     /// - Parameters:
     ///   - transaction: Current transaction
     ///   - node: Node for this value
-    func writeChanges(to transaction: RealtimeTransaction, by node: Node) throws
+    func writeChanges(to transaction: Transaction, by node: Node) throws
 }
 

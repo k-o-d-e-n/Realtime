@@ -42,66 +42,42 @@ public extension DatabaseReference {
     }
 }
 
-// MARK: Storage
 
+public struct Event: Listenable {
+    let database: RealtimeDatabase
+    let node: Node
+    let event: DataEventType
 
-/// TODO: Temporary
-
-extension Dictionary {
-    public init<Keys: Collection, Values: Collection>(keys: Keys, values: Values) where Keys.Iterator.Element: Hashable, Values.Index == Int, Key == Keys.Iterator.Element, Value == Values.Iterator.Element {
-        precondition(keys.count == values.count)
-
-        self.init()
-        for (index, key) in keys.enumerated() {
-            self[key] = values[index]
-        }
+    /// Disposable listening of value
+    public func listening(_ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> Disposable {
+        let token = database.listen(node: node, assign)
+        return ListeningDispose({
+            self.database.removeObserver(for: self.node, with: token)
+        })
     }
-    public init<OldKey, OldValue>(keyValues: [(OldKey, OldValue)],
-                                  mapKey: (OldKey) -> Key,
-                                  mapValue: (OldValue) -> Value) {
-        self.init()
-        keyValues.forEach { self[mapKey($0)] = mapValue($1) }
-    }
-    public init<OldKey>(keyValues: [(OldKey, Value)],
-                        mapKey: (OldKey) -> Key) {
-        self.init()
-        keyValues.forEach { self[mapKey($0)] = $1 }
+
+    /// Listening with possibility to control active state
+    public func listeningItem(_ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> ListeningItem {
+        let token = database.listen(node: node, assign)
+        return ListeningItem(
+            resume: { self.database.listen(node: self.node, assign) },
+            pause: { self.database.removeObserver(for: self.node, with: $0) },
+            token: token
+        )
     }
 }
 
-extension DatabaseReference {
-    public struct Event: Listenable {
-        let ref: DatabaseReference
-        let event: DataEventType
-
-        /// Disposable listening of value
-        public func listening(_ assign: Assign<ListenEvent<FireDataProtocol>>) -> Disposable {
-            let token = ref.listen(assign)
-            return ListeningDispose({
-                self.ref.removeObserver(withHandle: token)
-            })
-        }
-
-        /// Listening with possibility to control active state
-        public func listeningItem(_ assign: Assign<ListenEvent<OutData>>) -> ListeningItem {
-            let token = ref.listen(assign)
-            return ListeningItem(
-                resume: { self.ref.listen(assign) },
-                pause: ref.removeObserver,
-                token: token
-            )
-        }
+extension RealtimeDatabase {
+    public func data(_ event: DataEventType, node: Node) -> Event {
+        return Event(database: self, node: node, event: event)
     }
 
-    public func snapshot(_ event: DataEventType) -> Event {
-        return Event(ref: self, event: event)
-    }
-
-    private func listen(_ assign: Assign<ListenEvent<FireDataProtocol>>) -> UInt {
+    fileprivate func listen(node: Node, _ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> UInt {
         let token = observe(
             .value,
-            with: <-assign.map { .value($0) },
-            withCancel: <-assign.map { .error($0) }
+            on: node,
+            onUpdate: <-assign.map { .value($0) },
+            onCancel: <-assign.map { .error($0) }
         )
         return token
     }

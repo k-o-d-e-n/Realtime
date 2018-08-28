@@ -15,6 +15,6 @@ import FirebaseDatabase
 public protocol _Serializer {
     associatedtype Entity: HasDefaultLiteral
     associatedtype SerializationResult
-    static func deserialize(_ entity: FireDataProtocol) -> Entity
+    static func deserialize(_ entity: RealtimeDataProtocol) -> Entity
     static func serialize(_ entity: Entity) -> SerializationResult
 }

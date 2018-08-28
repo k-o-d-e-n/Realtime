@@ -66,10 +66,10 @@ class RealtimeViewController: UIViewController {
         $0.frame = CGRect(x: 20, y: view.bounds.height - 100, width: view.bounds.width, height: 30)
         $0.text = "Result here"
     }
-    var user: RealtimeUser? {
+    var user: User? {
         didSet { user?.groups.runObserving() }
     }
-    var group: RealtimeGroup? {
+    var group: Group? {
         didSet { group?.users.runObserving(); group?.conversations.runObserving() }
     }
 
@@ -77,6 +77,8 @@ class RealtimeViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .white
         edgesForExtendedLayout.remove(.top)
+
+        navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .trash, target: self, action: #selector(free))
 
         Global.rtUsers.prepare(forUse: .just { (users, _) in
             self.user = users.first
@@ -96,10 +98,27 @@ class RealtimeViewController: UIViewController {
         loadPhoto.addTarget(self, action: #selector(loadUserPhoto), for: .touchUpInside)
     }
 
-    @objc func addUser() {
-        let transaction = RealtimeTransaction()
+    @objc func free() {
+        let free = Transaction()
+        let testsNode = Node(key: "___tests", parent: .root)
+        free.removeValue(by: testsNode)
+        free.removeValue(by: testsNode.linksNode)
 
-        let user = RealtimeUser()
+        freeze()
+        free.commit(with: { _, error in
+            self.unfreeze()
+            if let e = error?.first {
+                self.setError(e.localizedDescription)
+            } else {
+                self.setSuccess()
+            }
+        })
+    }
+
+    @objc func addUser() {
+        let transaction = Transaction()
+
+        let user = User()
         user.name <== "userName"
         user.age <== 100
 
@@ -122,9 +141,9 @@ class RealtimeViewController: UIViewController {
     }
 
     @objc func addGroup() {
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
 
-        let group = RealtimeGroup()
+        let group = Group()
         group.name <== "groupName"
 
         try! Global.rtGroups.write(element: group, in: transaction)
@@ -143,14 +162,14 @@ class RealtimeViewController: UIViewController {
 
     @objc func removeUser() {
         guard let ref = user?.node ?? Global.rtUsers.first?.node else { return }
-        let u = RealtimeUser(in: ref)
+        let u = User(in: ref)
 
         let controller = UIAlertController(title: "", message: "Remove using:", preferredStyle: .alert)
 
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtUsers.remove(element: u)
 
-            transaction?.commit(with: { _, errs in
+            transaction.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -182,14 +201,14 @@ class RealtimeViewController: UIViewController {
 
     @objc func removeGroup() {
         guard let ref = group?.node ?? Global.rtGroups.first?.node else { return }
-        let grp = RealtimeGroup(in: ref)
+        let grp = Group(in: ref)
 
         let controller = UIAlertController(title: "", message: "Remove using:", preferredStyle: .alert)
 
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtGroups.remove(element: grp)
 
-            transaction?.commit(with: { _, errs in
+            transaction.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -225,11 +244,13 @@ class RealtimeViewController: UIViewController {
         let ug = try! u.groups.write(element: g)
         let gu = try! g.users.write(element: u)
 
-        let transaction = RealtimeTransaction()
+        let transaction = Transaction()
         try! u.ownedGroup.setValue(g, in: transaction)
-        transaction.merge(ug)
-        transaction.merge(gu)
+        try! transaction.merge(ug)
+        try! transaction.merge(gu)
+        freeze()
         transaction.commit(with: { _, errs in
+            self.unfreeze()
             if let errors = errs {
                 print(errors)
             } else {
@@ -250,7 +271,9 @@ class RealtimeViewController: UIViewController {
             let transaction = g.users.remove(element: u)
             try! u.ownedGroup.setValue(nil, in: transaction)
 
+            self.freeze()
             transaction?.commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -264,7 +287,9 @@ class RealtimeViewController: UIViewController {
             let transaction = u.groups.remove(element: g)
             try! g.manager.setValue(nil, in: transaction)
 
+            self.freeze()
             transaction?.commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 } else {
@@ -280,7 +305,8 @@ class RealtimeViewController: UIViewController {
     @objc func addConversation() {
         guard let u = user ?? Global.rtUsers.first, let g = group ?? Global.rtGroups.first else { fatalError() }
 
-        let conversationUser = RealtimeUser()
+        let conversationUser = User()
+        conversationUser.age <== 100
         conversationUser.name <== "Conversation #"
         let transaction = try! g.conversations.write(element: conversationUser, for: u)
 
@@ -344,6 +370,16 @@ class RealtimeViewController: UIViewController {
 
         present(picker, animated: true, completion: nil)
     }
+
+    func freeze() {
+        view.isUserInteractionEnabled = false
+        view.alpha = 0.7
+    }
+
+    func unfreeze() {
+        view.isUserInteractionEnabled = true
+        view.alpha = 1
+    }
 }
 
 extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
@@ -365,7 +401,8 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
 
         u.photo <== originalImage
 
-        try! u.update().commit(with: { _,_  in }, filesCompletion: { (results) in
+        let update = try! u.update()
+        update.commit(with: { _,_  in }, filesCompletion: { (results) in
             let errs = results.compactMap({ $0.1 })
             if !errs.isEmpty {
                 self.setError(errs.reduce("", { $0 + $1.localizedDescription }))

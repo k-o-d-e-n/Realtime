@@ -10,20 +10,35 @@ import UIKit
 import Realtime
 
 class TableCell: UITableViewCell {
+    lazy var indicator: UIActivityIndicatorView = UIActivityIndicatorView(activityIndicatorStyle: .gray).add(to: self.contentView) {
+        $0.center = self.contentView.center
+    }
     lazy var label: UILabel = UILabel().add(to: self.contentView) {
         $0.numberOfLines = 0
     }
 
+    func startIndicatorIfNeeeded() {
+        guard label.text == nil else {
+            return
+        }
+        indicator.startAnimating()
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
-        label.frame = contentView.bounds
+        label.frame = contentView.bounds.offsetBy(dx: 15, dy: 0)
+    }
+
+    override func prepareForReuse() {
+        label.text = nil
     }
 }
 
 class RealtimeTableController: UIViewController {
     var store = ListeningDisposeStore()
     var tableView: UITableView! { return view as! UITableView }
-    var delegate: SingleSectionTableViewDelegate<RealtimeUser>!
+    var delegate: SingleSectionTableViewDelegate<User>!
+    weak var activityView: UIActivityIndicatorView!
 
     override func loadView() {
         view = UITableView()
@@ -32,9 +47,13 @@ class RealtimeTableController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        let iView = UIActivityIndicatorView(activityIndicatorStyle: .gray)
+        navigationItem.titleView = iView
+        self.activityView = iView
+
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: NSStringFromClass(UITableViewCell.self))
         tableView.register(TableCell.self, forCellReuseIdentifier: NSStringFromClass(TableCell.self))
-        let users = RealtimeArray<RealtimeUser>(in: Node(key: "users", parent: .root))
+        let users = Global.rtUsers
         delegate = SingleSectionTableViewDelegate(users) { (table, ip, _) -> UITableViewCell in
             return table.dequeueReusableCell(withIdentifier: NSStringFromClass(TableCell.self), for: ip)
         }
@@ -44,8 +63,12 @@ class RealtimeTableController: UIViewController {
             }
         }
         delegate.register(TableCell.self) { (item, user) in
+            item.set(config: { (cell) in
+                cell.startIndicatorIfNeeeded()
+            })
             item.bind(user.name) { (cell, name) in
                 cell.label.text =? name
+                cell.indicator.stopAnimating()
             }
         }
         delegate.bind(tableView)
@@ -55,7 +78,14 @@ class RealtimeTableController: UIViewController {
             self?.tableView.reloadData()
         }.add(to: &store)
 
-        users.prepare(forUse: .just { _ in })
+        iView.startAnimating()
+        users.prepare(forUse: .just { u, e in
+            iView.stopAnimating()
+            u.forEach({ (user) in
+                /// unnecessary, is used for tests
+                user.name.runObserving()
+            })
+        })
     }
 }
 

@@ -6,9 +6,10 @@
 //
 
 import Foundation
+import FirebaseDatabase
 
-extension RealtimeValueOption {
-    static let elementBuilder = RealtimeValueOption("realtime.collection.builder")
+extension ValueOption {
+    static let elementBuilder = ValueOption("realtime.collection.builder")
 }
 
 public typealias Changes = (deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)])
@@ -20,13 +21,13 @@ public enum RCEvent {
 
 /// -----------------------------------------
 
-// TODO: For Value of RealtimeDictionary is not defined payloads
-struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireDataValueRepresented {
+// TODO: For Value of AssociatedValues is not defined payloads
+struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
     let dbKey: String!
     let linkID: String
     let index: Int
-    let internalPayload: (mv: Int?, raw: FireDataValue?)
-    let payload: [String: FireDataValue]?
+    let internalPayload: (mv: Int?, raw: RealtimeDataValue?)
+    let payload: [String: RealtimeDataValue]?
 
     init<T: RealtimeValue>(element: T, key: String, linkID: String, index: Int) {
         self.dbKey = key
@@ -44,46 +45,46 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
         self.internalPayload = (element.version, element.raw)
     }
 
-    init(fireData: FireDataProtocol) throws {
-        guard let key = fireData.dataKey else {
-            throw RealtimeError(initialization: RCItem.self, fireData)
+    init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard let key = data.node?.key else {
+            throw RealtimeError(initialization: RCItem.self, data)
         }
-        guard fireData.hasChildren() else { // TODO: For test, remove!
-            guard let val = fireData.value as? [String: FireDataValue],
+        guard data.hasChildren() else { // TODO: For test, remove!
+            guard let val = data.value as? [String: RealtimeDataValue],
                 let value = val.first,
                 let linkValue = value.value as? [String: Any],
                 let index = linkValue[InternalKeys.index.rawValue] as? Int
             else {
-                throw RealtimeError(initialization: RCItem.self, fireData)
+                throw RealtimeError(initialization: RCItem.self, data)
             }
 
             self.dbKey = key
             self.linkID = value.key
             self.index = index
-            self.payload = linkValue[InternalKeys.payload.rawValue] as? [String: FireDataValue]
-            self.internalPayload = (linkValue[InternalKeys.modelVersion.rawValue] as? Int, linkValue[InternalKeys.raw.rawValue] as? FireDataValue)
+            self.payload = linkValue[InternalKeys.payload.rawValue] as? [String: RealtimeDataValue]
+            self.internalPayload = (linkValue[InternalKeys.modelVersion.rawValue] as? Int, linkValue[InternalKeys.raw.rawValue] as? RealtimeDataValue)
             return
         }
-        guard let value = fireData.makeIterator().next() else {
-            throw RealtimeError(initialization: RCItem.self, fireData)
+        guard let value = data.makeIterator().next() else {
+            throw RealtimeError(initialization: RCItem.self, data)
         }
-        guard let linkID = value.dataKey else {
-            throw RealtimeError(initialization: RCItem.self, fireData)
+        guard let linkID = value.node?.key else {
+            throw RealtimeError(initialization: RCItem.self, data)
         }
         guard let index: Int = InternalKeys.index.map(from: value) else {
-            throw RealtimeError(initialization: RCItem.self, fireData)
+            throw RealtimeError(initialization: RCItem.self, data)
         }
 
         self.dbKey = key
         self.linkID = linkID
         self.index = index
         self.payload = InternalKeys.payload.map(from: value)
-        self.internalPayload = (InternalKeys.modelVersion.map(from: fireData), InternalKeys.raw.map(from: fireData))
+        self.internalPayload = (InternalKeys.modelVersion.map(from: data), InternalKeys.raw.map(from: data))
     }
 
-    var fireValue: FireDataValue {
-        var value: [String: FireDataValue] = [:]
-        let link: [String: FireDataValue] = [InternalKeys.index.rawValue: index]
+    var rdbValue: RealtimeDataValue {
+        var value: [String: RealtimeDataValue] = [:]
+        let link: [String: RealtimeDataValue] = [InternalKeys.index.rawValue: index]
         value[linkID] = link
         if let mv = internalPayload.mv {
             value[InternalKeys.modelVersion.rawValue] = mv
@@ -107,6 +108,7 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, FireDataRepresented, FireData
     }
 }
 
+/// A type that stores collection values and responsible for lazy initialization elements
 public protocol RealtimeCollectionStorage {
     associatedtype Value
 }
@@ -132,9 +134,11 @@ extension MutableRCStorage {
     }
 }
 
+/// A type that stores an abstract elements, receives the notify about a change of collection
 public protocol RealtimeCollectionView {}
 protocol RCView: RealtimeCollectionView, BidirectionalCollection, RequiresPreparation {}
 
+/// A type that makes possible to do someone actions related with collection
 public protocol RealtimeCollectionActions {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
@@ -167,7 +171,7 @@ protocol RC: RealtimeCollection, RealtimeValueEvents where Storage: RCStorage {
     var _view: View { get }
 }
 
-/// MARK: RealtimeArray separated, new version
+/// MARK: Values separated, new version
 
 protocol KeyValueAccessableCollection {
     associatedtype Key
@@ -188,10 +192,23 @@ extension Dictionary: KeyValueAccessableCollection {
     }
 }
 
+/// A type that does not ready to use after instance initialization,
+/// or has limited using, because requires remote data.
 public protocol RequiresPreparation {
+    /// Indicates that instance is ready to use
     var isPrepared: Bool { get }
+    /// Calls loading required data
+    ///
+    /// - Parameter completion: Callback on result of loading
     func prepare(forUse completion: Assign<(Error?)>)
+    /// Calls loading required data recursivly
+    ///
+    /// If current type encapsulates some type conforms this protocol,
+    /// call his preparation in this method.
+    ///
+    /// - Parameter completion: Callback on result of loading
     func prepareRecursive(forUse completion: @escaping (Error?) -> Void)
+    /// Method that should call after successful preparation.
     func didPrepare()
 }
 
@@ -263,7 +280,7 @@ public extension RealtimeCollection {
 
     func filtered<ValueGetter: Listenable & RealtimeValueActions>(
         map values: @escaping (Iterator.Element) -> ValueGetter,
-        predicate: @escaping (ValueGetter.OutData) -> Bool,
+        predicate: @escaping (ValueGetter.Out) -> Bool,
         onCompleted: @escaping ([Iterator.Element]) -> ()
     ) {
         var filteredElements: [Iterator.Element] = []
@@ -295,14 +312,37 @@ public extension RealtimeCollection {
         }
     }
 }
+extension RealtimeCollection where Self: AnyObject, Element: RealtimeValue {
+    public mutating func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
+        filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
+    }
 
-public typealias RCElementBuilder<Element> = (Node, [RealtimeValueOption: Any]) -> Element
+    public mutating func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
+        guard let ref = node?.reference() else  {
+            fatalError("Can`t get database reference")
+        }
+        checkPreparation()
+
+        var collection = self
+        query(ref).observeSingleEvent(of: .value, with: { (data) in
+            do {
+                try collection.apply(data, exactly: false)
+                completion(collection.filter { data.hasChild($0.dbKey) }, nil)
+            } catch let e {
+                completion(collection.filter { data.hasChild($0.dbKey) }, e)
+            }
+        }) { (error) in
+            completion([], error)
+        }
+    }
+}
+
+public typealias RCElementBuilder<Element> = (Node, [ValueOption: Any]) -> Element
 public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     public typealias Value = V
     var sourceNode: Node!
     let elementBuilder: RCElementBuilder<V>
     var elements: [String: Value] = [:]
-    var localElements: [V] = []
 
     mutating func store(value: Value, by key: RCItem) { elements[for: key.dbKey] = value }
     func storedValue(by key: RCItem) -> Value? { return elements[for: key.dbKey] }
@@ -312,12 +352,13 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     }
 }
 
-public struct AnyArrayStorage: RealtimeCollectionStorage {
+/// Type-erased Realtime collection storage
+public struct AnyRCStorage: RealtimeCollectionStorage {
     public typealias Value = Any
 }
 
-public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyObject>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
-    let source: RealtimeProperty<Source>
+final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyObject>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
+    let source: Property<Source>
     weak var collection: Viewed?
     var listening: Disposable!
 
@@ -325,7 +366,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
         return source.wrapped ?? Source()
     }
 
-    public internal(set) var isPrepared: Bool = false {
+    internal(set) var isPrepared: Bool = false {
         didSet {
             if isPrepared, oldValue == false {
                 didPrepare()
@@ -333,7 +374,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
         }
     }
 
-    init(_ source: RealtimeProperty<Source>) {
+    init(_ source: Property<Source>) {
         self.source = source
         self.listening = source
             .livetime(self)
@@ -350,7 +391,7 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
         listening.dispose()
     }
 
-    public func prepare(forUse completion: Assign<(Error?)>) {
+    func prepare(forUse completion: Assign<(Error?)>) {
         guard !isPrepared else { completion.assign(nil); return }
 
         source.load(completion:
@@ -359,19 +400,19 @@ public final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection 
             })
         )
     }
-    public func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
+    func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
         // TODO:
     }
 
-    public func didPrepare() {
+    func didPrepare() {
         collection?.didPrepare()
     }
 
-    public var startIndex: Source.Index { return value.startIndex }
-    public var endIndex: Source.Index { return value.endIndex }
-    public func index(after i: Source.Index) -> Source.Index { return value.index(after: i) }
-    public func index(before i: Source.Index) -> Source.Index { return value.index(before: i) }
-    public subscript(position: Source.Index) -> Source.Element { return value[position] }
+    var startIndex: Source.Index { return value.startIndex }
+    var endIndex: Source.Index { return value.endIndex }
+    func index(after i: Source.Index) -> Source.Index { return value.index(after: i) }
+    func index(before i: Source.Index) -> Source.Index { return value.index(before: i) }
+    subscript(position: Source.Index) -> Source.Element { return value[position] }
 }
 
 extension AnyRealtimeCollectionView where Source == Array<RCItem> {
@@ -400,6 +441,9 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
         value.remove(at: i)
         source._setValue(.remote(value, exact: false))
         return i
+    }
+    func removeAll() {
+        source._setLocalValue([])
     }
 }
 

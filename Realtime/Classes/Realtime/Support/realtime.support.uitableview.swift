@@ -10,24 +10,25 @@
 import UIKit
 
 public class ReuseItem<View: AnyObject> {
-    private weak var view: View? {
-        didSet {
-            if let v = view, v !== oldValue {
-                reload()
-            }
-        }
-    }
+    lazy var view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, queue: .main)
     private var listeningItems: [ListeningItem] = []
 
     init() {}
-    deinit { free() }
+    deinit {
+        print("deinit")
+        free()
+    }
 
-    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.OutData) -> Void) {
-        var data: T.OutData {
-            set { view.map { v in assign(v, newValue) } }
-            get { fatalError() }
-        }
-        listeningItems.append(value.listeningItem(onValue: { data = $0 }))
+    /// Connects listanable value with view
+    ///
+    /// Use this function if listenable has been modified somehow
+    ///
+    /// - Parameters:
+    ///   - value: Listenable value
+    ///   - source: Source of value
+    ///   - assign: Closure that calls on receieve value
+    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
+        listeningItems.append(compactMap().join(with: value).listeningItem(onValue: assign))
 
         guard source.canObserve else { return }
         if source.runObserving() {
@@ -37,12 +38,13 @@ public class ReuseItem<View: AnyObject> {
         }
     }
 
-    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.OutData) -> Void) {
-        var data: T.OutData {
-            set { view.map { v in assign(v, newValue) } }
-            get { fatalError() }
-        }
-        listeningItems.append(value.listeningItem(onValue: { data = $0 }))
+    /// Connects listanable value with view
+    ///
+    /// - Parameters:
+    ///   - value: Listenable value
+    ///   - assign: Closure that calls on receieve value
+    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
+        listeningItems.append(compactMap().join(with: value).listeningItem(onValue: assign))
 
         guard value.canObserve else { return }
         if value.runObserving() {
@@ -52,34 +54,47 @@ public class ReuseItem<View: AnyObject> {
         }
     }
 
+    /// Sets value immediatelly when view will be received
+    ///
+    /// - Parameters:
+    ///   - value: Some value
+    ///   - assign: Closure that calls on receive view
     public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
-        listeningItems.append(filter({ $0 != nil }).map({ $0! }).listeningItem(onValue: { assign($0, value) }))
+        listeningItems.append(flatMap({ $0 }).listeningItem(onValue: { assign($0, value) }))
+    }
+
+    /// Adds configuration block that will be called on receive view
+    ///
+    /// - Parameters:
+    ///   - config: Closure to configure view
+    public func set(config: @escaping (View) -> Void) {
+        listeningItems.append(flatMap({ $0 }).listeningItem(onValue: config))
     }
 
     func free() {
         listeningItems.forEach { $0.dispose() }
         listeningItems.removeAll()
-        view = nil
+        view.value = nil
     }
 
     func set(view: View) {
-        self.view = view
-        repeater.send(.value(view))
+        if self.view.value !== view {
+            reload()
+        }
+        self.view.value = view
     }
 
     func reload() {
         listeningItems.forEach { $0.resume() }
     }
-
-    lazy var repeater: Repeater<View?> = Repeater.unsafe()
 }
 extension ReuseItem: Listenable {
     public func listening(_ assign: Assign<ListenEvent<View?>>) -> Disposable {
-        return repeater.listening(assign)
+        return view.listening(assign)
     }
 }
 
-public class ReuseController<View: AnyObject, Key: Hashable> {
+class ReuseController<View: AnyObject, Key: Hashable> {
     private var freeItems: [ReuseItem<View>] = []
     private var activeItems: [Key: ReuseItem<View>] = [:]
 
@@ -112,11 +127,13 @@ public class ReuseController<View: AnyObject, Key: Hashable> {
 //    }
 }
 
+/// A type that responsible for editing of table
 public protocol RealtimeEditingTableDataSource: class {
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath)
     func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath)
 }
 
+/// A proxy base class that provides tools to manage UITableView reactively.
 open class RealtimeTableViewDelegate<Model, Section> {
     public typealias BindingCell<Cell: AnyObject> = (ReuseItem<Cell>, Model) -> Void
     public typealias ConfigureCell = (UITableView, IndexPath, Model) -> UITableViewCell
@@ -132,19 +149,27 @@ open class RealtimeTableViewDelegate<Model, Section> {
         self.configureCell = cell
     }
 
+    /// Registers new type of cell with binding closure
+    ///
+    /// - Parameters:
+    ///   - cell: Cell type inherited from `UITableViewCell`.
+    ///   - binding: Closure to bind model.
     open func register<Cell: UITableViewCell>(_ cell: Cell.Type, binding: @escaping BindingCell<Cell>) {
         registeredCells[cell.typeKey] = unsafeBitCast(binding, to: BindingCell<UITableViewCell>.self)
     }
 
+    /// Binds UITableView instance to this delegate
     open func bind(_ tableView: UITableView) {
         fatalError("Implement in subclass")
     }
 
+    /// Returns `Model` element at index path
     open func model(at indexPath: IndexPath) -> Model {
         fatalError("Implement in subclass")
     }
 }
 
+/// A class that provides tools to manage UITableView data source reactively.
 public final class SingleSectionTableViewDelegate<Model>: RealtimeTableViewDelegate<Model, Void> {
     fileprivate lazy var delegateService: Service = Service(self)
 
@@ -156,6 +181,7 @@ public final class SingleSectionTableViewDelegate<Model>: RealtimeTableViewDeleg
             super.init(cell: cell)
     }
 
+    /// Sets new source of elements
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
         where C.Element == Model, C.Index == Int {
             self.reuseController.freeAll()
@@ -265,6 +291,11 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
             super.init(cell: cell)
     }
 
+    /// Registers new type of header/footer with binding closure
+    ///
+    /// - Parameters:
+    ///   - header: Header type inherited from `UITableViewHeaderFooterView`.
+    ///   - binding: Closure to bind model.
     public func register<Header: UITableViewHeaderFooterView>(_ header: Header.Type, binding: @escaping BindingSection<Header>) {
         registeredHeaders[TypeKey.for(header)] = unsafeBitCast(binding, to: BindingSection<UIView>.self)
     }
@@ -273,10 +304,12 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
         return mapElement(sections[indexPath.section], indexPath.row)
     }
 
+    /// Returns `Section` element at index
     public func section(at index: Int) -> Section {
         return sections[index]
     }
 
+    /// Sets new source of elements
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
         where C.Element == Section, C.Index == Int {
             self.reuseController.freeAll()
