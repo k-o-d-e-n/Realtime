@@ -85,11 +85,11 @@ public extension Dictionary where Key == ValueOption {
     }
 }
 public extension RealtimeDataProtocol {
-    var version: Int? {
-        return InternalKeys.modelVersion.map(from: self)
+    func version() throws -> Int? {
+        return try InternalKeys.modelVersion.map(from: self)
     }
-    var rawValue: RealtimeDataValue? {
-        return InternalKeys.raw.map(from: self)
+    func rawValue() throws -> RealtimeDataValue? {
+        return try InternalKeys.raw.map(from: self)
     }
 }
 
@@ -124,6 +124,11 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
     init(in node: Node?, options: [ValueOption: Any])
+}
+extension RealtimeValue {
+    internal var systemPayload: InternalPayload {
+        return (version, raw)
+    }
 }
 
 extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {

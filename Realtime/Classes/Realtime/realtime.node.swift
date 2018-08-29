@@ -10,7 +10,7 @@ import Foundation
 import FirebaseDatabase
 import FirebaseStorage
 
-enum InternalKeys: String {
+enum InternalKeys: String, CodingKey {
     case modelVersion = "__mv"
     case links = "__links"
     case items = "__itms"
@@ -288,15 +288,6 @@ extension Node: Sequence {
     }
 }
 
-public extension RealtimeDataProtocol {
-    func map<Mapped>(_ transform: (Any) -> Mapped = { $0 as! Mapped }) -> Mapped? { return value.map(transform) }
-    func flatMap<Mapped>(_ transform: (Any) -> Mapped? = { $0 as? Mapped }) -> Mapped? { return value.flatMap(transform) }
-    func map<Mapped>(child path: String, map: (RealtimeDataProtocol) -> Mapped? = { $0.flatMap() }) -> Mapped? {
-        guard hasChild(path) else { return nil }
-        return map(child(forPath: path))
-    }
-    func mapExactly(if truth: Bool, child path: String, map: (RealtimeDataProtocol) -> Void) { if truth || hasChild(path) { map(child(forPath: path)) } }
-}
 
 public extension RawRepresentable where Self.RawValue == String {
     /// checks availability child in snapshot with node name   
@@ -309,12 +300,10 @@ public extension RawRepresentable where Self.RawValue == String {
         return parent.child(forPath: rawValue)
     }
 
-    func map<Returned>(from parent: RealtimeDataProtocol) -> Returned? {
-        return parent.map(child: rawValue) { $0.value as? Returned }
-    }
+    func map<Returned>(from parent: RealtimeDataProtocol) throws -> Returned? {
+        guard parent.hasChild(rawValue) else { return nil }
 
-    func take(from parent: RealtimeDataProtocol, exactly: Bool, map: (RealtimeDataProtocol) -> Void) {
-        parent.mapExactly(if: exactly, child: rawValue, map: map)
+        return try parent.child(forPath: rawValue).unbox(as: Returned.self)
     }
 
     func path(from superpath: String, to subpath: String? = nil) -> String {

@@ -181,13 +181,13 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         try apply(data, exactly: exactly)
     }
 
-    func _apply_RealtimeValue(_ data: RealtimeDataProtocol, exactly: Bool) {
-        version = data.version
-        raw = data.rawValue
-        payload = InternalKeys.payload.map(from: data)
+    func _apply_RealtimeValue(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        version = try data.version()
+        raw = try data.rawValue()
+        payload = try InternalKeys.payload.map(from: data)
     }
     open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        _apply_RealtimeValue(data, exactly: exactly)
+        try _apply_RealtimeValue(data, exactly: exactly)
     }
     
     public var debugDescription: String {

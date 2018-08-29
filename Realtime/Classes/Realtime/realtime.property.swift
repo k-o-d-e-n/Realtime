@@ -55,11 +55,11 @@ public extension RawRepresentable where Self.RawValue == String {
         return property(from: node, representer: Representer<V>.json)
     }
 
-    func reference<V: Object>(from node: Node?, mode: ReferenceMode) -> Reference<V> {
-        return Reference(in: Node(key: rawValue, parent: node), mode: .required(mode))
+    func reference<V: Object>(from node: Node?, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V> {
+        return Reference(in: Node(key: rawValue, parent: node), mode: .required(mode, options: options))
     }
-    func reference<V: Object>(from node: Node?, mode: ReferenceMode) -> Reference<V?> {
-        return Reference(in: Node(key: rawValue, parent: node), mode: .optional(mode))
+    func reference<V: Object>(from node: Node?, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V?> {
+        return Reference(in: Node(key: rawValue, parent: node), mode: .optional(mode, options: options))
     }
     func relation<V: Object>(from node: Node?, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> Relation<V> {
         return Relation(in: Node(key: rawValue, parent: node),
@@ -117,7 +117,7 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
     }
 
     public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        _apply_RealtimeValue(data, exactly: exactly)
+        try _apply_RealtimeValue(data, exactly: exactly)
         try super.apply(data, exactly: exactly)
     }
 
@@ -129,12 +129,12 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
     public struct Mode {
         let representer: Representer<Referenced?>
 
-        public static func required(_ mode: ReferenceMode) -> Mode {
-            return Mode(representer: Representer.reference(mode).requiredProperty())
+        public static func required(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode {
+            return Mode(representer: Representer.reference(mode, options: options).requiredProperty())
         }
 
-        public static func optional<U: RealtimeValue>(_ mode: ReferenceMode) -> Mode where Referenced == Optional<U> {
-            return Mode(representer: Representer.reference(mode).optionalProperty())
+        public static func optional<U: RealtimeValue>(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode where Referenced == Optional<U> {
+            return Mode(representer: Representer.reference(mode, options: options).optionalProperty())
         }
     }
 
@@ -215,7 +215,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     }
 
     public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        _apply_RealtimeValue(data, exactly: exactly)
+        try _apply_RealtimeValue(data, exactly: exactly)
         try super.apply(data, exactly: exactly)
     }
 

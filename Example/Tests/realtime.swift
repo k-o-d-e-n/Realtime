@@ -573,6 +573,21 @@ extension Tests {
         }
     }
 
+    func testReferenceRepresentationPayload() {
+        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.payload: ["foo": "bar"]]))
+        let representer = Representer<ValueWithPayload>.reference(.fullPath, options: [:])
+
+        do {
+            let result = try representer.encode(value)
+
+            XCTAssertEqual(result as? NSDictionary, ["ref": "/path/subpath",
+                                                     InternalKeys.raw.rawValue: 1,
+                                                     InternalKeys.payload.rawValue: ["foo": "bar"]])
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+    }
+
     func testNode() {
         let first = Node(key: "first", parent: .root)
 
@@ -669,7 +684,7 @@ extension Tests {
         }
 
         init(data: RealtimeDataProtocol, exactly: Bool) throws {
-            let raw: CShort = data.rawValue as? CShort ?? 0
+            let raw: CShort = try data.rawValue() as? CShort ?? 0
 
             switch raw {
             case 1: self = .two(try TestObject(data: data, exactly: exactly))
@@ -679,7 +694,7 @@ extension Tests {
 
         mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
             try value.apply(data, exactly: exactly)
-            let r = data.rawValue as? Int ?? 0
+            let r = try data.rawValue() as? Int ?? 0
             if raw as? Int != r {
                 switch r {
                 case 1: self = .two(value)
@@ -772,7 +787,7 @@ extension Tests {
     }
 
     func testReferenceFireValue() {
-        let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").rootPath)
+        let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").rootPath, payload: ((nil, nil), nil))
         let fireValue = ref.rdbValue
         XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "/first/two"])
     }

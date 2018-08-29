@@ -9,7 +9,6 @@
 
 import UIKit
 
-    }
 public class ReuseItem<View: AnyObject> {
     lazy var view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil)
     private var listeningItems: [ListeningItem] = []

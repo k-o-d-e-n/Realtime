@@ -64,15 +64,15 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, Real
         guard let linkID = value.node?.key else {
             throw RealtimeError(initialization: RCItem.self, data)
         }
-        guard let index: Int = InternalKeys.index.map(from: value) else {
+        guard let index: Int = try InternalKeys.index.map(from: value) else {
             throw RealtimeError(initialization: RCItem.self, data)
         }
 
         self.dbKey = key
         self.linkID = linkID
         self.index = index
-        self.payload = InternalKeys.payload.map(from: value)
-        self.internalPayload = (InternalKeys.modelVersion.map(from: data), InternalKeys.raw.map(from: data))
+        self.payload = try InternalKeys.payload.map(from: value)
+        self.internalPayload = try (InternalKeys.modelVersion.map(from: data), InternalKeys.raw.map(from: data))
     }
 
     var rdbValue: RealtimeDataValue {

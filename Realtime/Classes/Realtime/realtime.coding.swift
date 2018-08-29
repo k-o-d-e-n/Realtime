@@ -401,7 +401,7 @@ public extension Representer where V: RealtimeValue {
     ///
     /// - Parameter mode: Representation mode
     /// - Returns: Reference representer
-    static func reference(_ mode: ReferenceMode) -> Representer<V> {
+    static func reference(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 switch mode {
@@ -421,7 +421,6 @@ public extension Representer where V: RealtimeValue {
         },
             decoding: { (data) in
                 let reference = try ReferenceRepresentation(data: data)
-                let options: [ValueOption: Any] = [.internalPayload: InternalPayload(data.version, data.rawValue)]
                 switch mode {
                 case .fullPath: return reference.make(options: options)
                 case .path(from: let n): return reference.make(in: n, options: options)
