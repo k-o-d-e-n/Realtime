@@ -170,7 +170,9 @@ public extension RealtimeValue {
     internal mutating func apply(parentDataIfNeeded parent: RealtimeDataProtocol, exactly: Bool) throws {
         guard exactly || dbKey.has(in: parent) else { return }
 
-        try apply(dbKey.child(from: parent), exactly: exactly)
+        /// if data has the data associated with current value,
+        /// then data is full and we must pass `true` to `exactly` parameter.
+        try apply(dbKey.child(from: parent), exactly: true)
     }
 }
 

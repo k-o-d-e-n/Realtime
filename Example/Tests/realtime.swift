@@ -505,7 +505,7 @@ extension Tests {
             let groupCopy = try Group(data: data.child(forPath: group.node!.rootPath), exactly: false)
 
             let groupBackwardRelation: Relation<Group> = group._manager.options.property.path(for: group.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
-            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: false)
+            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: true)
 
             XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
             XCTAssertTrue(group._manager.wrapped?.dbKey == user.dbKey)
