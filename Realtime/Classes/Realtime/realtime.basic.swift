@@ -194,9 +194,9 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     /// Runs observing value, if
     ///
     /// - Returns: True if running was successful or observing already run, otherwise false
-    @discardableResult func runObserving() -> Bool
+    @discardableResult func runObserving(_ event: DatabaseDataEvent) -> Bool
     /// Stops observing, if observers no more.
-    func stopObserving()
+    func stopObserving(_ event: DatabaseDataEvent)
 }
 /// A type that can receive Realtime database events
 public protocol RealtimeValueEvents {

@@ -74,18 +74,43 @@ class RealtimeTableController: UIViewController {
         delegate.bind(tableView)
         delegate.tableDelegate = self
 
-        users.listening { [weak self] in
-            self?.tableView.reloadData()
-        }.add(to: &store)
+//        users.listening { [weak self] in
+//            self?.tableView.reloadData()
+//        }.add(to: &store)
 
         iView.startAnimating()
         users.prepare(forUse: .just { u, e in
+            print("ERROR:", e?.localizedDescription as Any)
             iView.stopAnimating()
             u.forEach({ (user) in
                 /// unnecessary, is used for tests
                 user.name.runObserving()
             })
         })
+
+        let events = users.listeningEvents()
+        events.listening(onValue: { [unowned self] change in
+            print(change)
+            switch change {
+            case .initial:
+                self.tableView.reloadData()
+            case .updated(let deleted, let inserted, let modified, let moved):
+                self.tableView.beginUpdates()
+                self.tableView.insertRows(at: inserted.map { IndexPath(row: $0, section: 0) }, with: .automatic)
+                self.tableView.deleteRows(at: deleted.map { IndexPath(row: $0, section: 0) }, with: .automatic)
+                self.tableView.reloadRows(at: modified.map { IndexPath(row: $0, section: 0) }, with: .automatic)
+                moved.forEach({ (move) in
+                    self.tableView.moveRow(at: IndexPath(row: move.from, section: 0), to: IndexPath(row: move.to, section: 0))
+                })
+                self.tableView.endUpdates()
+            case .error(let e):
+                print(e.localizedDescription)
+            }
+        }).add(to: &store)
+        events.listening { (err) in
+            print(err.localizedDescription)
+        }.add(to: &store)
+        users.runObserving()
     }
 }
 

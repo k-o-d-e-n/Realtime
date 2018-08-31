@@ -109,9 +109,36 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         return _view.source.map { _ in }.listeningItem(onValue: handler)
     }
     @discardableResult
-    override public func runObserving() -> Bool { return _view.source.runObserving() }
-    override public func stopObserving() { _view.source.stopObserving() }
+    override public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return _view.source.runObserving(event) }
+    override public func stopObserving(_ event: DatabaseDataEvent) { _view.source.stopObserving(event) }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
+
+    public func listeningEvents() -> Preprocessor<(RealtimeDataProtocol, DatabaseDataEvent), RCEvent> {
+        guard _view.source.isRooted else {
+            fatalError("Can`t get reference")
+        }
+
+        return _view.source.dataObserver.map { [unowned self] (value) -> RCEvent in
+            switch value.1 {
+            case .value:
+                return .initial
+            case .childAdded:
+                let item = try RCItem(data: value.0)
+                self._view.insertRemote(item, at: item.index)
+                return .updated((deleted: [], inserted: [item.index], modified: [], moved: []))
+            case .childRemoved:
+                let item = try RCItem(data: value.0)
+                let index = self._view.removeRemote(item)
+                return .updated((deleted: index.map { [$0] } ?? [], inserted: [], modified: [], moved: []))
+            case .childChanged:
+                let item = try RCItem(data: value.0)
+                let index = self._view.first(where: { $0.dbKey == item.dbKey })?.index
+                return .updated((deleted: [], inserted: [], modified: [], moved: index.map { [($0, item.index)] } ?? []))
+            case .childMoved:
+                return .updated((deleted: [], inserted: [], modified: [], moved: []))
+            }
+        }
+    }
 
     override public var debugDescription: String {
         return """
@@ -343,7 +370,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         let elems = storage.elements
         storage.elements.removeAll()
         for (index, element) in elems.enumerated() {
-            _view.remove(at: index)
+            _ = _view.remove(at: index)
             try _write(element.value,
                        at: index,
                        by: (storage: node,

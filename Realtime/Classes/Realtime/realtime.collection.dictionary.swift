@@ -116,33 +116,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     public func index(before i: Int) -> Int { return _view.index(before: i) }
 
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
-    public func listeningEvents() -> Accumulator<RCEvent> {
-        guard let db = _view.source.database, let node = _view.source.node else {
-            fatalError("Can`t get reference")
-        }
-        let repeater = Repeater<RCEvent>.unsafe()
-        return Accumulator(
-            repeater: repeater,
-            db.data(.childAdded, node: node).map({ (data) -> RCEvent in
-                let item = try RCItem(data: data)
-                self._view.insert(item, at: item.index)
-                return .updated((deleted: [], inserted: [item.index], modified: [], moved: []))
-            }),
-            db.data(.childRemoved, node: node).map { (data) -> RCEvent in
-                let item = try RCItem(data: data)
-                let index = self._view.removeRemote(item)
-                return .updated((deleted: index.map { [$0] } ?? [], inserted: [], modified: [], moved: []))
-            },
-            db.data(.childChanged, node: node).map { (data) -> RCEvent in
-                let item = try RCItem(data: data)
-                let index = self._view.first(where: { $0.dbKey == item.dbKey })?.index
-                return .updated((deleted: [], inserted: [], modified: [], moved: index.map { [($0, item.index)] } ?? []))
-            }
-        )
-    }
     @discardableResult
-    override public func runObserving() -> Bool { return _view.source.runObserving() }
-    override public func stopObserving() { _view.source.stopObserving() }
+    override public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return _view.source.runObserving(event) }
+    override public func stopObserving(_ event: DatabaseDataEvent) { _view.source.stopObserving(event) }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
     override public var debugDescription: String {

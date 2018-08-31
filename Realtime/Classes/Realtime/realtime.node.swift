@@ -21,7 +21,7 @@ enum InternalKeys: String {
 }
 
 /// Represents reference to database tree node
-public class Node: Equatable {
+public class Node: Hashable {
     /// Root node
     public static let root: Node = Root()
     class Root: Node {
@@ -41,6 +41,10 @@ public class Node: Equatable {
     public let key: String
     /// Parent node
     public internal(set) var parent: Node?
+
+    public var hashValue: Int {
+        return reduce(into: key.hashValue, { $0 = $0 &- $1.hashValue })
+    }
 
     /// Creates new instance with automatically generated key
     ///

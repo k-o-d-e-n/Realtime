@@ -293,7 +293,7 @@ public extension ValueOption {
 public extension _RealtimeValue {
     public enum State<T> {
         case local(T)
-        case remote(T, exact: Bool)
+        case remote(T)
         case removed
         indirect case error(Error, last: State<T>?)
 //        case reverted(ListenValue<T>?)
@@ -316,7 +316,7 @@ extension _RealtimeValue.State: _Optional {
         switch self {
         case .removed: return nil
         case .local(let v): return v
-        case .remote(let v, _): return v
+        case .remote(let v): return v
         case .error(_, let v): return v?.wrapped
         }
     }
@@ -333,7 +333,7 @@ public extension _RealtimeValue.State where T: _Optional {
         switch self {
         case .removed: return nil
         case .local(let v): return v.wrapped
-        case .remote(let v, _): return v.wrapped
+        case .remote(let v): return v.wrapped
         case .error(_, let v): return v?.wrapped
         }
     }
@@ -533,14 +533,14 @@ public class ReadonlyProperty<T>: _RealtimeValue {
     }
 
     @discardableResult
-    public override func runObserving() -> Bool {
+    public override func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
         if isObserved {
             switch _value {
             case .none: break
             case .some(let e): repeater.send(.value(e))
             }
         }
-        return super.runObserving()
+        return super.runObserving(event)
     }
 
     @discardableResult
@@ -557,7 +557,7 @@ public class ReadonlyProperty<T>: _RealtimeValue {
             } else if let v = self._value {
                 switch v {
                 case .error(let e, last: _): fail.assign(e)
-                case .remote(let v, _): completion.assign(v)
+                case .remote(let v): completion.assign(v)
                 default: failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
                 }
             } else {
@@ -584,7 +584,7 @@ public class ReadonlyProperty<T>: _RealtimeValue {
         super.didSave(in: database, in: parent, by: key)
         switch _value {
         case .some(.local(let v)):
-            _setValue(.remote(v, exact: true))
+            _setValue(.remote(v))
         case .none: break
         default: break
             /// now `didSave` calls on update operation, because error does not valid this case
@@ -601,9 +601,13 @@ public class ReadonlyProperty<T>: _RealtimeValue {
 
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         /// skip the call of super
+        guard exactly else {
+            /// skip partial data, because representer can throw error
+            return
+        }
         do {
             if let value = try representer.decode(data) {
-                _setValue(.remote(value, exact: exactly))
+                _setValue(.remote(value))
             } else {
                 _setRemoved()
             }

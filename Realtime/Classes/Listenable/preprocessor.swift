@@ -389,6 +389,7 @@ extension Listenable {
 struct Memoize<T>: Listenable {
     let base: AnyListenable<T>
     let maxCount: Int
+    let sendOnResume: Bool
 
     func listening(_ assign: Assign<ListenEvent<[T]>>) -> Disposable {
         var memoized: [T] = []
@@ -408,21 +409,25 @@ struct Memoize<T>: Listenable {
                 return memoized
             })
             .listeningItem(assign)
-        return ListeningItem(
-            resume: {
-                item.resume()
-                assign.call(.value(memoized))
-                return ()
-        },
-            pause: item.pause,
-            token: ()
-        )
+        if sendOnResume {
+            return ListeningItem(
+                resume: {
+                    item.resume()
+                    assign.call(.value(memoized))
+                    return ()
+            },
+                pause: item.pause,
+                token: ()
+            )
+        } else {
+            return item
+        }
     }
 }
 
 extension Listenable {
-    func memoize(maxCount: Int) -> Memoize<Out> {
-        return Memoize(base: AnyListenable(self.listening, self.listeningItem), maxCount: maxCount)
+    func memoize(maxCount: Int, send: Bool, sendOnResume: Bool) -> Memoize<Out> {
+        return Memoize(base: AnyListenable(self.listening, self.listeningItem), maxCount: maxCount, sendOnResume: sendOnResume)
     }
 }
 

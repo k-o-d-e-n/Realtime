@@ -240,6 +240,8 @@ class FileNode: ValueNode {
 class CacheNode: ObjectNode, RealtimeDatabase {
     static let root: CacheNode = CacheNode(node: .root)
 
+//    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
+//    var store: ListeningDisposeStore = ListeningDisposeStore()
     var cachePolicy: CachePolicy {
         set {
             switch newValue {
@@ -268,6 +270,7 @@ class CacheNode: ObjectNode, RealtimeDatabase {
         do {
             try merge(with: transaction.updateNode, conflictResolver: { _, new in new.value })
             completion?(nil, self)
+//            _ = transaction.updateNode.sendEvents(for: observers)
         } catch let e {
             completion?(e, self)
         }
@@ -286,6 +289,9 @@ class CacheNode: ObjectNode, RealtimeDatabase {
     }
 
     func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
+//        let repeater: Repeater<RealtimeDataProtocol> = observers[node] ?? Repeater.unsafe()
+//
+//        return 0
         fatalError()
     }
 }
@@ -360,6 +366,24 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
             completion?(e, self)
         }
     }
+
+//    func sendEvents(for observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>]) -> DatabaseDataEvent {
+//        var childEvents: [DatabaseDataEvent] = []
+//        childs.forEach { (updateNode) in
+//            if case let obj as ObjectNode = updateNode {
+//                let event = obj.sendEvents(for: observers)
+//                childEvents.append(obj.sendEvents(for: observers))
+//                if let rptr = observers[obj.location] {
+//                    rptr.send(.value((obj, event)))
+//                }
+//            } else {
+//                childEvents.append(updateNode.value == nil ? .childRemoved : .childAdded)
+//                if let rptr = observers[updateNode.location] {
+//                    rptr.send(.value((updateNode, .value)))
+//                }
+//            }
+//        }
+//    }
 
     private func update(dbNode: UpdateNode, with value: Any) throws {
         if case let valNode as ValueNode = dbNode {

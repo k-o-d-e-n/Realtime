@@ -270,6 +270,10 @@ public extension Listenable {
     func listeningItem(onError assign: @escaping (Error) -> Void) -> ListeningItem {
         return listeningItem(onError: .just(assign))
     }
+
+    internal func asAny() -> AnyListenable<Out> {
+        return AnyListenable(self.listening, self.listeningItem)
+    }
 }
 
 struct AnyListenable<Out>: Listenable {
@@ -286,10 +290,10 @@ struct AnyListenable<Out>: Listenable {
         self._listeningItem = listeningItem
     }
 
-    func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
         return _listening(assign)
     }
-    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
         return _listeningItem(assign)
     }
 }

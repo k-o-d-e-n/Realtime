@@ -95,8 +95,8 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     public func index(before i: Int) -> Int { return _view.index(before: i) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
     @discardableResult
-    override public func runObserving() -> Bool { return _view.source.runObserving() }
-    override public func stopObserving() { _view.source.stopObserving() }
+    override public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return _view.source.runObserving(event) }
+    override public func stopObserving(_ event: DatabaseDataEvent) { _view.source.stopObserving(event) }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
     override public var debugDescription: String {
@@ -120,7 +120,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super
         for (index, element) in storage.elements.enumerated() {
-            _view.remove(at: index)
+            _ = _view.remove(at: index)
             try _write(element.value, at: index, by: node, in: transaction)
         }
     }

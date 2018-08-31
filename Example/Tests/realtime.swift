@@ -694,12 +694,12 @@ extension Tests {
 
         var canObserve: Bool { return value.canObserve }
 
-        func runObserving() -> Bool {
-            return value.runObserving()
+        func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
+            return value.runObserving(event)
         }
 
-        func stopObserving() {
-            value.stopObserving()
+        func stopObserving(_ event: DatabaseDataEvent) {
+            value.stopObserving(event)
         }
 
         func willSave(in transaction: Transaction, in parent: Node, by key: String) {
@@ -963,5 +963,55 @@ extension Tests {
             XCTFail(e.localizedDescription)
         }
         transaction.revert()
+    }
+
+    func testListeningCollectionChangesOnInsert() {
+        let exp = expectation(description: "")
+        let array = Values<User>(in: .root, options: [.database: CacheNode.root])
+
+        array.listeningEvents().listening({ (event) in
+            guard let value = event.value else {
+                XCTFail(event.error?.localizedDescription ?? "")
+                return
+            }
+            switch value {
+            case .initial:
+                XCTFail(".initial does not should call")
+            case .error(let e):
+                XCTFail(e.localizedDescription)
+            case .updated(_, let inserted, _, _):
+                XCTAssertEqual(inserted.count, 1)
+                exp.fulfill()
+            }
+        }).add(to: &store)
+
+        let element = User()
+        element.name <== "User"
+        element.age <== 100
+        element.photo <== #imageLiteral(resourceName: "pw")
+
+        do {
+            let transaction = Transaction(database: CacheNode.root)
+            let elementNode = array.storage.sourceNode.childByAutoId()
+            let itemNode = array.storage.sourceNode.child(with: InternalKeys.items).linksNode.child(with: elementNode.key)
+            let link = elementNode.generate(linkTo: itemNode)
+            let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, index: 0)
+
+            transaction.addValue(item.rdbValue, by: itemNode)
+            transaction.addValue(link.link.rdbValue, by: link.node)
+            try transaction.set(element, by: elementNode)
+
+            /// simulate notification
+            transaction.commit { (state, errors) in
+                errors.map { e in XCTFail(e.reduce("") { $0 + $1.localizedDescription }) }
+                array._view.source.dataObserver.send(.value((CacheNode.root.child(forPath: itemNode.rootPath), .childAdded)))
+            }
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+
+        waitForExpectations(timeout: 4) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+        }
     }
 }

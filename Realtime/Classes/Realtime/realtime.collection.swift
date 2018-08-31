@@ -149,9 +149,9 @@ public protocol RealtimeCollectionActions {
     /// Runs observing value, if
     ///
     /// - Returns: True if running was successful or observing already run, otherwise false
-    @discardableResult func runObserving() -> Bool
+    @discardableResult func runObserving(_ event: DatabaseDataEvent) -> Bool
     /// Stops observing, if observers no more.
-    func stopObserving()
+    func stopObserving(_ event: DatabaseDataEvent)
 }
 
 public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RealtimeCollectionActions, RequiresPreparation {
@@ -381,7 +381,7 @@ final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyOb
             .filter { [unowned self] _ in !self.isPrepared }
             .listening(onValue: .guarded(self) { event, view in
                 switch event {
-                case .remote(_, exact: let s): view.isPrepared = s
+                case .remote: view.isPrepared = true
                 default: break
                 }
             })
@@ -427,7 +427,7 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
     func insertRemote(_ element: RCItem, at index: Int) {
         var value = self.value
         value.insert(element, at: index)
-        source._setValue(.remote(value, exact: false))
+        source._setValue(.remote(value))
     }
     func remove(at index: Int) -> RCItem {
         var value = self.value
@@ -439,7 +439,7 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
         var value = self.value
         guard let i = value.index(of: item) else { return nil }
         value.remove(at: i)
-        source._setValue(.remote(value, exact: false))
+        source._setValue(.remote(value))
         return i
     }
     func removeAll() {

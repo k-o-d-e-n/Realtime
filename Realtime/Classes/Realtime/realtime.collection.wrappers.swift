@@ -38,8 +38,8 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
     func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
-    func runObserving() -> Bool { fatalError() }
-    func stopObserving() { fatalError() }
+    func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { fatalError() }
+    func stopObserving(_ event: DatabaseDataEvent) { fatalError() }
     func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
     public func prepare(forUse completion: Assign<Error?>) { fatalError() }
     var debugDescription: String { return "" }
@@ -78,8 +78,8 @@ where C.Index == Int {
     override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
     override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
-    override func runObserving() -> Bool { return base.runObserving() }
-    override func stopObserving() { base.stopObserving() }
+    override func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return base.runObserving(event) }
+    override func stopObserving(_ event: DatabaseDataEvent) { base.stopObserving(event) }
     override func load(completion: Assign<Error?>?) { base.load(completion: completion) }
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     override var canObserve: Bool { return base.canObserve }
@@ -116,8 +116,8 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     public var canObserve: Bool { return base.canObserve }
-    public func runObserving() -> Bool { return base.runObserving() }
-    public func stopObserving() { base.stopObserving() }
+    public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return base.runObserving(event) }
+    public func stopObserving(_ event: DatabaseDataEvent) { base.stopObserving(event) }
     public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
     public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
 }
@@ -228,11 +228,11 @@ where Element: RealtimeValue {
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
         return base.listening(changes: handler)
     }
-    public func runObserving() -> Bool {
-        return base.runObserving()
+    public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
+        return base.runObserving(event)
     }
-    public func stopObserving() {
-        base.stopObserving()
+    public func stopObserving(_ event: DatabaseDataEvent) {
+        base.stopObserving(event)
     }
 
     public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws {
@@ -304,11 +304,11 @@ where Base.Index == Int {
     public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
         return base.listening(changes: handler)
     }
-    public func runObserving() -> Bool {
-        return base.runObserving()
+    public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
+        return base.runObserving(event)
     }
-    public func stopObserving() {
-        base.stopObserving()
+    public func stopObserving(_ event: DatabaseDataEvent) {
+        base.stopObserving(event)
     }
 
     public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws {
