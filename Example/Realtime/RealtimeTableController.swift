@@ -47,6 +47,9 @@ class RealtimeTableController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        navigationItem.rightBarButtonItems = [UIBarButtonItem(barButtonSystemItem: .edit, target: self, action: #selector(edit)),
+                                              UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(addUser))]
+
         let iView = UIActivityIndicatorView(activityIndicatorStyle: .gray)
         navigationItem.titleView = iView
         self.activityView = iView
@@ -73,23 +76,15 @@ class RealtimeTableController: UIViewController {
         }
         delegate.bind(tableView)
         delegate.tableDelegate = self
-
-//        users.listening { [weak self] in
-//            self?.tableView.reloadData()
-//        }.add(to: &store)
+        delegate.editingDataSource = self
 
         iView.startAnimating()
-        users.prepare(forUse: .just { u, e in
-            print("ERROR:", e?.localizedDescription as Any)
-            iView.stopAnimating()
-            u.forEach({ (user) in
-                /// unnecessary, is used for tests
-                user.name.runObserving()
-            })
-        })
 
-        let events = users.listeningEvents()
-        events.listening(onValue: { [unowned self] change in
+        users.changes.listening(onValue: { [unowned self] change in
+            if self.activityView.isAnimating {
+                self.activityView.stopAnimating()
+            }
+
             print(change)
             switch change {
             case .initial:
@@ -103,19 +98,50 @@ class RealtimeTableController: UIViewController {
                     self.tableView.moveRow(at: IndexPath(row: move.from, section: 0), to: IndexPath(row: move.to, section: 0))
                 })
                 self.tableView.endUpdates()
-            case .error(let e):
-                print(e.localizedDescription)
             }
         }).add(to: &store)
-        events.listening { (err) in
+        users.changes.listening { (err) in
             print(err.localizedDescription)
         }.add(to: &store)
-        users.runObserving()
+        users.runObserving(.childAdded)
+        users.runObserving(.childRemoved)
+        users.runObserving(.childChanged)
+    }
+
+    @objc func addUser() {
+        let controller = RealtimeViewController()
+        navigationController?.pushViewController(controller, animated: true)
+    }
+
+    @objc func edit(_ control: UIBarButtonItem) {
+        tableView.setEditing(!tableView.isEditing, animated: true)
     }
 }
 
-extension RealtimeTableController: UITableViewDelegate {
+extension RealtimeTableController: UITableViewDelegate, RealtimeEditingTableDataSource {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         print("Did select row at \(indexPath)")
+    }
+
+    func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+        return .delete
+    }
+
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        switch editingStyle {
+        case .delete:
+            activityView.startAnimating()
+            Global.rtUsers.remove(at: indexPath.row).commit { (_, err) in
+                self.activityView.stopAnimating()
+                if let e = err?.first {
+                    print(e.localizedDescription)
+                }
+            }
+        default: break
+        }
+    }
+
+    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
+
     }
 }

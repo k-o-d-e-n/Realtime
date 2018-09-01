@@ -407,18 +407,19 @@ extension Tests {
             let data = try element.update(in: transaction).updateNode
 
             let object = try TestObject(data: data.child(forPath: element.node!.rootPath), exactly: false)
-            object.array.listening {
-                exp.fulfill()
-            }.add(to: &store)
-            try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), exactly: true)
-
+            
             XCTAssertNotNil(object.file.wrapped)
-//            XCTAssertEqual(object.file.wrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
+            //            XCTAssertEqual(object.file.wrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
             XCTAssertNotNil(object.readonlyFile.wrapped)
             XCTAssertEqual(object.readonlyFile.wrapped.flatMap(UIImagePNGRepresentation), imgData)
             XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
+
+            object.array.changes.listening({ _ in
+                exp.fulfill()
+            }).add(to: &store)
+            try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), exactly: true)
             waitForExpectations(timeout: 2) { (err) in
                 err.map({ XCTFail($0.localizedDescription) })
                 XCTAssertTrue(object.array.isPrepared)
@@ -969,7 +970,7 @@ extension Tests {
         let exp = expectation(description: "")
         let array = Values<User>(in: .root, options: [.database: CacheNode.root])
 
-        array.listeningEvents().listening({ (event) in
+        array.changes.listening({ (event) in
             guard let value = event.value else {
                 XCTFail(event.error?.localizedDescription ?? "")
                 return
@@ -977,13 +978,14 @@ extension Tests {
             switch value {
             case .initial:
                 XCTFail(".initial does not should call")
-            case .error(let e):
-                XCTFail(e.localizedDescription)
             case .updated(_, let inserted, _, _):
                 XCTAssertEqual(inserted.count, 1)
                 exp.fulfill()
             }
         }).add(to: &store)
+        array.changes.listening { err in
+            XCTFail(err.localizedDescription)
+        }.add(to: &store)
 
         let element = User()
         element.name <== "User"

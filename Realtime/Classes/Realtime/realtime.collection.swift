@@ -16,7 +16,6 @@ public typealias Changes = (deleted: [Int], inserted: [Int], modified: [Int], mo
 public enum RCEvent {
     case initial
     case updated(Changes)
-    case error(Error)
 }
 
 /// -----------------------------------------
@@ -25,7 +24,7 @@ public enum RCEvent {
 struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
     let dbKey: String!
     let linkID: String
-    let index: Int
+    var index: Int
     let internalPayload: (mv: Int?, raw: RealtimeDataValue?)
     let payload: [String: RealtimeDataValue]?
 
@@ -107,6 +106,32 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, Real
         return lhs.dbKey == rhs.dbKey
     }
 }
+extension Representer {
+    static func collectionView() -> Representer<[RCItem]> {
+        let itemBase = Representer<RCItem>.realtimeData
+        let base = Representer<[RCItem]>(collection: itemBase).sorting({ $0.index < $1.index })
+        return Representer<[RCItem]>(
+            encoding: { (view) -> Any? in
+                return try view.enumerated().map({ item -> Any? in
+                    var rcItem = item.element
+                    rcItem.index = item.offset
+                    return try itemBase.encode(rcItem)
+                })
+            },
+            decoding: { (data) -> [RCItem] in
+                return try base.decode(data).enumerated().map({ (item) -> RCItem in
+                    if item.offset != item.element.index {
+                        var rcItem = item.element
+                        rcItem.index = item.offset
+                        return rcItem
+                    } else {
+                        return item.element
+                    }
+                })
+            }
+        )
+    }
+}
 
 /// A type that stores collection values and responsible for lazy initialization elements
 public protocol RealtimeCollectionStorage {
@@ -154,17 +179,15 @@ public protocol RealtimeCollectionActions {
     func stopObserving(_ event: DatabaseDataEvent)
 }
 
+/// A type that represents Realtime database collection
 public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RealtimeCollectionActions, RequiresPreparation {
     associatedtype Storage: RealtimeCollectionStorage
+    /// Lazy local storage for elements
     var storage: Storage { get }
-    //    associatedtype View: RealtimeCollectionView
+    /// Object that stores data of the view collection
     var view: RealtimeCollectionView { get }
-
-    func listening(changes handler: @escaping () -> Void) -> ListeningItem
-//    func listening(changes handler: @escaping (RCEvent) -> Void) -> Disposable
-}
-public extension RealtimeCollection {
-
+    /// Listenable that receives changes events
+    var changes: AnyListenable<RCEvent> { get }
 }
 protocol RC: RealtimeCollection, RealtimeValueEvents where Storage: RCStorage {
     associatedtype View: RCView
@@ -428,6 +451,18 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
         var value = self.value
         value.insert(element, at: index)
         source._setValue(.remote(value))
+    }
+    func moveRemote(_ element: RCItem) -> Int? {
+        if let index = value.index(where: { $0.dbKey == element.dbKey }) {
+            var value = self.value
+            value.remove(at: index)
+            value.insert(element, at: element.index)
+            source._setValue(.remote(value))
+            return index
+        } else {
+            debugFatalError("Cannot move element \(element), because it is not found")
+            return nil
+        }
     }
     func remove(at index: Int) -> RCItem {
         var value = self.value

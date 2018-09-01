@@ -74,7 +74,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
             options: options,
             viewSource: InternalKeys.items.property(
                 from: viewParentNode,
-                representer: Representer<[RCItem]>(collection: Representer.realtimeData)
+                representer: Representer<[RCItem]>.collectionView()
             ).defaultOnEmpty()
         )
     }
@@ -105,20 +105,18 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
-    public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
-        return _view.source.map { _ in }.listeningItem(onValue: handler)
-    }
+
     @discardableResult
     override public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return _view.source.runObserving(event) }
     override public func stopObserving(_ event: DatabaseDataEvent) { _view.source.stopObserving(event) }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
 
-    public func listeningEvents() -> Preprocessor<(RealtimeDataProtocol, DatabaseDataEvent), RCEvent> {
+    public lazy var changes: AnyListenable<RCEvent> = {
         guard _view.source.isRooted else {
             fatalError("Can`t get reference")
         }
 
-        return _view.source.dataObserver.map { [unowned self] (value) -> RCEvent in
+        return Accumulator(repeater: .unsafe(), _view.source.dataObserver.map { [unowned self] (value) -> RCEvent in
             switch value.1 {
             case .value:
                 return .initial
@@ -132,13 +130,13 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
                 return .updated((deleted: index.map { [$0] } ?? [], inserted: [], modified: [], moved: []))
             case .childChanged:
                 let item = try RCItem(data: value.0)
-                let index = self._view.first(where: { $0.dbKey == item.dbKey })?.index
+                let index = self._view.moveRemote(item)
                 return .updated((deleted: [], inserted: [], modified: [], moved: index.map { [($0, item.index)] } ?? []))
             case .childMoved:
                 return .updated((deleted: [], inserted: [], modified: [], moved: []))
             }
-        }
-    }
+        }).asAny()
+    }()
 
     override public var debugDescription: String {
         return """

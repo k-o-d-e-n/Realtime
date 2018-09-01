@@ -93,11 +93,38 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
-    public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
+
     @discardableResult
     override public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return _view.source.runObserving(event) }
     override public func stopObserving(_ event: DatabaseDataEvent) { _view.source.stopObserving(event) }
     public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
+
+    public lazy var changes: AnyListenable<RCEvent> = {
+        guard _view.source.isRooted else {
+            fatalError("Can`t get reference")
+        }
+
+        return Accumulator(repeater: .unsafe(), _view.source.dataObserver.map { [unowned self] (value) -> RCEvent in
+            switch value.1 {
+            case .value:
+                return .initial
+            case .childAdded:
+                let item = try RCItem(data: value.0)
+                self._view.insertRemote(item, at: item.index)
+                return .updated((deleted: [], inserted: [item.index], modified: [], moved: []))
+            case .childRemoved:
+                let item = try RCItem(data: value.0)
+                let index = self._view.removeRemote(item)
+                return .updated((deleted: index.map { [$0] } ?? [], inserted: [], modified: [], moved: []))
+            case .childChanged:
+                let item = try RCItem(data: value.0)
+                let index = self._view.moveRemote(item)
+                return .updated((deleted: [], inserted: [], modified: [], moved: index.map { [($0, item.index)] } ?? []))
+            case .childMoved:
+                return .updated((deleted: [], inserted: [], modified: [], moved: []))
+            }
+        }).asAny()
+    }()
 
     override public var debugDescription: String {
         return """

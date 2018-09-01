@@ -31,6 +31,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var payload: [String : RealtimeDataValue]? { fatalError() }
     var view: RealtimeCollectionView { fatalError() }
     var isPrepared: Bool { fatalError() }
+    var changes: AnyListenable<RCEvent> { fatalError() }
     func makeIterator() -> AnyIterator<Element> { fatalError() }
     var startIndex: Int { fatalError() }
     var endIndex: Int { fatalError() }
@@ -40,7 +41,6 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
     func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { fatalError() }
     func stopObserving(_ event: DatabaseDataEvent) { fatalError() }
-    func listening(changes handler: @escaping () -> Void) -> ListeningItem { fatalError() }
     public func prepare(forUse completion: Assign<Error?>) { fatalError() }
     var debugDescription: String { return "" }
     func load(completion: Assign<Error?>?) { fatalError() }
@@ -67,6 +67,7 @@ where C.Index == Int {
     override var payload: [String : RealtimeDataValue]? { return base.payload }
     override var view: RealtimeCollectionView { return base.view }
     override var isPrepared: Bool { return base.isPrepared }
+    override var changes: AnyListenable<RCEvent> { return base.changes }
 
     override func makeIterator() -> AnyIterator<C.Iterator.Element> { return AnyIterator(base.makeIterator()) }
     override var startIndex: Int { return base.startIndex }
@@ -77,7 +78,6 @@ where C.Index == Int {
 
     override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
     override func prepare(forUse completion: Assign<Error?>) { base.prepare(forUse: completion) }
-    override func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     override func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return base.runObserving(event) }
     override func stopObserving(_ event: DatabaseDataEvent) { base.stopObserving(event) }
     override func load(completion: Assign<Error?>?) { base.load(completion: completion) }
@@ -105,6 +105,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var storage: AnyRCStorage = AnyRCStorage()
     public var view: RealtimeCollectionView { return base.view }
     public var isPrepared: Bool { return base.isPrepared }
+    public var changes: AnyListenable<RCEvent> { return base.changes }
     public var startIndex: Int { return base.startIndex }
     public var endIndex: Int { return base.endIndex }
     public func index(after i: Index) -> Int { return base.index(after: i) }
@@ -114,7 +115,6 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public func prepare(forUse completion: Assign<(Error?)>) { base.prepare(forUse: completion) }
     public func didPrepare() {}
     public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
-    public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return base.listening(changes: handler) }
     public var canObserve: Bool { return base.canObserve }
     public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return base.runObserving(event) }
     public func stopObserving(_ event: DatabaseDataEvent) { base.stopObserving(event) }
@@ -213,6 +213,7 @@ where Element: RealtimeValue {
     public var view: RealtimeCollectionView { return base.view }
     public var storage: KeyedCollectionStorage<Element>
     public var isPrepared: Bool { return base.isPrepared }
+    public var changes: AnyListenable<RCEvent> { return base.changes }
 
     public var startIndex: Index { return base.startIndex }
     public var endIndex: Index { return base.endIndex }
@@ -225,9 +226,6 @@ where Element: RealtimeValue {
     public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
     public var canObserve: Bool { return base.canObserve }
 
-    public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
-        return base.listening(changes: handler)
-    }
     public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
         return base.runObserving(event)
     }
@@ -289,6 +287,7 @@ where Base.Index == Int {
     public var view: RealtimeCollectionView { return base.view }
     public var storage: AnyRCStorage
     public var isPrepared: Bool { return base.isPrepared }
+    public var changes: AnyListenable<RCEvent> { return base.changes }
 
     public var startIndex: Index { return base.startIndex }
     public var endIndex: Index { return base.endIndex }
@@ -301,9 +300,6 @@ where Base.Index == Int {
     public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
     public var canObserve: Bool { return base.canObserve }
 
-    public func listening(changes handler: @escaping () -> Void) -> ListeningItem {
-        return base.listening(changes: handler)
-    }
     public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
         return base.runObserving(event)
     }

@@ -537,7 +537,7 @@ public class ReadonlyProperty<T>: _RealtimeValue {
         if isObserved {
             switch _value {
             case .none: break
-            case .some(let e): repeater.send(.value(e))
+            case .some(let e): repeater.send(.value(e)) // TODO: Sends to all listenings. it`s wrong.
             }
         }
         return super.runObserving(event)

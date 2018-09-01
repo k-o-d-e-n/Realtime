@@ -276,7 +276,7 @@ public extension Listenable {
     }
 }
 
-struct AnyListenable<Out>: Listenable {
+public struct AnyListenable<Out>: Listenable {
     let _listening: (Assign<ListenEvent<Out>>) -> Disposable
     let _listeningItem: (Assign<ListenEvent<Out>>) -> ListeningItem
 

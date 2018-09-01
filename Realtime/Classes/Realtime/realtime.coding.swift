@@ -375,6 +375,21 @@ public extension Representer {
         self.decoding = base.deserialize
     }
 }
+public extension Representer where V: Collection {
+    func sorting<Element>(_ descriptor: @escaping (Element, Element) -> Bool) -> Representer<[Element]> where Array<Element> == V {
+        return Representer(collection: self, sorting: descriptor)
+    }
+    init<E>(collection base: Representer<[E]>, sorting: @escaping (E, E) throws -> Bool) where V == [E] {
+        self.init(
+            encoding: { (collection) -> Any? in
+                return try base.encode(collection.sorted(by: sorting))
+            },
+            decoding: { (data) -> [E] in
+                return try base.decode(data).sorted(by: sorting)
+            }
+        )
+    }
+}
 public extension Representer where V: RealtimeValue {
     /// Representer that convert `RealtimeValue` as database relation.
     ///

@@ -57,17 +57,22 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
             do {
                 try self.apply(d, exactly: true)
                 completion?.assign(nil)
+                self.dataObserver.send(.value((d, .value)))
             } catch let e {
                 completion?.assign(e)
+                self.dataObserver.send(.error(e))
             }
-        }, onCancel: completion?.assign)
+        }, onCancel: { e in
+            completion?.call(e)
+            self.dataObserver.send(.error(e))
+        })
     }
 
     @discardableResult
     public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
         guard isRooted else { fatalError("Tries observe not rooted value") }
         guard let o = observing[event] else {
-            observing[event] = observe(.value).map { ($0, 1) }
+            observing[event] = observe(event).map { ($0, 1) }
             return observing[event] != nil
         }
 
