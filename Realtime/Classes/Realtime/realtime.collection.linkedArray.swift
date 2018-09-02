@@ -109,13 +109,18 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
             case .value:
                 return .initial
             case .childAdded:
-                let item = try RCItem(data: value.0)
-                self._view.insertRemote(item, at: item.index)
+                let item: RCItem
+                if let exists = self._view.first(where: { $0.dbKey == value.0.key }) {
+                    item = exists
+                } else {
+                    item = try RCItem(data: value.0)
+                    self._view.insertRemote(item, at: item.index)
+                }
                 return .updated((deleted: [], inserted: [item.index], modified: [], moved: []))
             case .childRemoved:
                 let item = try RCItem(data: value.0)
-                let index = self._view.removeRemote(item)
-                return .updated((deleted: index.map { [$0] } ?? [], inserted: [], modified: [], moved: []))
+                let index = self._view.removeRemote(item) ?? item.index
+                return .updated((deleted: [index], inserted: [], modified: [], moved: []))
             case .childChanged:
                 let item = try RCItem(data: value.0)
                 let index = self._view.moveRemote(item)

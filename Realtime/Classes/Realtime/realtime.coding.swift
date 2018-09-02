@@ -14,6 +14,7 @@ import FirebaseDatabase
 public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
     var database: RealtimeDatabase? { get }
     var node: Node? { get }
+    var key: String? { get }
     var value: Any? { get }
     var priority: Any? { get }
     var childrenCount: UInt { get }
@@ -28,6 +29,10 @@ public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, Cus
 }
 
 extension DataSnapshot: RealtimeDataProtocol, Sequence {
+    public var key: String? {
+        return self.ref.key
+    }
+
     public var database: RealtimeDatabase? { return ref.database }
     public var node: Node? { return Node.from(ref) }
 

@@ -460,6 +460,7 @@ extension ObjectNode {
 
 extension UpdateNode where Self: RealtimeDataProtocol {
     public var priority: Any? { return nil }
+    public var key: String? { return location.key }
 }
 
 extension ValueNode: RealtimeDataProtocol, Sequence {
