@@ -260,14 +260,14 @@ extension Tests {
 
                 XCTAssertFalse(obj.hasChanges)
                 checkDidRemove(obj)
-                checkDidRemove(obj.property, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.readonlyProperty, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.linkedArray, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.array, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.dictionary, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.file, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.readonlyFile, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.nestedObject, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.property, value: .nested(parent: .keyed))
+                checkDidRemove(obj.readonlyProperty, value: .nested(parent: .keyed))
+                checkDidRemove(obj.linkedArray, value: .nested(parent: .keyed))
+                checkDidRemove(obj.array, value: .nested(parent: .keyed))
+                checkDidRemove(obj.dictionary, value: .nested(parent: .keyed))
+                checkDidRemove(obj.file, value: .nested(parent: .keyed))
+                checkDidRemove(obj.readonlyFile, value: .nested(parent: .keyed))
+                checkDidRemove(obj.nestedObject, value: .nested(parent: .keyed))
                 checkDidRemove(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
                 checkDidRemove(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
             })
@@ -387,7 +387,6 @@ extension Tests {
     }
 
     func testDecoding() {
-//        let exp = expectation(description: "")
         let transaction = Transaction()
 
         do {
@@ -409,22 +408,12 @@ extension Tests {
             let object = try TestObject(data: data.child(forPath: element.node!.rootPath), exactly: false)
             
             XCTAssertNotNil(object.file.wrapped)
-            //            XCTAssertEqual(object.file.wrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
+//            XCTAssertEqual(object.file.wrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
             XCTAssertNotNil(object.readonlyFile.wrapped)
             XCTAssertEqual(object.readonlyFile.wrapped.flatMap(UIImagePNGRepresentation), imgData)
             XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
-
-//            object.array.changes.listening({ _ in
-//                exp.fulfill()
-//            }).add(to: &store)
-            try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), exactly: true)
-//            waitForExpectations(timeout: 2) { (err) in
-//                err.map({ XCTFail($0.localizedDescription) })
-                XCTAssertTrue(object.array.isPrepared)
-                XCTAssertEqual(object.array.first?.property.unwrapped, element.array.first?.property.unwrapped)
-//            }
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -749,7 +738,7 @@ extension Tests {
 
         waitForExpectations(timeout: 40) { (err) in
             XCTAssertNil(err)
-            XCTAssertTrue(array.count == 2)
+            XCTAssertTrue(array.count == 0)
 //            XCTAssertNoThrow(array.storage.buildElement(with: array._view.last!))
             transaction.revert()
         }
@@ -903,7 +892,8 @@ extension Tests {
         do {
             try transaction._update(linkedArray, by: .root)
             XCTAssertEqual(linkedArray.storage.elements.count, 2)
-            XCTAssertEqual(linkedArray.count, 2)
+            /// after write to transaction array switches to remote
+            XCTAssertEqual(linkedArray.count, 0)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -931,7 +921,8 @@ extension Tests {
         do {
             try transaction._update(array, by: .root)
             XCTAssertEqual(array.storage.elements.count, 2)
-            XCTAssertEqual(array.count, 2)
+            /// after write to transaction array switches to remote
+            XCTAssertEqual(array.count, 0)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -959,7 +950,8 @@ extension Tests {
         do {
             try transaction._update(dict, by: .root)
             XCTAssertEqual(dict.storage.elements.count, 2)
-            XCTAssertEqual(dict.count, 2)
+            /// after write to transaction array switches to remote
+            XCTAssertEqual(dict.count, 0)
         } catch let e {
             XCTFail(e.localizedDescription)
         }

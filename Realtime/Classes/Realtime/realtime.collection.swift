@@ -21,7 +21,7 @@ public enum RCEvent {
 /// -----------------------------------------
 
 // TODO: For Value of AssociatedValues is not defined payloads
-struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
+struct RCItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
     let dbKey: String!
     let linkID: String
     var index: Int
@@ -105,31 +105,15 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, Real
     static func ==(lhs: RCItem, rhs: RCItem) -> Bool {
         return lhs.dbKey == rhs.dbKey
     }
-}
-extension Representer {
-    static func collectionView() -> Representer<[RCItem]> {
-        let itemBase = Representer<RCItem>.realtimeData
-        let base = Representer<[RCItem]>(collection: itemBase).sorting({ $0.index < $1.index })
-        return Representer<[RCItem]>(
-            encoding: { (view) -> Any? in
-                return try view.enumerated().map({ item -> Any? in
-                    var rcItem = item.element
-                    rcItem.index = item.offset
-                    return try itemBase.encode(rcItem)
-                })
-            },
-            decoding: { (data) -> [RCItem] in
-                return try base.decode(data).enumerated().map({ (item) -> RCItem in
-                    if item.offset != item.element.index {
-                        var rcItem = item.element
-                        rcItem.index = item.offset
-                        return rcItem
-                    } else {
-                        return item.element
-                    }
-                })
-            }
-        )
+
+    static func < (lhs: RCItem, rhs: RCItem) -> Bool {
+        if lhs.index < rhs.index {
+            return true
+        } else if lhs.index > rhs.index {
+            return false
+        } else {
+            return lhs.dbKey < rhs.dbKey
+        }
     }
 }
 
@@ -436,6 +420,54 @@ final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyOb
     func index(after i: Source.Index) -> Source.Index { return value.index(after: i) }
     func index(before i: Source.Index) -> Source.Index { return value.index(before: i) }
     subscript(position: Source.Index) -> Source.Element { return value[position] }
+}
+
+extension AnyRealtimeCollectionView where Source == SortedArray<RCItem> {
+    func insertRemote(_ element: RCItem) -> Int {
+        var value = self.value
+        let i = value.insert(element)
+        source._setValue(.remote(value))
+        return i
+    }
+    func removeRemote(_ element: RCItem) -> Int? {
+        var value = self.value
+        guard let i = value.index(where: { $0.dbKey == element.dbKey }) else { return nil }
+        value.remove(at: i)
+        source._setValue(.remote(value))
+        return i
+    }
+    func moveRemote(_ element: RCItem) -> (from: Int, to: Int)? {
+        if let from = value.index(where: { $0.dbKey == element.dbKey }) {
+            var value = self.value
+            value.remove(at: from)
+            let to = value.insert(element)
+            source._setValue(.remote(value))
+            return (from, to)
+        } else {
+            debugFatalError("Cannot move element \(element), because it is not found")
+            return nil
+        }
+    }
+
+    func insertionIndex(for newElement: RCItem) -> Int {
+        return value.insertionIndex(for: newElement)
+    }
+    
+    func insert(_ element: RCItem) -> Int {
+        var value = self.value
+        let i = value.insert(element)
+        source._setLocalValue(value)
+        return i
+    }
+    func remove(at index: Int) -> RCItem {
+        var value = self.value
+        let removed = value.remove(at: index)
+        source._setLocalValue(value)
+        return removed
+    }
+    func removeAll() {
+        source._setLocalValue([])
+    }
 }
 
 extension AnyRealtimeCollectionView where Source == Array<RCItem> {

@@ -72,7 +72,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<[RCItem], AssociatedValues>
+    let _view: AnyRealtimeCollectionView<SortedArray<RCItem>, AssociatedValues>
 
     /// Creates new instance associated with database node
     ///
@@ -93,7 +93,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         self._view = AnyRealtimeCollectionView(
             InternalKeys.items.property(
                 from: viewParentNode,
-                representer: Representer<[RCItem]>(collection: Representer.realtimeData)
+                representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)
             ).defaultOnEmpty()
         )
         super.init(in: node, options: options)
@@ -130,22 +130,20 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
             case .value:
                 return .initial
             case .childAdded:
-                let item: RCItem
-                if let exists = self._view.first(where: { $0.dbKey == value.0.key }) {
-                    item = exists
-                } else {
-                    item = try RCItem(data: value.0)
-                    self._view.insertRemote(item, at: item.index)
-                }
-                return .updated((deleted: [], inserted: [item.index], modified: [], moved: []))
+                let item = try RCItem(data: value.0)
+                let index: Int = self._view.insertRemote(item)
+                return .updated((deleted: [], inserted: [index], modified: [], moved: []))
             case .childRemoved:
                 let item = try RCItem(data: value.0)
-                let index = self._view.removeRemote(item) ?? item.index
-                return .updated((deleted: [index], inserted: [], modified: [], moved: []))
+                if let index = self._view.removeRemote(item) {
+                    return .updated((deleted: [index], inserted: [], modified: [], moved: []))
+                } else {
+                    throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
+                }
             case .childChanged:
                 let item = try RCItem(data: value.0)
-                let index = self._view.moveRemote(item)
-                return .updated((deleted: [], inserted: [], modified: [], moved: index.map { [($0, item.index)] } ?? []))
+                let indexes = self._view.moveRemote(item)
+                return .updated((deleted: [], inserted: [], modified: [], moved: indexes.map { [$0] } ?? []))
             case .childMoved:
                 return .updated((deleted: [], inserted: [], modified: [], moved: []))
             }
@@ -193,7 +191,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
-        _view.append(RCItem(element: element, key: key.dbKey, linkID: "", index: _view.count))
+        _ = _view.insert(RCItem(element: element, key: key.dbKey, linkID: "", index: _view.count))
         storage.store(value: element, by: key)
     }
 
@@ -249,7 +247,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         let itemNode = location.itms.child(with: key.dbKey)
         let elementNode = location.storage.child(with: key.dbKey)
         let link = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
-        let item = RCItem(element: key, linkID: link.link.id, index: count)
+        var item = RCItem(element: key, linkID: link.link.id, index: count)
 
         var reversion: () -> Void {
             let sourceRevers = _view.source.hasChanges ?
@@ -261,7 +259,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
             }
         }
         transaction.addReversion(reversion)
-        _view.append(item)
+        item.index = _view.insertionIndex(for: item)
         storage.store(value: element, by: key)
 
         if needLink {
@@ -306,10 +304,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         let element = storage.elements.removeValue(forKey: key) ?? storage.object(for: key)
         element.willRemove(in: transaction, from: storage.sourceNode)
 
-        if !_view.source.hasChanges {
-            transaction.addReversion(_view.source.currentReversion())
-        }
-        let item = _view.remove(at: index)
+        let item = _view[index]
         transaction.addReversion { [weak self] in
             self?.storage.elements[key] = element
         }
@@ -366,8 +361,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super (_RealtimeValue)
-        for (i, (key: key, value: value)) in storage.elements.enumerated() {
-            _view.remove(at: i)
+        let view = _view.value
+        transaction.addReversion { [weak self] in
+            self?._view.source <== view
+        }
+        _view.removeAll()
+        for (key: key, value: value) in storage.elements {
             try _write(value,
                        for: key,
                        by: (storage: node,
@@ -378,6 +377,10 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
 
     public func didPrepare() {
         try? _snapshot.map(apply)
+
+        _view.source.runObserving(.childAdded)
+        _view.source.runObserving(.childRemoved)
+        _view.source.runObserving(.childChanged)
     }
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
@@ -396,8 +399,8 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         }
         storage.elements.forEach { $1.willRemove(in: transaction, from: ancestor) }
     }
-    override public func didRemove(from node: Node) {
-        super.didRemove(from: node)
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
         _view.source.didRemove()
         storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
     }

@@ -101,16 +101,70 @@ class RealtimeTableController: UIViewController {
             }
         }).add(to: &store)
         users.changes.listening { (err) in
-            print(err.localizedDescription)
+            print("Changes error:", err.localizedDescription)
         }.add(to: &store)
-        users.runObserving(.childAdded)
-        users.runObserving(.childRemoved)
-        users.runObserving(.childChanged)
+
+        users.prepare(forUse: <-{ error in
+            print("Prepare error:", error?.localizedDescription as Any)
+        })
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+
+        Global.rtUsers.runObserving(.childAdded)
+        Global.rtUsers.runObserving(.childRemoved)
+        Global.rtUsers.runObserving(.childChanged)
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+
+        Global.rtUsers.stopObserving(.childAdded)
+        Global.rtUsers.stopObserving(.childRemoved)
+        Global.rtUsers.stopObserving(.childChanged)
     }
 
     @objc func addUser() {
-        let controller = RealtimeViewController()
-        navigationController?.pushViewController(controller, animated: true)
+        let alertViewController = UIAlertController(title: "New user", message: "Fill form, please...", preferredStyle: .alert)
+
+        var nameTF: UITextField! = nil
+        alertViewController.addTextField { (tf) in
+            tf.placeholder = "Name"
+            nameTF = tf
+        }
+        var ageTF: UITextField! = nil
+        alertViewController.addTextField { (tf) in
+            tf.placeholder = "Age"
+            ageTF = tf
+        }
+        alertViewController.addAction(UIAlertAction(title: "Save", style: .default, handler: { (_) in
+            guard let name = nameTF.text else {
+                nameTF.textColor = .red
+                return
+            }
+            guard let age = ageTF.text.flatMap(Int.init) else {
+                ageTF.textColor = .red
+                return
+            }
+            let transaction = Transaction()
+
+            let user = User()
+            user.name <== name
+            user.age <== age
+
+            try! Global.rtUsers.write(element: user, in: transaction)
+
+            transaction.commit(with: { (_, error) in
+                if let error = error {
+                    debugPrint(error)
+                    return
+                }
+            })
+        }))
+        alertViewController.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
+
+        present(alertViewController, animated: true, completion: nil)
     }
 
     @objc func edit(_ control: UIBarButtonItem) {

@@ -277,11 +277,11 @@ class CacheNode: ObjectNode, RealtimeDatabase {
     }
 
     func removeAllObservers(for node: Node) {
-        fatalError()
+//        fatalError()
     }
 
     func removeObserver(for node: Node, with token: UInt) {
-        fatalError()
+//        fatalError()
     }
 
     func load(for node: Node, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
@@ -292,7 +292,8 @@ class CacheNode: ObjectNode, RealtimeDatabase {
 //        let repeater: Repeater<RealtimeDataProtocol> = observers[node] ?? Repeater.unsafe()
 //
 //        return 0
-        fatalError()
+//        fatalError()
+        return 0
     }
 }
 

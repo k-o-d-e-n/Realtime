@@ -36,7 +36,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<[RCItem], References>
+    let _view: AnyRealtimeCollectionView<SortedArray<RCItem>, References>
 
     /// Creates new instance associated with database node
     ///
@@ -54,7 +54,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         self.storage = RCArrayStorage(sourceNode: elements,
                                       elementBuilder: builder,
                                       elements: [:])
-        self._view = AnyRealtimeCollectionView(Property(in: node, representer: Representer<[RCItem]>(collection: Representer.realtimeData)).defaultOnEmpty())
+        self._view = AnyRealtimeCollectionView(Property(in: node, representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)).defaultOnEmpty())
         super.init(in: node, options: options)
         self._view.collection = self
     }
@@ -109,22 +109,20 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
             case .value:
                 return .initial
             case .childAdded:
-                let item: RCItem
-                if let exists = self._view.first(where: { $0.dbKey == value.0.key }) {
-                    item = exists
-                } else {
-                    item = try RCItem(data: value.0)
-                    self._view.insertRemote(item, at: item.index)
-                }
-                return .updated((deleted: [], inserted: [item.index], modified: [], moved: []))
+                let item = try RCItem(data: value.0)
+                let index: Int = self._view.insertRemote(item)
+                return .updated((deleted: [], inserted: [index], modified: [], moved: []))
             case .childRemoved:
                 let item = try RCItem(data: value.0)
-                let index = self._view.removeRemote(item) ?? item.index
-                return .updated((deleted: [index], inserted: [], modified: [], moved: []))
+                if let index = self._view.removeRemote(item) {
+                    return .updated((deleted: [index], inserted: [], modified: [], moved: []))
+                } else {
+                    throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
+                }
             case .childChanged:
                 let item = try RCItem(data: value.0)
-                let index = self._view.moveRemote(item)
-                return .updated((deleted: [], inserted: [], modified: [], moved: index.map { [($0, item.index)] } ?? []))
+                let indexes = self._view.moveRemote(item)
+                return .updated((deleted: [], inserted: [], modified: [], moved: indexes.map { [$0] } ?? []))
             case .childMoved:
                 return .updated((deleted: [], inserted: [], modified: [], moved: []))
             }
@@ -151,13 +149,21 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super
+        let view = _view.value
+        transaction.addReversion { [weak self] in
+            self?._view.source <== view
+        }
+        _view.removeAll()
         for (index, element) in storage.elements.enumerated() {
-            _ = _view.remove(at: index)
             try _write(element.value, at: index, by: node, in: transaction)
         }
     }
 
-    public func didPrepare() {}
+    public func didPrepare() {
+        _view.source.runObserving(.childAdded)
+        _view.source.runObserving(.childRemoved)
+        _view.source.runObserving(.childChanged)
+    }
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
@@ -168,9 +174,9 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         super.willRemove(in: transaction, from: ancestor)
         _view.source.willRemove(in: transaction, from: ancestor)
     }
-    override public func didRemove(from node: Node) {
-        super.didRemove(from: node)
-        _view.source.didRemove()
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
+        _view.source.didRemove(from: ancestor)
     }
 }
 
@@ -232,7 +238,7 @@ public extension References {
 
         let index = index ?? _view.count
         storage.elements[element.dbKey] = element
-        _view.insert(RCItem(element: element, linkID: "", index: index), at: index)
+        _ = _view.insert(RCItem(element: element, linkID: "", index: index))
     }
 
     @discardableResult
@@ -248,19 +254,12 @@ public extension References {
                 by location: Node, in transaction: Transaction) throws {
         let itemNode = location.child(with: element.dbKey)
         let link = element.node!.generate(linkTo: itemNode)
-        let item = RCItem(element: element, linkID: link.link.id, index: index)
+        var item = RCItem(element: element, linkID: link.link.id, index: index)
 
-        var reversion: () -> Void {
-            let sourceRevers = _view.source.hasChanges ?
-                nil : _view.source.currentReversion()
-
-            return { [weak self] in
-                sourceRevers?()
-                self?.storage.elements.removeValue(forKey: item.dbKey)
-            }
-        }
-        transaction.addReversion(reversion)
-        _view.insert(item, at: item.index)
+        transaction.addReversion({ [weak self] in
+            self?.storage.elements.removeValue(forKey: item.dbKey)
+        })
+        item.index = _view.insertionIndex(for: item)
         storage.store(value: element, by: item)
         transaction.addValue(item.rdbValue, by: itemNode)
         transaction.addValue(link.link.rdbValue, by: link.node)
@@ -332,11 +331,8 @@ public extension References {
         }
     }
 
-    private func _remove(at index: Int, in transaction: Transaction) {
-        if !_view.source.hasChanges {
-            transaction.addReversion(_view.source.currentReversion())
-        }
-        let item = _view.remove(at: index)
+    private func _remove(at index: Int, in transaction: Transaction) {        
+        let item = _view[index]
         let element = storage.elements.removeValue(forKey: item.dbKey)
         transaction.addReversion { [weak self] in
             self?.storage.elements[item.dbKey] = element

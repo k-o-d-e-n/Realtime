@@ -109,6 +109,14 @@ public protocol RealtimeDataValueRepresented {
     var rdbValue: RealtimeDataValue { get } // TODO: Instead add variable that will return representer, or method `func represented()`
 }
 
+public protocol ExpressibleBySequence {
+    associatedtype SequenceElement
+    init<S: Sequence>(_ sequence: S) where S.Element == SequenceElement
+}
+extension Array: ExpressibleBySequence {
+    public typealias SequenceElement = Element
+}
+
 // MARK: RealtimeDataValue ------------------------------------------------------------------
 
 /// A type that can be initialized using with nothing.
@@ -264,7 +272,7 @@ public extension RepresenterProtocol {
     /// where element of collection is type of base representer
     ///
     /// - Returns: Wrapped representer
-    func collection<T>() -> Representer<T> where T: Collection & ExpressibleByArrayLiteral, T.Element == V, T.ArrayLiteralElement == V {
+    func collection<T>() -> Representer<T> where T: Collection & ExpressibleBySequence, T.Element == V, T.SequenceElement == V {
         return Representer(collection: self)
     }
     /// Representer that convert data to array
@@ -341,12 +349,12 @@ public extension Representer {
             return try base.decode(data)
         }
     }
-    public init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleByArrayLiteral, V.ArrayLiteralElement == V.Element {
+    public init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleBySequence, V.SequenceElement == V.Element {
         self.encoding = { (v) -> Any? in
             return try v.map(base.encode)
         }
         self.decoding = { (data) -> V in
-            return try data.map(base.decode) as! V
+            return try V(data.map(base.decode))
         }
     }
     public init<R: RepresenterProtocol>(defaultOnEmpty base: R) where R.V: HasDefaultLiteral & _ComparableWithDefaultLiteral, V == R.V {

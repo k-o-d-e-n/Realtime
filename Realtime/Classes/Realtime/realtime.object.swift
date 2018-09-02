@@ -137,8 +137,8 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         observing.removeAll()
         if node?.parent == ancestor {
             self.node?.parent = nil
-            self.database = nil
         }
+        self.database = nil
     }
     public func willSave(in transaction: Transaction, in parent: Node, by key: String) {
         debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value will be saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
@@ -283,13 +283,20 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
-        let links: Links = Links(in: node!.linksNode, representer: Representer<[SourceLink]>.links)
+        let needRemoveLinks = node?.parent == ancestor
+        let links: Links = Links(in: node!.linksNode, representer: Representer<[SourceLink]>.links).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(
                 completion: .just({ refs in
-                    refs.flatMap { $0.links.map(Node.root.child) }.forEach(transaction.removeValue)
+                    refs.flatMap { $0.links.map(Node.root.child) }.forEach { n in
+                        if !n.hasAncestor(node: ancestor) {
+                            transaction.removeValue(by: n)
+                        }
+                    }
                     do {
-                        try transaction.delete(links)
+                        if needRemoveLinks {
+                            try transaction.delete(links)
+                        }
                         promise.fulfill()
                     } catch let e {
                         promise.reject(e)

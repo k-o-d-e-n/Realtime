@@ -144,6 +144,7 @@ public class Node: Hashable {
     /// - Parameter node: Ancestor node
     /// - Returns: Result of search
     func hasAncestor(node: Node) -> Bool {
+        // TODO: Improve checking by comparing on both sides
         var current: Node = self
         while let parent = current.parent {
             if node == parent {

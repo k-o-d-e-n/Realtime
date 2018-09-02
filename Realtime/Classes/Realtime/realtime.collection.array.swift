@@ -51,7 +51,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     public var view: RealtimeCollectionView { return _view }
     public var isPrepared: Bool { return _view.isPrepared }
 
-    let _view: AnyRealtimeCollectionView<[RCItem], Values>
+    let _view: AnyRealtimeCollectionView<SortedArray<RCItem>, Values>
 
     /// Create new instance with default element builder
     ///
@@ -74,14 +74,14 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
             options: options,
             viewSource: InternalKeys.items.property(
                 from: viewParentNode,
-                representer: Representer<[RCItem]>.collectionView()
+                representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)
             ).defaultOnEmpty()
         )
     }
 
     init(in node: Node?,
          options: [ValueOption: Any],
-         viewSource: Property<[RCItem]>) {
+         viewSource: Property<SortedArray<RCItem>>) {
         let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
         self.storage = RCArrayStorage(sourceNode: node, elementBuilder: builder, elements: [:])
         self._view = AnyRealtimeCollectionView(viewSource)
@@ -121,22 +121,20 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
             case .value:
                 return .initial
             case .childAdded:
-                let item: RCItem
-                if let exists = self._view.first(where: { $0.dbKey == value.0.key }) {
-                    item = exists
-                } else {
-                    item = try RCItem(data: value.0)
-                    self._view.insertRemote(item, at: item.index)
-                }
-                return .updated((deleted: [], inserted: [item.index], modified: [], moved: []))
+                let item = try RCItem(data: value.0)
+                let index: Int = self._view.insertRemote(item)
+                return .updated((deleted: [], inserted: [index], modified: [], moved: []))
             case .childRemoved:
                 let item = try RCItem(data: value.0)
-                let index = self._view.removeRemote(item) ?? item.index
-                return .updated((deleted: [index], inserted: [], modified: [], moved: []))
+                if let index = self._view.removeRemote(item) {
+                    return .updated((deleted: [index], inserted: [], modified: [], moved: []))
+                } else {
+                    throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
+                }
             case .childChanged:
                 let item = try RCItem(data: value.0)
-                let index = self._view.moveRemote(item)
-                return .updated((deleted: [], inserted: [], modified: [], moved: index.map { [($0, item.index)] } ?? []))
+                let indexes = self._view.moveRemote(item)
+                return .updated((deleted: [], inserted: [], modified: [], moved: indexes.map { [$0] } ?? []))
             case .childMoved:
                 return .updated((deleted: [], inserted: [], modified: [], moved: []))
             }
@@ -211,8 +209,8 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
 
         let index = index ?? _view.count
         let key = element.node.map { $0.key } ?? String(index)
-        storage.elements[key] = element
-        _view.insert(RCItem(element: element, key: key, linkID: "", index: index), at: index)
+        storage.elements[key] = element 
+        _ = _view.insert(RCItem(element: element, key: key, linkID: "", index: index))
     }
 
     @discardableResult
@@ -230,19 +228,12 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         let elementNode = element.node.map { $0.moveTo(location.storage); return $0 } ?? location.storage.childByAutoId()
         let itemNode = location.itms.child(with: elementNode.key)
         let link = elementNode.generate(linkTo: itemNode)
-        let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, index: index)
+        var item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, index: index)
 
-        var reversion: () -> Void {
-            let sourceRevers = _view.source.hasChanges ?
-                nil : _view.source.currentReversion()
-
-            return { [weak self] in
-                sourceRevers?()
-                self?.storage.elements.removeValue(forKey: item.dbKey)
-            }
-        }
-        transaction.addReversion(reversion)
-        _view.insert(item, at: item.index)
+        transaction.addReversion({ [weak self] in
+            self?.storage.elements.removeValue(forKey: item.dbKey)
+        })
+        item.index = _view.insertionIndex(for: item)
         storage.store(value: element, by: item)
         transaction.addValue(item.rdbValue, by: itemNode)
         transaction.addValue(link.link.rdbValue, by: link.node)
@@ -316,10 +307,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     }
 
     func _remove(at index: Int, in transaction: Transaction) {
-        if !_view.source.hasChanges {
-            transaction.addReversion(_view.source.currentReversion())
-        }
-        let item = _view.remove(at: index)
+        let item = _view[index]
         let element = storage.elements.removeValue(forKey: item.dbKey) ?? storage.object(for: item)
         element.willRemove(in: transaction, from: storage.sourceNode)
         transaction.addReversion { [weak self] in
@@ -340,7 +328,12 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         let node = data.node
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         self.storage = RCArrayStorage(sourceNode: node, elementBuilder: Element.init, elements: [:])
-        self._view = AnyRealtimeCollectionView(InternalKeys.items.property(from: viewParentNode, representer: Representer<[RCItem]>(collection: Representer.realtimeData).defaultOnEmpty()))
+        self._view = AnyRealtimeCollectionView(
+            InternalKeys.items.property(
+                from: viewParentNode,
+                representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData).defaultOnEmpty()
+            )
+        )
         try super.init(data: data, exactly: exactly)
         self._view.collection = self
     }
@@ -372,8 +365,12 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         /// skip the call of super (_RealtimeValue)
         let elems = storage.elements
         storage.elements.removeAll()
+        let view = _view.value
+        transaction.addReversion { [weak self] in
+            self?._view.source <== view
+        }
+        _view.removeAll()
         for (index, element) in elems.enumerated() {
-            _ = _view.remove(at: index)
             try _write(element.value,
                        at: index,
                        by: (storage: node,
@@ -384,6 +381,10 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
 
     public func didPrepare() {
         try? _snapshot.map(apply)
+
+        _view.source.runObserving(.childAdded)
+        _view.source.runObserving(.childRemoved)
+        _view.source.runObserving(.childChanged)
     }
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
@@ -402,8 +403,8 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         }
         storage.elements.values.forEach { $0.willRemove(in: transaction, from: ancestor) }
     }
-    override public func didRemove(from node: Node) {
-        super.didRemove(from: node)
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
         _view.source.didRemove()
         storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
     }

@@ -558,7 +558,8 @@ public class ReadonlyProperty<T>: _RealtimeValue {
                 switch v {
                 case .error(let e, last: _): fail.assign(e)
                 case .remote(let v): completion.assign(v)
-                default: failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
+                default:
+                    failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
                 }
             } else {
                 failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
@@ -592,8 +593,8 @@ public class ReadonlyProperty<T>: _RealtimeValue {
         }
     }
     
-    override public func didRemove(from node: Node) {
-        super.didRemove(from: node)
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
         _setRemoved()
     }
     
@@ -797,8 +798,8 @@ public final class SharedProperty<T>: _RealtimeValue where T: RealtimeDataValue 
 
     // MARK: Events
 
-    override public func didRemove(from node: Node) {
-        super.didRemove(from: node)
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
         setValue(T())
     }
 
