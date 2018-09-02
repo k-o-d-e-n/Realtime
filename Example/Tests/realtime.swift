@@ -387,7 +387,7 @@ extension Tests {
     }
 
     func testDecoding() {
-        let exp = expectation(description: "")
+//        let exp = expectation(description: "")
         let transaction = Transaction()
 
         do {
@@ -416,15 +416,15 @@ extension Tests {
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
 
-            object.array.changes.listening({ _ in
-                exp.fulfill()
-            }).add(to: &store)
+//            object.array.changes.listening({ _ in
+//                exp.fulfill()
+//            }).add(to: &store)
             try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), exactly: true)
-            waitForExpectations(timeout: 2) { (err) in
-                err.map({ XCTFail($0.localizedDescription) })
+//            waitForExpectations(timeout: 2) { (err) in
+//                err.map({ XCTFail($0.localizedDescription) })
                 XCTAssertTrue(object.array.isPrepared)
                 XCTAssertEqual(object.array.first?.property.unwrapped, element.array.first?.property.unwrapped)
-            }
+//            }
         } catch let e {
             XCTFail(e.localizedDescription)
         }
