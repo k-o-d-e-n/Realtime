@@ -103,26 +103,18 @@ class RealtimeTableController: UIViewController {
         users.changes.listening { (err) in
             print("Changes error:", err.localizedDescription)
         }.add(to: &store)
-
-        users.prepare(forUse: <-{ error in
-            print("Prepare error:", error?.localizedDescription as Any)
-        })
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-
-        Global.rtUsers.runObserving(.childAdded)
-        Global.rtUsers.runObserving(.childRemoved)
-        Global.rtUsers.runObserving(.childChanged)
+        store.resume()
+        Global.rtUsers.runObserving()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-
-        Global.rtUsers.stopObserving(.childAdded)
-        Global.rtUsers.stopObserving(.childRemoved)
-        Global.rtUsers.stopObserving(.childChanged)
+        Global.rtUsers.stopObserving()
+        store.pause()
     }
 
     @objc func addUser() {
@@ -184,6 +176,9 @@ extension RealtimeTableController: UITableViewDelegate, RealtimeEditingTableData
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
         switch editingStyle {
         case .delete:
+            guard Global.rtUsers.isSynced else {
+                return print("Cannot be removed because collection is not synced")
+            }
             activityView.startAnimating()
             Global.rtUsers.remove(at: indexPath.row).commit { (_, err) in
                 self.activityView.stopAnimating()

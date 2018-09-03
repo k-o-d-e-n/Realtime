@@ -684,12 +684,12 @@ extension Tests {
 
         var canObserve: Bool { return value.canObserve }
 
-        func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
-            return value.runObserving(event)
+        func runObserving() -> Bool {
+            return value.runObserving()
         }
 
-        func stopObserving(_ event: DatabaseDataEvent) {
-            value.stopObserving(event)
+        func stopObserving() {
+            value.stopObserving()
         }
 
         func willSave(in transaction: Transaction, in parent: Node, by key: String) {
@@ -715,33 +715,20 @@ extension Tests {
 
     func testPayload() {
         let array = Values<ValueWithPayload>(in: Node.root.child(with: "__tests/array"))
-        let exp = expectation(description: "")
         let transaction = Transaction()
-
-        array.prepare(forUse: .just { (a, err) in
-            XCTAssertNil(err)
-            XCTAssertTrue(a.isPrepared)
-
-            do {
-                let one = TestObject()
-                one.file <== #imageLiteral(resourceName: "pw")
-                try a.write(element: .one(one), in: transaction)
-                let two = TestObject()
-                two.file <== #imageLiteral(resourceName: "pw")
-                try a.write(element: .two(two), in: transaction)
-            } catch let e {
-                XCTFail(e.localizedDescription)
-            }
-
-            exp.fulfill()
-        })
-
-        waitForExpectations(timeout: 40) { (err) in
-            XCTAssertNil(err)
-            XCTAssertTrue(array.count == 0)
-//            XCTAssertNoThrow(array.storage.buildElement(with: array._view.last!))
-            transaction.revert()
+        
+        do {
+            let one = TestObject()
+            one.file <== #imageLiteral(resourceName: "pw")
+            try array.write(element: .one(one), in: transaction)
+            let two = TestObject()
+            two.file <== #imageLiteral(resourceName: "pw")
+            try array.write(element: .two(two), in: transaction)
+        } catch let e {
+            XCTFail(e.localizedDescription)
         }
+        
+        transaction.revert()
     }
 
     func testInitializeWithPayload() {
@@ -998,7 +985,8 @@ extension Tests {
             /// simulate notification
             transaction.commit { (state, errors) in
                 errors.map { e in XCTFail(e.reduce("") { $0 + $1.localizedDescription }) }
-                array._view.source.dataObserver.send(.value((CacheNode.root.child(forPath: itemNode.rootPath), .childAdded)))
+                array._view.isPrepared = true
+                array._view.source.dataObserver.send(.value((CacheNode.root.child(forPath: itemNode.rootPath), .child(.added))))
             }
         } catch let e {
             XCTFail(e.localizedDescription)

@@ -34,7 +34,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
-    public var isPrepared: Bool { return _view.isPrepared }
+    public var isSynced: Bool { return _view.isPrepared }
 
     let _view: AnyRealtimeCollectionView<SortedArray<RCItem>, References>
 
@@ -95,45 +95,64 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     public func index(before i: Int) -> Int { return _view.index(before: i) }
 
     @discardableResult
-    override public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool { return _view.source.runObserving(event) }
-    override public func stopObserving(_ event: DatabaseDataEvent) { _view.source.stopObserving(event) }
-    public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
+    public func runObserving() -> Bool {
+        let isNeedLoadFull = !self._view.source.isObserved
+        let added = _view.source._runObserving(.child(.added))
+        let removed = _view.source._runObserving(.child(.removed))
+        let changed = _view.source._runObserving(.child(.changed))
+        if isNeedLoadFull {
+            _view.prepare(forUse: .just { _ in })
+        }
+        return added && removed && changed
+    }
+
+    public func stopObserving() {
+        _view.source._stopObserving(.child(.added))
+        _view.source._stopObserving(.child(.removed))
+        _view.source._stopObserving(.child(.changed))
+        if !_view.source.isObserved {
+            _view.isPrepared = false
+        }
+    }
 
     public lazy var changes: AnyListenable<RCEvent> = {
         guard _view.source.isRooted else {
             fatalError("Can`t get reference")
         }
 
-        return Accumulator(repeater: .unsafe(), _view.source.dataObserver.map { [unowned self] (value) -> RCEvent in
-            switch value.1 {
-            case .value:
-                return .initial
-            case .childAdded:
-                let item = try RCItem(data: value.0)
-                let index: Int = self._view.insertRemote(item)
-                return .updated((deleted: [], inserted: [index], modified: [], moved: []))
-            case .childRemoved:
-                let item = try RCItem(data: value.0)
-                if let index = self._view.removeRemote(item) {
-                    return .updated((deleted: [index], inserted: [], modified: [], moved: []))
-                } else {
-                    throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
+        return Accumulator(repeater: .unsafe(), _view.source.dataObserver
+            .filter({ [unowned self] e in self._view.isPrepared || e.1 == .value })
+            .map { [unowned self] (value) -> RCEvent in
+                switch value.1 {
+                case .value:
+                    return .initial
+                case .child(.added):
+                    let item = try RCItem(data: value.0)
+                    let index: Int = self._view.insertRemote(item)
+                    return .updated((deleted: [], inserted: [index], modified: [], moved: []))
+                case .child(.removed):
+                    let item = try RCItem(data: value.0)
+                    if let index = self._view.removeRemote(item) {
+                        return .updated((deleted: [index], inserted: [], modified: [], moved: []))
+                    } else {
+                        throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
+                    }
+                case .child(.changed):
+                    let item = try RCItem(data: value.0)
+                    let indexes = self._view.moveRemote(item)
+                    return .updated((deleted: [], inserted: [], modified: [], moved: indexes.map { [$0] } ?? []))
+                default:
+                    throw RealtimeError(source: .collection, description: "Unexpected data event: \(value)")
                 }
-            case .childChanged:
-                let item = try RCItem(data: value.0)
-                let indexes = self._view.moveRemote(item)
-                return .updated((deleted: [], inserted: [], modified: [], moved: indexes.map { [$0] } ?? []))
-            case .childMoved:
-                return .updated((deleted: [], inserted: [], modified: [], moved: []))
-            }
-        }).asAny()
+            })
+            .asAny()
     }()
 
     override public var debugDescription: String {
         return """
         {
             ref: \(node?.rootPath ?? "not referred"),
-            prepared: \(isPrepared),
+            synced: \(isSynced),
             elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
         }
         """
@@ -142,7 +161,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try super.apply(data, exactly: exactly)
         try _view.source.apply(data, exactly: exactly)
-        _view.isPrepared = exactly
+//        _view.isPrepared = exactly
     }
 
     /// Collection does not respond for versions and raw value, and also payload.
@@ -157,12 +176,6 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         for (index, element) in storage.elements.enumerated() {
             try _write(element.value, at: index, by: node, in: transaction)
         }
-    }
-
-    public func didPrepare() {
-        _view.source.runObserving(.childAdded)
-        _view.source.runObserving(.childRemoved)
-        _view.source.runObserving(.childChanged)
     }
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
@@ -198,25 +211,36 @@ public extension References {
                 in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
         guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
-        guard isPrepared else {
+        guard isSynced else {
             let transaction = transaction ?? Transaction(database: database)
             transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: .just { collection, err in
+                self._view._contains(with: element.dbKey) { contains, err in
                     if let e = err {
                         promise.reject(e)
+                    } else if contains {
+                        promise.reject(RealtimeError(
+                            source: .collection,
+                            description: "Element cannot be inserted, because already exists"
+                        ))
                     } else {
                         do {
-                            try collection._write(element, at: index, in: database, in: transaction)
+                            try self._write(element, at: index, in: database, in: transaction)
                             promise.fulfill()
                         } catch let e {
                             promise.reject(e)
                         }
                     }
-                })
+                }
             }
             return transaction
         }
 
+        guard !contains(element) else {
+            throw RealtimeError(
+                source: .collection,
+                description: "Element already contains. Element: \(element)"
+            )
+        }
         return try _write(element, at: index, in: database, in: transaction)
     }
 
@@ -242,9 +266,10 @@ public extension References {
     }
 
     @discardableResult
-    internal func _write(_ element: Element, at index: Int? = nil, in database: RealtimeDatabase, in transaction: Transaction? = nil) throws -> Transaction {
-        guard !contains(element) else { throw RealtimeError(source: .collection, description: "Element already contains. Element: \(element)") }
-
+    internal func _write(
+        _ element: Element, at index: Int? = nil,
+        in database: RealtimeDatabase, in transaction: Transaction? = nil
+        ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         try _write(element, at: index ?? count, by: node!, in: transaction)
         return transaction
@@ -254,12 +279,11 @@ public extension References {
                 by location: Node, in transaction: Transaction) throws {
         let itemNode = location.child(with: element.dbKey)
         let link = element.node!.generate(linkTo: itemNode)
-        var item = RCItem(element: element, linkID: link.link.id, index: index)
+        let item = RCItem(element: element, linkID: link.link.id, index: index)
 
         transaction.addReversion({ [weak self] in
             self?.storage.elements.removeValue(forKey: item.dbKey)
         })
-        item.index = _view.insertionIndex(for: item)
         storage.store(value: element, by: item)
         transaction.addValue(item.rdbValue, by: itemNode)
         transaction.addValue(link.link.rdbValue, by: link.node)
@@ -276,16 +300,21 @@ public extension References {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
 
         let transaction = transaction ?? Transaction(database: database)
-        guard isPrepared else {
+        guard isSynced else {
             transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: .just { collection, err in
+                self._view._item(for: element.dbKey) { item, err in
                     if let e = err {
                         promise.reject(e)
-                    } else {
-                        collection._remove(element, in: transaction)
+                    } else if let item = item {
+                        self._remove(for: item, in: transaction)
                         promise.fulfill()
+                    } else {
+                        promise.reject(RealtimeError(
+                            source: .collection,
+                            description: "Element is not found"
+                        ))
                     }
-                })
+                }
             }
             return transaction
         }
@@ -303,36 +332,22 @@ public extension References {
     @discardableResult
     func remove(at index: Int, in transaction: Transaction? = nil) -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
+        guard isSynced else { fatalError("Cannot be removed at index, because collection is not synced.") }
 
         let transaction = transaction ?? Transaction(database: database)
-        guard isPrepared else {
-            transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: .just { collection, err in
-                    if let e = err {
-                        promise.reject(e)
-                    } else {
-                        collection._remove(at: index, in: transaction)
-                        promise.fulfill()
-                    }
-                })
-            }
-            return transaction
-        }
-
-        _remove(at: index, in: transaction)
+        _remove(for: _view[index], in: transaction)
         return transaction
     }
 
     private func _remove(_ element: Element, in transaction: Transaction) {
-        if let index = _view.index(where: { $0.dbKey == element.dbKey }) {
-            _remove(at: index, in: transaction)
+        if let item = _view.first(where: { $0.dbKey == element.dbKey }) {
+            _remove(for: item, in: transaction)
         } else {
             debugFatalError("Tries to remove not existed value")
         }
     }
 
-    private func _remove(at index: Int, in transaction: Transaction) {        
-        let item = _view[index]
+    private func _remove(for item: RCItem, in transaction: Transaction) {
         let element = storage.elements.removeValue(forKey: item.dbKey)
         transaction.addReversion { [weak self] in
             self?.storage.elements[item.dbKey] = element

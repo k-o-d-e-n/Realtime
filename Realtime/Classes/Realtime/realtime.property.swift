@@ -476,7 +476,7 @@ public extension Property {
 
 /// Defines readonly property with any value
 @available(*, introduced: 0.4.3)
-public class ReadonlyProperty<T>: _RealtimeValue {
+public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate var _value: State<T>?
     fileprivate let repeater: Repeater<State<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T?>
@@ -533,14 +533,12 @@ public class ReadonlyProperty<T>: _RealtimeValue {
     }
 
     @discardableResult
-    public override func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
-        if isObserved {
-            switch _value {
-            case .none: break
-            case .some(let e): repeater.send(.value(e)) // TODO: Sends to all listenings. it`s wrong.
-            }
-        }
-        return super.runObserving(event)
+    public func runObserving() -> Bool {
+        return _runObserving(.value)
+    }
+
+    public func stopObserving() {
+        _stopObserving(.value)
     }
 
     @discardableResult
@@ -644,6 +642,10 @@ public class ReadonlyProperty<T>: _RealtimeValue {
 }
 extension ReadonlyProperty: Listenable {
     public func listening(_ assign: Assign<ListenEvent<State<T>>>) -> Disposable {
+        switch _value {
+        case .none: break
+        case .some(let e): assign.call(.value(e))
+        }
         return repeater.listening(assign)
     }
 }

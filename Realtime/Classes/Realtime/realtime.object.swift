@@ -10,7 +10,7 @@ import Foundation
 import FirebaseDatabase
 
 /// Base class for any database value
-open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
+open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomDebugStringConvertible {
     /// Database that associated with this value
     public fileprivate(set) var database: RealtimeDatabase?
     /// Node of database tree
@@ -69,7 +69,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     }
 
     @discardableResult
-    public func runObserving(_ event: DatabaseDataEvent = .value) -> Bool {
+    func _runObserving(_ event: DatabaseDataEvent) -> Bool {
         guard isRooted else { fatalError("Tries observe not rooted value") }
         guard let o = observing[event] else {
             observing[event] = observe(event).map { ($0, 1) }
@@ -81,7 +81,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         return true
     }
 
-    public func stopObserving(_ event: DatabaseDataEvent) {
+    func _stopObserving(_ event: DatabaseDataEvent) {
         guard var o = observing[event] else { return }
 
         o.counter -= 1
@@ -92,6 +92,14 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
             observing[event] = o
         }
     }
+
+    internal func _isObserved(_ event: DatabaseDataEvent) -> Bool {
+        return observing[event].map { $0.counter > 0 } ?? false
+    }
+
+    internal func _numberOfObservers(for event: DatabaseDataEvent) -> Int {
+        return observing[event]?.counter ?? 0
+    }
     
     func observe(_ event: DatabaseDataEvent = .value) -> UInt? {
         guard let node = self.node, let database = self.database else {
@@ -99,9 +107,8 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
         }
         return database.observe(event, on: node, onUpdate: { d in
             do {
-                let receivedEvent = event == .value || node == d.node ? .value : event
-                try self.apply(d, exactly: receivedEvent == .value)
-                self.dataObserver.send(.value((d, receivedEvent)))
+                try self.apply(d, exactly: event == .value)
+                self.dataObserver.send(.value((d, event)))
             } catch let e {
                 self.dataObserver.send(.error(e))
             }
@@ -247,7 +254,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///         }
 ///     }
 ///
-open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
     /// Parent object
@@ -256,6 +263,14 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     /// Labels of properties that shouldn`t represent as database data
     open var ignoredLabels: [String] {
         return []
+    }
+
+    @discardableResult
+    public func runObserving() -> Bool {
+        return _runObserving(.value)
+    }
+    public func stopObserving() {
+        _stopObserving(.value)
     }
 
     public override func willSave(in transaction: Transaction, in parent: Node, by key: String) {

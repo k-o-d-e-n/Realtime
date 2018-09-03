@@ -21,6 +21,7 @@ extension LazyLoadable where Self: UIView {
 }
 
 class RealtimeViewController: UIViewController {
+    var store: ListeningDisposeStore = ListeningDisposeStore()
     lazy var addUserButton: UIButton! = UIButton(type: .system).add(to: view) {
         $0.frame = CGRect(x: 0, y: 0,
                           width: view.bounds.width / 2, height: 30)
@@ -66,11 +67,12 @@ class RealtimeViewController: UIViewController {
         $0.frame = CGRect(x: 20, y: view.bounds.height - 100, width: view.bounds.width, height: 30)
         $0.text = "Result here"
     }
-    var user: User? {
-        didSet { user?.groups.runObserving() }
-    }
-    var group: Group? {
-        didSet { group?.users.runObserving(); group?.conversations.runObserving() }
+    var user: User?
+    var group: Group?
+
+    deinit {
+        Global.rtGroups.stopObserving()
+        Global.rtUsers.stopObserving()
     }
 
     override func viewDidLoad() {
@@ -80,12 +82,18 @@ class RealtimeViewController: UIViewController {
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .trash, target: self, action: #selector(free))
 
-        Global.rtUsers.prepare(forUse: .just { (users, _) in
-            self.user = users.first
-        })
-        Global.rtGroups.prepare(forUse: .just { (groups, err) in
-            self.group = groups.first
-        })
+        Global.rtUsers.changes.listening(onValue: { _ in
+            if self.user == nil {
+                self.user = Global.rtUsers.first
+            }
+        }).add(to: &store)
+        Global.rtUsers.runObserving()
+        Global.rtGroups.changes.listening(onValue: { _ in
+            if self.group == nil {
+                self.group = Global.rtGroups.first
+            }
+        }).add(to: &store)
+        Global.rtGroups.runObserving()
 
         addUserButton.addTarget(self, action: #selector(addUser), for: .touchUpInside)
         removeUserButton.addTarget(self, action: #selector(removeUser), for: .touchUpInside)
@@ -172,11 +180,6 @@ class RealtimeViewController: UIViewController {
             transaction.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
-                } else {
-                    assert(!Global.rtUsers.contains(u))
-                    if let g = self.group {
-                        assert(!g.users.contains(u))
-                    }
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -186,11 +189,6 @@ class RealtimeViewController: UIViewController {
             try! u.delete().commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
-                } else {
-//                    assert(!Global.rtUsers.contains(u))
-                    if let g = self.group {
-                        assert(!g.users.contains(u))
-                    }
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -211,11 +209,6 @@ class RealtimeViewController: UIViewController {
             transaction.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
-                } else {
-                    assert(!Global.rtGroups.contains(grp))
-                    if let u = self.user {
-                        assert(!u.groups.contains(grp))
-                    }
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -225,11 +218,6 @@ class RealtimeViewController: UIViewController {
             try! grp.delete().commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
-                } else {
-//                    assert(!Global.rtGroups.contains(grp))
-                    if let u = self.user {
-                        assert(!u.groups.contains(grp))
-                    }
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -253,9 +241,6 @@ class RealtimeViewController: UIViewController {
             self.unfreeze()
             if let errors = errs {
                 print(errors)
-            } else {
-                assert(u.groups.contains(g))
-                assert(g.users.contains(u))
             }
 
             self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -276,8 +261,6 @@ class RealtimeViewController: UIViewController {
                 self.unfreeze()
                 if let errors = errs {
                     print(errors)
-                } else {
-                    assert(!g.users.contains(u))
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -292,8 +275,6 @@ class RealtimeViewController: UIViewController {
                 self.unfreeze()
                 if let errors = errs {
                     print(errors)
-                } else {
-                    assert(!u.groups.contains(g))
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -313,8 +294,6 @@ class RealtimeViewController: UIViewController {
         transaction.commit(with: { _, errs in
             if let errors = errs {
                 print(errors)
-            } else {
-                assert(g.conversations.contains(valueBy: u))
             }
 
             self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
@@ -332,33 +311,18 @@ class RealtimeViewController: UIViewController {
             transaction?.commit(with: { _, errs in
                 if let errors = errs {
                     print(errors)
-                } else {
-                    assert(!g.conversations.contains(valueBy: u))
                 }
 
                 self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
             })
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
-            g.conversations.runObserving()
-            g.conversations.prepare(forUse: .just { (convers, err) in
-                guard err == nil else {
-                    if let error = err {
-                        print(error)
-                        self.label.text = err?.localizedDescription
-                    }
-                    return
+            try! g.conversations.first?.value.delete().commit(with: { _, errs in
+                if let errors = errs {
+                    print(errors)
                 }
 
-                try! convers.first?.value.delete().commit(with: { _, errs in
-                    if let errors = errs {
-                        print(errors)
-                    } else {
-                        assert(!g.conversations.contains(valueBy: u))
-                    }
-
-                    self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-                })
+                self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
             })
         })
         present(controller, animated: true, completion: nil)

@@ -44,23 +44,50 @@ public enum CachePolicy {
 //    case custom(RealtimeDatabase)
 }
 
+public struct DatabaseDataChanges: OptionSet {
+    public var rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+}
+public extension DatabaseDataChanges {
+    /// - A new child node is added to a location.
+    static let added: DatabaseDataChanges = DatabaseDataChanges(rawValue: 1 << 0)
+    /// - A child node is removed from a location.
+    static let removed: DatabaseDataChanges = DatabaseDataChanges(rawValue: 1 << 1)
+    /// - A child node at a location changes.
+    static let changed: DatabaseDataChanges = DatabaseDataChanges(rawValue: 1 << 2)
+    /// - A child node moves relative to the other child nodes at a location.
+    static let moved: DatabaseDataChanges = DatabaseDataChanges(rawValue: 1 << 3)
+
+//    static let all: [DatabaseDataChanges] = [.added, .removed, .changed, .moved]
+}
+
 /// A event that corresponds some type of data mutating
 ///
-/// - childAdded: A new child node is added to a location.
-/// - childRemoved: A child node is removed from a location.
-/// - childChanged: A child node at a location changes.
-/// - childMoved: A child node moves relative to the other child nodes at a location.
 /// - value: Any data changes at a location or, recursively, at any child node.
-public enum DatabaseDataEvent: Int {
-    case childAdded
-    case childRemoved
-    case childChanged
-    case childMoved
+/// - child: Any data change is related some child node.
+public enum DatabaseObservingEvent: Hashable {
     case value
+    case child(DatabaseDataChanges)
+
+    public var hashValue: Int {
+        switch self {
+        case .value: return 0
+        case .child(let c): return c.rawValue.hashValue
+        }
+    }
 }
+
+public typealias DatabaseDataEvent = DatabaseObservingEvent
 extension DatabaseDataEvent {
     var firebase: DataEventType {
-        return DataEventType(rawValue: rawValue)!
+        switch self {
+        case .value: return .value
+        case .child(let c):
+            return DataEventType(rawValue: c.rawValue - 1)!
+        }
     }
 }
 

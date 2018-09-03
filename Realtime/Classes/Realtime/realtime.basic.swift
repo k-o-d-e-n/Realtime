@@ -193,12 +193,16 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     func load(completion: Assign<Error?>?)
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
-    /// Runs observing value, if
+    /// Runs or keeps observing value.
+    ///
+    /// If observing already run, value remembers each next call of function
+    /// as requirement to keep observing while is not called `stopObserving()`.
+    /// The call of function must be balanced with `stopObserving()` function.
     ///
     /// - Returns: True if running was successful or observing already run, otherwise false
-    @discardableResult func runObserving(_ event: DatabaseDataEvent) -> Bool
-    /// Stops observing, if observers no more.
-    func stopObserving(_ event: DatabaseDataEvent)
+    @discardableResult func runObserving() -> Bool
+    /// Stops observing, if observers no more, else decreases the observers counter.
+    func stopObserving()
 }
 /// A type that can receive Realtime database events
 public protocol RealtimeValueEvents {

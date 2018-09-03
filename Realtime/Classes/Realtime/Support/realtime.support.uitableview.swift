@@ -31,8 +31,8 @@ public class ReuseItem<View: AnyObject> {
         listeningItems.append(compactMap().join(with: value).listeningItem(onValue: assign))
 
         guard source.canObserve else { return }
-        if source.runObserving(.value) {
-            listeningItems.append(ListeningItem(resume: { () }, pause: { source.stopObserving(.value) }, token: nil))
+        if source.runObserving() {
+            listeningItems.append(ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
         } else {
             debugFatalError("Observing is not running")
         }
@@ -47,8 +47,8 @@ public class ReuseItem<View: AnyObject> {
         listeningItems.append(compactMap().join(with: value).listeningItem(onValue: assign))
 
         guard value.canObserve else { return }
-        if value.runObserving(.value) {
-            listeningItems.append(ListeningItem(resume: { () }, pause: { value.stopObserving(.value) }, token: nil))
+        if value.runObserving() {
+            listeningItems.append(ListeningItem(resume: { () }, pause: value.stopObserving, token: nil))
         } else {
             debugFatalError("Observing is not running")
         }
