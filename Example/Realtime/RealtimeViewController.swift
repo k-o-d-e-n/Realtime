@@ -110,7 +110,6 @@ class RealtimeViewController: UIViewController {
         let free = Transaction()
         let testsNode = Node(key: "___tests", parent: .root)
         free.removeValue(by: testsNode)
-        free.removeValue(by: testsNode.linksNode)
 
         freeze()
         free.commit(with: { _, error in
