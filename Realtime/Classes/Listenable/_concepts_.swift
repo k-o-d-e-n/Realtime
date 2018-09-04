@@ -253,6 +253,20 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         return ValueStorage(unsafeStrong: value, dispatcher: dispatcher)
     }
 
+    /// Returns storage with `strong` reference that has no thread-safe working context
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - queue: Queue that is used to dispatch events in async manner
+    public static func unsafe(
+        strong value: T,
+        queue: DispatchQueue
+        ) -> ValueStorage {
+        return ValueStorage(unsafeStrong: value) { (e, a) in
+            queue.async { a.assign(e) }
+        }
+    }
+
     /// Returns storage with `weak` reference that has no thread-safe working context
     ///
     /// - Parameters:
@@ -263,6 +277,20 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
         ) -> ValueStorage where Optional<O> == T {
         return ValueStorage(unsafeWeak: value, dispatcher: dispatcher)
+    }
+
+    /// Returns storage with `weak` reference that has no thread-safe working context
+    ///
+    /// - Parameters:
+    ///   - value: Initial value.
+    ///   - queue: Queue that is used to dispatch events in async manner
+    public static func unsafe<O: AnyObject>(
+        weak value: O?,
+        queue: DispatchQueue
+        ) -> ValueStorage where Optional<O> == T {
+        return ValueStorage(unsafeWeak: value) { (e, a) in
+            queue.async { a.assign(e) }
+        }
     }
 
     /// Returns storage with `strong` reference that has thread-safe implementation

@@ -44,23 +44,50 @@ public enum CachePolicy {
 //    case custom(RealtimeDatabase)
 }
 
+public struct DatabaseDataChanges: OptionSet {
+    public var rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+}
+public extension DatabaseDataChanges {
+    /// - A new child node is added to a location.
+    static let added: DatabaseDataChanges = DatabaseDataChanges(rawValue: 1 << 0)
+    /// - A child node is removed from a location.
+    static let removed: DatabaseDataChanges = DatabaseDataChanges(rawValue: 1 << 1)
+    /// - A child node at a location changes.
+    static let changed: DatabaseDataChanges = DatabaseDataChanges(rawValue: 1 << 2)
+    /// - A child node moves relative to the other child nodes at a location.
+    static let moved: DatabaseDataChanges = DatabaseDataChanges(rawValue: 1 << 3)
+
+//    static let all: [DatabaseDataChanges] = [.added, .removed, .changed, .moved]
+}
+
 /// A event that corresponds some type of data mutating
 ///
-/// - childAdded: A new child node is added to a location.
-/// - childRemoved: A child node is removed from a location.
-/// - childChanged: A child node at a location changes.
-/// - childMoved: A child node moves relative to the other child nodes at a location.
 /// - value: Any data changes at a location or, recursively, at any child node.
-public enum DatabaseDataEvent: Int {
-    case childAdded
-    case childRemoved
-    case childChanged
-    case childMoved
+/// - child: Any data change is related some child node.
+public enum DatabaseObservingEvent: Hashable {
     case value
+    case child(DatabaseDataChanges)
+
+    public var hashValue: Int {
+        switch self {
+        case .value: return 0
+        case .child(let c): return c.rawValue.hashValue
+        }
+    }
 }
+
+public typealias DatabaseDataEvent = DatabaseObservingEvent
 extension DatabaseDataEvent {
     var firebase: DataEventType {
-        return DataEventType(rawValue: rawValue)!
+        switch self {
+        case .value: return .value
+        case .child(let c):
+            return DataEventType(rawValue: c.rawValue - 1)!
+        }
     }
 }
 
@@ -92,7 +119,7 @@ public protocol RealtimeDatabase: class {
     func load(
         for node: Node,
         completion: @escaping (RealtimeDataProtocol) -> Void,
-        onCancel: ((Error?) -> Void)?
+        onCancel: ((Error) -> Void)?
     )
     /// Runs the observation of data by specified database reference
     ///
@@ -106,7 +133,7 @@ public protocol RealtimeDatabase: class {
         _ event: DatabaseDataEvent,
         on node: Node,
         onUpdate: @escaping (RealtimeDataProtocol) -> Void,
-        onCancel: ((Error?) -> Void)?
+        onCancel: ((Error) -> Void)?
     ) -> UInt
     /// Removes all of existing observers on passed database reference.
     ///
@@ -170,7 +197,7 @@ extension Database: RealtimeDatabase {
     public func load(
         for node: Node,
         completion: @escaping (RealtimeDataProtocol) -> Void,
-        onCancel: ((Error?) -> Void)?) {
+        onCancel: ((Error) -> Void)?) {
         node.reference(for: self).observeSingleEvent(
             of: .value,
             with: completion,
@@ -182,7 +209,7 @@ extension Database: RealtimeDatabase {
         _ event: DatabaseDataEvent,
         on node: Node,
         onUpdate: @escaping (RealtimeDataProtocol) -> Void,
-        onCancel: ((Error?) -> Void)?) -> UInt {
+        onCancel: ((Error) -> Void)?) -> UInt {
         return node.reference(for: self).observe(event.firebase, with: onUpdate, withCancel: onCancel)
     }
 
@@ -240,6 +267,8 @@ class FileNode: ValueNode {
 class CacheNode: ObjectNode, RealtimeDatabase {
     static let root: CacheNode = CacheNode(node: .root)
 
+//    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
+//    var store: ListeningDisposeStore = ListeningDisposeStore()
     var cachePolicy: CachePolicy {
         set {
             switch newValue {
@@ -268,25 +297,30 @@ class CacheNode: ObjectNode, RealtimeDatabase {
         do {
             try merge(with: transaction.updateNode, conflictResolver: { _, new in new.value })
             completion?(nil, self)
+//            _ = transaction.updateNode.sendEvents(for: observers)
         } catch let e {
             completion?(e, self)
         }
     }
 
     func removeAllObservers(for node: Node) {
-        fatalError()
+//        fatalError()
     }
 
     func removeObserver(for node: Node, with token: UInt) {
-        fatalError()
+//        fatalError()
     }
 
-    func load(for node: Node, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) {
+    func load(for node: Node, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
         completion(child(forPath: node.rootPath))
     }
 
-    func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error?) -> Void)?) -> UInt {
-        fatalError()
+    func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
+//        let repeater: Repeater<RealtimeDataProtocol> = observers[node] ?? Repeater.unsafe()
+//
+//        return 0
+//        fatalError()
+        return 0
     }
 }
 
@@ -360,6 +394,24 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
             completion?(e, self)
         }
     }
+
+//    func sendEvents(for observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>]) -> DatabaseDataEvent {
+//        var childEvents: [DatabaseDataEvent] = []
+//        childs.forEach { (updateNode) in
+//            if case let obj as ObjectNode = updateNode {
+//                let event = obj.sendEvents(for: observers)
+//                childEvents.append(obj.sendEvents(for: observers))
+//                if let rptr = observers[obj.location] {
+//                    rptr.send(.value((obj, event)))
+//                }
+//            } else {
+//                childEvents.append(updateNode.value == nil ? .childRemoved : .childAdded)
+//                if let rptr = observers[updateNode.location] {
+//                    rptr.send(.value((updateNode, .value)))
+//                }
+//            }
+//        }
+//    }
 
     private func update(dbNode: UpdateNode, with value: Any) throws {
         if case let valNode as ValueNode = dbNode {
@@ -436,6 +488,7 @@ extension ObjectNode {
 
 extension UpdateNode where Self: RealtimeDataProtocol {
     public var priority: Any? { return nil }
+    public var key: String? { return location.key }
 }
 
 extension ValueNode: RealtimeDataProtocol, Sequence {

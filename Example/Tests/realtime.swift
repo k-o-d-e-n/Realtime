@@ -260,14 +260,14 @@ extension Tests {
 
                 XCTAssertFalse(obj.hasChanges)
                 checkDidRemove(obj)
-                checkDidRemove(obj.property, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.readonlyProperty, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.linkedArray, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.array, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.dictionary, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.file, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.readonlyFile, value: .nested(parent: .unkeyed))
-                checkDidRemove(obj.nestedObject, value: .nested(parent: .unkeyed))
+                checkDidRemove(obj.property, value: .nested(parent: .keyed))
+                checkDidRemove(obj.readonlyProperty, value: .nested(parent: .keyed))
+                checkDidRemove(obj.linkedArray, value: .nested(parent: .keyed))
+                checkDidRemove(obj.array, value: .nested(parent: .keyed))
+                checkDidRemove(obj.dictionary, value: .nested(parent: .keyed))
+                checkDidRemove(obj.file, value: .nested(parent: .keyed))
+                checkDidRemove(obj.readonlyFile, value: .nested(parent: .keyed))
+                checkDidRemove(obj.nestedObject, value: .nested(parent: .keyed))
                 checkDidRemove(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
                 checkDidRemove(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
             })
@@ -330,19 +330,19 @@ extension Tests {
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
         linkedObject.property <== "#1"
-        testObject.linkedArray._view.isPrepared = true
+        testObject.linkedArray._view.isSynced = true
         XCTAssertNoThrow(try testObject.linkedArray.write(element: linkedObject, in: transaction))
 
         let object = TestObject(in: Node(key: "elem_1"))
         object.file <== #imageLiteral(resourceName: "pw")
         object.property <== "prop"
-        testObject.array._view.isPrepared = true
+        testObject.array._view.isSynced = true
         XCTAssertNoThrow(try testObject.array.write(element: object, in: transaction))
 
         let element = TestObject()
         element.file <== #imageLiteral(resourceName: "pw")
         element.property <== "element #1"
-        testObject.dictionary._view.isPrepared = true
+        testObject.dictionary._view.isSynced = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
 
         let value = transaction.updateNode.updateValue
@@ -387,7 +387,6 @@ extension Tests {
     }
 
     func testDecoding() {
-        let exp = expectation(description: "")
         let transaction = Transaction()
 
         do {
@@ -397,7 +396,7 @@ extension Tests {
             let child = TestObject()
             child.property <== "element #1"
             child.file <== #imageLiteral(resourceName: "pw")
-            element.array._view.isPrepared = true
+            element.array._view.isSynced = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
             let imgData = UIImagePNGRepresentation(#imageLiteral(resourceName: "pw"))!
@@ -407,11 +406,7 @@ extension Tests {
             let data = try element.update(in: transaction).updateNode
 
             let object = try TestObject(data: data.child(forPath: element.node!.rootPath), exactly: false)
-            object.array.listening {
-                exp.fulfill()
-            }.add(to: &store)
-            try object.array._view.source.apply(data.child(forPath: object.array._view.source.node!.rootPath), exactly: true)
-
+            
             XCTAssertNotNil(object.file.wrapped)
 //            XCTAssertEqual(object.file.wrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
             XCTAssertNotNil(object.readonlyFile.wrapped)
@@ -419,11 +414,6 @@ extension Tests {
             XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
-            waitForExpectations(timeout: 2) { (err) in
-                err.map({ XCTFail($0.localizedDescription) })
-                XCTAssertTrue(object.array.isPrepared)
-                XCTAssertEqual(object.array.first?.property.unwrapped, element.array.first?.property.unwrapped)
-            }
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -505,7 +495,7 @@ extension Tests {
             let groupCopy = try Group(data: data.child(forPath: group.node!.rootPath), exactly: false)
 
             let groupBackwardRelation: Relation<Group> = group._manager.options.property.path(for: group.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
-            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: false)
+            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: true)
 
             XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
             XCTAssertTrue(group._manager.wrapped?.dbKey == user.dbKey)
@@ -613,7 +603,7 @@ extension Tests {
     func testLinksNode() {
         let fourth = Node.root.child(with: "/first/second/third/fourth")
         let linksNode = fourth.linksNode
-        XCTAssertEqual(linksNode.rootPath, "/__links/first/second/third/fourth")
+        XCTAssertEqual(linksNode.rootPath, RealtimeApp.app.linksNode.child(with: "first/second/third/fourth").rootPath)
     }
 
     func testConnectNode() {
@@ -664,6 +654,12 @@ extension Tests {
         }
         var node: Node? { return value.node }
         var payload: [String : RealtimeDataValue]? { return value.payload }
+        var canObserve: Bool { return value.canObserve }
+        var keepSynced: Bool {
+            get { return value.keepSynced }
+            set { value.keepSynced = newValue }
+        }
+
         var value: TestObject {
             switch self {
             case .one(let v): return v
@@ -707,8 +703,6 @@ extension Tests {
             value.load(completion: completion)
         }
 
-        var canObserve: Bool { return value.canObserve }
-
         func runObserving() -> Bool {
             return value.runObserving()
         }
@@ -740,33 +734,20 @@ extension Tests {
 
     func testPayload() {
         let array = Values<ValueWithPayload>(in: Node.root.child(with: "__tests/array"))
-        let exp = expectation(description: "")
         let transaction = Transaction()
-
-        array.prepare(forUse: .just { (a, err) in
-            XCTAssertNil(err)
-            XCTAssertTrue(a.isPrepared)
-
-            do {
-                let one = TestObject()
-                one.file <== #imageLiteral(resourceName: "pw")
-                try a.write(element: .one(one), in: transaction)
-                let two = TestObject()
-                two.file <== #imageLiteral(resourceName: "pw")
-                try a.write(element: .two(two), in: transaction)
-            } catch let e {
-                XCTFail(e.localizedDescription)
-            }
-
-            exp.fulfill()
-        })
-
-        waitForExpectations(timeout: 40) { (err) in
-            XCTAssertNil(err)
-            XCTAssertTrue(array.count == 2)
-//            XCTAssertNoThrow(array.storage.buildElement(with: array._view.last!))
-            transaction.revert()
+        
+        do {
+            let one = TestObject()
+            one.file <== #imageLiteral(resourceName: "pw")
+            try array.write(element: .one(one), in: transaction)
+            let two = TestObject()
+            two.file <== #imageLiteral(resourceName: "pw")
+            try array.write(element: .two(two), in: transaction)
+        } catch let e {
+            XCTFail(e.localizedDescription)
         }
+        
+        transaction.revert()
     }
 
     func testInitializeWithPayload() {
@@ -917,7 +898,8 @@ extension Tests {
         do {
             try transaction._update(linkedArray, by: .root)
             XCTAssertEqual(linkedArray.storage.elements.count, 2)
-            XCTAssertEqual(linkedArray.count, 2)
+            /// after write to transaction array switches to remote
+            XCTAssertEqual(linkedArray.count, 0)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -945,7 +927,8 @@ extension Tests {
         do {
             try transaction._update(array, by: .root)
             XCTAssertEqual(array.storage.elements.count, 2)
-            XCTAssertEqual(array.count, 2)
+            /// after write to transaction array switches to remote
+            XCTAssertEqual(array.count, 0)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -973,10 +956,63 @@ extension Tests {
         do {
             try transaction._update(dict, by: .root)
             XCTAssertEqual(dict.storage.elements.count, 2)
-            XCTAssertEqual(dict.count, 2)
+            /// after write to transaction array switches to remote
+            XCTAssertEqual(dict.count, 0)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
         transaction.revert()
+    }
+
+    func testListeningCollectionChangesOnInsert() {
+        let exp = expectation(description: "")
+        let array = Values<User>(in: .root, options: [.database: CacheNode.root])
+
+        array.changes.listening({ (event) in
+            guard let value = event.value else {
+                XCTFail(event.error?.localizedDescription ?? "")
+                return
+            }
+            switch value {
+            case .initial:
+                XCTFail(".initial does not should call")
+            case .updated(_, let inserted, _, _):
+                XCTAssertEqual(inserted.count, 1)
+                exp.fulfill()
+            }
+        }).add(to: &store)
+        array.changes.listening { err in
+            XCTFail(err.localizedDescription)
+        }.add(to: &store)
+
+        let element = User()
+        element.name <== "User"
+        element.age <== 100
+        element.photo <== #imageLiteral(resourceName: "pw")
+
+        do {
+            let transaction = Transaction(database: CacheNode.root)
+            let elementNode = array.storage.sourceNode.childByAutoId()
+            let itemNode = array.storage.sourceNode.child(with: InternalKeys.items).linksNode.child(with: elementNode.key)
+            let link = elementNode.generate(linkTo: itemNode)
+            let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, index: 0)
+
+            transaction.addValue(item.rdbValue, by: itemNode)
+            transaction.addValue(link.link.rdbValue, by: link.node)
+            try transaction.set(element, by: elementNode)
+
+            /// simulate notification
+            transaction.commit { (state, errors) in
+                errors.map { e in XCTFail(e.reduce("") { $0 + $1.localizedDescription }) }
+                array._view.isSynced = true
+                array._view.source.dataObserver.send(.value((CacheNode.root.child(forPath: itemNode.rootPath), .child(.added))))
+            }
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+
+        waitForExpectations(timeout: 4) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+        }
     }
 }

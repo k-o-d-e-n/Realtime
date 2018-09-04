@@ -10,7 +10,7 @@ import Foundation
 import FirebaseDatabase
 
 /// Base class for any database value
-open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, CustomDebugStringConvertible {
+open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomDebugStringConvertible {
     /// Database that associated with this value
     public fileprivate(set) var database: RealtimeDatabase?
     /// Node of database tree
@@ -22,11 +22,12 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     /// User defined payload related with this value
     public fileprivate(set) var payload: [String : RealtimeDataValue]?
     /// Indicates that value already observed
-    public var isObserved: Bool { return observing != nil }
+    public var isObserved: Bool { return observing.count > 0 }
     /// Indicates that value can observe
     public var canObserve: Bool { return isRooted }
 
-    private var observing: (token: UInt, counter: Int)?
+    private var observing: [DatabaseDataEvent: (token: UInt, counter: Int)] = [:]
+    let dataObserver: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = .unsafe()
 
     public required init(in node: Node?, options: [ValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
@@ -41,9 +42,9 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
     }
 
     deinit {
-        observing.map {
-            debugFatalError(condition: $0.counter > 1, "Deinitialization observed value")
-            endObserve(for: $0.token)
+        observing.forEach { key, value in
+            debugFatalError(condition: value.counter > 1, "Deinitialization observed value using event: \(key)")
+            endObserve(for: value.token)
         }
     }
 
@@ -56,49 +57,64 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
             do {
                 try self.apply(d, exactly: true)
                 completion?.assign(nil)
+                self.dataObserver.send(.value((d, .value)))
             } catch let e {
                 completion?.assign(e)
+                self.dataObserver.send(.error(e))
             }
-        }, onCancel: completion?.assign)
+        }, onCancel: { e in
+            completion?.call(e)
+            self.dataObserver.send(.error(e))
+        })
     }
 
     @discardableResult
-    public func runObserving() -> Bool {
+    func _runObserving(_ event: DatabaseDataEvent) -> Bool {
         guard isRooted else { fatalError("Tries observe not rooted value") }
-        guard let o = observing else {
-            observing = observe(.value, onUpdate: nil).map { ($0, 1) }
-            return observing != nil
+        guard let o = observing[event] else {
+            observing[event] = observe(event).map { ($0, 1) }
+            return observing[event] != nil
         }
 
         debugFatalError(condition: o.counter == 0, "Counter is null. Should been invalidated")
-        observing = (o.token, o.counter + 1)
+        observing[event] = (o.token, o.counter + 1)
         return true
     }
 
-    public func stopObserving() {
-        guard var o = observing else { return }
+    func _stopObserving(_ event: DatabaseDataEvent) {
+        guard var o = observing[event] else { return }
 
         o.counter -= 1
         if o.counter < 1 {
             endObserve(for: o.token)
-            observing = nil
+            observing.removeValue(forKey: event)
         } else {
-            observing = o
+            observing[event] = o
         }
     }
+
+    internal func _isObserved(_ event: DatabaseDataEvent) -> Bool {
+        return observing[event].map { $0.counter > 0 } ?? false
+    }
+
+    internal func _numberOfObservers(for event: DatabaseDataEvent) -> Int {
+        return observing[event]?.counter ?? 0
+    }
     
-    func observe(_ event: DatabaseDataEvent = .value, onUpdate: ((Error?) -> Void)? = nil) -> UInt? {
+    func observe(_ event: DatabaseDataEvent = .value) -> UInt? {
         guard let node = self.node, let database = self.database else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
         return database.observe(event, on: node, onUpdate: { d in
             do {
                 try self.apply(d, exactly: event == .value)
-                onUpdate?(nil)
+                self.dataObserver.send(.value((d, event)))
             } catch let e {
-                onUpdate?(e)
+                self.dataObserver.send(.error(e))
             }
-        }, onCancel: onUpdate)
+        }, onCancel: { e in
+            self.dataObserver.send(.error(e))
+        })
     }
 
     func endObserve(for token: UInt) {
@@ -125,11 +141,11 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueActions, Hashable, Custom
 
 
         node.map { n in database?.removeAllObservers(for: n) }
-        observing = nil
+        observing.removeAll()
         if node?.parent == ancestor {
             self.node?.parent = nil
-            self.database = nil
         }
+        self.database = nil
     }
     public func willSave(in transaction: Transaction, in parent: Node, by key: String) {
         debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value will be saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
@@ -238,8 +254,16 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///         }
 ///     }
 ///
-open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
+
+    public var keepSynced: Bool = false {
+        didSet {
+            guard oldValue != keepSynced else { return }
+            if keepSynced { runObserving() }
+            else { stopObserving() }
+        }
+    }
 
     /// Parent object
     open weak var parent: Object?
@@ -247,6 +271,14 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     /// Labels of properties that shouldn`t represent as database data
     open var ignoredLabels: [String] {
         return []
+    }
+
+    @discardableResult
+    public func runObserving() -> Bool {
+        return _runObserving(.value)
+    }
+    public func stopObserving() {
+        _stopObserving(.value)
     }
 
     public override func willSave(in transaction: Transaction, in parent: Node, by key: String) {
@@ -274,13 +306,20 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
-        let links: Links = Links(in: node!.linksNode, representer: Representer<[SourceLink]>.links)
+        let needRemoveLinks = node?.parent == ancestor
+        let links: Links = Links(in: node!.linksNode, representer: Representer<[SourceLink]>.links).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(
                 completion: .just({ refs in
-                    refs.flatMap { $0.links.map(Node.root.child) }.forEach(transaction.removeValue)
+                    refs.flatMap { $0.links.map(Node.root.child) }.forEach { n in
+                        if !n.hasAncestor(node: ancestor) {
+                            transaction.removeValue(by: n)
+                        }
+                    }
                     do {
-                        try transaction.delete(links)
+                        if needRemoveLinks {
+                            try transaction.delete(links)
+                        }
                         promise.fulfill()
                     } catch let e {
                         promise.reject(e)
@@ -463,6 +502,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             version: \(version ?? 0),
             raw: \(raw ?? "no raw"),
             has changes: \(_hasChanges),
+            keepSynced: \(keepSynced),
             values:
             \(values)
         }

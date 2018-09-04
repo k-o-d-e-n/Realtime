@@ -112,12 +112,11 @@ public class ReuseViewPrototype<View: AnyObject> {
 @available(*, deprecated: 0.1.0, message: "Use RealtimeTableViewDelegate instead")
 public final class RealtimeTableAdapter<RC: RealtimeCollection>: _RealtimeTableAdapter<RCBasedDataSource<RC>> {
     public convenience init(tableView: UITableView, collection: RC) {
-        self.init(tableView: tableView, models: RCBasedDataSource(collection), onChanges: collection.listening)
+        self.init(tableView: tableView, models: RCBasedDataSource(collection), onChanges: collection.changes.listeningItem)
     }
 }
 public extension RCBasedDataSource {
     func reloadData(completion: ((Error?) -> Void)? = nil) {
-        collection.prepare(forUse: .just { err in completion?(err) })
     }
 }
 
@@ -158,12 +157,12 @@ public class _RealtimeTableAdapter<Models: ModelDataSource> {
     public let models: Models
     lazy var ddsAdapter: DDSAdapter = DDSAdapter(self)
 
-    public required init(tableView: UITableView, models: Models, onChanges: (@escaping () -> Void) -> ListeningItem) {
+    public required init(tableView: UITableView, models: Models, onChanges: (@escaping (RCEvent) -> Void) -> ListeningItem) {
         self.tableView = tableView
         self.models = models
         tableView.delegate = ddsAdapter
         tableView.dataSource = ddsAdapter
-        self._listening = onChanges({ [weak self] in
+        self._listening = onChanges({ [weak self] _ in
             guard let owner = self else { return }
             owner.reloadTable()
         })

@@ -146,6 +146,9 @@ public extension Listenable where Out: _Optional {
             .filter { $0.map { _ in true } ?? false }
             .map { transform($0.unsafelyUnwrapped) }
     }
+    func compactMap() -> Preprocessor<Out, Out.Wrapped> {
+        return flatMap({ $0 })
+    }
 }
 
 // MARK:
@@ -319,3 +322,112 @@ public extension Listenable {
         return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem), bridgeMaker: Bridge(debounce: time))
     }
 }
+
+public class Accumulator<T>: Listenable {
+    let repeater: Repeater<T>
+    var store: ListeningDisposeStore = ListeningDisposeStore()
+
+    public init<L: Listenable>(repeater: Repeater<T>, _ inputs: L...) where L.Out == T {
+        self.repeater = repeater
+        inputs.forEach { l in
+            repeater.depends(on: l).add(to: &store)
+        }
+    }
+
+    public init<L: Listenable>(repeater: Repeater<T>, _ inputs: [L]) where L.Out == T {
+        self.repeater = repeater
+        inputs.forEach { l in
+            repeater.depends(on: l).add(to: &store)
+        }
+    }
+
+    public init<L1: Listenable, L2: Listenable>(repeater: Repeater<T>, _ one: L1, _ two: L2) where T == (L1.Out, L2.Out) {
+        self.repeater = repeater
+
+        var event: (one: ListenEvent<L1.Out>?, two: ListenEvent<L2.Out>?) {
+            didSet {
+                switch event {
+                case (.some(.value(let v1)), .some(.value(let v2))):
+                    repeater.send(.value((v1, v2)))
+                case (.some(.value), .some(.error(let e2))):
+                    repeater.send(.error(e2))
+                case (.some(.error(let e1)), .some(.value)):
+                    repeater.send(.error(e1))
+                case (.some(.error(let e1)), .some(.error(let e2))):
+                    repeater.send(
+                        .error(
+                            RealtimeError(source: .listening, description:
+                                """
+                                    Error #1: \(e1.localizedDescription),
+                                    Error #2: \(e2.localizedDescription)
+                                """
+                            )
+                        )
+                    )
+                default: break
+                }
+            }
+        }
+        one.listening({ event.one = $0 }).add(to: &store)
+        two.listening({ event.two = $0 }).add(to: &store)
+    }
+
+    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        return repeater.listening(assign)
+    }
+}
+extension Listenable {
+    func join(with others: Self...) -> Accumulator<Out> {
+        return Accumulator(repeater: .unsafe(), [self] + others)
+    }
+
+    func join<L: Listenable>(with other: L) -> Accumulator<(Out, L.Out)> {
+        return Accumulator(repeater: .unsafe(), self, other)
+    }
+}
+
+struct Memoize<T>: Listenable {
+    let base: AnyListenable<T>
+    let maxCount: Int
+    let sendOnResume: Bool
+
+    func listening(_ assign: Assign<ListenEvent<[T]>>) -> Disposable {
+        var memoized: [T] = []
+        return base
+            .map({ (v) -> [T] in
+                memoized = Array((memoized + [v]).suffix(self.maxCount))
+                return memoized
+            })
+            .listening(assign)
+    }
+
+    func listeningItem(_ assign: Assign<ListenEvent<[T]>>) -> ListeningItem {
+        var memoized: [T] = []
+        let item = base
+            .map({ (v) -> [T] in
+                memoized = Array((memoized + [v]).suffix(self.maxCount))
+                return memoized
+            })
+            .listeningItem(assign)
+        if sendOnResume {
+            return ListeningItem(
+                resume: {
+                    item.resume()
+                    assign.call(.value(memoized))
+                    return ()
+            },
+                pause: item.pause,
+                token: ()
+            )
+        } else {
+            return item
+        }
+    }
+}
+
+extension Listenable {
+    func memoize(maxCount: Int, send: Bool, sendOnResume: Bool) -> Memoize<Out> {
+        return Memoize(base: AnyListenable(self.listening, self.listeningItem), maxCount: maxCount, sendOnResume: sendOnResume)
+    }
+}
+

@@ -12,13 +12,19 @@ extension ValueOption {
     static let elementBuilder = ValueOption("realtime.collection.builder")
 }
 
+public typealias Changes = (deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)])
+public enum RCEvent {
+    case initial
+    case updated(Changes)
+}
+
 /// -----------------------------------------
 
 // TODO: For Value of AssociatedValues is not defined payloads
-struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
+struct RCItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
     let dbKey: String!
     let linkID: String
-    let index: Int
+    var index: Int
     let internalPayload: (mv: Int?, raw: RealtimeDataValue?)
     let payload: [String: RealtimeDataValue]?
 
@@ -99,6 +105,16 @@ struct RCItem: Hashable, DatabaseKeyRepresentable, RealtimeDataRepresented, Real
     static func ==(lhs: RCItem, rhs: RCItem) -> Bool {
         return lhs.dbKey == rhs.dbKey
     }
+
+    static func < (lhs: RCItem, rhs: RCItem) -> Bool {
+        if lhs.index < rhs.index {
+            return true
+        } else if lhs.index > rhs.index {
+            return false
+        } else {
+            return lhs.dbKey < rhs.dbKey
+        }
+    }
 }
 
 /// A type that stores collection values and responsible for lazy initialization elements
@@ -129,7 +145,7 @@ extension MutableRCStorage {
 
 /// A type that stores an abstract elements, receives the notify about a change of collection
 public protocol RealtimeCollectionView {}
-protocol RCView: RealtimeCollectionView, BidirectionalCollection, RequiresPreparation {}
+protocol RCView: RealtimeCollectionView, BidirectionalCollection {}
 
 /// A type that makes possible to do someone actions related with collection
 public protocol RealtimeCollectionActions {
@@ -139,21 +155,77 @@ public protocol RealtimeCollectionActions {
     func load(completion: Assign<Error?>?)
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
-    /// Runs observing value, if
+    /// Enables/disables auto downloading of the data and keeping in sync
+    var keepSynced: Bool { get set }
+    /// Indicates that value already observed.
+    var isObserved: Bool { get }
+    /// Runs or keeps observing value.
+    ///
+    /// If observing already run, value remembers each next call of function
+    /// as requirement to keep observing while is not called `stopObserving()`.
+    /// The call of function must be balanced with `stopObserving()` function.
     ///
     /// - Returns: True if running was successful or observing already run, otherwise false
     @discardableResult func runObserving() -> Bool
-    /// Stops observing, if observers no more.
+    /// Stops observing, if observers no more, else decreases the observers counter.
     func stopObserving()
 }
 
-public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RealtimeCollectionActions, RequiresPreparation {
+/// A type that represents Realtime database collection
+public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RealtimeCollectionActions {
     associatedtype Storage: RealtimeCollectionStorage
+    /// Lazy local storage for elements
     var storage: Storage { get }
-    //    associatedtype View: RealtimeCollectionView
+    /// Object that stores data of the view collection
     var view: RealtimeCollectionView { get }
+    /// Listenable that receives changes events
+    var changes: AnyListenable<RCEvent> { get }
+    /// Indicates that collection has actual collection view data
+    var isSynced: Bool { get }
+}
+extension RealtimeCollection where Self: AnyObject, Self.Element: RealtimeCollection {
+    @discardableResult
+    public func runObservingRecursivly(_ completion: @escaping (Error?) -> Void) -> Bool {
+        guard !isObserved else {
+            forEach { (element) in
+                element.stopObserving()
+            }
+            completion(nil)
+            return true
+        }
 
-    func listening(changes handler: @escaping () -> Void) -> ListeningItem // TODO: Add current changes as parameter to handler
+        guard runObserving() else { return false }
+
+        var disposable: Disposable! = nil
+        disposable = changes.listening({ [weak self] event in
+            switch event {
+            case .error(let e):
+                completion(e)
+                disposable.dispose()
+            case .value(let v):
+                switch v {
+                case .initial:
+                    guard let `self` = self else {
+                        let error = RealtimeError(source: .collection, description: "Recursivly observing is failed")
+                        return completion(error)
+                    }
+                    self.forEach({ $0.runObserving() })
+                    disposable.dispose()
+                    completion(nil)
+                default: break
+                }
+            }
+        })
+        return true
+    }
+
+    public func stopObservingRecursivly() {
+        stopObserving()
+
+        forEach { (element) in
+            element.stopObserving()
+        }
+    }
 }
 protocol RC: RealtimeCollection, RealtimeValueEvents where Storage: RCStorage {
     associatedtype View: RCView
@@ -181,89 +253,6 @@ extension Dictionary: KeyValueAccessableCollection {
     }
 }
 
-/// A type that does not ready to use after instance initialization,
-/// or has limited using, because requires remote data.
-public protocol RequiresPreparation {
-    /// Indicates that instance is ready to use
-    var isPrepared: Bool { get }
-    /// Calls loading required data
-    ///
-    /// - Parameter completion: Callback on result of loading
-    func prepare(forUse completion: Assign<(Error?)>)
-    /// Calls loading required data recursivly
-    ///
-    /// If current type encapsulates some type conforms this protocol,
-    /// call his preparation in this method.
-    ///
-    /// - Parameter completion: Callback on result of loading
-    func prepareRecursive(forUse completion: @escaping (Error?) -> Void)
-    /// Method that should call after successful preparation.
-    func didPrepare()
-}
-
-public extension RequiresPreparation {
-    func prepare(forUse completion: Assign<(collection: Self, error: Error?)>) {
-        prepare(forUse: completion.map { (self, $0) })
-    }
-}
-public extension RequiresPreparation where Self: RealtimeCollection {
-    func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
-        prepare(forUse: Assign<(Error?)>.just { (err) in
-            guard err == nil else { completion(err); return }
-            prepareElementsRecursive(self, completion: { completion($0) })
-        })
-    }
-}
-extension RequiresPreparation {
-    func checkPreparation() {
-        guard isPrepared else { fatalError("Instance should be prepared before performing this action.") }
-    }
-}
-
-public extension RealtimeCollection where Iterator.Element: RequiresPreparation {
-    func prepareRecursive(_ completion: @escaping (Error?) -> Void) {
-        prepare(forUse: .just { (collection, err) in
-            guard err == nil else { completion(err); return }
-
-            var lastErr: Error?
-            let group = DispatchGroup()
-
-            collection.indices.forEach { _ in group.enter() }
-            collection.forEach { element in
-                element.prepareRecursive { (e) in
-                    lastErr = e
-                    group.leave()
-                }
-            }
-
-            group.notify(queue: .main) {
-                completion(lastErr)
-            }
-        })
-    }
-}
-
-func prepareElementsRecursive<RC: Collection>(_ collection: RC, completion: @escaping (Error?) -> Void) {
-    var lastErr: Error? = nil
-    let group = DispatchGroup()
-
-    collection.indices.forEach { _ in group.enter() }
-    collection.forEach { element in
-        if case let prepared as RequiresPreparation = element {
-            prepared.prepareRecursive { (err) in
-                lastErr = err
-                group.leave()
-            }
-        } else {
-            group.leave()
-        }
-    }
-
-    group.notify(queue: .main) {
-        completion(lastErr)
-    }
-}
-
 public extension RealtimeCollection {
     /// RealtimeCollection actions
 
@@ -284,7 +273,7 @@ public extension RealtimeCollection {
         let current = self
         current.forEach { element in
             let value = values(element)
-            _ = value.once().listeningItem(onValue: <-{ (val) in
+            let listening = value.once().listening(onValue: <-{ (val) in
                 released = current.index(after: released)
                 guard predicate(val) else {
                     completeIfNeeded(released)
@@ -295,7 +284,9 @@ public extension RealtimeCollection {
                 completeIfNeeded(released)
             })
 
-            value.load(completion: nil)
+            value.load(completion: .just { err in
+                listening.dispose()
+            })
         }
     }
 }
@@ -308,7 +299,6 @@ extension RealtimeCollection where Self: AnyObject, Element: RealtimeValue {
         guard let ref = node?.reference() else  {
             fatalError("Can`t get database reference")
         }
-        checkPreparation()
 
         var collection = self
         query(ref).observeSingleEvent(of: .value, with: { (data) in
@@ -346,53 +336,58 @@ public struct AnyRCStorage: RealtimeCollectionStorage {
 
 final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyObject>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
     let source: Property<Source>
-    weak var collection: Viewed?
-    var listening: Disposable!
-
     var value: Source {
         return source.wrapped ?? Source()
     }
 
-    internal(set) var isPrepared: Bool = false {
-        didSet {
-            if isPrepared, oldValue == false {
-                didPrepare()
-            }
-        }
-    }
+    internal(set) var isSynced: Bool = false
 
     init(_ source: Property<Source>) {
         self.source = source
-        self.listening = source
-            .livetime(self)
-            .filter { [unowned self] _ in !self.isPrepared }
-            .listening(onValue: .guarded(self) { event, view in
-                switch event {
-                case .remote(_, exact: let s): view.isPrepared = s
-                default: break
-                }
-            })
     }
 
-    deinit {
-        listening.dispose()
-    }
-
-    func prepare(forUse completion: Assign<(Error?)>) {
-        guard !isPrepared else { completion.assign(nil); return }
+    func load(_ completion: Assign<(Error?)>) {
+        guard !isSynced else { completion.assign(nil); return }
 
         source.load(completion:
             completion.with(work: { err in
-                self.isPrepared = err == nil
+                self.isSynced = err == nil
             })
         )
     }
-    func prepareRecursive(forUse completion: @escaping (Error?) -> Void) {
-        // TODO:
+
+    func _contains(with key: String, completion: @escaping (Bool, Error?) -> Void) {
+        guard let db = source.database, let node = source.node else {
+            fatalError("Unexpected behavior")
+        }
+        db.load(
+            for: node.child(with: key),
+            completion: { (data) in
+                completion(data.exists(), nil)
+        },
+            onCancel: { completion(false, $0) }
+        )
     }
 
-    func didPrepare() {
-        collection?.didPrepare()
+    func _item(for key: String, completion: @escaping (RCItem?, Error?) -> Void) {
+        guard let db = source.database, let node = source.node else {
+            fatalError("Unexpected behavior")
+        }
+        db.load(
+            for: node.child(with: key),
+            completion: { (data) in
+                if data.exists() {
+                    do {
+                        completion(try RCItem(data: data), nil)
+                    } catch let e {
+                        completion(nil, e)
+                    }
+                } else {
+                    completion(nil, nil)
+                }
+        },
+            onCancel: { completion(nil, $0) }
+        )
     }
 
     var startIndex: Source.Index { return value.startIndex }
@@ -400,6 +395,54 @@ final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyOb
     func index(after i: Source.Index) -> Source.Index { return value.index(after: i) }
     func index(before i: Source.Index) -> Source.Index { return value.index(before: i) }
     subscript(position: Source.Index) -> Source.Element { return value[position] }
+}
+
+extension AnyRealtimeCollectionView where Source == SortedArray<RCItem> {
+    func insertRemote(_ element: RCItem) -> Int {
+        var value = self.value
+        let i = value.insert(element)
+        source._setValue(.remote(value))
+        return i
+    }
+    func removeRemote(_ element: RCItem) -> Int? {
+        var value = self.value
+        guard let i = value.index(where: { $0.dbKey == element.dbKey }) else { return nil }
+        value.remove(at: i)
+        source._setValue(.remote(value))
+        return i
+    }
+    func moveRemote(_ element: RCItem) -> (from: Int, to: Int)? {
+        if let from = value.index(where: { $0.dbKey == element.dbKey }) {
+            var value = self.value
+            value.remove(at: from)
+            let to = value.insert(element)
+            source._setValue(.remote(value))
+            return (from, to)
+        } else {
+            debugFatalError("Cannot move element \(element), because it is not found")
+            return nil
+        }
+    }
+
+    func insertionIndex(for newElement: RCItem) -> Int {
+        return value.insertionIndex(for: newElement)
+    }
+    
+    func insert(_ element: RCItem) -> Int {
+        var value = self.value
+        let i = value.insert(element)
+        source._setLocalValue(value)
+        return i
+    }
+    func remove(at index: Int) -> RCItem {
+        var value = self.value
+        let removed = value.remove(at: index)
+        source._setLocalValue(value)
+        return removed
+    }
+    func removeAll() {
+        source._setLocalValue([])
+    }
 }
 
 extension AnyRealtimeCollectionView where Source == Array<RCItem> {
@@ -411,12 +454,35 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
         value.insert(element, at: index)
         source._setLocalValue(value)
     }
-    @discardableResult
+    func insertRemote(_ element: RCItem, at index: Int) {
+        var value = self.value
+        value.insert(element, at: index)
+        source._setValue(.remote(value))
+    }
+    func moveRemote(_ element: RCItem) -> Int? {
+        if let index = value.index(where: { $0.dbKey == element.dbKey }) {
+            var value = self.value
+            value.remove(at: index)
+            value.insert(element, at: element.index)
+            source._setValue(.remote(value))
+            return index
+        } else {
+            debugFatalError("Cannot move element \(element), because it is not found")
+            return nil
+        }
+    }
     func remove(at index: Int) -> RCItem {
         var value = self.value
         let removed = value.remove(at: index)
         source._setLocalValue(value)
         return removed
+    }
+    func removeRemote(_ item: RCItem) -> Int? {
+        var value = self.value
+        guard let i = value.index(of: item) else { return nil }
+        value.remove(at: i)
+        source._setValue(.remote(value))
+        return i
     }
     func removeAll() {
         source._setLocalValue([])

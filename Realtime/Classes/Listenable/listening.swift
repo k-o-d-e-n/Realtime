@@ -50,7 +50,9 @@ public class ListeningItem {
     }
 
     public func resume() {
-        _start()
+        if !isListen {
+            _start()
+        }
     }
 
     public func pause() {

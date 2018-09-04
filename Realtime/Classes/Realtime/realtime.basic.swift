@@ -175,7 +175,9 @@ public extension RealtimeValue {
     internal mutating func apply(parentDataIfNeeded parent: RealtimeDataProtocol, exactly: Bool) throws {
         guard exactly || dbKey.has(in: parent) else { return }
 
-        try apply(dbKey.child(from: parent), exactly: exactly)
+        /// if data has the data associated with current value,
+        /// then data is full and we must pass `true` to `exactly` parameter.
+        try apply(dbKey.child(from: parent), exactly: true)
     }
 }
 
@@ -196,11 +198,17 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     func load(completion: Assign<Error?>?)
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
-    /// Runs observing value, if
+    /// Enables/disables auto downloading of the data and keeping in sync
+    var keepSynced: Bool { get set }
+    /// Runs or keeps observing value.
+    ///
+    /// If observing already run, value remembers each next call of function
+    /// as requirement to keep observing while is not called `stopObserving()`.
+    /// The call of function must be balanced with `stopObserving()` function.
     ///
     /// - Returns: True if running was successful or observing already run, otherwise false
     @discardableResult func runObserving() -> Bool
-    /// Stops observing, if observers no more.
+    /// Stops observing, if observers no more, else decreases the observers counter.
     func stopObserving()
 }
 /// A type that can receive Realtime database events

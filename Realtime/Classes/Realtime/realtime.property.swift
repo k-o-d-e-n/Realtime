@@ -293,7 +293,7 @@ public extension ValueOption {
 public extension _RealtimeValue {
     public enum State<T> {
         case local(T)
-        case remote(T, exact: Bool)
+        case remote(T)
         case removed
         indirect case error(Error, last: State<T>?)
 //        case reverted(ListenValue<T>?)
@@ -316,7 +316,7 @@ extension _RealtimeValue.State: _Optional {
         switch self {
         case .removed: return nil
         case .local(let v): return v
-        case .remote(let v, _): return v
+        case .remote(let v): return v
         case .error(_, let v): return v?.wrapped
         }
     }
@@ -333,7 +333,7 @@ public extension _RealtimeValue.State where T: _Optional {
         switch self {
         case .removed: return nil
         case .local(let v): return v.wrapped
-        case .remote(let v, _): return v.wrapped
+        case .remote(let v): return v.wrapped
         case .error(_, let v): return v?.wrapped
         }
     }
@@ -476,18 +476,26 @@ public extension Property {
 
 /// Defines readonly property with any value
 @available(*, introduced: 0.4.3)
-public class ReadonlyProperty<T>: _RealtimeValue {
+public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate var _value: State<T>?
     fileprivate let repeater: Repeater<State<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T?>
+
+    internal var _version: Int? { return super.version }
+    internal var _raw: RealtimeDataValue? { return super.raw }
+    internal var _payload: [String : RealtimeDataValue]? { return super.payload }
 
     public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
 
-    internal var _version: Int? { return super.version }
-    internal var _raw: RealtimeDataValue? { return super.raw }
-    internal var _payload: [String : RealtimeDataValue]? { return super.payload }
+    public var keepSynced: Bool = false {
+        didSet {
+            guard oldValue != keepSynced else { return }
+            if keepSynced { runObserving() }
+            else { stopObserving() }
+        }
+    }
     
     // MARK: Initializers, deinitializer
 
@@ -533,6 +541,15 @@ public class ReadonlyProperty<T>: _RealtimeValue {
     }
 
     @discardableResult
+    public func runObserving() -> Bool {
+        return _runObserving(.value)
+    }
+
+    public func stopObserving() {
+        _stopObserving(.value)
+    }
+
+    @discardableResult
     public func loadValue(completion: Assign<T>, fail: Assign<Error>) -> Self {
         let failing = fail.with { (e) in
             switch e {
@@ -546,8 +563,9 @@ public class ReadonlyProperty<T>: _RealtimeValue {
             } else if let v = self._value {
                 switch v {
                 case .error(let e, last: _): fail.assign(e)
-                case .remote(let v, _): completion.assign(v)
-                default: failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
+                case .remote(let v): completion.assign(v)
+                default:
+                    failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
                 }
             } else {
                 failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
@@ -573,7 +591,7 @@ public class ReadonlyProperty<T>: _RealtimeValue {
         super.didSave(in: database, in: parent, by: key)
         switch _value {
         case .some(.local(let v)):
-            _setValue(.remote(v, exact: true))
+            _setValue(.remote(v))
         case .none: break
         default: break
             /// now `didSave` calls on update operation, because error does not valid this case
@@ -581,8 +599,8 @@ public class ReadonlyProperty<T>: _RealtimeValue {
         }
     }
     
-    override public func didRemove(from node: Node) {
-        super.didRemove(from: node)
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
         _setRemoved()
     }
     
@@ -590,9 +608,13 @@ public class ReadonlyProperty<T>: _RealtimeValue {
 
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         /// skip the call of super
+        guard exactly else {
+            /// skip partial data, because representer can throw error
+            return
+        }
         do {
             if let value = try representer.decode(data) {
-                _setValue(.remote(value, exact: exactly))
+                _setValue(.remote(value))
             } else {
                 _setRemoved()
             }
@@ -620,7 +642,8 @@ public class ReadonlyProperty<T>: _RealtimeValue {
     public override var debugDescription: String {
         return """
         {
-            ref: \(node?.debugDescription ?? "not referred")
+            ref: \(node?.debugDescription ?? "not referred"),
+            keepSynced: \(keepSynced),
             value: \(_value as Any)
         }
         """
@@ -628,6 +651,10 @@ public class ReadonlyProperty<T>: _RealtimeValue {
 }
 extension ReadonlyProperty: Listenable {
     public func listening(_ assign: Assign<ListenEvent<State<T>>>) -> Disposable {
+        switch _value {
+        case .none: break
+        case .some(let e): assign.call(.value(e))
+        }
         return repeater.listening(assign)
     }
 }
@@ -782,8 +809,8 @@ public final class SharedProperty<T>: _RealtimeValue where T: RealtimeDataValue 
 
     // MARK: Events
 
-    override public func didRemove(from node: Node) {
-        super.didRemove(from: node)
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
         setValue(T())
     }
 

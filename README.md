@@ -44,7 +44,7 @@ func application(_ application: UIApplication, didFinishLaunchingWithOptions lau
 To create any model data structure you can make by subclassing `Object`.
 You can define child properties using classes:
 + `Object` subclasses;
-+ `Property`;
++ `ReadonlyProperty`, `Property`, `Reference`, `Relation`, `ReadonlyFile`, `File`;
 + `References`, `Values`, `AssociatedValues`;
 If you use lazy properties, you need implement class function `lazyPropertyKeyPath(for:)`. (Please tell me if you know how avoid it, without inheriting NSObject).
 This function called for each subclass, therefore you don't need call super implementation. 
@@ -110,15 +110,7 @@ class Some: Object {
     lazy var dictionary: AssociatedValues<Object> = "some_dictionary".dictionary(from: self.node, keys: .keyObjects)
 }
 ```
-All collections conform to protocol `RealtimeCollection`.
-Collections are entities that require preparation before using. In common case you call one time for each collection object:
-```swift
-let users = Values<User>(in: .users)
-users.prepare(forUse: { (users, err) in
-    /// working with collection
-})
-```
-But in mutable operations include auto preparation, that allows to avoid explicity call this method.
+Some mutable operations of collections can require `isSynced` state. To achieve current state use `func runObserving()` function or set property `keepSynced: Bool` to `true`.
 
 ***References*** is array that stores objects as references.
 Source elements must locate in the same reference. On insertion of object to this array creates link on side object.
@@ -180,7 +172,7 @@ let userNames = Values<User>(in: usersNode).lazyMap { user in
 `<==`  - assignment operator. Can use to assign (or to retrieve) value to (from) any Realtime property.
 `====`, `!===` - comparison operators. Can use to compare any Realtime properties where their values conform to `Equatable` protocol.
 `??` - infix operator, that performs a nil-coalescing operation, returning the wrapped value of an Realtime property or a default value.
-`<-` - prefix operator. Can use to convert instance of `Assign` type to explicit closure or backward.
+`<-` - prefix operator. Can use to convert instance of `Closure, Assign` types to explicit closure or backward.
 
 ### Transactions
 

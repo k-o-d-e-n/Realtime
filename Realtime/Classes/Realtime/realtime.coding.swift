@@ -14,6 +14,7 @@ import FirebaseDatabase
 public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
     var database: RealtimeDatabase? { get }
     var node: Node? { get }
+    var key: String? { get }
     var value: Any? { get }
     var priority: Any? { get }
     var childrenCount: UInt { get }
@@ -28,6 +29,10 @@ public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, Cus
 }
 
 extension DataSnapshot: RealtimeDataProtocol, Sequence {
+    public var key: String? {
+        return self.ref.key
+    }
+
     public var database: RealtimeDatabase? { return ref.database }
     public var node: Node? { return Node.from(ref) }
 
@@ -102,6 +107,14 @@ extension RealtimeDataRepresented {
 public protocol RealtimeDataValueRepresented {
     /// Value adopted for Realtime database
     var rdbValue: RealtimeDataValue { get } // TODO: Instead add variable that will return representer, or method `func represented()`
+}
+
+public protocol ExpressibleBySequence {
+    associatedtype SequenceElement
+    init<S: Sequence>(_ sequence: S) where S.Element == SequenceElement
+}
+extension Array: ExpressibleBySequence {
+    public typealias SequenceElement = Element
 }
 
 // MARK: RealtimeDataValue ------------------------------------------------------------------
@@ -259,7 +272,7 @@ public extension RepresenterProtocol {
     /// where element of collection is type of base representer
     ///
     /// - Returns: Wrapped representer
-    func collection<T>() -> Representer<T> where T: Collection & ExpressibleByArrayLiteral, T.Element == V, T.ArrayLiteralElement == V {
+    func collection<T>() -> Representer<T> where T: Collection & ExpressibleBySequence, T.Element == V, T.SequenceElement == V {
         return Representer(collection: self)
     }
     /// Representer that convert data to array
@@ -336,12 +349,12 @@ public extension Representer {
             return try base.decode(data)
         }
     }
-    public init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleByArrayLiteral, V.ArrayLiteralElement == V.Element {
+    public init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleBySequence, V.SequenceElement == V.Element {
         self.encoding = { (v) -> Any? in
             return try v.map(base.encode)
         }
         self.decoding = { (data) -> V in
-            return try data.map(base.decode) as! V
+            return try V(data.map(base.decode))
         }
     }
     public init<R: RepresenterProtocol>(defaultOnEmpty base: R) where R.V: HasDefaultLiteral & _ComparableWithDefaultLiteral, V == R.V {
@@ -373,6 +386,21 @@ public extension Representer {
     init<S: _Serializer>(serializer base: S.Type) where V == S.Entity {
         self.encoding = base.serialize
         self.decoding = base.deserialize
+    }
+}
+public extension Representer where V: Collection {
+    func sorting<Element>(_ descriptor: @escaping (Element, Element) -> Bool) -> Representer<[Element]> where Array<Element> == V {
+        return Representer(collection: self, sorting: descriptor)
+    }
+    init<E>(collection base: Representer<[E]>, sorting: @escaping (E, E) throws -> Bool) where V == [E] {
+        self.init(
+            encoding: { (collection) -> Any? in
+                return try base.encode(collection.sorted(by: sorting))
+            },
+            decoding: { (data) -> [E] in
+                return try base.decode(data).sorted(by: sorting)
+            }
+        )
     }
 }
 public extension Representer where V: RealtimeValue {

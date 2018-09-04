@@ -70,9 +70,16 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
     public var view: RealtimeCollectionView { return _view }
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
-    public var isPrepared: Bool { return _view.isPrepared }
+    public var isSynced: Bool { return _view.isSynced }
+    public var keepSynced: Bool = false {
+        didSet {
+            guard oldValue != keepSynced else { return }
+            if keepSynced { runObserving() }
+            else { stopObserving() }
+        }
+    }
 
-    let _view: AnyRealtimeCollectionView<[RCItem], AssociatedValues>
+    let _view: AnyRealtimeCollectionView<SortedArray<RCItem>, AssociatedValues>
 
     /// Creates new instance associated with database node
     ///
@@ -93,11 +100,24 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         self._view = AnyRealtimeCollectionView(
             InternalKeys.items.property(
                 from: viewParentNode,
-                representer: Representer<[RCItem]>(collection: Representer.realtimeData)
+                representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)
             ).defaultOnEmpty()
         )
         super.init(in: node, options: options)
-        self._view.collection = self
+    }
+
+    /// Currently no available
+    public required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        #if DEBUG
+        fatalError("AssociatedValues does not supported init(data:exactly:) yet.")
+        #else
+        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:exactly:) yet.")
+        #endif
+    }
+
+    public convenience init(data: RealtimeDataProtocol, exactly: Bool, keysNode: Node) throws {
+        self.init(in: data.node, options: [.keysNode: keysNode, .database: data.database as Any])
+        try apply(data, exactly: exactly)
     }
 
     // MARK: Implementation
@@ -114,22 +134,6 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
-    public func listening(changes handler: @escaping () -> Void) -> ListeningItem { return _view.source.listeningItem(.just { _ in handler() }) }
-    @discardableResult
-    override public func runObserving() -> Bool { return _view.source.runObserving() }
-    override public func stopObserving() { _view.source.stopObserving() }
-    public func prepare(forUse completion: Assign<(Error?)>) { _view.prepare(forUse: completion) }
-
-    override public var debugDescription: String {
-        return """
-        {
-            ref: \(node?.rootPath ?? "not referred"),
-            prepared: \(isPrepared),
-            elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
-        }
-        """
-    }
-
     /// Returns a Boolean value indicating whether the sequence contains an
     /// element by passed key.
     ///
@@ -140,177 +144,70 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         if isStandalone {
             return storage.elements[key] != nil
         } else {
-            _view.checkPreparation()
             return _view.contains(where: { $0.dbKey == key.dbKey })
         }
     }
 
-    // MARK: Mutating
-
-    /// Writes element to collection by database key of `Key` element.
-    ///
-    /// This method is available only if collection is **standalone**,
-    /// otherwise use **func write(element:for:in:)**
-    ///
-    /// - Parameters:
-    ///   - element: The element to write
-    ///   - key: The element to get database key.
-    public func set(element: Value, for key: Key) {
-        guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:for:in:)") }
-        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
-        guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
-            else { fatalError("Element is referred to incorrect location") }
-
-        _view.append(RCItem(element: element, key: key.dbKey, linkID: "", index: _view.count))
-        storage.store(value: element, by: key)
-    }
-
-    /// Sets element to collection by database key of `Key` element,
-    /// and writes a changes to transaction.
-    ///
-    /// If collection is standalone, use **func insert(element:at:)** instead.
-    ///
-    /// - Parameters:
-    ///   - element: The element to write
-    ///   - key: The element to get database key.
-    ///   - transaction: Write transaction to keep the changes
-    /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    public func write(element: Value, for key: Key, in transaction: Transaction? = nil) throws -> Transaction {
-        guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method set(element:for:)") }
-        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
-        guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
-            else { fatalError("Element is referred to incorrect location") }
-
-        let transaction = transaction ?? Transaction(database: database)
-        guard isPrepared else {
-            transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: .just { collection, err in
-                    guard err == nil else { return promise.reject(err!) }
-                    do {
-                        try collection._write(element, for: key, in: transaction)
-                        promise.fulfill()
-                    } catch let e {
-                        promise.reject(e)
-                    }
-                })
-            }
-            return transaction
+    public func runObserving() -> Bool {
+        let isNeedLoadFull = !self._view.source.isObserved
+        let added = _view.source._runObserving(.child(.added))
+        let removed = _view.source._runObserving(.child(.removed))
+        let changed = _view.source._runObserving(.child(.changed))
+        if isNeedLoadFull {
+            _view.load(.just { _ in })
         }
-
-        try _write(element, for: key, in: transaction)
-        return transaction
+        return added && removed && changed
     }
 
-    func _write(_ element: Value, for key: Key, in transaction: Transaction) throws {
-        if contains(valueBy: key) {
-            throw RealtimeError(source: .collection, description: "Value by key \(key) already exists. Replacing is not supported yet.")
+    public func stopObserving() {
+        _view.source._stopObserving(.child(.added))
+        _view.source._stopObserving(.child(.removed))
+        _view.source._stopObserving(.child(.changed))
+        if !_view.source.isObserved {
+            _view.isSynced = false
         }
-
-        try _write(element, for: key,
-                   by: (storage: node!, itms: _view.source.node!), in: transaction)
     }
 
-    func _write(_ element: Value, for key: Key,
-                by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
-        let needLink = shouldLinking
-        let itemNode = location.itms.child(with: key.dbKey)
-        let elementNode = location.storage.child(with: key.dbKey)
-        let link = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
-        let item = RCItem(element: key, linkID: link.link.id, index: count)
-
-        var reversion: () -> Void {
-            let sourceRevers = _view.source.hasChanges ?
-                nil : _view.source.currentReversion()
-
-            return { [weak self] in
-                sourceRevers?()
-                self?.storage.elements.removeValue(forKey: key)
-            }
+    public lazy var changes: AnyListenable<RCEvent> = {
+        guard _view.source.isRooted else {
+            fatalError("Can`t get reference")
         }
-        transaction.addReversion(reversion)
-        _view.append(item)
-        storage.store(value: element, by: key)
 
-        if needLink {
-            transaction.addValue(link.link.rdbValue, by: link.node)
-            let valueLink = elementNode.generate(linkKeyedBy: link.link.id,
-                                                 to: [itemNode, link.node])
-            transaction.addValue(valueLink.link.rdbValue, by: valueLink.node)
-        }
-        transaction.addValue(item.rdbValue, by: itemNode)
-        try transaction.set(element, by: elementNode)
-    }
-
-    /// Removes element from collection if collection contains this element.
-    ///
-    /// - Parameters:
-    ///   - element: The element to remove
-    ///   - transaction: Write transaction or `nil`
-    /// - Returns: A passed transaction or created inside transaction.
-    @discardableResult
-    public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction? {
-        guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
-        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
-        guard isPrepared else {
-            let transaction = transaction ?? Transaction(database: database)
-            transaction.addPrecondition { [unowned transaction] promise in
-                self.prepare(forUse: .just { collection, err in
-                    if let e = err {
-                        promise.reject(e)
+        return Accumulator(repeater: .unsafe(), _view.source.dataObserver
+            .filter({ [unowned self] e in self._view.isSynced || e.1 == .value })
+            .map { [unowned self] (value) -> RCEvent in
+                switch value.1 {
+                case .value:
+                    return .initial
+                case .child(.added):
+                    let item = try RCItem(data: value.0)
+                    let index: Int = self._view.insertRemote(item)
+                    return .updated((deleted: [], inserted: [index], modified: [], moved: []))
+                case .child(.removed):
+                    let item = try RCItem(data: value.0)
+                    if let index = self._view.removeRemote(item) {
+                        if let key = self.storage.elements.keys.first(where: { $0.dbKey == item.dbKey }) {
+                            self.storage.elements.removeValue(forKey: key)
+                        }
+                        return .updated((deleted: [index], inserted: [], modified: [], moved: []))
                     } else {
-                        collection.remove(for: key, in: transaction)
-                        promise.fulfill()
+                        throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
                     }
-                })
-            }
-            return transaction
-        }
-
-        guard let index = _view.index(where: { $0.dbKey == key.dbKey }) else { return transaction }
-
-        let transaction = transaction ?? Transaction(database: database)
-
-        let element = storage.elements.removeValue(forKey: key) ?? storage.object(for: key)
-        element.willRemove(in: transaction, from: storage.sourceNode)
-
-        if !_view.source.hasChanges {
-            transaction.addReversion(_view.source.currentReversion())
-        }
-        let item = _view.remove(at: index)
-        transaction.addReversion { [weak self] in
-            self?.storage.elements[key] = element
-        }
-        transaction.removeValue(by: _view.source.node!.child(with: key.dbKey)) // remove item element
-        transaction.removeValue(by: storage.sourceNode.child(with: key.dbKey)) // remove element
-        transaction.removeValue(by: key.node!.linksNode.child(with: item.linkID)) // remove link from key object
-        transaction.addCompletion { result in
-            if result {
-                element.didRemove()
-            }
-        }
-        return transaction
-    }
-
-    // MARK: Realtime
-
-    /// Currently no available
-    public required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        #if DEBUG
-        fatalError("AssociatedValues does not supported init(data:exactly:) yet.")
-        #else
-        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:exactly:) yet.")
-        #endif
-    }
-
-    public convenience init(data: RealtimeDataProtocol, exactly: Bool, keysNode: Node) throws {
-        self.init(in: data.node, options: [.keysNode: keysNode, .database: data.database as Any])
-        try apply(data, exactly: exactly)
-    }
+                case .child(.changed):
+                    let item = try RCItem(data: value.0)
+                    let indexes = self._view.moveRemote(item)
+                    return .updated((deleted: [], inserted: [], modified: [], moved: indexes.map { [$0] } ?? []))
+                default:
+                    throw RealtimeError(source: .collection, description: "Unexpected data event: \(value)")
+                }
+            })
+            .asAny()
+    }()
 
     var _snapshot: (RealtimeDataProtocol, Bool)?
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        guard _view.isPrepared else {
+        guard _view.isSynced else {
             _snapshot = (data, exactly)
             return
         }
@@ -334,18 +231,18 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super (_RealtimeValue)
-        for (i, (key: key, value: value)) in storage.elements.enumerated() {
-            _view.remove(at: i)
+        let view = _view.value
+        transaction.addReversion { [weak self] in
+            self?._view.source <== view
+        }
+        _view.removeAll()
+        for (key: key, value: value) in storage.elements {
             try _write(value,
                        for: key,
                        by: (storage: node,
                             itms: Node(key: InternalKeys.items, parent: node.linksNode)),
                        in: transaction)
         }
-    }
-
-    public func didPrepare() {
-        try? _snapshot.map(apply)
     }
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
@@ -364,9 +261,180 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         }
         storage.elements.forEach { $1.willRemove(in: transaction, from: ancestor) }
     }
-    override public func didRemove(from node: Node) {
-        super.didRemove(from: node)
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
         _view.source.didRemove()
         storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
+    }
+
+    override public var debugDescription: String {
+        return """
+        {
+            ref: \(node?.rootPath ?? "not referred"),
+            synced: \(isSynced), keep: \(keepSynced),
+            elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
+        }
+        """
+    }
+}
+
+// MARK: Mutating
+
+extension AssociatedValues {
+    /// Writes element to collection by database key of `Key` element.
+    ///
+    /// This method is available only if collection is **standalone**,
+    /// otherwise use **func write(element:for:in:)**
+    ///
+    /// - Parameters:
+    ///   - element: The element to write
+    ///   - key: The element to get database key.
+    public func set(element: Value, for key: Key) {
+        guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:for:in:)") }
+        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
+            else { fatalError("Element is referred to incorrect location") }
+
+        _ = _view.insert(RCItem(element: element, key: key.dbKey, linkID: "", index: _view.count))
+        storage.store(value: element, by: key)
+    }
+
+    /// Sets element to collection by database key of `Key` element,
+    /// and writes a changes to transaction.
+    ///
+    /// If collection is standalone, use **func insert(element:at:)** instead.
+    ///
+    /// - Parameters:
+    ///   - element: The element to write
+    ///   - key: The element to get database key.
+    ///   - transaction: Write transaction to keep the changes
+    /// - Returns: A passed transaction or created inside transaction.
+    @discardableResult
+    public func write(element: Value, for key: Key, in transaction: Transaction? = nil) throws -> Transaction {
+        guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method set(element:for:)") }
+        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
+            else { fatalError("Element is referred to incorrect location") }
+
+        let transaction = transaction ?? Transaction(database: database)
+        guard isSynced else {
+            transaction.addPrecondition { [unowned transaction] promise in
+                self._view._contains(with: key.dbKey) { contains, err in
+                    if let e = err {
+                        promise.reject(e)
+                    } else if contains {
+                        promise.reject(RealtimeError(
+                            source: .collection,
+                            description: "Element cannot be inserted, because already exists"
+                        ))
+                    } else {
+                        do {
+                            try self._write(element, for: key, in: transaction)
+                            promise.fulfill()
+                        } catch let e {
+                            promise.reject(e)
+                        }
+                    }
+                }
+            }
+            return transaction
+        }
+
+        guard !contains(valueBy: key) else {
+            throw RealtimeError(source: .collection, description: "Value by key \(key) already exists. Replacing is not supported yet.")
+        }
+
+        try _write(element, for: key, in: transaction)
+        return transaction
+    }
+
+    /// Removes element from collection if collection contains this element.
+    ///
+    /// - Parameters:
+    ///   - element: The element to remove
+    ///   - transaction: Write transaction or `nil`
+    /// - Returns: A passed transaction or created inside transaction.
+    @discardableResult
+    public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction? {
+        guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
+        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        let transaction = transaction ?? Transaction(database: database)
+        guard isSynced else {
+            transaction.addPrecondition { [unowned transaction] promise in
+                self._view._item(for: key.dbKey) { item, err in
+                    if let e = err {
+                        promise.reject(e)
+                    } else if let item = item {
+                        self._remove(for: item, key: key, in: transaction)
+                        promise.fulfill()
+                    } else {
+                        promise.reject(
+                            RealtimeError(source: .collection, description: "Element is not found")
+                        )
+                    }
+                }
+            }
+            return transaction
+        }
+
+        guard let item = _view.first(where: { $0.dbKey == key.dbKey }) else {
+            debugFatalError("Tries to remove not existed value")
+            return transaction
+        }
+
+        _remove(for: item, key: key, in: transaction)
+        return transaction
+    }
+
+    func _write(_ element: Value, for key: Key, in transaction: Transaction) throws {
+        try _write(element, for: key,
+                   by: (storage: node!, itms: _view.source.node!), in: transaction)
+    }
+
+    func _write(_ element: Value, for key: Key,
+                by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
+        let needLink = shouldLinking
+        let itemNode = location.itms.child(with: key.dbKey)
+        let elementNode = location.storage.child(with: key.dbKey)
+        let link = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
+        let item = RCItem(element: key, linkID: link.link.id, index: count)
+
+        transaction.addReversion({ [weak self] in
+            self?.storage.elements.removeValue(forKey: key)
+        })
+        storage.store(value: element, by: key)
+
+        if needLink {
+            transaction.addValue(link.link.rdbValue, by: link.node)
+            let valueLink = elementNode.generate(linkKeyedBy: link.link.id,
+                                                 to: [itemNode, link.node])
+            transaction.addValue(valueLink.link.rdbValue, by: valueLink.node)
+        }
+        transaction.addValue(item.rdbValue, by: itemNode) /// add item of element
+        try transaction.set(element, by: elementNode) /// add element
+    }
+
+    func _remove(for item: RCItem, key: Key, in transaction: Transaction) {
+        var removedElement: Value {
+            if let element = storage.elements.removeValue(forKey: key) {
+                return element
+            } else {
+                return storage.buildElement(with: key)
+            }
+        }
+        let element = removedElement
+        element.willRemove(in: transaction, from: storage.sourceNode)
+
+        transaction.addReversion { [weak self] in
+            self?.storage.elements[key] = element
+        }
+        transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) // remove item element
+        transaction.removeValue(by: storage.sourceNode.child(with: item.dbKey)) // remove element
+        transaction.removeValue(by: key.node!.linksNode.child(with: item.linkID)) // remove link from key object
+        transaction.addCompletion { result in
+            if result {
+                element.didRemove()
+            }
+        }
     }
 }

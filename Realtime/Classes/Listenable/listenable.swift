@@ -35,8 +35,46 @@ public struct ResultPromise<T> {
     }
 }
 
+protocol ClosureProtocol {
+    associatedtype Arg
+    associatedtype Returns
+    func call(_ arg: Arg, error: UnsafeMutablePointer<Error?>?) -> Returns
+}
+extension ClosureProtocol {
+    func call(_ arg: Arg) -> Returns {
+        return call(arg, error: nil)
+    }
+    func call(throws arg: Arg) throws -> Returns {
+        var error: Error?
+        let result = call(arg, error: &error)
+        if let e = error {
+            throw e
+        }
+        return result
+    }
+}
+extension Closure: ClosureProtocol {
+    func call(_ arg: I, error: UnsafeMutablePointer<Error?>?) -> O {
+        return closure(arg)
+    }
+}
+extension ThrowsClosure: ClosureProtocol {
+    func call(_ arg: I, error: UnsafeMutablePointer<Error?>?) -> O? {
+        do {
+            return try closure(arg)
+        } catch let e {
+            error?.pointee = e
+            return nil
+        }
+    }
+}
+
 public struct Closure<I, O> {
     let closure: (I) -> O
+
+    public func call(_ arg: I) -> O {
+        return closure(arg)
+    }
 }
 public struct ThrowsClosure<I, O> {
     let closure: (I) throws -> O
@@ -61,23 +99,15 @@ extension Closure {
     }
 }
 
-extension Closure where O == Void {
-    func filter(_ predicate: @escaping (I) -> Bool) -> Closure<I, O> {
-        return Closure<I, O>(closure: { (input) -> O in
-            if predicate(input) {
-                return self.closure(input)
-            }
-        })
-    }
-}
-
 /// Configurable wrapper for closure that receives listening value.
-public struct Assign<A> {
-    let assign: (A) -> Void
+public typealias Assign<A> = Closure<A, Void>
 
-    public func call(_ arg: A) {
-        assign(arg)
+public extension Closure where O == Void {
+    public typealias A = I
+    public init(assign: @escaping (A) -> Void) {
+        self.closure = assign
     }
+    var assign: (A) -> Void { return closure }
 
     /// simple closure without side effects
     static public func just(_ assign: @escaping (A) -> Void) -> Assign<A> {
@@ -88,7 +118,6 @@ public struct Assign<A> {
     static public func weak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
         return Assign(assign: { [weak owner] v in assign(v, owner) })
     }
-    
 
     /// closure associated with object using unowned reference
     static public func unowned<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
@@ -168,11 +197,11 @@ public struct Assign<A> {
 }
 
 prefix operator <-
-public prefix func <-<A>(rhs: Assign<A>) -> (A) -> Void {
-    return rhs.assign
+public prefix func <-<I, O>(rhs: Closure<I, O>) -> (I) -> O {
+    return rhs.closure
 }
-public prefix func <-<A>(rhs: @escaping (A) -> Void) -> Assign<A> {
-    return Assign(assign: rhs)
+public prefix func <-<I, O>(rhs: @escaping (I) -> O) -> Closure<I, O> {
+    return Closure(closure: rhs)
 }
 
 // MARK: Connections
@@ -270,9 +299,13 @@ public extension Listenable {
     func listeningItem(onError assign: @escaping (Error) -> Void) -> ListeningItem {
         return listeningItem(onError: .just(assign))
     }
+
+    internal func asAny() -> AnyListenable<Out> {
+        return AnyListenable(self.listening, self.listeningItem)
+    }
 }
 
-struct AnyListenable<Out>: Listenable {
+public struct AnyListenable<Out>: Listenable {
     let _listening: (Assign<ListenEvent<Out>>) -> Disposable
     let _listeningItem: (Assign<ListenEvent<Out>>) -> ListeningItem
 
@@ -286,10 +319,10 @@ struct AnyListenable<Out>: Listenable {
         self._listeningItem = listeningItem
     }
 
-    func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
         return _listening(assign)
     }
-    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
         return _listeningItem(assign)
     }
 }

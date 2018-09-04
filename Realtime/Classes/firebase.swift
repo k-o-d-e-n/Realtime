@@ -42,39 +42,42 @@ public extension DatabaseReference {
     }
 }
 
-extension DatabaseReference {
-    public struct Event: Listenable {
-        let ref: DatabaseReference
-        let event: DataEventType
 
-        /// Disposable listening of value
-        public func listening(_ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> Disposable {
-            let token = ref.listen(assign)
-            return ListeningDispose({
-                self.ref.removeObserver(withHandle: token)
-            })
-        }
+public struct Event: Listenable {
+    let database: RealtimeDatabase
+    let node: Node
+    let event: DataEventType
 
-        /// Listening with possibility to control active state
-        public func listeningItem(_ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> ListeningItem {
-            let token = ref.listen(assign)
-            return ListeningItem(
-                resume: { self.ref.listen(assign) },
-                pause: ref.removeObserver,
-                token: token
-            )
-        }
+    /// Disposable listening of value
+    public func listening(_ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> Disposable {
+        let token = database.listen(node: node, assign)
+        return ListeningDispose({
+            self.database.removeObserver(for: self.node, with: token)
+        })
     }
 
-    public func snapshot(_ event: DataEventType) -> Event {
-        return Event(ref: self, event: event)
+    /// Listening with possibility to control active state
+    public func listeningItem(_ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> ListeningItem {
+        let token = database.listen(node: node, assign)
+        return ListeningItem(
+            resume: { self.database.listen(node: self.node, assign) },
+            pause: { self.database.removeObserver(for: self.node, with: $0) },
+            token: token
+        )
+    }
+}
+
+extension RealtimeDatabase {
+    public func data(_ event: DataEventType, node: Node) -> Event {
+        return Event(database: self, node: node, event: event)
     }
 
-    private func listen(_ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> UInt {
+    fileprivate func listen(node: Node, _ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> UInt {
         let token = observe(
             .value,
-            with: <-assign.map { .value($0) },
-            withCancel: <-assign.map { .error($0) }
+            on: node,
+            onUpdate: <-assign.map { .value($0) },
+            onCancel: <-assign.map { .error($0) }
         )
         return token
     }

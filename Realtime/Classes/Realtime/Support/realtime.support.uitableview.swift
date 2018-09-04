@@ -10,11 +10,12 @@
 import UIKit
 
 public class ReuseItem<View: AnyObject> {
-    lazy var view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil)
+    lazy var view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, queue: .main)
     private var listeningItems: [ListeningItem] = []
 
     init() {}
     deinit {
+        print("deinit")
         free()
     }
 
@@ -27,12 +28,7 @@ public class ReuseItem<View: AnyObject> {
     ///   - source: Source of value
     ///   - assign: Closure that calls on receieve value
     public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
-        var v = view
-        var data: T.Out {
-            set { v.value.map { v in assign(v, newValue) } }
-            get { fatalError() }
-        }
-        listeningItems.append(value.listeningItem(onValue: { data = $0 }))
+        listeningItems.append(compactMap().join(with: value).listeningItem(onValue: assign))
 
         guard source.canObserve else { return }
         if source.runObserving() {
@@ -48,12 +44,7 @@ public class ReuseItem<View: AnyObject> {
     ///   - value: Listenable value
     ///   - assign: Closure that calls on receieve value
     public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
-        var v = view
-        var data: T.Out {
-            set { v.value.map { v in assign(v, newValue) } }
-            get { fatalError() }
-        }
-        listeningItems.append(value.listeningItem(onValue: { data = $0 }))
+        listeningItems.append(compactMap().join(with: value).listeningItem(onValue: assign))
 
         guard value.canObserve else { return }
         if value.runObserving() {
@@ -70,6 +61,14 @@ public class ReuseItem<View: AnyObject> {
     ///   - assign: Closure that calls on receive view
     public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
         listeningItems.append(flatMap({ $0 }).listeningItem(onValue: { assign($0, value) }))
+    }
+
+    /// Adds configuration block that will be called on receive view
+    ///
+    /// - Parameters:
+    ///   - config: Closure to configure view
+    public func set(config: @escaping (View) -> Void) {
+        listeningItems.append(flatMap({ $0 }).listeningItem(onValue: config))
     }
 
     func free() {
