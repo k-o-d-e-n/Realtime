@@ -180,17 +180,42 @@ extension RealtimeTableController: UITableViewDelegate, RealtimeEditingTableData
                 return print("Cannot be removed because collection is not synced")
             }
             activityView.startAnimating()
-            Global.rtUsers.remove(at: indexPath.row).commit { (_, err) in
-                self.activityView.stopAnimating()
-                if let e = err?.first {
-                    print(e.localizedDescription)
-                }
-            }
+            presentDeleteAlert(
+                collection: {
+                    Global.rtUsers.remove(at: indexPath.row).commit { (_, err) in
+                        self.activityView.stopAnimating()
+                        if let e = err?.first {
+                            print(e.localizedDescription)
+                        }
+                    }
+            },
+                object: {
+                    try! Global.rtUsers[indexPath.row].delete().commit(with: { (_, err) in
+                        self.activityView.stopAnimating()
+                        if let e = err?.first {
+                            print(e.localizedDescription)
+                        }
+                    })
+            })
         default: break
         }
     }
 
     func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
 
+    }
+}
+
+extension RealtimeTableController {
+    func presentDeleteAlert(collection: @escaping () -> Void, object: @escaping () -> Void) {
+        let controller = UIAlertController(title: "", message: "Delete using:", preferredStyle: .alert)
+
+        controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
+            collection()
+        })
+        controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
+            object()
+        })
+        present(controller, animated: true, completion: nil)
     }
 }

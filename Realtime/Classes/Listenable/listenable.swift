@@ -37,6 +37,10 @@ public struct ResultPromise<T> {
 
 public struct Closure<I, O> {
     let closure: (I) -> O
+
+    public func call(_ arg: I) -> O {
+        return closure(arg)
+    }
 }
 public struct ThrowsClosure<I, O> {
     let closure: (I) throws -> O
@@ -61,23 +65,15 @@ extension Closure {
     }
 }
 
-extension Closure where O == Void {
-    func filter(_ predicate: @escaping (I) -> Bool) -> Closure<I, O> {
-        return Closure<I, O>(closure: { (input) -> O in
-            if predicate(input) {
-                return self.closure(input)
-            }
-        })
-    }
-}
-
 /// Configurable wrapper for closure that receives listening value.
-public struct Assign<A> {
-    let assign: (A) -> Void
+public typealias Assign<A> = Closure<A, Void>
 
-    public func call(_ arg: A) {
-        assign(arg)
+public extension Closure where O == Void {
+    public typealias A = I
+    public init(assign: @escaping (A) -> Void) {
+        self.closure = assign
     }
+    var assign: (A) -> Void { return closure }
 
     /// simple closure without side effects
     static public func just(_ assign: @escaping (A) -> Void) -> Assign<A> {

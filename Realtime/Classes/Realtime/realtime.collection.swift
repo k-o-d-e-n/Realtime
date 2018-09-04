@@ -155,7 +155,8 @@ public protocol RealtimeCollectionActions {
     func load(completion: Assign<Error?>?)
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
-
+    /// Enables/disables auto downloading of the data and keeping in sync
+    var keepSynced: Bool { get set }
     /// Indicates that value already observed.
     var isObserved: Bool { get }
     /// Runs or keeps observing value.
@@ -335,38 +336,22 @@ public struct AnyRCStorage: RealtimeCollectionStorage {
 
 final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyObject>: RCView where Source: BidirectionalCollection, Source: HasDefaultLiteral {
     let source: Property<Source>
-    weak var collection: Viewed?
-//    var listening: Disposable!
-
     var value: Source {
         return source.wrapped ?? Source()
     }
 
-    internal(set) var isPrepared: Bool = false
+    internal(set) var isSynced: Bool = false
 
     init(_ source: Property<Source>) {
         self.source = source
-//        self.listening = source
-//            .livetime(self)
-//            .filter { [unowned self] _ in !self.isPrepared }
-//            .listening(onValue: .guarded(self) { event, view in
-//                switch event {
-//                case .remote: view.isPrepared = true
-//                default: break
-//                }
-//            })
     }
 
-    deinit {
-//        listening.dispose()
-    }
-
-    func prepare(forUse completion: Assign<(Error?)>) {
-        guard !isPrepared else { completion.assign(nil); return }
+    func load(_ completion: Assign<(Error?)>) {
+        guard !isSynced else { completion.assign(nil); return }
 
         source.load(completion:
             completion.with(work: { err in
-                self.isPrepared = err == nil
+                self.isSynced = err == nil
             })
         )
     }

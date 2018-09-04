@@ -330,19 +330,19 @@ extension Tests {
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
         linkedObject.property <== "#1"
-        testObject.linkedArray._view.isPrepared = true
+        testObject.linkedArray._view.isSynced = true
         XCTAssertNoThrow(try testObject.linkedArray.write(element: linkedObject, in: transaction))
 
         let object = TestObject(in: Node(key: "elem_1"))
         object.file <== #imageLiteral(resourceName: "pw")
         object.property <== "prop"
-        testObject.array._view.isPrepared = true
+        testObject.array._view.isSynced = true
         XCTAssertNoThrow(try testObject.array.write(element: object, in: transaction))
 
         let element = TestObject()
         element.file <== #imageLiteral(resourceName: "pw")
         element.property <== "element #1"
-        testObject.dictionary._view.isPrepared = true
+        testObject.dictionary._view.isSynced = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
 
         let value = transaction.updateNode.updateValue
@@ -396,7 +396,7 @@ extension Tests {
             let child = TestObject()
             child.property <== "element #1"
             child.file <== #imageLiteral(resourceName: "pw")
-            element.array._view.isPrepared = true
+            element.array._view.isSynced = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
             let imgData = UIImagePNGRepresentation(#imageLiteral(resourceName: "pw"))!
@@ -639,6 +639,12 @@ extension Tests {
         }
         var node: Node? { return value.node }
         var payload: [String : RealtimeDataValue]? { return value.payload }
+        var canObserve: Bool { return value.canObserve }
+        var keepSynced: Bool {
+            get { return value.keepSynced }
+            set { value.keepSynced = newValue }
+        }
+
         var value: TestObject {
             switch self {
             case .one(let v): return v
@@ -681,8 +687,6 @@ extension Tests {
         func load(completion: Assign<Error?>?) {
             value.load(completion: completion)
         }
-
-        var canObserve: Bool { return value.canObserve }
 
         func runObserving() -> Bool {
             return value.runObserving()
@@ -985,7 +989,7 @@ extension Tests {
             /// simulate notification
             transaction.commit { (state, errors) in
                 errors.map { e in XCTFail(e.reduce("") { $0 + $1.localizedDescription }) }
-                array._view.isPrepared = true
+                array._view.isSynced = true
                 array._view.source.dataObserver.send(.value((CacheNode.root.child(forPath: itemNode.rootPath), .child(.added))))
             }
         } catch let e {

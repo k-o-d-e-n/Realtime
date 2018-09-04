@@ -481,13 +481,21 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate let repeater: Repeater<State<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T?>
 
+    internal var _version: Int? { return super.version }
+    internal var _raw: RealtimeDataValue? { return super.raw }
+    internal var _payload: [String : RealtimeDataValue]? { return super.payload }
+
     public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
 
-    internal var _version: Int? { return super.version }
-    internal var _raw: RealtimeDataValue? { return super.raw }
-    internal var _payload: [String : RealtimeDataValue]? { return super.payload }
+    public var keepSynced: Bool = false {
+        didSet {
+            guard oldValue != keepSynced else { return }
+            if keepSynced { runObserving() }
+            else { stopObserving() }
+        }
+    }
     
     // MARK: Initializers, deinitializer
 
@@ -634,7 +642,8 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     public override var debugDescription: String {
         return """
         {
-            ref: \(node?.debugDescription ?? "not referred")
+            ref: \(node?.debugDescription ?? "not referred"),
+            keepSynced: \(keepSynced),
             value: \(_value as Any)
         }
         """

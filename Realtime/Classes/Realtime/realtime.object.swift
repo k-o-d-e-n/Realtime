@@ -257,6 +257,14 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
+    public var keepSynced: Bool = false {
+        didSet {
+            guard oldValue != keepSynced else { return }
+            if keepSynced { runObserving() }
+            else { stopObserving() }
+        }
+    }
+
     /// Parent object
     open weak var parent: Object?
 
@@ -494,6 +502,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             version: \(version ?? 0),
             raw: \(raw ?? "no raw"),
             has changes: \(_hasChanges),
+            keepSynced: \(keepSynced),
             values:
             \(values)
         }

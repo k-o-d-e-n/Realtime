@@ -193,6 +193,8 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     func load(completion: Assign<Error?>?)
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
+    /// Enables/disables auto downloading of the data and keeping in sync
+    var keepSynced: Bool { get set }
     /// Runs or keeps observing value.
     ///
     /// If observing already run, value remembers each next call of function

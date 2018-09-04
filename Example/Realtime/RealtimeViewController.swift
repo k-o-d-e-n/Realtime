@@ -132,7 +132,9 @@ class RealtimeViewController: UIViewController {
 
         try! Global.rtUsers.write(element: user, in: transaction)
 
+        freeze()
         transaction.commit(with: { (_, error) in
+            self.unfreeze()
             self.user = user
 
             if let error = error {
@@ -156,7 +158,9 @@ class RealtimeViewController: UIViewController {
 
         try! Global.rtGroups.write(element: group, in: transaction)
 
+        freeze()
         transaction.commit(with: { (_, error) in
+            self.unfreeze()
             self.group = group
 
             if let error = error {
@@ -177,7 +181,9 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtUsers.remove(element: u)
 
+            self.freeze()
             transaction.commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 }
@@ -186,7 +192,9 @@ class RealtimeViewController: UIViewController {
             })
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
+            self.freeze()
             try! u.delete().commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 }
@@ -206,7 +214,9 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = Global.rtGroups.remove(element: grp)
 
+            self.freeze()
             transaction.commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 }
@@ -215,7 +225,9 @@ class RealtimeViewController: UIViewController {
             })
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
+            self.freeze()
             try! grp.delete().commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 }
@@ -291,7 +303,9 @@ class RealtimeViewController: UIViewController {
         conversationUser.name <== "Conversation #"
         let transaction = try! g.conversations.write(element: conversationUser, for: u)
 
+        self.freeze()
         transaction.commit(with: { _, errs in
+            self.unfreeze()
             if let errors = errs {
                 print(errors)
             }
@@ -308,7 +322,9 @@ class RealtimeViewController: UIViewController {
         controller.addAction(UIAlertAction(title: "Collection", style: .default) { (_) in
             let transaction = g.conversations.remove(for: u)
 
+            self.freeze()
             transaction?.commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 }
@@ -317,7 +333,9 @@ class RealtimeViewController: UIViewController {
             })
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
+            self.freeze()
             try! g.conversations.first?.value.delete().commit(with: { _, errs in
+                self.unfreeze()
                 if let errors = errs {
                     print(errors)
                 }
@@ -335,14 +353,14 @@ class RealtimeViewController: UIViewController {
         present(picker, animated: true, completion: nil)
     }
 
+    weak var alert: UIAlertController?
     func freeze() {
-        view.isUserInteractionEnabled = false
-        view.alpha = 0.7
+        self.alert = showWaitingAlert()
     }
 
     func unfreeze() {
-        view.isUserInteractionEnabled = true
-        view.alpha = 1
+        self.alert?.dismiss(animated: true, completion: nil)
+        self.alert = nil
     }
 }
 
@@ -354,14 +372,10 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
             return
         }
 
-//        type = (info[UIImagePickerControllerMediaType] as! CFString).mediaFilter
         guard let originalImage = info[UIImagePickerControllerOriginalImage] as? UIImage else {
             setError("Image picking is failed")
             return
         }
-//        editedImage = info[UIImagePickerControllerEditedImage] as? UIImage
-//        cropRect = info[UIImagePickerControllerCropRect] as? CGRect
-//        metaData = info[UIImagePickerControllerMediaMetadata] as? NSDictionary
 
         u.photo <== originalImage
 
@@ -378,6 +392,12 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
 }
 
 extension RealtimeViewController {
+    func showWaitingAlert() -> UIAlertController {
+        let alert = UIAlertController(title: "Please, wait...", message: "Operation in progress", preferredStyle: .alert)
+        present(alert, animated: true, completion: nil)
+        return alert
+    }
+
     func setError(_ text: String) {
         label.textColor = UIColor.red.withAlphaComponent(0.5)
         label.text = text

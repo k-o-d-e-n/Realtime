@@ -70,7 +70,14 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
     public var view: RealtimeCollectionView { return _view }
     public internal(set) var storage: RCDictionaryStorage<Key, Value>
-    public var isSynced: Bool { return _view.isPrepared }
+    public var isSynced: Bool { return _view.isSynced }
+    public var keepSynced: Bool = false {
+        didSet {
+            guard oldValue != keepSynced else { return }
+            if keepSynced { runObserving() }
+            else { stopObserving() }
+        }
+    }
 
     let _view: AnyRealtimeCollectionView<SortedArray<RCItem>, AssociatedValues>
 
@@ -97,7 +104,20 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
             ).defaultOnEmpty()
         )
         super.init(in: node, options: options)
-        self._view.collection = self
+    }
+
+    /// Currently no available
+    public required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        #if DEBUG
+        fatalError("AssociatedValues does not supported init(data:exactly:) yet.")
+        #else
+        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:exactly:) yet.")
+        #endif
+    }
+
+    public convenience init(data: RealtimeDataProtocol, exactly: Bool, keysNode: Node) throws {
+        self.init(in: data.node, options: [.keysNode: keysNode, .database: data.database as Any])
+        try apply(data, exactly: exactly)
     }
 
     // MARK: Implementation
@@ -114,6 +134,19 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
     public func index(before i: Int) -> Int { return _view.index(before: i) }
+    /// Returns a Boolean value indicating whether the sequence contains an
+    /// element by passed key.
+    ///
+    /// - Parameter key: The key element to check for containment.
+    /// - Returns: `true` if element is contained in the range; otherwise,
+    ///   `false`.
+    public func contains(valueBy key: Key) -> Bool {
+        if isStandalone {
+            return storage.elements[key] != nil
+        } else {
+            return _view.contains(where: { $0.dbKey == key.dbKey })
+        }
+    }
 
     @discardableResult
     public func runObserving() -> Bool {
@@ -122,7 +155,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         let removed = _view.source._runObserving(.child(.removed))
         let changed = _view.source._runObserving(.child(.changed))
         if isNeedLoadFull {
-            _view.prepare(forUse: .just { _ in })
+            _view.load(.just { _ in })
         }
         return added && removed && changed
     }
@@ -132,7 +165,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         _view.source._stopObserving(.child(.removed))
         _view.source._stopObserving(.child(.changed))
         if !_view.source.isObserved {
-            _view.isPrepared = false
+            _view.isSynced = false
         }
     }
 
@@ -142,7 +175,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         }
 
         return Accumulator(repeater: .unsafe(), _view.source.dataObserver
-            .filter({ [unowned self] e in self._view.isPrepared || e.1 == .value })
+            .filter({ [unowned self] e in self._view.isSynced || e.1 == .value })
             .map { [unowned self] (value) -> RCEvent in
                 switch value.1 {
                 case .value:
@@ -154,6 +187,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
                 case .child(.removed):
                     let item = try RCItem(data: value.0)
                     if let index = self._view.removeRemote(item) {
+                        if let key = self.storage.elements.keys.first(where: { $0.dbKey == item.dbKey }) {
+                            self.storage.elements.removeValue(forKey: key)
+                        }
                         return .updated((deleted: [index], inserted: [], modified: [], moved: []))
                     } else {
                         throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
@@ -169,32 +205,82 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
             .asAny()
     }()
 
+    var _snapshot: (RealtimeDataProtocol, Bool)?
+    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard _view.isSynced else {
+            _snapshot = (data, exactly)
+            return
+        }
+        _snapshot = nil
+        try _view.forEach { key in
+            guard data.hasChild(key.dbKey) else {
+                if exactly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }
+                return
+            }
+            let childData = data.child(forPath: key.dbKey)
+            if var element = storage.elements.first(where: { $0.0.dbKey == key.dbKey })?.value {
+                try element.apply(childData, exactly: exactly)
+            } else {
+                let keyEntity = Key(in: storage.keysNode.child(with: key.dbKey), options: [:])
+                storage.elements[keyEntity] = try Value(data: childData, exactly: exactly)
+            }
+        }
+    }
+
+    /// Collection does not respond for versions and raw value, and also payload.
+    /// To change value version/raw can use enum, but use modified representer.
+    override func _write(to transaction: Transaction, by node: Node) throws {
+        /// skip the call of super (_RealtimeValue)
+        let view = _view.value
+        transaction.addReversion { [weak self] in
+            self?._view.source <== view
+        }
+        _view.removeAll()
+        for (key: key, value: value) in storage.elements {
+            try _write(value,
+                       for: key,
+                       by: (storage: node,
+                            itms: Node(key: InternalKeys.items, parent: node.linksNode)),
+                       in: transaction)
+        }
+    }
+
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
+        if let node = self.node {
+            _view.source.didSave(in: database, in: node.linksNode)
+            storage.sourceNode = node
+        }
+        storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0.dbKey) }
+    }
+
+    public override func willRemove(in transaction: Transaction, from ancestor: Node) {
+        super.willRemove(in: transaction, from: ancestor)
+        if ancestor == node?.parent {
+            transaction.removeValue(by: node!.linksNode)
+        }
+        storage.elements.forEach { $1.willRemove(in: transaction, from: ancestor) }
+    }
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
+        _view.source.didRemove()
+        storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
+    }
+
     override public var debugDescription: String {
         return """
         {
             ref: \(node?.rootPath ?? "not referred"),
-            synced: \(isSynced),
+            synced: \(isSynced), keep: \(keepSynced),
             elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
         }
         """
     }
+}
 
-    /// Returns a Boolean value indicating whether the sequence contains an
-    /// element by passed key.
-    ///
-    /// - Parameter key: The key element to check for containment.
-    /// - Returns: `true` if element is contained in the range; otherwise,
-    ///   `false`.
-    public func contains(valueBy key: Key) -> Bool {
-        if isStandalone {
-            return storage.elements[key] != nil
-        } else {
-            return _view.contains(where: { $0.dbKey == key.dbKey })
-        }
-    }
+// MARK: Mutating
 
-    // MARK: Mutating
-
+extension AssociatedValues {
     /// Writes element to collection by database key of `Key` element.
     ///
     /// This method is available only if collection is **standalone**,
@@ -262,34 +348,6 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         return transaction
     }
 
-    func _write(_ element: Value, for key: Key, in transaction: Transaction) throws {
-        try _write(element, for: key,
-                   by: (storage: node!, itms: _view.source.node!), in: transaction)
-    }
-
-    func _write(_ element: Value, for key: Key,
-                by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
-        let needLink = shouldLinking
-        let itemNode = location.itms.child(with: key.dbKey)
-        let elementNode = location.storage.child(with: key.dbKey)
-        let link = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
-        let item = RCItem(element: key, linkID: link.link.id, index: count)
-
-        transaction.addReversion({ [weak self] in
-            self?.storage.elements.removeValue(forKey: key)
-        })
-        storage.store(value: element, by: key)
-
-        if needLink {
-            transaction.addValue(link.link.rdbValue, by: link.node)
-            let valueLink = elementNode.generate(linkKeyedBy: link.link.id,
-                                                 to: [itemNode, link.node])
-            transaction.addValue(valueLink.link.rdbValue, by: valueLink.node)
-        }
-        transaction.addValue(item.rdbValue, by: itemNode) /// add item of element
-        try transaction.set(element, by: elementNode) /// add element
-    }
-
     /// Removes element from collection if collection contains this element.
     ///
     /// - Parameters:
@@ -328,8 +386,43 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         return transaction
     }
 
+    func _write(_ element: Value, for key: Key, in transaction: Transaction) throws {
+        try _write(element, for: key,
+                   by: (storage: node!, itms: _view.source.node!), in: transaction)
+    }
+
+    func _write(_ element: Value, for key: Key,
+                by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
+        let needLink = shouldLinking
+        let itemNode = location.itms.child(with: key.dbKey)
+        let elementNode = location.storage.child(with: key.dbKey)
+        let link = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
+        let item = RCItem(element: key, linkID: link.link.id, index: count)
+
+        transaction.addReversion({ [weak self] in
+            self?.storage.elements.removeValue(forKey: key)
+        })
+        storage.store(value: element, by: key)
+
+        if needLink {
+            transaction.addValue(link.link.rdbValue, by: link.node)
+            let valueLink = elementNode.generate(linkKeyedBy: link.link.id,
+                                                 to: [itemNode, link.node])
+            transaction.addValue(valueLink.link.rdbValue, by: valueLink.node)
+        }
+        transaction.addValue(item.rdbValue, by: itemNode) /// add item of element
+        try transaction.set(element, by: elementNode) /// add element
+    }
+
     func _remove(for item: RCItem, key: Key, in transaction: Transaction) {
-        let element = storage.elements.removeValue(forKey: key) ?? storage.object(for: key)
+        var removedElement: Value {
+            if let element = storage.elements.removeValue(forKey: key) {
+                return element
+            } else {
+                return storage.buildElement(with: key)
+            }
+        }
+        let element = removedElement
         element.willRemove(in: transaction, from: storage.sourceNode)
 
         transaction.addReversion { [weak self] in
@@ -343,83 +436,5 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
                 element.didRemove()
             }
         }
-    }
-
-    // MARK: Realtime
-
-    /// Currently no available
-    public required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        #if DEBUG
-        fatalError("AssociatedValues does not supported init(data:exactly:) yet.")
-        #else
-        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:exactly:) yet.")
-        #endif
-    }
-
-    public convenience init(data: RealtimeDataProtocol, exactly: Bool, keysNode: Node) throws {
-        self.init(in: data.node, options: [.keysNode: keysNode, .database: data.database as Any])
-        try apply(data, exactly: exactly)
-    }
-
-    var _snapshot: (RealtimeDataProtocol, Bool)?
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        guard _view.isPrepared else {
-            _snapshot = (data, exactly)
-            return
-        }
-        _snapshot = nil
-        try _view.forEach { key in
-            guard data.hasChild(key.dbKey) else {
-                if exactly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }
-                return
-            }
-            let childData = data.child(forPath: key.dbKey)
-            if var element = storage.elements.first(where: { $0.0.dbKey == key.dbKey })?.value {
-                try element.apply(childData, exactly: exactly)
-            } else {
-                let keyEntity = Key(in: storage.keysNode.child(with: key.dbKey), options: [:])
-                storage.elements[keyEntity] = try Value(data: childData, exactly: exactly)
-            }
-        }
-    }
-
-    /// Collection does not respond for versions and raw value, and also payload.
-    /// To change value version/raw can use enum, but use modified representer.
-    override func _write(to transaction: Transaction, by node: Node) throws {
-        /// skip the call of super (_RealtimeValue)
-        let view = _view.value
-        transaction.addReversion { [weak self] in
-            self?._view.source <== view
-        }
-        _view.removeAll()
-        for (key: key, value: value) in storage.elements {
-            try _write(value,
-                       for: key,
-                       by: (storage: node,
-                            itms: Node(key: InternalKeys.items, parent: node.linksNode)),
-                       in: transaction)
-        }
-    }
-
-    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
-        super.didSave(in: database, in: parent, by: key)
-        if let node = self.node {
-            _view.source.didSave(in: database, in: node.linksNode)
-            storage.sourceNode = node
-        }
-        storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0.dbKey) }
-    }
-
-    public override func willRemove(in transaction: Transaction, from ancestor: Node) {
-        super.willRemove(in: transaction, from: ancestor)
-        if ancestor == node?.parent {
-            transaction.removeValue(by: node!.linksNode)
-        }
-        storage.elements.forEach { $1.willRemove(in: transaction, from: ancestor) }
-    }
-    override public func didRemove(from ancestor: Node) {
-        super.didRemove(from: ancestor)
-        _view.source.didRemove()
-        storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
     }
 }

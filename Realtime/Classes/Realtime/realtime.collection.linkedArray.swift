@@ -34,7 +34,14 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
-    public var isSynced: Bool { return _view.isPrepared }
+    public var isSynced: Bool { return _view.isSynced }
+    public var keepSynced: Bool = false {
+        didSet {
+            guard oldValue != keepSynced else { return }
+            if keepSynced { runObserving() }
+            else { stopObserving() }
+        }
+    }
 
     let _view: AnyRealtimeCollectionView<SortedArray<RCItem>, References>
 
@@ -54,12 +61,14 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         self.storage = RCArrayStorage(sourceNode: elements,
                                       elementBuilder: builder,
                                       elements: [:])
-        self._view = AnyRealtimeCollectionView(Property(in: node, representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)).defaultOnEmpty())
+        self._view = AnyRealtimeCollectionView(
+            Property(
+                in: node,
+                representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)
+            ).defaultOnEmpty()
+        )
         super.init(in: node, options: options)
-        self._view.collection = self
     }
-
-    // MARK: Realtime
 
     public convenience init(data: RealtimeDataProtocol, exactly: Bool, elementsNode: Node) throws {
         self.init(in: data.node, options: [.elementsNode: elementsNode,
@@ -101,7 +110,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         let removed = _view.source._runObserving(.child(.removed))
         let changed = _view.source._runObserving(.child(.changed))
         if isNeedLoadFull {
-            _view.prepare(forUse: .just { _ in })
+            _view.load(.just { _ in })
         }
         return added && removed && changed
     }
@@ -111,7 +120,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         _view.source._stopObserving(.child(.removed))
         _view.source._stopObserving(.child(.changed))
         if !_view.source.isObserved {
-            _view.isPrepared = false
+            _view.isSynced = false
         }
     }
 
@@ -121,7 +130,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         }
 
         return Accumulator(repeater: .unsafe(), _view.source.dataObserver
-            .filter({ [unowned self] e in self._view.isPrepared || e.1 == .value })
+            .filter({ [unowned self] e in self._view.isSynced || e.1 == .value })
             .map { [unowned self] (value) -> RCEvent in
                 switch value.1 {
                 case .value:
@@ -133,6 +142,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
                 case .child(.removed):
                     let item = try RCItem(data: value.0)
                     if let index = self._view.removeRemote(item) {
+                        self.storage.elements.removeValue(forKey: item.dbKey)
                         return .updated((deleted: [index], inserted: [], modified: [], moved: []))
                     } else {
                         throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
@@ -148,20 +158,9 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
             .asAny()
     }()
 
-    override public var debugDescription: String {
-        return """
-        {
-            ref: \(node?.rootPath ?? "not referred"),
-            synced: \(isSynced),
-            elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
-        }
-        """
-    }
-
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try super.apply(data, exactly: exactly)
         try _view.source.apply(data, exactly: exactly)
-//        _view.isPrepared = exactly
     }
 
     /// Collection does not respond for versions and raw value, and also payload.
@@ -190,6 +189,16 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
         _view.source.didRemove(from: ancestor)
+    }
+
+    override public var debugDescription: String {
+        return """
+        {
+            ref: \(node?.rootPath ?? "not referred"),
+            synced: \(isSynced), keep: \(keepSynced),
+            elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
+        }
+        """
     }
 }
 
@@ -265,30 +274,6 @@ public extension References {
         _ = _view.insert(RCItem(element: element, linkID: "", index: index))
     }
 
-    @discardableResult
-    internal func _write(
-        _ element: Element, at index: Int? = nil,
-        in database: RealtimeDatabase, in transaction: Transaction? = nil
-        ) throws -> Transaction {
-        let transaction = transaction ?? Transaction(database: database)
-        try _write(element, at: index ?? count, by: node!, in: transaction)
-        return transaction
-    }
-
-    internal func _write(_ element: Element, at index: Int,
-                by location: Node, in transaction: Transaction) throws {
-        let itemNode = location.child(with: element.dbKey)
-        let link = element.node!.generate(linkTo: itemNode)
-        let item = RCItem(element: element, linkID: link.link.id, index: index)
-
-        transaction.addReversion({ [weak self] in
-            self?.storage.elements.removeValue(forKey: item.dbKey)
-        })
-        storage.store(value: element, by: item)
-        transaction.addValue(item.rdbValue, by: itemNode)
-        transaction.addValue(link.link.rdbValue, by: link.node)
-    }
-
     /// Removes element from collection if collection contains this element.
     ///
     /// - Parameters:
@@ -339,6 +324,30 @@ public extension References {
         return transaction
     }
 
+    @discardableResult
+    internal func _write(
+        _ element: Element, at index: Int? = nil,
+        in database: RealtimeDatabase, in transaction: Transaction? = nil
+        ) throws -> Transaction {
+        let transaction = transaction ?? Transaction(database: database)
+        try _write(element, at: index ?? count, by: node!, in: transaction)
+        return transaction
+    }
+
+    internal func _write(_ element: Element, at index: Int,
+                         by location: Node, in transaction: Transaction) throws {
+        let itemNode = location.child(with: element.dbKey)
+        let link = element.node!.generate(linkTo: itemNode)
+        let item = RCItem(element: element, linkID: link.link.id, index: index)
+
+        transaction.addReversion({ [weak self] in
+            self?.storage.elements.removeValue(forKey: item.dbKey)
+        })
+        storage.store(value: element, by: item)
+        transaction.addValue(item.rdbValue, by: itemNode)
+        transaction.addValue(link.link.rdbValue, by: link.node)
+    }
+
     private func _remove(_ element: Element, in transaction: Transaction) {
         if let item = _view.first(where: { $0.dbKey == element.dbKey }) {
             _remove(for: item, in: transaction)
@@ -352,11 +361,11 @@ public extension References {
         transaction.addReversion { [weak self] in
             self?.storage.elements[item.dbKey] = element
         }
-        transaction.removeValue(by: _view.source.node!.child(with: item.dbKey))
         let elementLinksNode = storage.sourceNode.linksNode.child(
             with: item.dbKey.subpath(with: item.linkID)
         )
-        transaction.removeValue(by: elementLinksNode)
+        transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) /// remove item
+        transaction.removeValue(by: elementLinksNode) /// remove link from element
     }
 }
 
