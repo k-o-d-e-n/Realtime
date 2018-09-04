@@ -35,6 +35,40 @@ public struct ResultPromise<T> {
     }
 }
 
+protocol ClosureProtocol {
+    associatedtype Arg
+    associatedtype Returns
+    func call(_ arg: Arg, error: UnsafeMutablePointer<Error?>?) -> Returns
+}
+extension ClosureProtocol {
+    func call(_ arg: Arg) -> Returns {
+        return call(arg, error: nil)
+    }
+    func call(throws arg: Arg) throws -> Returns {
+        var error: Error?
+        let result = call(arg, error: &error)
+        if let e = error {
+            throw e
+        }
+        return result
+    }
+}
+extension Closure: ClosureProtocol {
+    func call(_ arg: I, error: UnsafeMutablePointer<Error?>?) -> O {
+        return closure(arg)
+    }
+}
+extension ThrowsClosure: ClosureProtocol {
+    func call(_ arg: I, error: UnsafeMutablePointer<Error?>?) -> O? {
+        do {
+            return try closure(arg)
+        } catch let e {
+            error?.pointee = e
+            return nil
+        }
+    }
+}
+
 public struct Closure<I, O> {
     let closure: (I) -> O
 
@@ -84,7 +118,6 @@ public extension Closure where O == Void {
     static public func weak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
         return Assign(assign: { [weak owner] v in assign(v, owner) })
     }
-    
 
     /// closure associated with object using unowned reference
     static public func unowned<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
@@ -164,11 +197,11 @@ public extension Closure where O == Void {
 }
 
 prefix operator <-
-public prefix func <-<A>(rhs: Assign<A>) -> (A) -> Void {
-    return rhs.assign
+public prefix func <-<I, O>(rhs: Closure<I, O>) -> (I) -> O {
+    return rhs.closure
 }
-public prefix func <-<A>(rhs: @escaping (A) -> Void) -> Assign<A> {
-    return Assign(assign: rhs)
+public prefix func <-<I, O>(rhs: @escaping (I) -> O) -> Closure<I, O> {
+    return Closure(closure: rhs)
 }
 
 // MARK: Connections
