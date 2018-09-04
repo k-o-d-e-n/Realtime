@@ -588,7 +588,7 @@ extension Tests {
     func testLinksNode() {
         let fourth = Node.root.child(with: "/first/second/third/fourth")
         let linksNode = fourth.linksNode
-        XCTAssertEqual(linksNode.rootPath, "/__links/first/second/third/fourth")
+        XCTAssertEqual(linksNode.rootPath, RealtimeApp.app.linksNode.child(with: "first/second/third/fourth").rootPath)
     }
 
     func testConnectNode() {
