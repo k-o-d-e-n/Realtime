@@ -58,14 +58,14 @@ class Tests: XCTestCase {
 // MARK: Realtime
 
 class TestObject: Object {
-    lazy var property: Property<String?> = "prop".property(from: self.node)
-    lazy var readonlyProperty: ReadonlyProperty<Int> = "readonlyProp".readonlyProperty(from: self.node).defaultOnEmpty()
-    lazy var linkedArray: References<Object> = "linked_array".linkedArray(from: self.node, elements: .root)
-    lazy var array: Values<TestObject> = "array".array(from: self.node)
-    lazy var dictionary: AssociatedValues<Object, TestObject> = "dict".dictionary(from: self.node, keys: .root)
+    lazy var property: Property<String?> = "prop".property(in: self)
+    lazy var readonlyProperty: ReadonlyProperty<Int> = "readonlyProp".readonlyProperty(in: self).defaultOnEmpty()
+    lazy var linkedArray: References<Object> = "linked_array".references(in: self, elements: .root)
+    lazy var array: Values<TestObject> = "array".values(in: self)
+    lazy var dictionary: AssociatedValues<Object, TestObject> = "dict".dictionary(in: self, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
-    lazy var readonlyFile: ReadonlyFile<UIImage> = ReadonlyFile(in: Node(key: "readonlyFile", parent: self.node), representer: .png)
-    lazy var file: File<UIImage> = File(in: Node(key: "file", parent: self.node), representer: .jpeg())
+    lazy var readonlyFile: ReadonlyFile<UIImage> = "readonlyFile".readonlyFile(in: self, representer: .png)
+    lazy var file: File<UIImage> = "file".file(in: self, representer: .jpeg())
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -86,16 +86,20 @@ class TestObject: Object {
     }
 
     class NestedObject: Object {
-        lazy var lazyProperty: Property<String?> = "lazyprop".property(from: self.node)
+        lazy var lazyProperty: Property<String?> = "lazyprop".property(in: self)
         var usualProperty: Property<String?>
 
         required init(in node: Node?, options: [ValueOption : Any]) {
-            self.usualProperty = "usualprop".property(from: node)
+            self.usualProperty = Property(in: Node(key: "usualprop", parent: node),
+                                          representer: .any,
+                                          options: [.database: options[.database] as Any])
             super.init(in: node, options: options)
         }
 
         required init(data: RealtimeDataProtocol, exactly: Bool) throws {
-            self.usualProperty = "usualprop".property(from: data.node)
+            self.usualProperty = Property(in: Node(key: "usualprop", parent: data.node),
+                                          representer: .any,
+                                          options: [.database: data.database as Any])
             try super.init(data: data, exactly: exactly)
         }
 
@@ -213,7 +217,9 @@ extension Tests {
         }
     }
     func testPropertySetValue() {
-        let property = Property<String>(in: Node(key: "value", parent: .root), representer: Representer<String>.any)
+        let property = Property<String>(in: Node(key: "value", parent: .root),
+                                        representer: Representer<String>.any,
+                                        options: [:])
 
         XCTAssertFalse(property.hasChanges)
         let transaction = Transaction(database: CacheNode.root)
@@ -494,7 +500,7 @@ extension Tests {
 
             let groupCopy = try Group(data: data.child(forPath: group.node!.rootPath), exactly: false)
 
-            let groupBackwardRelation: Relation<Group> = group._manager.options.property.path(for: group.node!).relation(from: user.node, rootLevelsUp: nil, .oneToOne("_manager"))
+            let groupBackwardRelation: Relation<Group> = group._manager.options.property.path(for: group.node!).relation(in: user, rootLevelsUp: nil, .oneToOne("_manager"))
             try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: true)
 
             XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
@@ -881,7 +887,7 @@ extension AssociatedValues: Reverting {
 
 extension Tests {
     func testLocalChangesLinkedArray() {
-        let linkedArray: References<TestObject> = "l_array".linkedArray(from: nil, elements: .root)
+        let linkedArray: References<TestObject> = References(in: Node(key: "l_array"), options: [.elementsNode: Node.root])
 
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
@@ -906,7 +912,7 @@ extension Tests {
         transaction.revert()
     }
     func testLocalChangesArray() {
-        let array: Values<TestObject> = "array".array(from: nil)
+        let array: Values<TestObject> = Values(in: Node(key: "array"))
 
         let one = TestObject()
         one.file <== #imageLiteral(resourceName: "pw")
@@ -935,7 +941,8 @@ extension Tests {
         transaction.revert()
     }
     func testLocalChangesDictionary() {
-        let dict: AssociatedValues<TestObject, TestObject> = "dict".dictionary(from: nil, keys: .root)
+        let dict: AssociatedValues<TestObject, TestObject> = AssociatedValues(in: Node(key: "dict"),
+                                                                              options: [.keysNode: Node.root])
 
         let one = TestObject()
         one.file <== #imageLiteral(resourceName: "pw")
@@ -1013,6 +1020,78 @@ extension Tests {
 
         waitForExpectations(timeout: 4) { (error) in
             error.map { XCTFail($0.localizedDescription) }
+        }
+    }
+
+    func testReadonlyRelation() {
+        let exp = expectation(description: "")
+        let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
+        let group = Group(in: Node(key: "group", parent: .root), options: [.database: CacheNode.root])
+        user.ownedGroup <== group
+
+        do {
+            let transaction = try user.update()
+            transaction.commit { (state, errors) in
+                errors.map { XCTFail($0.description) }
+
+                let ownedGroup = Relation<Group?>.readonly(in: user.ownedGroup.node, config: user.ownedGroup.options)
+                do {
+                    try ownedGroup.apply(CacheNode.root.child(forPath: user.ownedGroup.node!.rootPath), exactly: true)
+                    XCTAssertEqual(ownedGroup.wrapped, user.ownedGroup.wrapped)
+                    exp.fulfill()
+                } catch let e {
+                    XCTFail(e.localizedDescription)
+                }
+            }
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+
+        waitForExpectations(timeout: 4.0) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+        }
+    }
+
+    func testReadonlyReference() {
+        let exp = expectation(description: "")
+        let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
+        let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: [.database: CacheNode.root])
+        conversation.chairman <== user
+
+        do {
+            let transaction = try conversation.update()
+            transaction.commit { (state, errors) in
+                errors.map { XCTFail($0.description) }
+
+                let chairman = Reference<User>.readonly(
+                    in: conversation.chairman.node,
+                    mode: Reference<User>.Mode.required(.fullPath, options: [.database: CacheNode.root])
+                )
+                do {
+                    try chairman.apply(CacheNode.root.child(forPath: conversation.chairman.node!.rootPath), exactly: true)
+                    XCTAssertEqual(chairman.wrapped, conversation.chairman.wrapped)
+                    exp.fulfill()
+                } catch let e {
+                    XCTFail(e.localizedDescription)
+                }
+            }
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+
+        waitForExpectations(timeout: 4.0) { (error) in
+            error.map { XCTFail($0.localizedDescription) }
+        }
+    }
+
+    func testDatabaseBinding() {
+        let testObject = TestObject(in: .root, options: [.database: CacheNode.root])
+        testObject.forceEnumerateAllChilds { (_, value: _RealtimeValue) in
+            if value.database === CacheNode.root {
+                XCTAssertTrue(true)
+            } else {
+                XCTFail("value: \(value), database: \(value.database as Any)")
+            }
         }
     }
 }

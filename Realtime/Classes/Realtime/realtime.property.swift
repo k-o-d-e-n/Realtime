@@ -10,68 +10,131 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where Self.RawValue == String {
-    internal func property<T>(from node: Node?, representer: Representer<T>) -> Property<T> {
-        return Property(in: Node(key: rawValue, parent: node), representer: representer)
+    internal func property<T>(in object: Object, representer: Representer<T>) -> Property<T> {
+        return Property(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .representer: representer.requiredProperty()
+            ]
+        )
     }
-    internal func property<T>(from node: Node?, representer: Representer<T>) -> Property<T?> {
-        return Property(in: Node(key: rawValue, parent: node), representer: representer)
-    }
-
-    func readonlyProperty<T: RealtimeDataValue>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyProperty<T> {
-        return ReadonlyProperty(in: Node(key: rawValue, parent: node), representer: representer)
-    }
-    func readonlyProperty<T: RealtimeDataValue>(from node: Node?, representer: Representer<T> = .any) -> ReadonlyProperty<T?> {
-        return ReadonlyProperty(in: Node(key: rawValue, parent: node), representer: representer)
-    }
-    func property<T: RealtimeDataValue>(from node: Node?) -> Property<T> {
-        return property(from: node, representer: .any)
-    }
-    func property<T: RealtimeDataValue>(from node: Node?) -> Property<T?> {
-        return Property(in: Node(key: rawValue, parent: node), representer: .any)
-    }
-
-    func `enum`<V: RawRepresentable>(from node: Node?, rawRepresenter: Representer<V.RawValue> = .any) -> Property<V> {
-        return property(from: node, representer: Representer<V>.default(rawRepresenter))
-    }
-    func `enum`<V: RawRepresentable>(from node: Node?, rawRepresenter: Representer<V.RawValue> = .any) -> Property<V?> {
-        return property(from: node, representer: Representer<V>.default(rawRepresenter))
-    }
-    func date(from node: Node?, strategy: DateCodingStrategy = .secondsSince1970) -> Property<Date> {
-        return property(from: node, representer: Representer<Date>.date(strategy))
-    }
-    func date(from node: Node?, strategy: DateCodingStrategy = .secondsSince1970) -> Property<Date?> {
-        return property(from: node, representer: Representer<Date>.date(strategy))
-    }
-    func url(from node: Node?) -> Property<URL> {
-        return property(from: node, representer: Representer<URL>.default)
-    }
-    func url(from node: Node?) -> Property<URL?> {
-        return property(from: node, representer: Representer<URL>.default)
-    }
-    func codable<V: Codable>(from node: Node?) -> Property<V> {
-        return property(from: node, representer: Representer<V>.json)
-    }
-    func optionalCodable<V: Codable>(from node: Node?) -> Property<V?> {
-        return property(from: node, representer: Representer<V>.json)
+    internal func property<T>(in object: Object, representer: Representer<T>) -> Property<T?> {
+        return Property(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .representer: representer.optionalProperty()
+            ]
+        )
     }
 
-    func reference<V: Object>(from node: Node?, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V> {
-        return Reference(in: Node(key: rawValue, parent: node), mode: .required(mode, options: options))
+    func readonlyProperty<T: RealtimeDataValue>(in object: Object, representer: Representer<T> = .any) -> ReadonlyProperty<T> {
+        return ReadonlyProperty(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .representer: representer.requiredProperty()
+            ]
+        )
     }
-    func reference<V: Object>(from node: Node?, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V?> {
-        return Reference(in: Node(key: rawValue, parent: node), mode: .optional(mode, options: options))
+    func readonlyProperty<T: RealtimeDataValue>(in object: Object, representer: Representer<T> = .any) -> ReadonlyProperty<T?> {
+        return ReadonlyProperty(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .representer: representer.optionalProperty()
+            ]
+        )
     }
-    func relation<V: Object>(from node: Node?, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> Relation<V> {
-        return Relation(in: Node(key: rawValue, parent: node),
-                                config: .required(rootLevelsUp: rootLevelsUp, ownerLevelsUp: ownerLevelsUp, property: property))
+    func property<T: RealtimeDataValue>(in obj: Object) -> Property<T> {
+        return property(in: obj, representer: .any)
     }
-    func relation<V: Object>(from node: Node?, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> Relation<V?> {
-        return Relation(in: Node(key: rawValue, parent: node),
-                                config: .optional(rootLevelsUp: rootLevelsUp, ownerLevelsUp: ownerLevelsUp, property: property))
+    func property<T: RealtimeDataValue>(in obj: Object) -> Property<T?> {
+        return Property(
+            in: Node(key: rawValue, parent: obj.node),
+            options: [
+                .database: obj.database as Any,
+                .representer: Representer<T>.any.optionalProperty()
+            ]
+        )
+    }
+
+    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = .any) -> Property<V> {
+        return property(in: object, representer: Representer<V>.default(rawRepresenter))
+    }
+    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = .any) -> Property<V?> {
+        return property(in: object, representer: Representer<V>.default(rawRepresenter))
+    }
+    func date(in object: Object, strategy: DateCodingStrategy = .secondsSince1970) -> Property<Date> {
+        return property(in: object, representer: Representer<Date>.date(strategy))
+    }
+    func date(in object: Object, strategy: DateCodingStrategy = .secondsSince1970) -> Property<Date?> {
+        return property(in: object, representer: Representer<Date>.date(strategy))
+    }
+    func url(in object: Object) -> Property<URL> {
+        return property(in: object, representer: Representer<URL>.default)
+    }
+    func url(in object: Object) -> Property<URL?> {
+        return property(in: object, representer: Representer<URL>.default)
+    }
+    func codable<V: Codable>(in object: Object) -> Property<V> {
+        return property(in: object, representer: Representer<V>.json)
+    }
+    func optionalCodable<V: Codable>(in object: Object) -> Property<V?> {
+        return property(in: object, representer: Representer<V>.json)
+    }
+
+    func reference<V: Object>(in object: Object, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V> {
+        return Reference(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .reference: Reference<V>.Mode.required(mode, options: options)
+            ]
+        )
+    }
+    func reference<V: Object>(in object: Object, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V?> {
+        return Reference(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .reference: Reference<V?>.Mode.optional(mode, options: options)
+            ]
+        )
+    }
+    func relation<V: Object>(in object: Object, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> Relation<V> {
+        return Relation(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .relation: Relation<V>.Options.required(
+                    rootLevelsUp: rootLevelsUp,
+                    ownerLevelsUp: ownerLevelsUp,
+                    property: property
+                )
+            ]
+        )
+    }
+    func relation<V: Object>(in object: Object, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> Relation<V?> {
+        return Relation(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .relation: Relation<V?>.Options.optional(
+                    rootLevelsUp: rootLevelsUp,
+                    ownerLevelsUp: ownerLevelsUp,
+                    property: property
+                )
+            ]
+        )
     }
 
     func nested<Type: Object>(in object: Object, options: [ValueOption: Any] = [:]) -> Type {
-        let property = Type(in: Node(key: rawValue, parent: object.node), options: options)
+        let property = Type(
+            in: Node(key: rawValue, parent: object.node),
+            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
+        )
         property.parent = object
         return property
     }
@@ -88,13 +151,9 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
     public override var raw: RealtimeDataValue? { return super._raw }
     public override var payload: [String : RealtimeDataValue]? { return super._payload }
 
-    public convenience init(in node: Node?, mode: Mode) {
-        self.init(in: node, options: [.reference: mode])
-    }
-
     public required init(in node: Node?, options: [ValueOption : Any]) {
         guard case let o as Mode = options[.reference] else { fatalError("Skipped required options") }
-        super.init(in: node, options: [.representer: o.representer])
+        super.init(in: node, options: options.merging([.representer: o.representer], uniquingKeysWith: { _, new in new }))
     }
 
     public init(data: RealtimeDataProtocol, exactly: Bool, mode: Mode) throws {
@@ -138,8 +197,8 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
         }
     }
 
-    public static func readonly(in node: Node, mode: Mode) -> ReadonlyProperty<Referenced> {
-        return ReadonlyProperty(in: node, representer: mode.representer)
+    public static func readonly(in node: Node?, mode: Mode) -> ReadonlyProperty<Referenced> {
+        return ReadonlyProperty(in: node, options: [.representer: mode.representer])
     }
 }
 
@@ -150,16 +209,11 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     public override var raw: RealtimeDataValue? { return super._raw }
     public override var payload: [String : RealtimeDataValue]? { return super._payload }
 
-    public convenience init(in node: Node?, config: Options) {
-        self.init(in: node, options: [.relation: config])
-    }
-
     public required init(in node: Node?, options: [ValueOption: Any]) {
-        guard let node = node else { fatalError() }
         guard case let relation as Relation<Related>.Options = options[.relation] else { fatalError("Skipped required options") }
 
         self.options = relation
-        super.init(in: node, options: [.representer: relation.representer])
+        super.init(in: node, options: options.merging([.representer: relation.representer], uniquingKeysWith: { _, new in new }))
     }
 
     public init(data: RealtimeDataProtocol, exactly: Bool, options: Options) throws {
@@ -221,16 +275,20 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
 
     private func removeOldValueIfExists(in transaction: Transaction, by node: Node) {
         transaction.addPrecondition { [unowned transaction] (promise) in
-            node.reference().observeSingleEvent(of: .value, with: { (data) in
-                guard data.exists() else { return promise.fulfill() }
-                do {
-                    let relation = try RelationRepresentation(data: data)
-                    transaction.removeValue(by: Node.root.child(with: relation.targetPath).child(with: relation.relatedProperty))
-                    promise.fulfill()
-                } catch let e {
-                    promise.reject(e)
-                }
-            }, withCancel: promise.reject)
+            transaction.database.load(
+                for: node,
+                completion: { data in
+                    guard data.exists() else { return promise.fulfill() }
+                    do {
+                        let relation = try RelationRepresentation(data: data)
+                        transaction.removeValue(by: Node.root.child(with: relation.targetPath).child(with: relation.relatedProperty))
+                        promise.fulfill()
+                    } catch let e {
+                        promise.reject(e)
+                    }
+                },
+                onCancel: promise.reject
+            )
         }
     }
 
@@ -271,15 +329,16 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     public override var debugDescription: String {
         return """
         {
-            ref: \(node?.debugDescription ?? "not referred")
+            ref: \(node?.debugDescription ?? "not referred"),
+            keepSynced: \(keepSynced),
             value:
                 \(_value as Any)
         }
         """
     }
 
-    public static func readonly(in node: Node, config: Options) -> ReadonlyProperty<Related> {
-        return ReadonlyProperty(in: node, representer: config.representer)
+    public static func readonly(in node: Node?, config: Options) -> ReadonlyProperty<Related> {
+        return ReadonlyProperty(in: node, options: [.representer: config.representer])
     }
 }
 
@@ -499,12 +558,12 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     
     // MARK: Initializers, deinitializer
 
-    public convenience init<U>(in node: Node?, representer: Representer<U>) {
-        self.init(in: node, options: [.representer: representer.requiredProperty()])
+    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any]) {
+        self.init(in: node, options: options.merging([.representer: representer.requiredProperty()], uniquingKeysWith: { _, new in new }))
     }
 
-    public convenience init<U>(in node: Node?, representer: Representer<U>) where Optional<U> == T {
-        self.init(in: node, options: [.representer: representer.optionalProperty()])
+    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any]) where Optional<U> == T {
+        self.init(in: node, options: options.merging([.representer: representer.optionalProperty()], uniquingKeysWith: { _, new in new }))
     }
     
     public required init(in node: Node?, options: [ValueOption: Any]) {

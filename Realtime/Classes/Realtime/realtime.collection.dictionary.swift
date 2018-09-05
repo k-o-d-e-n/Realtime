@@ -9,17 +9,32 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where RawValue == String {
-    func dictionary<Key, Value>(from node: Node?, keys: Node) -> AssociatedValues<Key, Value> {
-        return AssociatedValues(in: Node(key: rawValue, parent: node), options: [.keysNode: keys])
+    func dictionary<Key, Value>(in object: Object, keys: Node) -> AssociatedValues<Key, Value> {
+        return AssociatedValues(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .keysNode: keys
+            ]
+        )
     }
-    func dictionary<Key, Value>(from node: Node?, keys: Node, elementOptions: [ValueOption: Any]) -> AssociatedValues<Key, Value> {
-        return dictionary(from: node, keys: keys, builder: { (node, options) in
-            let compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
+    func dictionary<Key, Value>(in object: Object, keys: Node, elementOptions: [ValueOption: Any]) -> AssociatedValues<Key, Value> {
+        let db = object.database as Any
+        return dictionary(in: object, keys: keys, builder: { (node, options) in
+            var compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
+            compoundOptions[.database] = db
             return Value(in: node, options: compoundOptions)
         })
     }
-    func dictionary<Key, Value>(from node: Node?, keys: Node, builder: @escaping RCElementBuilder<Value>) -> AssociatedValues<Key, Value> {
-        return AssociatedValues(in: Node(key: rawValue, parent: node), options: [.keysNode: keys, .elementBuilder: builder])
+    func dictionary<Key, Value>(in object: Object, keys: Node, builder: @escaping RCElementBuilder<Value>) -> AssociatedValues<Key, Value> {
+        return AssociatedValues(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .keysNode: keys,
+                .elementBuilder: builder
+            ]
+        )
     }
 }
 
@@ -98,9 +113,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         let builder = options[.elementBuilder] as? RCElementBuilder<Value> ?? Value.init
         self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: builder, elements: [:])
         self._view = AnyRealtimeCollectionView(
-            InternalKeys.items.property(
-                from: viewParentNode,
-                representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)
+            Property<SortedArray<RCItem>>(
+                in: Node(key: InternalKeys.items, parent: viewParentNode),
+                options: [
+                    .database: options[.database] as Any,
+                    .representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData).requiredProperty()
+                ]
             ).defaultOnEmpty()
         )
         super.init(in: node, options: options)

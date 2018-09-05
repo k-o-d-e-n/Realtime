@@ -10,17 +10,25 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where RawValue == String {
-    func array<Element>(from node: Node?) -> Values<Element> {
-        return Values(in: Node(key: rawValue, parent: node))
+    func values<Element>(in object: Object) -> Values<Element> {
+        return Values(in: Node(key: rawValue, parent: object.node), options: [.database: object.database as Any])
     }
-    func array<Element>(from node: Node?, elementOptions: [ValueOption: Any]) -> Values<Element> {
-        return array(from: node, builder: { (node, options) in
-            let compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
+    func values<Element>(in object: Object, elementOptions: [ValueOption: Any]) -> Values<Element> {
+        let db = object.database as Any
+        return values(in: object, builder: { (node, options) in
+            var compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
+            compoundOptions[.database] = db
             return Element(in: node, options: compoundOptions)
         })
     }
-    func array<Element>(from node: Node?, builder: @escaping RCElementBuilder<Element>) -> Values<Element> {
-        return Values(in: Node(key: rawValue, parent: node), options: [.elementBuilder: builder])
+    func values<Element>(in object: Object, builder: @escaping RCElementBuilder<Element>) -> Values<Element> {
+        return Values(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .elementBuilder: builder
+            ]
+        )
     }
 }
 public extension Node {
@@ -79,9 +87,12 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         self.init(
             in: node,
             options: options,
-            viewSource: InternalKeys.items.property(
-                from: viewParentNode,
-                representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)
+            viewSource: Property<SortedArray<RCItem>>(
+                in: Node(key: InternalKeys.items, parent: viewParentNode),
+                options: [
+                    .database: options[.database] as Any,
+                    .representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData).requiredProperty()
+                ]
             ).defaultOnEmpty()
         )
     }
@@ -100,9 +111,12 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         self.storage = RCArrayStorage(sourceNode: node, elementBuilder: Element.init, elements: [:])
         self._view = AnyRealtimeCollectionView(
-            InternalKeys.items.property(
-                from: viewParentNode,
-                representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)
+            Property<SortedArray<RCItem>>(
+                in: Node(key: InternalKeys.items, parent: viewParentNode),
+                options: [
+                    .database: data.database as Any,
+                    .representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData).requiredProperty()
+                ]
             ).defaultOnEmpty()
         )
         try super.init(data: data, exactly: exactly)

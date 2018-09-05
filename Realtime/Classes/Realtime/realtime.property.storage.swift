@@ -9,17 +9,41 @@ import Foundation
 import FirebaseStorage
 
 public extension RawRepresentable where Self.RawValue == String {
-    func readonlyFile<T>(from node: Node?, representer: Representer<T>) -> ReadonlyFile<T> {
-        return ReadonlyFile(in: Node(key: rawValue, parent: node), representer: representer)
+    func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T> {
+        return ReadonlyFile(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .representer: representer.requiredProperty()
+            ]
+        )
     }
-    func readonlyFile<T>(from node: Node?, representer: Representer<T>) -> ReadonlyFile<T?> {
-        return ReadonlyFile(in: Node(key: rawValue, parent: node), representer: representer)
+    func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T?> {
+        return ReadonlyFile(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .representer: representer.optionalProperty()
+            ]
+        )
     }
-    func file<T>(from node: Node?, representer: Representer<T>) -> File<T> {
-        return File(in: Node(key: rawValue, parent: node), representer: representer)
+    func file<T>(in object: Object, representer: Representer<T>) -> File<T> {
+        return File(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .representer: representer.requiredProperty()
+            ]
+        )
     }
-    func file<T>(from node: Node?, representer: Representer<T>) -> File<T?> {
-        return File(in: Node(key: rawValue, parent: node), representer: representer)
+    func file<T>(in object: Object, representer: Representer<T>) -> File<T?> {
+        return File(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .representer: representer.optionalProperty()
+            ]
+        )
     }
 }
 

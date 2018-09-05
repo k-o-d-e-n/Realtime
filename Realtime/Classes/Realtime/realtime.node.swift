@@ -13,6 +13,7 @@ import FirebaseStorage
 enum InternalKeys: String, CodingKey {
     case modelVersion = "__mv"
     case links = "__links"
+    case linkItems = "__l_itms"
     case items = "__itms"
     case index = "__i"
     case payload = "__pl"

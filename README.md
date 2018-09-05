@@ -51,12 +51,12 @@ This function called for each subclass, therefore you don't need call super impl
 Example:
 ```swift
 class User: Object {
-    lazy var name: Property<String> = "name".property(from: self.node)
-    lazy var age: Property<Int> = "age".property(from: self.node)
-    lazy var photo: File<UIImage?> = File(in: Node(key: "photo", parent: self.node), representer: Representer.png)
-    lazy var groups: References<RealtimeGroup> = "groups".linkedArray(from: self.node, elements: .groups)
-    lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".array(from: self.node)
-    lazy var ownedGroup: Relation<RealtimeGroup?> = "ownedGroup".relation(from: self.node, "manager")
+    lazy var name: Property<String> = "name".property(in: self)
+    lazy var age: Property<Int> = "age".property(in: self)
+    lazy var photo: File<UIImage?> = "photo".file(in: self, representer: .png)
+    lazy var groups: References<RealtimeGroup> = "groups".linkedArray(in: self, elements: .groups)
+    lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".array(in: self)
+    lazy var ownedGroup: Relation<RealtimeGroup?> = "ownedGroup".relation(in: self, "manager")
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -64,7 +64,6 @@ class User: Object {
         case "age": return \User.age
         case "photo": return \User.photo
         case "groups": return \User.groups
-        case "followers": return \User.followers
         case "ownedGroup": return \User.ownedGroup
         case "scheduledConversations": return \User.scheduledConversations
         default: return nil
@@ -105,9 +104,9 @@ transaction.commit(with: { state, err in
 ### Collections
 ```swift
 class Some: Object {
-    lazy var array: Values<Object> = "some_array".array(from: self.node)
-    lazy var linkedArray: References<Object> = "some_linked_array".linkedArray(from: self.node, elements: .linkedObjects)
-    lazy var dictionary: AssociatedValues<Object> = "some_dictionary".dictionary(from: self.node, keys: .keyObjects)
+    lazy var array: Values<Object> = "some_array".array(in: self)
+    lazy var linkedArray: References<Object> = "some_linked_array".linkedArray(in: self, elements: .linkedObjects)
+    lazy var dictionary: AssociatedValues<Object> = "some_dictionary".dictionary(in: self, keys: .keyObjects)
 }
 ```
 Some mutable operations of collections can require `isSynced` state. To achieve current state use `func runObserving()` function or set property `keepSynced: Bool` to `true`.

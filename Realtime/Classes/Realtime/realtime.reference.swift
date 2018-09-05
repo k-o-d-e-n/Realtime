@@ -108,18 +108,6 @@ struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValueReprese
     }
 
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        guard data.hasChildren() else { // TODO: For test, remove!
-            guard let val = data.value as? [String: String],
-                let path = val[CodingKeys.targetPath.rawValue],
-                let prop = val[CodingKeys.relatedProperty.rawValue]
-            else {
-                    throw RealtimeError(initialization: RelationRepresentation.self, data)
-            }
-
-            self.targetPath = path
-            self.relatedProperty = prop
-            return
-        }
         guard
             let path: String = try CodingKeys.targetPath.map(from: data),
             let property: String = try CodingKeys.relatedProperty.map(from: data)
@@ -142,7 +130,7 @@ struct SourceLink: RealtimeDataRepresented, RealtimeDataValueRepresented, Codabl
     var rdbValue: RealtimeDataValue { return links }
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
         guard
-            let id = data.node?.key
+            let id = data.key
         else { throw RealtimeError(initialization: SourceLink.self, data) }
         
         self.id = id

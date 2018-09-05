@@ -493,17 +493,62 @@ extension UpdateNode where Self: RealtimeDataProtocol {
 
 extension ValueNode: RealtimeDataProtocol, Sequence {
     var priority: Any? { return nil }
-    var childrenCount: UInt { return 0 }
-    func makeIterator() -> AnyIterator<RealtimeDataProtocol> { return AnyIterator(EmptyIterator()) }
+    var childrenCount: UInt {
+        guard case let dict as [String: Any] = value else {
+            return 0
+        }
+        return UInt(dict.count)
+    }
+    func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
+        guard case let dict as [String: Any] = value else {
+            return AnyIterator(EmptyIterator())
+        }
+        return AnyIterator(
+            dict.lazy.map { (keyValue) in
+                ValueNode(node: Node(key: keyValue.key, parent: self.location), value: keyValue.value)
+            }.makeIterator()
+        )
+    }
     func exists() -> Bool { return value != nil }
-    func hasChildren() -> Bool { return false }
-    func hasChild(_ childPathString: String) -> Bool { return false }
-    func child(forPath path: String) -> RealtimeDataProtocol { return ValueNode(node: Node(key: path, parent: location), value: nil) }
+    func hasChildren() -> Bool {
+        guard case let dict as [String: Any] = value else {
+            return false
+        }
+        return dict.count > 0
+    }
+    func hasChild(_ childPathString: String) -> Bool {
+        guard case let dict as [String: Any] = value else {
+            return false
+        }
+        return dict[childPathString] != nil
+    }
+    func child(forPath path: String) -> RealtimeDataProtocol {
+        guard case let dict as [String: Any] = value else {
+            return ValueNode(node: Node(key: path, parent: location), value: nil)
+        }
+
+        let node = Node(key: path, parent: location)
+        return ValueNode(node: node, value: dict[path])
+    }
     func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
         return []
     }
-    func forEach(_ body: (RealtimeDataProtocol) throws -> Void) rethrows {}
-    func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] { return [] }
+    func forEach(_ body: (RealtimeDataProtocol) throws -> Void) rethrows {
+        guard case let dict as [String: Any] = value else {
+            return
+        }
+        try dict.forEach { (keyValue) in
+            try body(ValueNode(node: Node(key: keyValue.key, parent: location), value: keyValue.value))
+        }
+    }
+    func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
+        guard case let dict as [String: Any] = value else {
+            return []
+        }
+        return try dict.map { (keyValue) in
+            try transform(ValueNode(node: Node(key: keyValue.key, parent: location), value: keyValue.value))
+        }
+    }
     var debugDescription: String { return "\(location.rootPath): \(value as Any)" }
     var description: String { return debugDescription }
 }

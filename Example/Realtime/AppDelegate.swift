@@ -11,13 +11,13 @@ import Firebase
 import Realtime
 
 enum Global {
-    static let rtUsers: Values<User> = "___tests/_users".array(from: .root)
-    static let rtGroups: Values<Group> = "___tests/_groups".array(from: .root)
+    static let rtUsers: Values<User> = Values(in: Node(key: "___tests/_users", parent: .root))
+    static let rtGroups: Values<Group> = Values(in: Node(key: "___tests/_groups", parent: .root))
 }
 
 class Conversation: Object {
-    lazy var chairman: Reference<User> = "chairman".reference(from: self.node, mode: .fullPath)
-    lazy var secretary: Reference<User?> = "secretary".reference(from: self.node, mode: .fullPath)
+    lazy var chairman: Reference<User> = "chairman".reference(in: self, mode: .fullPath)
+    lazy var secretary: Reference<User?> = "secretary".reference(in: self, mode: .fullPath)
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -29,12 +29,12 @@ class Conversation: Object {
 }
 
 class Group: Object {
-    lazy var name: Property<String> = "name".property(from: self.node)
-    lazy var users: References<User> = "users".linkedArray(from: self.node, elements: Global.rtUsers.node!)
-    lazy var conversations: AssociatedValues<User, User> = "conversations".dictionary(from: self.node, keys: Global.rtUsers.node!)
-    lazy var manager: Relation<User?> = "manager".relation(from: self.node, .oneToOne("ownedGroup"))
+    lazy var name: Property<String> = "name".property(in: self)
+    lazy var users: References<User> = "users".references(in: self, elements: Global.rtUsers.node!)
+    lazy var conversations: AssociatedValues<User, User> = "conversations".dictionary(in: self, keys: Global.rtUsers.node!)
+    lazy var manager: Relation<User?> = "manager".relation(in: self, .oneToOne("ownedGroup"))
 
-    lazy var _manager: Relation<User?> = "_manager".relation(from: self.node, rootLevelsUp: nil, .oneToMany("ownedGroups"))
+    lazy var _manager: Relation<User?> = "_manager".relation(in: self, rootLevelsUp: nil, .oneToMany("ownedGroups"))
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -49,14 +49,14 @@ class Group: Object {
 }
 
 class User: Object {
-    lazy var name: Property<String> = "name".property(from: self.node)
-    lazy var age: Property<Int> = "age".property(from: self.node)
-    lazy var photo: File<UIImage?> = File(in: Node(key: "photo", parent: self.node), representer: Representer.png)
-    lazy var groups: References<Group> = "groups".linkedArray(from: self.node, elements: Global.rtGroups.node!)
-    lazy var followers: References<User> = "followers".linkedArray(from: self.node, elements: Global.rtUsers.node!)
-    lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".array(from: self.node)
+    lazy var name: Property<String> = "name".property(in: self)
+    lazy var age: Property<Int> = "age".property(in: self)
+    lazy var photo: File<UIImage?> = "photo".file(in: self, representer: .png)
+    lazy var groups: References<Group> = "groups".references(in: self, elements: Global.rtGroups.node!)
+    lazy var followers: References<User> = "followers".references(in: self, elements: Global.rtUsers.node!)
+    lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".values(in: self)
 
-    lazy var ownedGroup: Relation<Group?> = "ownedGroup".relation(from: self.node, .oneToOne("manager"))
+    lazy var ownedGroup: Relation<Group?> = "ownedGroup".relation(in: self, .oneToOne("manager"))
 
 //    lazy var ownedGroups: 
 
@@ -81,7 +81,7 @@ class User: Object {
 }
 
 class User2: User {
-    lazy var human: Property<[String: RealtimeDataValue]> = "human".property(from: self.node)
+    lazy var human: Property<[String: RealtimeDataValue]> = "human".property(in: self)
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {

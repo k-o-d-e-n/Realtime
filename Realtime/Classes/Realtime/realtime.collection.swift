@@ -45,29 +45,13 @@ struct RCItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepre
     }
 
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        guard let key = data.node?.key else {
+        guard let key = data.key else {
             throw RealtimeError(initialization: RCItem.self, data)
-        }
-        guard data.hasChildren() else { // TODO: For test, remove!
-            guard let val = data.value as? [String: RealtimeDataValue],
-                let value = val.first,
-                let linkValue = value.value as? [String: Any],
-                let index = linkValue[InternalKeys.index.rawValue] as? Int
-            else {
-                throw RealtimeError(initialization: RCItem.self, data)
-            }
-
-            self.dbKey = key
-            self.linkID = value.key
-            self.index = index
-            self.payload = linkValue[InternalKeys.payload.rawValue] as? [String: RealtimeDataValue]
-            self.internalPayload = (linkValue[InternalKeys.modelVersion.rawValue] as? Int, linkValue[InternalKeys.raw.rawValue] as? RealtimeDataValue)
-            return
         }
         guard let value = data.makeIterator().next() else {
             throw RealtimeError(initialization: RCItem.self, data)
         }
-        guard let linkID = value.node?.key else {
+        guard let linkID = value.key else {
             throw RealtimeError(initialization: RCItem.self, data)
         }
         guard let index: Int = try InternalKeys.index.map(from: value) else {

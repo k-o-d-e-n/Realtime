@@ -8,17 +8,32 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func linkedArray<Element>(from node: Node?, elements: Node) -> References<Element> {
-        return References(in: Node(key: rawValue, parent: node), options: [.elementsNode: elements])
+    func references<Element>(in object: Object, elements: Node) -> References<Element> {
+        return References(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .elementsNode: elements
+            ]
+        )
     }
-    func linkedArray<Element>(from node: Node?, elements: Node, elementOptions: [ValueOption: Any]) -> References<Element> {
-        return linkedArray(from: node, elements: elements, builder: { (node, options) in
-            let compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
+    func references<Element>(in object: Object, elements: Node, elementOptions: [ValueOption: Any]) -> References<Element> {
+        let db = object.database as Any
+        return references(in: object, elements: elements, builder: { (node, options) in
+            var compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
+            compoundOptions[.database] = db
             return Element(in: node, options: compoundOptions)
         })
     }
-    func linkedArray<Element>(from node: Node?, elements: Node, builder: @escaping RCElementBuilder<Element>) -> References<Element> {
-        return References(in: node, options: [.elementsNode: elements, .elementBuilder: builder])
+    func references<Element>(in object: Object, elements: Node, builder: @escaping RCElementBuilder<Element>) -> References<Element> {
+        return References(
+            in: Node(key: rawValue, parent: object.node),
+            options: [
+                .database: object.database as Any,
+                .elementsNode: elements,
+                .elementBuilder: builder
+            ]
+        )
     }
 }
 
@@ -62,9 +77,12 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
                                       elementBuilder: builder,
                                       elements: [:])
         self._view = AnyRealtimeCollectionView(
-            Property(
+            Property<SortedArray<RCItem>>(
                 in: node,
-                representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData)
+                options: [
+                    .database: options[.database] as Any,
+                    .representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData).requiredProperty()
+                ]
             ).defaultOnEmpty()
         )
         super.init(in: node, options: options)

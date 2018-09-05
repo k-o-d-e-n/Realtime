@@ -306,8 +306,14 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
-        let needRemoveLinks = node?.parent == ancestor
-        let links: Links = Links(in: node!.linksNode, representer: Representer<[SourceLink]>.links).defaultOnEmpty()
+        guard let node = self.node else {
+            return debugFatalError("Couldn`t get reference")
+        }
+        let needRemoveLinks = node.parent == ancestor
+        let links: Links = Links(
+            in: Node(key: InternalKeys.linkItems, parent: node.linksNode),
+            options: [.database: database as Any, .representer: Representer<[SourceLink]>.links.requiredProperty()]
+        ).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(
                 completion: .just({ refs in
@@ -428,7 +434,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         }
         return value
     }
-    fileprivate func forceEnumerateAllChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
+    func forceEnumerateAllChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
         reflect(to: type) { (mirror) in
             mirror.children.forEach({ (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
