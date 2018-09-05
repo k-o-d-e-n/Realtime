@@ -8,32 +8,6 @@
 
 import UIKit
 
-internal func debugAction(_ action: () -> Void) {
-    #if DEBUG
-        action()
-    #endif
-}
-
-internal func debugLog(_ message: String, _ file: String = #file, _ line: Int = #line) {
-    debugAction {
-        debugPrint("File: \(file)")
-        debugPrint("Line: \(line)")
-        debugPrint("Message: \(message)")
-    }
-}
-
-internal func debugFatalError(condition: @autoclosure () -> Bool = true,
-                              _ message: String = "", _ file: String = #file, _ line: Int = #line) {
-    debugAction {
-        if condition() {
-            debugLog(message, file, line)
-            if ProcessInfo.processInfo.arguments.contains("REALTIME_CRASH_ON_ERROR") {
-                fatalError(message)
-            }
-        }
-    }
-}
-
 // MARK: System type extensions
 
 /// Function for any lazy properties with completion handler calling on load.

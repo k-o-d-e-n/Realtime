@@ -8,6 +8,32 @@
 import Foundation
 import FirebaseDatabase
 
+internal func debugAction(_ action: () -> Void) {
+    #if DEBUG
+    action()
+    #endif
+}
+
+internal func debugLog(_ message: String, _ file: String = #file, _ line: Int = #line) {
+    debugAction {
+        debugPrint("File: \(file)")
+        debugPrint("Line: \(line)")
+        debugPrint("Message: \(message)")
+    }
+}
+
+internal func debugFatalError(condition: @autoclosure () -> Bool = true,
+                              _ message: String = "", _ file: String = #file, _ line: Int = #line) {
+    debugAction {
+        if condition() {
+            debugLog(message, file, line)
+            if ProcessInfo.processInfo.arguments.contains("REALTIME_CRASH_ON_ERROR") {
+                fatalError(message)
+            }
+        }
+    }
+}
+
 public class RealtimeApp {
     /// Default database instance
     public let database: RealtimeDatabase
