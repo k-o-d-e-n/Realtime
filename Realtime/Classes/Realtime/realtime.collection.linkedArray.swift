@@ -190,8 +190,8 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
             self?._view.source <== view
         }
         _view.removeAll()
-        for (index, element) in storage.elements.enumerated() {
-            try _write(element.value, at: index, by: node, in: transaction)
+        for item in view {
+            try _write(storage.elements[item.dbKey]!, with: item.priority, by: node, in: transaction)
         }
     }
 
@@ -214,7 +214,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         {
             ref: \(node?.rootPath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
-            elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
+            elements: \(_view.value.map { (key: $0.dbKey, index: $0.priority) })
         }
         """
     }
@@ -223,18 +223,18 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
 // MARK: Mutating
 
 public extension References {
-    /// Adds element to collection at passed index,
+    /// Adds element to collection at passed priority,
     /// and writes a changes to transaction.
     ///
-    /// If collection is standalone, use **func insert(element:at:)** instead.
+    /// If collection is standalone, use **func insert(element:with:)** instead.
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - index: Index value or `nil` if you want to add to end of collection.
+    ///   - priority: Priority value or `nil` if you want to add to end of collection.
     ///   - transaction: Write transaction to keep the changes
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    func write(element: Element, at index: Int? = nil,
+    func write(element: Element, with priority: Int? = nil,
                 in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
         guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
@@ -251,7 +251,7 @@ public extension References {
                         ))
                     } else {
                         do {
-                            try self._write(element, at: index, in: database, in: transaction)
+                            try self._write(element, with: priority, in: database, in: transaction)
                             promise.fulfill()
                         } catch let e {
                             promise.reject(e)
@@ -268,18 +268,18 @@ public extension References {
                 description: "Element already contains. Element: \(element)"
             )
         }
-        return try _write(element, at: index, in: database, in: transaction)
+        return try _write(element, with: priority, in: database, in: transaction)
     }
 
-    /// Adds element at passed index or if `nil` to end of collection
+    /// Adds element with default sorting priority index or if `nil` to end of collection
     ///
     /// This method is available only if collection is **standalone**,
-    /// otherwise use **func write(element:at:in:)**
+    /// otherwise use **func write(element:with:in:)**
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - index: Index value or `nil` if you want to add to end of collection.
-    func insert(element: Element, at index: Int? = nil) {
+    ///   - index: Priority value or `nil` if you want to add to end of collection.
+    func insert(element: Element, with priority: Int? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
         let contains = element.node.map { n in storage.elements[n.key] != nil } ?? false
@@ -287,9 +287,9 @@ public extension References {
             fatalError("Element with such key already exists")
         }
 
-        let index = index ?? _view.count
+        let index = priority ?? _view.count
         storage.elements[element.dbKey] = element
-        _ = _view.insert(RCItem(element: element, linkID: "", index: index))
+        _ = _view.insert(RCItem(element: element, linkID: "", priority: index))
     }
 
     /// Removes element from collection if collection contains this element.
@@ -344,19 +344,19 @@ public extension References {
 
     @discardableResult
     internal func _write(
-        _ element: Element, at index: Int? = nil,
+        _ element: Element, with priority: Int? = nil,
         in database: RealtimeDatabase, in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, at: index ?? count, by: node!, in: transaction)
+        try _write(element, with: priority ?? _view.last.map { $0.priority + 1 } ?? 0, by: node!, in: transaction)
         return transaction
     }
 
-    internal func _write(_ element: Element, at index: Int,
+    internal func _write(_ element: Element, with priority: Int,
                          by location: Node, in transaction: Transaction) throws {
         let itemNode = location.child(with: element.dbKey)
         let link = element.node!.generate(linkTo: itemNode)
-        let item = RCItem(element: element, linkID: link.link.id, index: index)
+        let item = RCItem(element: element, linkID: link.link.id, priority: priority)
 
         transaction.addReversion({ [weak self] in
             self?.storage.elements.removeValue(forKey: item.dbKey)

@@ -24,22 +24,22 @@ public enum RCEvent {
 struct RCItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
     let dbKey: String!
     let linkID: String
-    var index: Int
+    var priority: Int
     let internalPayload: (mv: Int?, raw: RealtimeDataValue?)
     let payload: [String: RealtimeDataValue]?
 
-    init<T: RealtimeValue>(element: T, key: String, linkID: String, index: Int) {
+    init<T: RealtimeValue>(element: T, key: String, linkID: String, priority: Int) {
         self.dbKey = key
         self.linkID = linkID
-        self.index = index
+        self.priority = priority
         self.payload = element.payload
         self.internalPayload = (element.version, element.raw)
     }
 
-    init<T: RealtimeValue>(element: T, linkID: String, index: Int) {
+    init<T: RealtimeValue>(element: T, linkID: String, priority: Int) {
         self.dbKey = element.dbKey
         self.linkID = linkID
-        self.index = index
+        self.priority = priority
         self.payload = element.payload
         self.internalPayload = (element.version, element.raw)
     }
@@ -60,14 +60,14 @@ struct RCItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepre
 
         self.dbKey = key
         self.linkID = linkID
-        self.index = index
+        self.priority = index
         self.payload = try InternalKeys.payload.map(from: value)
         self.internalPayload = try (InternalKeys.modelVersion.map(from: data), InternalKeys.raw.map(from: data))
     }
 
     var rdbValue: RealtimeDataValue {
         var value: [String: RealtimeDataValue] = [:]
-        let link: [String: RealtimeDataValue] = [InternalKeys.index.rawValue: index]
+        let link: [String: RealtimeDataValue] = [InternalKeys.index.rawValue: priority]
         value[linkID] = link
         if let mv = internalPayload.mv {
             value[InternalKeys.modelVersion.rawValue] = mv
@@ -91,9 +91,9 @@ struct RCItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepre
     }
 
     static func < (lhs: RCItem, rhs: RCItem) -> Bool {
-        if lhs.index < rhs.index {
+        if lhs.priority < rhs.priority {
             return true
-        } else if lhs.index > rhs.index {
+        } else if lhs.priority > rhs.priority {
             return false
         } else {
             return lhs.dbKey < rhs.dbKey
@@ -447,7 +447,7 @@ extension AnyRealtimeCollectionView where Source == Array<RCItem> {
         if let index = value.index(where: { $0.dbKey == element.dbKey }) {
             var value = self.value
             value.remove(at: index)
-            value.insert(element, at: element.index)
+            value.insert(element, at: element.priority)
             source._setValue(.remote(value))
             return index
         } else {

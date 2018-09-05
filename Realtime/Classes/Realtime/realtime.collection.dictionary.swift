@@ -290,7 +290,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         {
             ref: \(node?.rootPath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
-            elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
+            elements: \(_view.value.map { (key: $0.dbKey, index: $0.priority) })
         }
         """
     }
@@ -313,7 +313,7 @@ extension AssociatedValues {
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
-        _ = _view.insert(RCItem(element: element, key: key.dbKey, linkID: "", index: _view.count))
+        _ = _view.insert(RCItem(element: element, key: key.dbKey, linkID: "", priority: _view.count))
         storage.store(value: element, by: key)
     }
 
@@ -415,7 +415,7 @@ extension AssociatedValues {
         let itemNode = location.itms.child(with: key.dbKey)
         let elementNode = location.storage.child(with: key.dbKey)
         let link = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
-        let item = RCItem(element: key, linkID: link.link.id, index: count)
+        let item = RCItem(element: key, linkID: link.link.id, priority: count)
 
         transaction.addReversion({ [weak self] in
             self?.storage.elements.removeValue(forKey: key)

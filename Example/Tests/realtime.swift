@@ -1002,7 +1002,7 @@ extension Tests {
             let elementNode = array.storage.sourceNode.childByAutoId()
             let itemNode = array.storage.sourceNode.child(with: InternalKeys.items).linksNode.child(with: elementNode.key)
             let link = elementNode.generate(linkTo: itemNode)
-            let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, index: 0)
+            let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, priority: 0)
 
             transaction.addValue(item.rdbValue, by: itemNode)
             transaction.addValue(link.link.rdbValue, by: link.node)

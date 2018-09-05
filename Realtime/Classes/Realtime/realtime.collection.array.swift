@@ -226,9 +226,9 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
             self?._view.source <== view
         }
         _view.removeAll()
-        for (index, element) in elems.enumerated() {
-            try _write(element.value,
-                       at: index,
+        for item in view {
+            try _write(elems[item.dbKey]!,
+                       with: item.priority,
                        by: (storage: node,
                             itms: Node(key: InternalKeys.items, parent: node.linksNode)),
                        in: transaction)
@@ -262,7 +262,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         {
             ref: \(node?.rootPath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
-            elements: \(_view.value.map { (key: $0.dbKey, index: $0.index) })
+            elements: \(_view.value.map { (key: $0.dbKey, index: $0.priority) })
         }
         """
     }
@@ -271,18 +271,18 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
 // MARK: Mutating
 
 extension Values {
-    /// Adds element to collection at passed index,
+    /// Adds element to collection with default sorting priority,
     /// and writes a changes to transaction.
     ///
-    /// If collection is standalone, use **func insert(element:at:)** instead.
+    /// If collection is standalone, use **func insert(element:with:)** instead.
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - index: Index value or `nil` if you want to add to end of collection.
+    ///   - priority: Priority value or `nil` if you want to add to end of collection.
     ///   - transaction: Write transaction to keep the changes
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    public func write(element: Element, at index: Int? = nil, in transaction: Transaction? = nil) throws -> Transaction {
+    public func write(element: Element, with priority: Int? = nil, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
         guard !element.isReferred || element.node!.parent == storage.sourceNode
             else { fatalError("Element must not be referred in other location") }
@@ -299,7 +299,7 @@ extension Values {
                         ))
                     } else {
                         do {
-                            try self._insert(element, at: index, in: database, in: transaction)
+                            try self._insert(element, with: priority, in: database, in: transaction)
                             promise.fulfill()
                         } catch let e {
                             promise.reject(e)
@@ -316,18 +316,18 @@ extension Values {
                 fatalError("Element with such key already exists")
         }
 
-        return try _insert(element, at: index, in: database, in: transaction)
+        return try _insert(element, with: priority, in: database, in: transaction)
     }
 
-    /// Adds element at passed index or if `nil` to end of collection
+    /// Adds element with default sorting priority or if `nil` to end of collection
     ///
     /// This method is available only if collection is **standalone**,
-    /// otherwise use **func write(element:at:in:)**
+    /// otherwise use **func write(element:with:in:)**
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - index: Index value or `nil` if you want to add to end of collection.
-    public func insert(element: Element, at index: Int? = nil) {
+    ///   - priority: Priority value or `nil` if you want to add to end of collection.
+    public func insert(element: Element, with priority: Int? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard !element.isReferred || element.node!.parent == storage.sourceNode
             else { fatalError("Element must not be referred in other location") }
@@ -336,10 +336,10 @@ extension Values {
             fatalError("Element with such key already exists")
         }
 
-        let index = index ?? _view.count
+        let index = priority ?? _view.count
         let key = element.node.map { $0.key } ?? String(index)
         storage.elements[key] = element
-        _ = _view.insert(RCItem(element: element, key: key, linkID: "", index: index))
+        _ = _view.insert(RCItem(element: element, key: key, linkID: "", priority: index))
     }
 
     /// Removes element from collection if collection contains this element.
@@ -395,20 +395,20 @@ extension Values {
 
     @discardableResult
     func _insert(
-        _ element: Element, at index: Int? = nil,
+        _ element: Element, with priority: Int? = nil,
         in database: RealtimeDatabase, in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, at: index ?? count, by: (storage: node!, itms: _view.source.node!), in: transaction)
+        try _write(element, with: priority ?? _view.last.map { $0.priority + 1 } ?? 0, by: (storage: node!, itms: _view.source.node!), in: transaction)
         return transaction
     }
 
-    func _write(_ element: Element, at index: Int,
+    func _write(_ element: Element, with priority: Int,
                 by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
         let elementNode = element.node.map { $0.moveTo(location.storage); return $0 } ?? location.storage.childByAutoId()
         let itemNode = location.itms.child(with: elementNode.key)
         let link = elementNode.generate(linkTo: itemNode)
-        let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, index: index)
+        let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, priority: priority)
 
         transaction.addReversion({ [weak self] in
             self?.storage.elements.removeValue(forKey: item.dbKey)
