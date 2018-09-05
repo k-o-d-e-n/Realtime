@@ -244,7 +244,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 /// Example:
 ///
 ///     class User: Object {
-///         lazy var name: Property<String?> = "user_name".property(from: self.node)
+///         lazy var name: Property<String?> = "user_name".property(in: self)
 ///     
 ///         open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
 ///             switch label {

@@ -79,10 +79,10 @@ public extension RawRepresentable where Self.RawValue == String {
         return property(in: object, representer: Representer<URL>.default)
     }
     func codable<V: Codable>(in object: Object) -> Property<V> {
-        return property(in: object, representer: Representer<V>.json)
+        return property(in: object, representer: Representer<V>.json())
     }
     func optionalCodable<V: Codable>(in object: Object) -> Property<V?> {
-        return property(in: object, representer: Representer<V>.json)
+        return property(in: object, representer: Representer<V>.json())
     }
 
     func reference<V: Object>(in object: Object, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V> {
@@ -558,11 +558,11 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     
     // MARK: Initializers, deinitializer
 
-    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any]) {
+    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) {
         self.init(in: node, options: options.merging([.representer: representer.requiredProperty()], uniquingKeysWith: { _, new in new }))
     }
 
-    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any]) where Optional<U> == T {
+    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) where Optional<U> == T {
         self.init(in: node, options: options.merging([.representer: representer.optionalProperty()], uniquingKeysWith: { _, new in new }))
     }
     

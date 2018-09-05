@@ -54,8 +54,8 @@ class User: Object {
     lazy var name: Property<String> = "name".property(in: self)
     lazy var age: Property<Int> = "age".property(in: self)
     lazy var photo: File<UIImage?> = "photo".file(in: self, representer: .png)
-    lazy var groups: References<RealtimeGroup> = "groups".linkedArray(in: self, elements: .groups)
-    lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".array(in: self)
+    lazy var groups: References<RealtimeGroup> = "groups".references(in: self, elements: .groups)
+    lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".values(in: self)
     lazy var ownedGroup: Relation<RealtimeGroup?> = "ownedGroup".relation(in: self, "manager")
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
@@ -104,8 +104,8 @@ transaction.commit(with: { state, err in
 ### Collections
 ```swift
 class Some: Object {
-    lazy var array: Values<Object> = "some_array".array(in: self)
-    lazy var linkedArray: References<Object> = "some_linked_array".linkedArray(in: self, elements: .linkedObjects)
+    lazy var array: Values<Object> = "some_array".values(in: self)
+    lazy var references: References<Object> = "some_linked_array".references(in: self, elements: .linkedObjects)
     lazy var dictionary: AssociatedValues<Object> = "some_dictionary".dictionary(in: self, keys: .keyObjects)
 }
 ```

@@ -383,10 +383,6 @@ public extension Representer {
             return try base.decode(data) ?? T()
         }
     }
-    init<S: _Serializer>(serializer base: S.Type) where V == S.Entity {
-        self.encoding = base.serialize
-        self.decoding = base.deserialize
-    }
 }
 public extension Representer where V: Collection {
     func sorting<Element>(_ descriptor: @escaping (Element, Element) -> Bool) -> Representer<[Element]> where Array<Element> == V {
@@ -534,9 +530,13 @@ public extension Representer where V == URL {
 }
 
 public extension Representer where V: Codable {
-    static var json: Representer<V> {
+    static func json(dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .secondsSince1970,
+                     keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy = .useDefaultKeys) -> Representer<V> {
         return Representer(
             encoding: { v -> Any? in
+                let e = JSONEncoder()
+                e.dateEncodingStrategy = dateEncodingStrategy
+                e.keyEncodingStrategy = keyEncodingStrategy
                 let data = try JSONEncoder().encode(v)
                 return try JSONSerialization.jsonObject(with: data, options: .allowFragments)
             },
