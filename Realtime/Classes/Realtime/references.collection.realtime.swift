@@ -379,8 +379,8 @@ public extension References {
         transaction.addReversion { [weak self] in
             self?.storage.elements[item.dbKey] = element
         }
-        let elementLinksNode = storage.sourceNode.linksNode.child(
-            with: item.dbKey.subpath(with: item.linkID)
+        let elementLinksNode = storage.sourceNode.child(with: item.dbKey).linksItemsNode.child(
+            with: item.linkID
         )
         transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) /// remove item
         transaction.removeValue(by: elementLinksNode) /// remove link from element

@@ -140,12 +140,17 @@ public extension Listenable {
     }
 }
 public extension Listenable where Out: _Optional {
-    /// skips `nil` values
+    /// transforms value if it's not `nil`, otherwise skips value
     func flatMap<U>(_ transform: @escaping (Out.Wrapped) -> U) -> Preprocessor<Out, U> {
         return self
             .filter { $0.map { _ in true } ?? false }
             .map { transform($0.unsafelyUnwrapped) }
     }
+    /// transforms value if it's not `nil`, otherwise returns `nil`
+    func optionalMap<U>(_ transform: @escaping (Out.Wrapped) -> U?) -> Preprocessor<Out, U?> {
+        return map { $0.flatMap(transform) }
+    }
+    /// skips `nil` values
     func compactMap() -> Preprocessor<Out, Out.Wrapped> {
         return flatMap({ $0 })
     }
@@ -376,7 +381,7 @@ public class Accumulator<T>: Listenable {
         return repeater.listening(assign)
     }
 }
-extension Listenable {
+public extension Listenable {
     func join(with others: Self...) -> Accumulator<Out> {
         return Accumulator(repeater: .unsafe(), [self] + others)
     }

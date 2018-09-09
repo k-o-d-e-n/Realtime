@@ -390,13 +390,15 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
     }
 }
 
-extension RealtimeViewController {
+extension UIViewController {
     func showWaitingAlert() -> UIAlertController {
         let alert = UIAlertController(title: "Please, wait...", message: "Operation in progress", preferredStyle: .alert)
         present(alert, animated: true, completion: nil)
         return alert
     }
+}
 
+extension RealtimeViewController {
     func setError(_ text: String) {
         label.textColor = UIColor.red.withAlphaComponent(0.5)
         label.text = text

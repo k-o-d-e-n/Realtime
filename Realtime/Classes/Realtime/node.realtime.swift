@@ -268,10 +268,13 @@ public extension Node {
     }
 }
 public extension Node {
-    static var linksNode: Node { return RealtimeApp.app.linksNode }
-    var linksNode: Node {
+    internal static var linksNode: Node { return RealtimeApp.app.linksNode }
+    internal var linksNode: Node {
         guard isRooted else { fatalError("Try get links node from not rooted node: \(self)") }
         return copy(to: Node.linksNode)
+    }
+    internal var linksItemsNode: Node {
+        return child(with: InternalKeys.linkItems).linksNode
     }
     internal func generate(linkTo targetNode: Node) -> (node: Node, link: SourceLink) {
         return generate(linkTo: [targetNode])
@@ -280,7 +283,7 @@ public extension Node {
         return generate(linkKeyedBy: RealtimeApp.app.database.generateAutoID(), to: targetNodes)
     }
     internal func generate(linkKeyedBy linkKey: String, to targetNodes: [Node]) -> (node: Node, link: SourceLink) {
-        return (linksNode.child(with: linkKey), SourceLink(id: linkKey, links: targetNodes.map { $0.rootPath }))
+        return (linksItemsNode.child(with: linkKey), SourceLink(id: linkKey, links: targetNodes.map { $0.rootPath }))
     }
 }
 

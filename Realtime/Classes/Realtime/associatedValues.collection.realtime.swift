@@ -448,7 +448,7 @@ extension AssociatedValues {
         }
         transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) // remove item element
         transaction.removeValue(by: storage.sourceNode.child(with: item.dbKey)) // remove element
-        transaction.removeValue(by: key.node!.linksNode.child(with: item.linkID)) // remove link from key object
+        transaction.removeValue(by: key.node!.linksItemsNode.child(with: item.linkID)) // remove link from key object
         transaction.addCompletion { result in
             if result {
                 element.didRemove()

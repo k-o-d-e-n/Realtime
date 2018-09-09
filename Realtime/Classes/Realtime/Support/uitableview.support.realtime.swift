@@ -14,10 +14,7 @@ public class ReuseItem<View: AnyObject> {
     private var listeningItems: [ListeningItem] = []
 
     init() {}
-    deinit {
-        print("deinit")
-        free()
-    }
+    deinit { free() }
 
     /// Connects listanable value with view
     ///
@@ -44,14 +41,7 @@ public class ReuseItem<View: AnyObject> {
     ///   - value: Listenable value
     ///   - assign: Closure that calls on receieve value
     public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
-        listeningItems.append(compactMap().join(with: value).listeningItem(onValue: assign))
-
-        guard value.canObserve else { return }
-        if value.runObserving() {
-            listeningItems.append(ListeningItem(resume: { () }, pause: value.stopObserving, token: nil))
-        } else {
-            debugFatalError("Observing is not running")
-        }
+        bind(value, value, assign)
     }
 
     /// Sets value immediatelly when view will be received
@@ -60,7 +50,7 @@ public class ReuseItem<View: AnyObject> {
     ///   - value: Some value
     ///   - assign: Closure that calls on receive view
     public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
-        listeningItems.append(flatMap({ $0 }).listeningItem(onValue: { assign($0, value) }))
+        listeningItems.append(compactMap().listeningItem(onValue: { assign($0, value) }))
     }
 
     /// Adds configuration block that will be called on receive view
@@ -68,7 +58,7 @@ public class ReuseItem<View: AnyObject> {
     /// - Parameters:
     ///   - config: Closure to configure view
     public func set(config: @escaping (View) -> Void) {
-        listeningItems.append(flatMap({ $0 }).listeningItem(onValue: config))
+        listeningItems.append(compactMap().listeningItem(onValue: config))
     }
 
     func free() {

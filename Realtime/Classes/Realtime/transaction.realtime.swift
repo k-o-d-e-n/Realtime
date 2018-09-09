@@ -224,7 +224,7 @@ extension Transaction {
 }
 extension Transaction {
     func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) {
-        addValue(link.rdbValue, by: value.node!.linksNode.child(with: link.id))
+        addValue(link.rdbValue, by: value.node!.linksItemsNode.child(with: link.id))
     }
 }
 
