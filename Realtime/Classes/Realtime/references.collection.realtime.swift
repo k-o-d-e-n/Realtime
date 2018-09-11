@@ -292,6 +292,21 @@ public extension References {
         _ = _view.insert(RCItem(element: element, linkID: "", priority: index))
     }
 
+    func delete(element: Element) {
+        guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
+        guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
+        let contains = element.node.map { n in storage.elements[n.key] != nil } ?? false
+        guard contains else {
+            fatalError("Element with such key does not exist")
+        }
+
+        storage.elements.removeValue(forKey: element.dbKey)
+        guard let index = _view.index(where: { $0.dbKey == element.dbKey }) else {
+            return
+        }
+        _ = _view.remove(at: index)
+    }
+
     /// Removes element from collection if collection contains this element.
     ///
     /// - Parameters:

@@ -74,6 +74,18 @@ public extension Listenable where Self.Out == UIImage? {
     }
 }
 
+public struct RTime<Base> {
+    public let base: Base
+}
+
+public protocol RealtimeCompatible {
+    associatedtype Current = Self
+    var realtime: RTime<Current> { get }
+}
+public extension RealtimeCompatible {
+    var realtime: RTime<Self> { return RTime(base: self) }
+}
+
 public struct ControlEvent<C: UIControl>: Listenable {
     unowned var control: C
     let events: UIControlEvents
@@ -87,12 +99,7 @@ public struct ControlEvent<C: UIControl>: Listenable {
     }
 
     public func listeningItem(_ assign: Assign<ListenEvent<(C, UIEvent)>>) -> ListeningItem {
-        var event: UIEvent = UIEvent()
-        let controlListening = UIControl.Listening<C>(control, events: events, assign: assign.with(work: { e in
-            if let uiEvent = e.value?.1 {
-                event = uiEvent
-            }
-        }))
+        let controlListening = UIControl.Listening<C>(control, events: events, assign: assign)
         defer {
             controlListening.onStart()
         }
@@ -138,13 +145,92 @@ extension UIControl {
         }
     }
 }
-public extension UIControl {
-    func onEvent(_ controlEvent: UIControlEvents) -> ControlEvent<UIControl> {
+public extension RTime where Base: UIControl {
+    func onEvent(_ controlEvent: UIControlEvents) -> ControlEvent<Base> {
+        return ControlEvent(control: base, events: controlEvent)
+    }
+}
+extension UIControl: RealtimeCompatible {
+    public func onEvent(_ controlEvent: UIControlEvents) -> ControlEvent<UIControl> {
         return ControlEvent(control: self, events: controlEvent)
+    }
+}
+public extension RTime where Base: UITextField {
+    var text: Preprocessor<(Base, UIEvent), String?> {
+        return onEvent(.editingChanged).map { $0.0.text }
     }
 }
 public extension UITextField {
     func onTextChange() -> Preprocessor<(UITextField, UIEvent), String?> {
         return ControlEvent(control: self, events: .valueChanged).map({ $0.0.text })
+    }
+}
+
+public extension RTime where Base: UIImagePickerController {
+    @available(iOS 9.0, *)
+    public var image: UIImagePickerController.ImagePicker {
+        return UIImagePickerController.ImagePicker(controller: base)
+    }
+}
+extension UIImagePickerController: RealtimeCompatible {
+    @available (iOS 9.0, *)
+    public struct ImagePicker: Listenable {
+        unowned var controller: UIImagePickerController
+
+        public func listening(_ assign: Assign<ListenEvent<(UIImagePickerController, [String: Any])>>) -> Disposable {
+            let listening = Listening(controller, assign: assign)
+            defer {
+                listening.start()
+            }
+            return listening
+        }
+    }
+    @available (iOS 9.0, *)
+    fileprivate class Listening: NSObject, Disposable, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        var _isDisposed: Bool = false
+        unowned let controller: UIImagePickerController
+        let assign: Assign<ListenEvent<(UIImagePickerController, [String: Any])>>
+
+        init(_ controller: UIImagePickerController, assign: Assign<ListenEvent<(UIImagePickerController, [String: Any])>>) {
+            self.controller = controller
+            self.assign = assign
+        }
+
+        deinit {
+            dispose()
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+            assign.call(.value((picker, info)))
+            dispose()
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            assign.call(.error(NSError(domain: "imagePicker.cancel", code: 0, userInfo: nil)))
+            dispose()
+        }
+
+        func start() {
+            guard !_isDisposed else { return }
+            controller.delegate = self
+        }
+
+        func stop() {
+            guard !_isDisposed else { return }
+            controller.delegate = nil
+        }
+
+        func dispose() {
+            guard !_isDisposed else {
+                return
+            }
+            _isDisposed = true
+            controller.delegate = nil
+            guard controller.viewIfLoaded?.window != nil else {
+                return
+            }
+
+            controller.dismiss(animated: true, completion: nil)
+        }
     }
 }

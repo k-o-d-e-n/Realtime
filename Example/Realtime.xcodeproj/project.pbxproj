@@ -19,7 +19,9 @@
 		A41FD589211EF890006DC3F7 /* other.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41FD588211EF890006DC3F7 /* other.swift */; };
 		A44331B62020E9E900BA2FDE /* Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44331B52020E9E900BA2FDE /* Auth.swift */; };
 		A4773C3120DFEAB2002D182A /* RealtimeTableController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */; };
+		A4D56D1D2143FD8200641DF3 /* FormViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D56D1C2143FD8200641DF3 /* FormViewController.swift */; };
 		A4E054522008D3B100E95A49 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A4E054512008D3B100E95A49 /* GoogleService-Info.plist */; };
+		A4F0FF782144901800395579 /* TableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F0FF772144901800395579 /* TableViewController.swift */; };
 		F05D6D3258809EF4F7FED698 /* Pods_Realtime_Tests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AD53591BED0C8A933E06EA00 /* Pods_Realtime_Tests.framework */; };
 /* End PBXBuildFile section */
 
@@ -56,7 +58,9 @@
 		A41FD588211EF890006DC3F7 /* other.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = other.swift; sourceTree = "<group>"; };
 		A44331B52020E9E900BA2FDE /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTableController.swift; sourceTree = "<group>"; };
+		A4D56D1C2143FD8200641DF3 /* FormViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormViewController.swift; sourceTree = "<group>"; };
 		A4E054512008D3B100E95A49 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		A4F0FF772144901800395579 /* TableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableViewController.swift; sourceTree = "<group>"; };
 		AD53591BED0C8A933E06EA00 /* Pods_Realtime_Tests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Realtime_Tests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		B91DB4FFA757FB4160A1DAE1 /* Pods-Realtime_Example.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Realtime_Example.debug.xcconfig"; path = "Pods/Target Support Files/Pods-Realtime_Example/Pods-Realtime_Example.debug.xcconfig"; sourceTree = "<group>"; };
 		CE8A633BBFE1F1D5ADD59110 /* Realtime.podspec */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; name = Realtime.podspec; path = ../Realtime.podspec; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
@@ -118,6 +122,8 @@
 				607FACDE1AFB9204008FA782 /* LaunchScreen.xib */,
 				607FACD31AFB9204008FA782 /* Supporting Files */,
 				A44331B52020E9E900BA2FDE /* Auth.swift */,
+				A4D56D1C2143FD8200641DF3 /* FormViewController.swift */,
+				A4F0FF772144901800395579 /* TableViewController.swift */,
 			);
 			name = "Example for Realtime";
 			path = Realtime;
@@ -355,6 +361,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A4D56D1D2143FD8200641DF3 /* FormViewController.swift in Sources */,
+				A4F0FF782144901800395579 /* TableViewController.swift in Sources */,
 				607FACD81AFB9204008FA782 /* ViewController.swift in Sources */,
 				A41BC0132040098800D1A9E8 /* RealtimeViewController.swift in Sources */,
 				607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */,

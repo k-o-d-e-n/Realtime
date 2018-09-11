@@ -9,11 +9,25 @@
 
 import UIKit
 
-public class ReuseItem<View: AnyObject> {
-    lazy var view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, queue: .main)
-    private var listeningItems: [ListeningItem] = []
+protocol ReuseItemProtocol {
+    func free()
+}
 
-    init() {}
+open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
+    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, queue: .main)
+    public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
+
+    open internal(set) weak var view: View? {
+        set {
+            if self._view.value !== newValue {
+                reload()
+            }
+            self._view.value = newValue
+        }
+        get { return self._view.value }
+    }
+
+    public init() {}
     deinit { free() }
 
     /// Connects listanable value with view
@@ -25,11 +39,13 @@ public class ReuseItem<View: AnyObject> {
     ///   - source: Source of value
     ///   - assign: Closure that calls on receieve value
     public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
-        listeningItems.append(compactMap().join(with: value).listeningItem(onValue: assign))
+        // current function requires the call on each willDisplay event.
+        // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
+        addBinding(ofDisplayTime: compactMap().join(with: value).listeningItem(onValue: assign))
 
         guard source.canObserve else { return }
         if source.runObserving() {
-            listeningItems.append(ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
+            addBinding(ofDisplayTime: ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
         } else {
             debugFatalError("Observing is not running")
         }
@@ -50,7 +66,9 @@ public class ReuseItem<View: AnyObject> {
     ///   - value: Some value
     ///   - assign: Closure that calls on receive view
     public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
-        listeningItems.append(compactMap().listeningItem(onValue: { assign($0, value) }))
+        // current function does not require the call on each willDisplay event. It can call only on initialize `ReuseItem`.
+        // But for it, need to separate dispose storages on iterated and permanent.
+        addBinding(ofDisplayTime: compactMap().listeningItem(onValue: { assign($0, value) }))
     }
 
     /// Adds configuration block that will be called on receive view
@@ -58,29 +76,26 @@ public class ReuseItem<View: AnyObject> {
     /// - Parameters:
     ///   - config: Closure to configure view
     public func set(config: @escaping (View) -> Void) {
-        listeningItems.append(compactMap().listeningItem(onValue: config))
+        // by analogue with `set(_:_:)` function
+        compactMap().listeningItem(onValue: config).add(to: &disposeStorage)
     }
 
     func free() {
-        listeningItems.forEach { $0.dispose() }
-        listeningItems.removeAll()
-        view.value = nil
-    }
-
-    func set(view: View) {
-        if self.view.value !== view {
-            reload()
-        }
-        self.view.value = view
+        disposeStorage.dispose()
+        _view.value = nil
     }
 
     func reload() {
-        listeningItems.forEach { $0.resume() }
+        disposeStorage.resume()
+    }
+
+    func addBinding(ofDisplayTime item: ListeningItem) {
+        disposeStorage.add(item)
     }
 }
 extension ReuseItem: Listenable {
     public func listening(_ assign: Assign<ListenEvent<View?>>) -> Disposable {
-        return view.listening(assign)
+        return _view.listening(assign)
     }
 }
 
@@ -156,6 +171,10 @@ open class RealtimeTableViewDelegate<Model, Section> {
     /// Returns `Model` element at index path
     open func model(at indexPath: IndexPath) -> Model {
         fatalError("Implement in subclass")
+    }
+
+    open func reload() {
+        // TODO: Implement reload as call `func reload()` on each active `ReuseItem`
     }
 }
 
@@ -233,7 +252,7 @@ extension SingleSectionTableViewDelegate {
 
             let model = delegate.collection[indexPath.row]
             bind(item, model)
-            item.set(view: cell)
+            item.view = cell
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
         }
@@ -368,7 +387,7 @@ extension SectionedTableViewDelegate {
 
             let model = delegate.model(at: indexPath)
             bind(item, model)
-            item.set(view: cell)
+            item.view = cell
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
         }
@@ -389,7 +408,7 @@ extension SectionedTableViewDelegate {
             }
             let model = delegate.sections[section]
             bind(item, model)
-            item.set(view: view)
+            item.view = view
 
             delegate.tableDelegate?.tableView?(tableView, willDisplayHeaderView: view, forSection: section)
         }

@@ -36,10 +36,12 @@ extension ViewController {
         return 1
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 2
+        return 3
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        return tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
+        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
+        cell.accessoryType = .disclosureIndicator
+        return cell
     }
     override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
         switch indexPath.row {
@@ -47,6 +49,8 @@ extension ViewController {
             cell.textLabel?.text = "Console"
         case 1:
             cell.textLabel?.text = "Table"
+        case 2:
+            cell.textLabel?.text = "Form"
         default: break
         }
     }
@@ -54,6 +58,7 @@ extension ViewController {
         switch indexPath.row {
         case 0: navigationController?.pushViewController(RealtimeViewController(), animated: true)
         case 1: navigationController?.pushViewController(RealtimeTableController(), animated: true)
+        case 2: navigationController?.pushViewController(FormViewController(), animated: true)
         default: break
         }
     }

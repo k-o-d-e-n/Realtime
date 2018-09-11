@@ -35,7 +35,7 @@ public class ListeningItem {
 
     public var isListen: Bool { return _isListen() }
 
-    init<Token>(resume: @escaping () -> Token?, pause: @escaping (Token) -> Void, token: Token?) {
+    public init<Token>(resume: @escaping () -> Token?, pause: @escaping (Token) -> Void, token: Token?) {
         var tkn = token
         self._isListen = { tkn != nil }
         self._start = {
@@ -94,6 +94,11 @@ public struct ListeningDisposeStore {
 
     public mutating func add(_ item: ListeningItem) {
         listeningItems.append(item)
+    }
+
+    public mutating func disposeDisposes() {
+        disposes.forEach { $0.dispose() }
+        disposes.removeAll()
     }
 
     public mutating func dispose() {

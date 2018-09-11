@@ -154,13 +154,13 @@ public extension AssociatedValues {
     }
 }
 
-struct AnySharedCollection<Element>: Collection {
+public struct AnySharedCollection<Element>: Collection {
     let _startIndex: () -> Int
     let _endIndex: () -> Int
     let _indexAfter: (Int) -> Int
     let _subscript: (Int) -> Element
 
-    init<Base: Collection>(_ base: Base) where Base.Iterator.Element == Element, Base.Index: SignedInteger {
+    public init<Base: Collection>(_ base: Base) where Base.Iterator.Element == Element, Base.Index: SignedInteger {
         self._startIndex = { return base.startIndex.toOther() }
         self._endIndex = { return base.endIndex.toOther() }
         self._indexAfter = { return base.index(after: $0.toOther()).toOther() }
