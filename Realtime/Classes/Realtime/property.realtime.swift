@@ -349,16 +349,14 @@ public extension ValueOption {
     static let initialValue: ValueOption = ValueOption("realtime.property.initialValue")
 }
 
-public extension _RealtimeValue {
-    public enum State<T> {
-        case local(T)
-        case remote(T)
-        case removed
-        indirect case error(Error, last: State<T>?)
-//        case reverted(ListenValue<T>?)
-    }
+public enum PropertyState<T> {
+    case local(T)
+    case remote(T)
+    case removed
+    indirect case error(Error, last: PropertyState<T>?)
+    //        case reverted(ListenValue<T>?)
 }
-extension _RealtimeValue.State: _Optional {
+extension PropertyState: _Optional {
     public func map<U>(_ f: (T) throws -> U) rethrows -> U? {
         return try wrapped.map(f)
     }
@@ -387,7 +385,7 @@ extension _RealtimeValue.State: _Optional {
     }
 }
 
-public extension _RealtimeValue.State where T: _Optional {
+public extension PropertyState where T: _Optional {
     var wrapped: T.Wrapped? {
         switch self {
         case .removed: return nil
@@ -396,41 +394,41 @@ public extension _RealtimeValue.State where T: _Optional {
         case .error(_, let v): return v?.wrapped
         }
     }
-    static func <==(_ value: inout T.Wrapped?, _ prop: _RealtimeValue.State<T>) {
+    static func <==(_ value: inout T.Wrapped?, _ prop: PropertyState<T>) {
         value = prop.wrapped
     }
 }
 
 infix operator =?
 infix operator =!
-public extension _RealtimeValue.State {
-    static func ?? (optional: _RealtimeValue.State<T>, defaultValue: @autoclosure () throws -> T) rethrows -> T {
+public extension PropertyState {
+    static func ?? (optional: PropertyState<T>, defaultValue: @autoclosure () throws -> T) rethrows -> T {
         return try optional.wrapped ?? defaultValue()
     }
-    static func ?? (optional: _RealtimeValue.State<T>, defaultValue: @autoclosure () throws -> T?) rethrows -> T? {
+    static func ?? (optional: PropertyState<T>, defaultValue: @autoclosure () throws -> T?) rethrows -> T? {
         return try optional.wrapped ?? defaultValue()
     }
-    static func =?(_ value: inout T, _ prop: _RealtimeValue.State<T>) {
+    static func =?(_ value: inout T, _ prop: PropertyState<T>) {
         if let v = prop.wrapped {
             value = v
         }
     }
-    static func =?(_ value: inout T?, _ prop: _RealtimeValue.State<T>) {
+    static func =?(_ value: inout T?, _ prop: PropertyState<T>) {
         if let v = prop.wrapped {
             value = v
         }
     }
-    static func <==(_ value: inout T?, _ prop: _RealtimeValue.State<T>) {
+    static func <==(_ value: inout T?, _ prop: PropertyState<T>) {
         value = prop.wrapped
     }
-    static func =!(_ value: inout T, _ prop: _RealtimeValue.State<T>) {
+    static func =!(_ value: inout T, _ prop: PropertyState<T>) {
         value = prop.wrapped!
     }
 }
 
 /// Defines read/write property with any value
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
-    fileprivate var oldValue: State<T>?
+    fileprivate var oldValue: PropertyState<T>?
     internal var _changedValue: T? {
         switch _value {
         case .some(.local(let v)): return v
@@ -536,8 +534,8 @@ public extension Property {
 /// Defines readonly property with any value
 @available(*, introduced: 0.4.3)
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
-    fileprivate var _value: State<T>?
-    fileprivate let repeater: Repeater<State<T>> = Repeater.unsafe()
+    fileprivate var _value: PropertyState<T>?
+    fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T?>
 
     internal var _version: Int? { return super.version }
@@ -683,7 +681,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         }
     }
 
-    internal func _setValue(_ value: State<T>) {
+    internal func _setValue(_ value: PropertyState<T>) {
         _value = value
         repeater.send(.value(value))
     }
@@ -709,17 +707,19 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
 }
 extension ReadonlyProperty: Listenable {
-    public func listening(_ assign: Assign<ListenEvent<State<T>>>) -> Disposable {
-        switch _value {
-        case .none: break
-        case .some(let e): assign.call(.value(e))
+    public func listening(_ assign: Assign<ListenEvent<PropertyState<T>>>) -> Disposable {
+        defer {
+            switch _value {
+            case .none: break
+            case .some(let e): assign.call(.value(e))
+            }
         }
         return repeater.listening(assign)
     }
 }
 public extension ReadonlyProperty {
     /// Last property state
-    var lastEvent: State<T>? {
+    var lastEvent: PropertyState<T>? {
         return _value
     }
 
@@ -760,7 +760,7 @@ public extension ReadonlyProperty {
         value = prop.wrapped
     }
 }
-func <== <T>(_ value: inout T?, _ prop: ReadonlyProperty<T>?) {
+public func <== <T>(_ value: inout T?, _ prop: ReadonlyProperty<T>?) {
     value = prop?.wrapped
 }
 public extension ReadonlyProperty {

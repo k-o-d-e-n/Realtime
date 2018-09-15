@@ -13,6 +13,7 @@ public enum CellBuilder {
 }
 
 // probably `ReuseItem` should be a subclass of static item
+// can add row dependency didSelect to hide/show optional cells
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil)
     lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap(), _model.compactMap())
@@ -34,7 +35,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         self.init(cellBuilder: .reuseIdentifier(reuseIdentifier))
     }
 
-    open func onUpdate(_ doit: @escaping ((View, Model), Row<View, Model>) -> Void) {
+    open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
         _update.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: &disposeStorage)
     }
 
@@ -218,6 +219,14 @@ open class Form<Model: AnyObject> {
     lazy var table: Table = Table(self)
     var sections: [Section<Model>]
 
+    open var numberOfSections: Int {
+        return sections.count
+    }
+
+    open weak var tableDelegate: UITableViewDelegate?
+    open weak var editingDataSource: RealtimeEditingTableDataSource?
+    open weak var prefetchingDataSource: UITableViewDataSourcePrefetching?
+
     open var model: Model
     open weak var tableView: UITableView? {
         willSet {
@@ -237,6 +246,10 @@ open class Form<Model: AnyObject> {
     public init(model: Model, sections: [Section<Model>]) {
         self.model = model
         self.sections = sections
+    }
+
+    open func numberOfItems(in section: Int) -> Int {
+        return sections[section].numberOfItems
     }
 
     open func beginUpdates() {
@@ -261,6 +274,10 @@ open class Form<Model: AnyObject> {
         tableView?.deleteRows(at: indexPaths, with: animation)
     }
 
+    open func addSection(_ section: Section<Model>, with animation: UITableViewRowAnimation = .automatic) {
+        insertSection(section, at: sections.count)
+    }
+
     open func insertSection(_ section: Section<Model>, at index: Int, with animation: UITableViewRowAnimation = .automatic) {
         sections.insert(section, at: index)
         tableView?.insertSections([index], with: animation)
@@ -283,6 +300,20 @@ open class Form<Model: AnyObject> {
         sections[indexPath.section].didSelect(at: indexPath)
     }
 }
+extension Form: RandomAccessCollection {
+    public typealias Element = Section<Model>
+    public var startIndex: Int { return sections.startIndex }
+    public var endIndex: Int { return sections.endIndex }
+    public func index(after i: Int) -> Int {
+        return sections.index(after: i)
+    }
+    public func index(before i: Int) -> Int {
+        return sections.index(before: i)
+    }
+    public subscript(position: Int) -> Section<Model> {
+        return sections[position]
+    }
+}
 extension Form {
     class Table: NSObject, UITableViewDelegate, UITableViewDataSource {
         unowned var form: Form
@@ -297,6 +328,18 @@ extension Form {
 
         func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
             return form.sections[section].numberOfItems
+        }
+
+        func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
+            return form.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? 44.0
+        }
+
+        func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+            return form.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ?? 28.0
+        }
+
+        func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
+            return form.tableDelegate?.tableView?(tableView, heightForFooterInSection: section) ?? 28.0
         }
 
         func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
@@ -322,6 +365,22 @@ extension Form {
         func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
             tableView.deselectRow(at: indexPath, animated: true)
             form.didSelect(at: indexPath)
+        }
+
+        func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
+            return true
+        }
+
+        func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+            return form.tableDelegate.flatMap { $0.tableView?(tableView, editingStyleForRowAt: indexPath) } ?? .none
+        }
+
+        func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+            form.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
+        }
+
+        func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
+            form.editingDataSource?.tableView(tableView, moveRowAt: sourceIndexPath, to: destinationIndexPath)
         }
     }
 }

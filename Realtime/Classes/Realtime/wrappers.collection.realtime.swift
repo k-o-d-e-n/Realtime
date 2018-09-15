@@ -130,6 +130,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public subscript(position: Int) -> Element { return base[position] }
 
     public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
+    @discardableResult
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
     public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
@@ -154,13 +155,13 @@ public extension AssociatedValues {
     }
 }
 
-public struct AnySharedCollection<Element>: Collection {
+struct AnySharedCollection<Element>: Collection {
     let _startIndex: () -> Int
     let _endIndex: () -> Int
     let _indexAfter: (Int) -> Int
     let _subscript: (Int) -> Element
 
-    public init<Base: Collection>(_ base: Base) where Base.Iterator.Element == Element, Base.Index: SignedInteger {
+    init<Base: Collection>(_ base: Base) where Base.Iterator.Element == Element, Base.Index: SignedInteger {
         self._startIndex = { return base.startIndex.toOther() }
         self._endIndex = { return base.endIndex.toOther() }
         self._indexAfter = { return base.index(after: $0.toOther()).toOther() }
@@ -314,7 +315,7 @@ where Base.Index == Int {
     public subscript(position: Int) -> Element { return transform(base[position]) }
 
     public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
-    public func runObserving() -> Bool { return base.runObserving() }
+    @discardableResult public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
     public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try base.apply(data, exactly: exactly)

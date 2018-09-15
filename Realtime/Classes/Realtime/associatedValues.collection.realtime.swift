@@ -173,7 +173,11 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         let removed = _view.source._runObserving(.child(.removed))
         let changed = _view.source._runObserving(.child(.changed))
         if isNeedLoadFull {
-            _view.load(.just { _ in })
+            _view.load(.just { [weak self] e in
+                self.map { this in
+                    this._view.isSynced = this._view.source.isObserved && e == nil
+                }
+            })
         }
         return added && removed && changed
     }

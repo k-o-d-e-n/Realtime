@@ -41,7 +41,12 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        addBinding(ofDisplayTime: compactMap().join(with: value).listeningItem(onValue: assign))
+        addBinding(ofDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+            if let view = owner._view.value, let v = val.value {
+                assign(view, v)
+            }
+        })))
+//        addBinding(ofDisplayTime: compactMap().join(with: value).listeningItem(onValue: assign))
 
         guard source.canObserve else { return }
         if source.runObserving() {
@@ -68,6 +73,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
         // current function does not require the call on each willDisplay event. It can call only on initialize `ReuseItem`.
         // But for it, need to separate dispose storages on iterated and permanent.
+        _view.value.map { assign($0, value) }
         addBinding(ofDisplayTime: compactMap().listeningItem(onValue: { assign($0, value) }))
     }
 
@@ -77,6 +83,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     ///   - config: Closure to configure view
     public func set(config: @escaping (View) -> Void) {
         // by analogue with `set(_:_:)` function
+        _view.value.map(config)
         compactMap().listeningItem(onValue: config).add(to: &disposeStorage)
     }
 
@@ -251,8 +258,8 @@ extension SingleSectionTableViewDelegate {
             }
 
             let model = delegate.collection[indexPath.row]
-            bind(item, model)
             item.view = cell
+            bind(item, model)
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
         }
@@ -276,26 +283,61 @@ extension SingleSectionTableViewDelegate {
     }
 }
 
+open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
+    var items: AnyRealtimeCollection<Model>?
+    var isNotBeingDisplay: Bool {
+        return items == nil
+    }
+
+    func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
+        self.items = items
+        items.runObserving()
+        items.changes.listening(onValue: { [weak tableView] e in
+            guard let tv = tableView else { return }
+            tv.beginUpdates()
+            switch e {
+            case .initial:
+                tv.reloadSections([index], with: .automatic)
+            case .updated(let deleted, let inserted, let modified, let moved):
+                tv.insertRows(at: inserted.map { IndexPath(row: $0, section: index) }, with: .automatic)
+                tv.deleteRows(at: deleted.map { IndexPath(row: $0, section: index) }, with: .automatic)
+                tv.reloadRows(at: modified.map { IndexPath(row: $0, section: index) }, with: .automatic)
+                moved.forEach({ (move) in
+                    tv.moveRow(at: IndexPath(row: move.from, section: index), to: IndexPath(row: move.to, section: index))
+                })
+            }
+            tv.endUpdates()
+        }).add(to: &disposeStorage)
+    }
+
+    func endDisplaySection(_ tableView: UITableView, at index: Int) {
+        self.items?.stopObserving()
+        self.items = nil
+    }
+
+    override func free() {
+        super.free()
+        items = nil
+    }
+}
+
 public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableViewDelegate<Model, Section> {
-    public typealias BindingSection<Cell: AnyObject> = (ReuseItem<Cell>, Section) -> Void
+    public typealias BindingSection<View: AnyObject> = (ReuseSection<Model, View>, Section) -> Void
     public typealias ConfigureSection = (UITableView, Int) -> UIView?
     fileprivate var configureSection: ConfigureSection
     fileprivate var registeredHeaders: [TypeKey: BindingSection<UIView>] = [:]
-    fileprivate let reuseHeadersController: ReuseController<UIView, Int> = ReuseController()
+    fileprivate var reuseSectionController: ReuseRowController<ReuseSection<Model, UIView>, Int> = ReuseRowController()
     fileprivate lazy var delegateService: Service = Service(self)
     var sections: AnySharedCollection<Section>
-    let mapElement: (Section, Int) -> Model
-    let mapCount: (Section) -> Int
+    let models: (Section) -> AnyRealtimeCollection<Model>
 
     public init<C: BidirectionalCollection>(_ sections: C,
-                                            _ mapElement: @escaping (Section, Int) -> Model,
-                                            _ mapCount: @escaping (Section) -> Int,
+                                            _ models: @escaping (Section) -> AnyRealtimeCollection<Model>,
                                             cell: @escaping ConfigureCell,
                                             section: @escaping ConfigureSection)
         where C.Element == Section, C.Index == Int {
             self.sections = AnySharedCollection(sections)
-            self.mapElement = mapElement
-            self.mapCount = mapCount
+            self.models = models
             self.configureSection = section
             super.init(cell: cell)
     }
@@ -310,7 +352,11 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
     }
 
     public override func model(at indexPath: IndexPath) -> Model {
-        return mapElement(sections[indexPath.section], indexPath.row)
+        guard let items = reuseSectionController.activeItem(at: indexPath.section)?.items else {
+            return models(sections[indexPath.section])[indexPath.row]
+        }
+
+        return items[indexPath.row]
     }
 
     /// Returns `Section` element at index
@@ -337,6 +383,7 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
 
 extension SectionedTableViewDelegate {
     class Service: _TableViewSectionedAdapter {
+        var oldOffset: CGFloat = 0.0
         unowned let delegate: SectionedTableViewDelegate<Model, Section>
 
         init(_ delegate: SectionedTableViewDelegate<Model, Section>) {
@@ -348,7 +395,7 @@ extension SectionedTableViewDelegate {
         }
 
         override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-            return delegate.mapCount(delegate.sections[section])
+            return delegate.models(delegate.sections[section]).count
         }
 
         override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -386,15 +433,46 @@ extension SectionedTableViewDelegate {
             }
 
             let model = delegate.model(at: indexPath)
-            bind(item, model)
             item.view = cell
+            bind(item, model)
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
+
+            guard
+                delegate.sections.count > indexPath.section + 1,
+                let items = delegate.reuseSectionController.activeItem(at: indexPath.section)?.items,
+                indexPath.row >= (items.count / 2)
+            else {
+                return
+            }
+
+            let sectionItem = delegate.reuseSectionController.dequeueItem(at: indexPath.section + 1, rowBuilder: ReuseSection.init)
+            if sectionItem.isNotBeingDisplay {
+                sectionItem.willDisplaySection(tableView, items: delegate.models(delegate.sections[indexPath.section + 1]), at: indexPath.section + 1)
+            }
         }
 
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             delegate.reuseController.free(at: indexPath)
             delegate.tableDelegate?.tableView?(tableView, didEndDisplaying: cell, forRowAt: indexPath)
+
+//            var endDisplaySection: Bool {
+//                if oldOffset > tableView.contentOffset.y {
+//                    if let items = delegate.reuseSectionController.activeItem(at: indexPath.section)?.items {
+//                        return items.count == indexPath.row + 1
+//                    } else {
+//                        // unexpected behavior
+//                        return false
+//                    }
+//                } else {
+//                    return indexPath.row == 0
+//                }
+//            }
+//
+//            guard endDisplaySection, let sectionItem = delegate.reuseSectionController.activeItem(at: indexPath.section) else { return }
+//
+//            sectionItem.endDisplaySection(tableView, at: indexPath.section)
+//            sectionItem.free()
         }
 
         override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -402,20 +480,28 @@ extension SectionedTableViewDelegate {
         }
 
         override func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
-            let item = delegate.reuseHeadersController.dequeueItem(at: section)
+            let item = delegate.reuseSectionController.dequeueItem(at: section, rowBuilder: ReuseSection.init)
             guard let bind = delegate.registeredHeaders[TypeKey.for(type(of: view))] else {
                 fatalError("Unregistered header by type \(type(of: view))")
             }
             let model = delegate.sections[section]
-            bind(item, model)
             item.view = view
+            bind(item, model)
+
+            if item.isNotBeingDisplay {
+                item.willDisplaySection(tableView, items: delegate.models(delegate.sections[section]), at: section)
+            }
 
             delegate.tableDelegate?.tableView?(tableView, willDisplayHeaderView: view, forSection: section)
         }
 
         override func tableView(_ tableView: UITableView, didEndDisplayingHeaderView view: UIView, forSection section: Int) {
-            delegate.reuseHeadersController.free(at: section)
             delegate.tableDelegate?.tableView?(tableView, didEndDisplayingHeaderView: view, forSection: section)
+
+            guard let sectionItem = delegate.reuseSectionController.activeItem(at: section) else { return }
+
+            sectionItem.endDisplaySection(tableView, at: section)
+            sectionItem.free()
         }
 
         override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
@@ -429,5 +515,11 @@ extension SectionedTableViewDelegate {
 //        override func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
 //            delegate.editingDataSource?.tableView(tableView, moveRowAt: sourceIndexPath, to: destinationIndexPath)
 //        }
+
+        // MARK: UIScrollView
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            oldOffset = scrollView.contentOffset.y
+        }
     }
 }

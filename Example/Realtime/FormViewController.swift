@@ -21,7 +21,7 @@ class Label: UILabel {
 class TextCell: UITableViewCell {
     var listenings: [Disposable] = []
     lazy var titleLabel: UILabel = self.textLabel!.add(to: self.contentView) { label in
-        label.addObserver(self, forKeyPath: "text", options: [], context: nil)
+        label.addObserver(self, forKeyPath: "text", options: [], context: nil)// TODO: strong reference cycle
 //        listenings.append(
 //            label.didSet
 //                .distinctUntilChanged()
@@ -147,9 +147,7 @@ class FormViewController: UIViewController {
             })
         }
 
-        let ownedGroup: Row<SubtitleCell, User> = Row(cellBuilder: .custom({ () -> UITableViewCell in
-            return UITableViewCell(style: .value1, reuseIdentifier: nil)
-        }))
+        let ownedGroup: Row<SubtitleCell, User> = Row(reuseIdentifier: valueCellIdentifier)
         ownedGroup.onUpdate { [weak self] (args, row) in
             let (cell, user) = args
             cell.accessoryType = .disclosureIndicator
@@ -188,7 +186,7 @@ class FormViewController: UIViewController {
         section.addRow(ownedGroup)
 
         let followers = ReuseRowSection<User, User>(Global.rtUsers, row: {
-            let row: ReuseFormRow<UITableViewCell, User, User> = ReuseFormRow(cellBuilder: .custom({ UITableViewCell(style: .value1, reuseIdentifier: nil) }))
+            let row: ReuseFormRow<UITableViewCell, User, User> = ReuseFormRow(reuseIdentifier: defaultCellIdentifier)
             row.onRowModel({ (user, row) in
                 row.view?.textLabel?.text <== user.name
                 row.bind(user.name, { (cell, name) in
@@ -215,33 +213,25 @@ class FormViewController: UIViewController {
         })
         followers.headerTitle = "Followers"
 
-        //        if Global.rtUsers.isSynced {
-        //            Global.rtUsers.enumerated().forEach { i, user in
-        //                addCheckmarkRow(for: user, index: i)
-        //            }
-        //        }
         Global.rtUsers.changes.once().listeningItem(onValue: { [weak self] event in
             defer {
                 Global.rtUsers.stopObserving()
             }
             guard let `self` = self else { return }
 
-            self.form.beginUpdates()
+            self.tableView.beginUpdates()
             switch event {
             case .initial:
-//                Global.rtUsers.enumerated().forEach { i, user in
-//                    self.addCheckmarkRow(for: user, index: i)
-//                }
-                self.form.reloadSections([1], with: .automatic)
+                self.tableView.reloadSections([1], with: .automatic)
             case .updated(let deleted, let inserted, let modified, let moved):
-//                inserted.forEach { self.addCheckmarkRow(for: Global.rtUsers[$0], index: $0) }
-                self.form.deleteRows(at: deleted.map { IndexPath(row: $0, section: 1) }, with: .automatic)
-                self.form.reloadRows(at: modified.map { IndexPath(row: $0, section: 1) }, with: .automatic)
+                self.tableView.insertRows(at: inserted.map { IndexPath(row: $0, section: 1) }, with: .automatic)
+                self.tableView.deleteRows(at: deleted.map { IndexPath(row: $0, section: 1) }, with: .automatic)
+                self.tableView.reloadRows(at: modified.map { IndexPath(row: $0, section: 1) }, with: .automatic)
                 moved.forEach({ (move) in
                     self.tableView.moveRow(at: IndexPath(row: move.from, section: 1), to: IndexPath(row: move.to, section: 0))
                 })
             }
-            self.form.endUpdates()
+            self.tableView.endUpdates()
         }).add(to: &store)
         Global.rtUsers.runObserving()
 

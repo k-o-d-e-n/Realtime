@@ -170,9 +170,9 @@ public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, Real
 extension RealtimeCollection where Self: AnyObject, Self.Element: RealtimeCollection {
     @discardableResult
     public func runObservingRecursivly(_ completion: @escaping (Error?) -> Void) -> Bool {
-        guard !isObserved else {
+        guard !isSynced else {
             forEach { (element) in
-                element.stopObserving()
+                element.runObserving()
             }
             completion(nil)
             return true
@@ -180,24 +180,18 @@ extension RealtimeCollection where Self: AnyObject, Self.Element: RealtimeCollec
 
         guard runObserving() else { return false }
 
-        var disposable: Disposable! = nil
-        disposable = changes.listening({ [weak self] event in
+        _ = changes.once().listening({ [weak self] event in
             switch event {
             case .error(let e):
                 completion(e)
-                disposable.dispose()
-            case .value(let v):
-                switch v {
-                case .initial:
-                    guard let `self` = self else {
-                        let error = RealtimeError(source: .collection, description: "Recursivly observing is failed")
-                        return completion(error)
-                    }
-                    self.forEach({ $0.runObserving() })
-                    disposable.dispose()
-                    completion(nil)
-                default: break
+            case .value(.initial):
+                guard let `self` = self else {
+                    let error = RealtimeError(source: .collection, description: "Recursivly observing is failed")
+                    return completion(error)
                 }
+                self.forEach({ $0.runObserving() })
+                completion(nil)
+            default: break
             }
         })
         return true
@@ -335,7 +329,7 @@ final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyOb
 
         source.load(completion:
             completion.with(work: { err in
-                self.isSynced = err == nil
+//                self.isSynced = err == nil
             })
         )
     }

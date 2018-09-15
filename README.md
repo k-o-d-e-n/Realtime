@@ -168,10 +168,10 @@ let userNames = Values<User>(in: usersNode).lazyMap { user in
 
 ### Operators
 
-`<==`  - assignment operator. Can use to assign (or to retrieve) value to (from) any Realtime property.
-`====`, `!===` - comparison operators. Can use to compare any Realtime properties where their values conform to `Equatable` protocol.
-`??` - infix operator, that performs a nil-coalescing operation, returning the wrapped value of an Realtime property or a default value.
-`<-` - prefix operator. Can use to convert instance of `Closure, Assign` types to explicit closure or backward.
++ `<==`  - assignment operator. Can use to assign (or to retrieve) value to (from) any Realtime property.
++ `====`, `!===` - comparison operators. Can use to compare any Realtime properties where their values conform to `Equatable` protocol.
++ `??` - infix operator, that performs a nil-coalescing operation, returning the wrapped value of an Realtime property or a default value.
++ `<-` - prefix operator. Can use to convert instance of `Closure, Assign` types to explicit closure or backward.
 
 ### Transactions
 

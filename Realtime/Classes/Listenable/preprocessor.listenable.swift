@@ -202,17 +202,23 @@ public struct Once<T>: Listenable {
     }
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        var disposable: Disposable! = nil
         var shouldCall = true
+        var disposable: Disposable? {
+            didSet {
+                if !shouldCall {
+                    disposable?.dispose()
+                }
+            }
+        }
         disposable = listenable
             .filter({ _ in shouldCall })
             .listening(
                 assign.with(work: { (_) in
-                    disposable.dispose()
+                    disposable?.dispose()
                     shouldCall = false
                 })
         )
-        return disposable
+        return disposable!
     }
 }
 public extension Listenable {
@@ -328,7 +334,7 @@ public extension Listenable {
     }
 }
 
-public class Accumulator<T>: Listenable {
+public struct Accumulator<T>: Listenable {
     let repeater: Repeater<T>
     var store: ListeningDisposeStore = ListeningDisposeStore()
 
@@ -420,7 +426,7 @@ struct Memoize<T>: Listenable {
                     item.resume()
                     assign.call(.value(memoized))
                     return ()
-            },
+                },
                 pause: item.pause,
                 token: ()
             )
