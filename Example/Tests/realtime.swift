@@ -294,7 +294,7 @@ extension Tests {
         do {
             let trans = try testObject.save(in: .root)
             let value = trans.updateNode.updateValue
-            let expectedValue = ["/t_obj/prop":"string", "/t_obj/nestedObject/lazyprop":"nested_string"] as [String: Any?]
+            let expectedValue = ["t_obj/prop":"string", "t_obj/nestedObject/lazyprop":"nested_string"] as [String: Any?]
 
             XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
             trans.revert()
@@ -319,8 +319,8 @@ extension Tests {
             try elementTransaction.merge(objectTransaction)
 
             let value = elementTransaction.updateNode.updateValue
-            let expectedValue = ["/prop":"string", "/nestedObject/lazyprop":"nested_string",
-                                 "/element_1/prop":"element #1", "/element_1/nestedObject/lazyprop":"value"] as [String: Any?]
+            let expectedValue = ["prop":"string", "nestedObject/lazyprop":"nested_string",
+                                 "element_1/prop":"element #1", "element_1/nestedObject/lazyprop":"value"] as [String: Any?]
 
             XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
             elementTransaction.revert()
@@ -353,10 +353,10 @@ extension Tests {
 
         let value = transaction.updateNode.updateValue
 
-        let linkedItem = value["/linked_array/linked"] as? [String: Any]
+        let linkedItem = value["linked_array/linked"] as? [String: Any]
         XCTAssertTrue(linkedItem != nil)
-        XCTAssertTrue(value["/array/elem_1/prop"] as? String == "prop")
-        XCTAssertTrue(value["/dict/linked/prop"] as? String == "element #1")
+        XCTAssertTrue(value["array/elem_1/prop"] as? String == "prop")
+        XCTAssertTrue(value["dict/linked/prop"] as? String == "element #1")
         transaction.revert()
     }
 
@@ -382,10 +382,10 @@ extension Tests {
             let transaction = try testObject.save(in: .root)
             let value = transaction.updateNode.updateValue
 
-            let linkedItem = value["/test_obj/linked_array/linked"] as? [String: Any]
+            let linkedItem = value["test_obj/linked_array/linked"] as? [String: Any]
             XCTAssertTrue(linkedItem != nil)
-            XCTAssertTrue(value["/test_obj/array/elem_1/prop"] as? String == "prop")
-            XCTAssertTrue(value["/test_obj/dict/linked/prop"] as? String == "element #1")
+            XCTAssertTrue(value["test_obj/array/elem_1/prop"] as? String == "prop")
+            XCTAssertTrue(value["test_obj/dict/linked/prop"] as? String == "element #1")
             transaction.revert()
         } catch let e {
             XCTFail(e.localizedDescription)
@@ -576,7 +576,7 @@ extension Tests {
         do {
             let result = try representer.encode(value)
 
-            XCTAssertEqual(result as? NSDictionary, ["ref": "/path/subpath",
+            XCTAssertEqual(result as? NSDictionary, ["ref": "path/subpath",
                                                      InternalKeys.raw.rawValue: 1,
                                                      InternalKeys.payload.rawValue: ["foo": "bar"]])
         } catch let e {
@@ -588,26 +588,26 @@ extension Tests {
         let first = Node(key: "first", parent: .root)
 
         let second = Node(key: "second", parent: first)
-        XCTAssertEqual(second.rootPath, "/first/second")
-        XCTAssertEqual(second.path(from: first), "/second")
+        XCTAssertEqual(second.rootPath, "first/second")
+        XCTAssertEqual(second.path(from: first), "second")
         XCTAssertTrue(second.hasAncestor(node: first))
         XCTAssertTrue(second.isRooted)
 
         let third = second.child(with: "third")
-        XCTAssertEqual(third.rootPath, "/first/second/third")
-        XCTAssertEqual(third.path(from: first), "/second/third")
+        XCTAssertEqual(third.rootPath, "first/second/third")
+        XCTAssertEqual(third.path(from: first), "second/third")
         XCTAssertTrue(third.hasAncestor(node: first))
         XCTAssertTrue(third.isRooted)
 
         let fourth = third.child(with: "fourth")
-        XCTAssertEqual(fourth.rootPath, "/first/second/third/fourth")
-        XCTAssertEqual(fourth.path(from: first), "/second/third/fourth")
+        XCTAssertEqual(fourth.rootPath, "first/second/third/fourth")
+        XCTAssertEqual(fourth.path(from: first), "second/third/fourth")
         XCTAssertTrue(fourth.hasAncestor(node: first))
         XCTAssertTrue(fourth.isRooted)
     }
 
     func testLinksNode() {
-        let fourth = Node.root.child(with: "/first/second/third/fourth")
+        let fourth = Node.root.child(with: "first/second/third/fourth")
         let linksNode = fourth.linksNode
         XCTAssertEqual(linksNode.rootPath, RealtimeApp.app.linksNode.child(with: "first/second/third/fourth").rootPath)
     }
@@ -776,7 +776,7 @@ extension Tests {
     func testReferenceFireValue() {
         let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").rootPath, payload: ((nil, nil), nil))
         let fireValue = ref.rdbValue
-        XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "/first/two"])
+        XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "first/two"])
     }
 
     func testLocalDatabase() {

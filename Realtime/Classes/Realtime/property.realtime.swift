@@ -504,7 +504,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
             do {
                 _ = try representer.encode(nil)
             } catch let e {
-                debugFatalError("Required property has not been set")
+                debugFatalError("Required property has not been set \(self)")
                 throw e
             }
         case .some(.local(let v)):

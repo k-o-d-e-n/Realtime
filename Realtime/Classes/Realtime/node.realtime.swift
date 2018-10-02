@@ -78,7 +78,7 @@ public class Node: Hashable {
 
     /// Returns path from the most senior node.
     public var rootPath: String {
-        return parent.map { $0.rootPath + "/" + key } ?? key
+        return parent.map { $0.isRoot ? key : $0.rootPath + "/" + key } ?? key
     }
 
     /// Returns path from passed node.
@@ -94,7 +94,7 @@ public class Node: Hashable {
             if next != node {
                 path = next.key + "/" + path
             } else {
-                return "/" + path
+                return path
             }
             current = next
         }

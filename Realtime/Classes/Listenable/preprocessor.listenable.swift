@@ -392,7 +392,7 @@ public extension Listenable {
         return Accumulator(repeater: .unsafe(), [self] + others)
     }
 
-    func join<L: Listenable>(with other: L) -> Accumulator<(Out, L.Out)> {
+    func combine<L: Listenable>(with other: L) -> Accumulator<(Out, L.Out)> {
         return Accumulator(repeater: .unsafe(), self, other)
     }
 }
