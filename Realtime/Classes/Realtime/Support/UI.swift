@@ -43,6 +43,24 @@ internal class _TableViewSectionedAdapter: NSObject, UITableViewDataSource, UITa
     func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle { return .delete }
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {}
 //    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {}
+
+    // UIScrollView
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {}
+    func scrollViewDidZoom(_ scrollView: UIScrollView) {}
+    func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {}
+    func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {}
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {}
+    func scrollViewWillBeginDecelerating(_ scrollView: UIScrollView) {}
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {}
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {}
+    func viewForZooming(in scrollView: UIScrollView) -> UIView? { return nil }
+    func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {}
+    func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {}
+    func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool { return true }
+    func scrollViewDidScrollToTop(_ scrollView: UIScrollView) {}
+    @available(iOS 11.0, *)
+    func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {}
 }
 
 struct TypeKey: Hashable {

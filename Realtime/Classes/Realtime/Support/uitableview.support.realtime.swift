@@ -147,7 +147,7 @@ public protocol RealtimeEditingTableDataSource: class {
 
 /// A proxy base class that provides tools to manage UITableView reactively.
 open class RealtimeTableViewDelegate<Model, Section> {
-    public typealias BindingCell<Cell: AnyObject> = (ReuseItem<Cell>, Model) -> Void
+    public typealias BindingCell<Cell: AnyObject> = (ReuseItem<Cell>, Model, IndexPath) -> Void
     public typealias ConfigureCell = (UITableView, IndexPath, Model) -> UITableViewCell
     fileprivate let reuseController: ReuseController<UITableViewCell, IndexPath> = ReuseController()
     fileprivate var registeredCells: [TypeKey: BindingCell<UITableViewCell>] = [:]
@@ -188,6 +188,7 @@ open class RealtimeTableViewDelegate<Model, Section> {
 /// A class that provides tools to manage UITableView data source reactively.
 public final class SingleSectionTableViewDelegate<Model>: RealtimeTableViewDelegate<Model, Void> {
     fileprivate lazy var delegateService: Service = Service(self)
+    public var headerView: UIView?
 
     var collection: AnySharedCollection<Model>
 
@@ -234,6 +235,10 @@ extension SingleSectionTableViewDelegate {
             return 1
         }
 
+        override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+            return delegate.headerView
+        }
+
         override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
             return delegate.collection.count
         }
@@ -250,6 +255,10 @@ extension SingleSectionTableViewDelegate {
             return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? 44.0
         }
 
+        override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+            return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ?? delegate.headerView.map { _ in 35.0 } ?? 0.0
+        }
+
         /// events
         override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             let item = delegate.reuseController.dequeueItem(at: indexPath)
@@ -259,7 +268,7 @@ extension SingleSectionTableViewDelegate {
 
             let model = delegate.collection[indexPath.row]
             item.view = cell
-            bind(item, model)
+            bind(item, model, indexPath)
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
         }
@@ -279,6 +288,65 @@ extension SingleSectionTableViewDelegate {
 
         override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
             delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
+        }
+
+        // MARK: UIScrollView
+
+        override func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidScroll?(scrollView)
+        }
+
+        override func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidZoom?(scrollView)
+        }
+
+        override func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewWillBeginDragging?(scrollView)
+        }
+
+        override func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+            delegate.tableDelegate?.scrollViewWillEndDragging?(scrollView, withVelocity: velocity, targetContentOffset: targetContentOffset)
+        }
+
+        override func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            delegate.tableDelegate?.scrollViewDidEndDragging?(scrollView, willDecelerate: decelerate)
+        }
+
+        override func scrollViewWillBeginDecelerating(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewWillBeginDecelerating?(scrollView)
+        }
+
+        override func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidEndDecelerating?(scrollView)
+        }
+
+        override func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidEndScrollingAnimation?(scrollView)
+        }
+
+        override func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            return delegate.tableDelegate?.viewForZooming?(in: scrollView)
+        }
+
+        override func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+            delegate.tableDelegate?.scrollViewWillBeginZooming?(scrollView, with: view)
+        }
+
+        override func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+            delegate.tableDelegate?.scrollViewDidEndZooming?(scrollView, with: view, atScale: scale)
+        }
+
+        override func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool {
+            return delegate.tableDelegate?.scrollViewShouldScrollToTop?(scrollView) ?? true
+        }
+
+        override func scrollViewDidScrollToTop(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidScrollToTop?(scrollView)
+        }
+
+        @available(iOS 11.0, *)
+        override func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidChangeAdjustedContentInset?(scrollView)
         }
     }
 }
@@ -434,7 +502,7 @@ extension SectionedTableViewDelegate {
 
             let model = delegate.model(at: indexPath)
             item.view = cell
-            bind(item, model)
+            bind(item, model, indexPath)
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
 
@@ -518,8 +586,62 @@ extension SectionedTableViewDelegate {
 
         // MARK: UIScrollView
 
-        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        override func scrollViewDidScroll(_ scrollView: UIScrollView) {
             oldOffset = scrollView.contentOffset.y
+            delegate.tableDelegate?.scrollViewDidScroll?(scrollView)
+        }
+
+        override func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidZoom?(scrollView)
+        }
+
+        override func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewWillBeginDragging?(scrollView)
+        }
+
+        override func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint, targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+            delegate.tableDelegate?.scrollViewWillEndDragging?(scrollView, withVelocity: velocity, targetContentOffset: targetContentOffset)
+        }
+
+        override func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            delegate.tableDelegate?.scrollViewDidEndDragging?(scrollView, willDecelerate: decelerate)
+        }
+
+        override func scrollViewWillBeginDecelerating(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewWillBeginDecelerating?(scrollView)
+        }
+
+        override func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidEndDecelerating?(scrollView)
+        }
+
+        override func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidEndScrollingAnimation?(scrollView)
+        }
+
+        override func viewForZooming(in scrollView: UIScrollView) -> UIView? {
+            return delegate.tableDelegate?.viewForZooming?(in: scrollView)
+        }
+
+        override func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+            delegate.tableDelegate?.scrollViewWillBeginZooming?(scrollView, with: view)
+        }
+
+        override func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+            delegate.tableDelegate?.scrollViewDidEndZooming?(scrollView, with: view, atScale: scale)
+        }
+
+        override func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool {
+            return delegate.tableDelegate?.scrollViewShouldScrollToTop?(scrollView) ?? true
+        }
+
+        override func scrollViewDidScrollToTop(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidScrollToTop?(scrollView)
+        }
+
+        @available(iOS 11.0, *)
+        override func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
+            delegate.tableDelegate?.scrollViewDidChangeAdjustedContentInset?(scrollView)
         }
     }
 }

@@ -14,12 +14,12 @@ public protocol Disposable {
     func dispose()
 }
 
-class ListeningDispose: Disposable {
+public class ListeningDispose: Disposable {
     let _dispose: () -> Void
-    init(_ dispose: @escaping () -> Void) {
+    public init(_ dispose: @escaping () -> Void) {
         self._dispose = dispose
     }
-    func dispose() {
+    public func dispose() {
         _dispose()
     }
     deinit {
