@@ -478,7 +478,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     private func isNotIgnoredLabel(_ label: String?) -> Bool {
         guard var l = label else { return true }
 
-        if l.hasPrefix(lazyStoragePath) {
+        if l.hasSuffix(lazyStoragePath) {
             l = String(l.prefix(upTo: l.index(l.endIndex, offsetBy: -lazyStoragePath.count)))
         }
         return !ignoredLabels.contains(l)

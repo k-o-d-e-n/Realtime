@@ -383,6 +383,57 @@ public struct Accumulator<T>: Listenable {
         two.listening({ event.two = $0 }).add(to: &store)
     }
 
+    struct Compound3<V1, V2, V3> {
+        var first: ListenEvent<V1>?
+        var second: ListenEvent<V2>?
+        var third: ListenEvent<V3>?
+
+        init() {}
+
+        func fulfill() -> ListenEvent<(V1, V2, V3)>? {
+            guard let one = first, let two = second, let third = third else {
+                return nil
+            }
+            guard let val1 = one.value else {
+                return .error(error(for: one.error, two.error, third.error))
+            }
+            guard let val2 = two.value else {
+                return .error(error(for: one.error, two.error, third.error))
+            }
+            guard let val3 = third.value else {
+                return .error(error(for: one.error, two.error, third.error))
+            }
+
+            return .value((val1, val2, val3))
+        }
+
+        func error(for errors: Error? ...) -> RealtimeError {
+            var counter = 0
+            return RealtimeError(source: .listening, description: errors.reduce(into: "") { (string, error) in
+                if let e = error {
+                    string.append("\nError #\(counter): \(e.localizedDescription)")
+                }
+                counter += 1
+            })
+        }
+    }
+
+    public init<L1: Listenable, L2: Listenable, L3: Listenable>(
+        repeater: Repeater<T>,
+        _ first: L1, _ second: L2, _ third: L3
+    ) where T == (L1.Out, L2.Out, L3.Out) {
+        self.repeater = repeater
+
+        var event: Compound3<L1.Out, L2.Out, L3.Out> = Compound3() {
+            didSet {
+                event.fulfill().map(repeater.send)
+            }
+        }
+        first.listening({ event.first = $0 }).add(to: &store)
+        second.listening({ event.second = $0 }).add(to: &store)
+        third.listening({ event.third = $0 }).add(to: &store)
+    }
+
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return repeater.listening(assign)
     }
@@ -394,6 +445,9 @@ public extension Listenable {
 
     func combine<L: Listenable>(with other: L) -> Accumulator<(Out, L.Out)> {
         return Accumulator(repeater: .unsafe(), self, other)
+    }
+    func combine<L1: Listenable, L2: Listenable>(with other1: L1, _ other2: L2) -> Accumulator<(Out, L1.Out, L2.Out)> {
+        return Accumulator(repeater: .unsafe(), self, other1, other2)
     }
 }
 

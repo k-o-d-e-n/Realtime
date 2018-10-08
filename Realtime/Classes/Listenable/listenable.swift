@@ -235,6 +235,13 @@ public extension ListenEvent {
         case .error: return nil
         }
     }
+
+    func tryValue() throws -> T {
+        switch self {
+        case .value(let v): return v
+        case .error(let e): throw e
+        }
+    }
 }
 
 /// Common protocol for all objects that ensures listening value. 
