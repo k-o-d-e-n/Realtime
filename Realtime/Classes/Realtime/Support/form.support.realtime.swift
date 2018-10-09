@@ -9,6 +9,7 @@ import Foundation
 
 public enum CellBuilder {
     case reuseIdentifier(String)
+    case `static`(UITableViewCell)
     case custom(() -> UITableViewCell)
 }
 
@@ -52,9 +53,15 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         switch cellBuilder {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath)
+        case .static(let cell): return cell
         case .custom(let closure):
             return closure()
         }
+    }
+}
+public extension Row where View: UIView {
+    var isVisible: Bool {
+        return view.map { $0.window != nil } ?? false
     }
 }
 
@@ -110,6 +117,20 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 
     override func didSelect(at indexPath: IndexPath) {
         cells[indexPath.row]._didSelect.send(.value(indexPath))
+    }
+}
+extension StaticSection: RandomAccessCollection {
+    public typealias Element = Row<UITableViewCell, Model>
+    public var startIndex: Int { return cells.startIndex }
+    public var endIndex: Int { return cells.endIndex }
+    public func index(after i: Int) -> Int {
+        return cells.index(after: i)
+    }
+    public func index(before i: Int) -> Int {
+        return cells.index(before: i)
+    }
+    public subscript(position: Int) -> Row<UITableViewCell, Model> {
+        return cells[position]
     }
 }
 
@@ -207,7 +228,10 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     }
 
     override func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
-        reuseController.activeItem(at: indexPath.row)?.bindsStorage.dispose()
+        if let row = reuseController.activeItem(at: indexPath.row) {
+            row.bindsStorage.dispose()
+            row.view = nil
+        }
     }
 
     override func didSelect(at indexPath: IndexPath) {
@@ -368,7 +392,15 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-            return true
+            return form.editingDataSource?.tableView(tableView, canEditRowAt: indexPath) ?? true
+        }
+
+        func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
+            return form.editingDataSource?.tableView(tableView, canMoveRowAt: indexPath) ?? true
+        }
+
+        func tableView(_ tableView: UITableView, shouldIndentWhileEditingRowAt indexPath: IndexPath) -> Bool {
+            return form.tableDelegate.flatMap { $0.tableView?(tableView, shouldIndentWhileEditingRowAt: indexPath) } ?? true
         }
 
         func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {

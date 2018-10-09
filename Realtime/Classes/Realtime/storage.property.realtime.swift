@@ -75,6 +75,13 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
             }
         }
     }
+
+    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        // currently, file can be filled by data from cache only
+        if data.database === CacheNode.root {
+            try super.apply(data, exactly: exactly)
+        }
+    }
 }
 
 /// Defines read/write property for files storage
@@ -103,6 +110,13 @@ public final class File<T>: Property<T> {
                     completion?.assign(e)
                 }
             }
+        }
+    }
+
+    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        // currently, file can be filled by data from cache only
+        if data.database === CacheNode.root {
+            try super.apply(data, exactly: exactly)
         }
     }
 }

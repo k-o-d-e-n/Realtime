@@ -141,6 +141,8 @@ class ReuseController<View: AnyObject, Key: Hashable> {
 
 /// A type that responsible for editing of table
 public protocol RealtimeEditingTableDataSource: class {
+    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool
+    func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath)
     func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath)
 }
@@ -390,7 +392,7 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
 }
 
 public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableViewDelegate<Model, Section> {
-    public typealias BindingSection<View: AnyObject> = (ReuseSection<Model, View>, Section) -> Void
+    public typealias BindingSection<View: AnyObject> = (ReuseSection<Model, View>, Section, Int) -> Void
     public typealias ConfigureSection = (UITableView, Int) -> UIView?
     fileprivate var configureSection: ConfigureSection
     fileprivate var registeredHeaders: [TypeKey: BindingSection<UIView>] = [:]
@@ -554,7 +556,7 @@ extension SectionedTableViewDelegate {
             }
             let model = delegate.sections[section]
             item.view = view
-            bind(item, model)
+            bind(item, model, section)
 
             if item.isNotBeingDisplay {
                 item.willDisplaySection(tableView, items: delegate.models(delegate.sections[section]), at: section)
