@@ -347,6 +347,19 @@ extension Values {
         _ = _view.insert(RCItem(element: element, key: key, linkID: "", priority: index))
     }
 
+    @discardableResult
+    public func delete(at index: Int) -> Element {
+        guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
+        guard _view.count >= index else {
+            fatalError("Index out of range")
+        }
+
+        guard let element = storage.elements.removeValue(forKey: _view.remove(at: index).dbKey) else {
+            fatalError("Internal exception: Element is not found")
+        }
+        return element
+    }
+
     /// Removes element from collection if collection contains this element.
     ///
     /// - Parameters:

@@ -72,30 +72,42 @@ extension ThrowsClosure: ClosureProtocol {
 public struct Closure<I, O> {
     let closure: (I) -> O
 
+    public init(_ closure: @escaping (I) -> O) {
+        self.closure = closure
+    }
+
     public func call(_ arg: I) -> O {
         return closure(arg)
     }
 }
 public struct ThrowsClosure<I, O> {
     let closure: (I) throws -> O
+
+    public init(_ closure: @escaping (I) throws -> O) {
+        self.closure = closure
+    }
+
+    public func call(_ arg: I) throws -> O {
+        return try closure(arg)
+    }
 }
 extension ThrowsClosure {
     func map<U>(_ transform: @escaping (U) throws -> I) -> ThrowsClosure<U, O> {
-        return ThrowsClosure<U, O>(closure: { try self.closure(try transform($0)) })
+        return ThrowsClosure<U, O>({ try self.closure(try transform($0)) })
     }
     func map<U>(_ transform: @escaping (O) throws -> U) -> ThrowsClosure<I, U> {
-        return ThrowsClosure<I, U>(closure: { try transform(try self.closure($0)) })
+        return ThrowsClosure<I, U>({ try transform(try self.closure($0)) })
     }
 }
 extension Closure {
     func `throws`() -> ThrowsClosure<I, O> {
-        return ThrowsClosure(closure: closure)
+        return ThrowsClosure(closure)
     }
     func map<U>(_ transform: @escaping (U) -> I) -> Closure<U, O> {
-        return Closure<U, O>(closure: { self.closure(transform($0)) })
+        return Closure<U, O>({ self.closure(transform($0)) })
     }
     func map<U>(_ transform: @escaping (O) -> U) -> Closure<I, U> {
-        return Closure<I, U>(closure: { transform(self.closure($0)) })
+        return Closure<I, U>({ transform(self.closure($0)) })
     }
 }
 
@@ -201,7 +213,7 @@ public prefix func <-<I, O>(rhs: Closure<I, O>) -> (I) -> O {
     return rhs.closure
 }
 public prefix func <-<I, O>(rhs: @escaping (I) -> O) -> Closure<I, O> {
-    return Closure(closure: rhs)
+    return Closure(rhs)
 }
 
 // MARK: Connections

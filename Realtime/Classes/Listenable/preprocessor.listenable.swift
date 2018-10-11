@@ -496,3 +496,24 @@ extension Listenable {
     }
 }
 
+public struct OldValue<T>: Listenable {
+    let base: AnyListenable<T>
+
+    public func listening(_ assign: Assign<ListenEvent<(new: T, old: T?)>>) -> Disposable {
+        var old: T?
+        var current: T? {
+            didSet { old = oldValue }
+        }
+        return base
+            .map({ (v) -> (T, T?) in
+                current = v
+                return (current!, old)
+            })
+            .listening(assign)
+    }
+}
+public extension Listenable {
+    func oldValue() -> OldValue<Out> {
+        return OldValue(base: AnyListenable(self.listening, self.listeningItem))
+    }
+}

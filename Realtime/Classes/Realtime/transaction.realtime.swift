@@ -60,6 +60,12 @@ public class Transaction {
         self.storage = storage
     }
 
+    deinit {
+        if !isInvalidated {
+            fatalError("Transaction requires performing, reversion or merging")
+        }
+    }
+
     private func clear() {
         updateNode.childs.removeAll()
         cancelations.removeAll()
@@ -71,12 +77,6 @@ public class Transaction {
         completions.forEach { $0(success) }
         state = success ? .completed : .failed
         clear()
-    }
-
-    deinit {
-        if !isInvalidated {
-            fatalError("Transaction requires performing, reversion or merging")
-        }
     }
 }
 extension Transaction: CustomStringConvertible {
@@ -296,6 +296,14 @@ public extension Transaction {
                 })
 
                 self.updateFiles({ (res) in
+                    let result = res.compactMap({ $0.1 })
+                    if result.count > 0 {
+                        self.state = .failed
+                        debugFatalError(String(describing: result))
+                        if revertOnError {
+                            self.revert()
+                        }
+                    }
                     filesCompletion?(res)
                 })
             } catch let e {

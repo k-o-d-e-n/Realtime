@@ -191,6 +191,8 @@ extension Database: RealtimeDatabase {
         let updateValue = nearest.updateValue
         if updateValue.count > 0 {
             node(with: nearest.location).update(use: nearest.updateValue, completion: completion)
+        } else if let compl = completion {
+            compl(nil, node(with: nearest.location))
         }
     }
 

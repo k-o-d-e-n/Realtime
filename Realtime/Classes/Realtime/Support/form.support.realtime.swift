@@ -308,7 +308,7 @@ open class Form<Model: AnyObject> {
     }
 
     open func deleteSections(at indexes: IndexSet, with animation: UITableViewRowAnimation) {
-        indexes.forEach { sections.remove(at: $0) }
+        indexes.reversed().forEach { removedSections[$0] = sections.remove(at: $0) }
         tableView?.deleteSections(indexes, with: animation)
     }
 
@@ -413,6 +413,19 @@ extension Form {
 
         func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
             form.editingDataSource?.tableView(tableView, moveRowAt: sourceIndexPath, to: destinationIndexPath)
+        }
+
+        func tableView(
+            _ tableView: UITableView,
+            targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath,
+            toProposedIndexPath proposedDestinationIndexPath: IndexPath
+        ) -> IndexPath {
+            return form.editingDataSource?.tableView(
+                tableView,
+                targetIndexPathForMoveFromRowAt: sourceIndexPath,
+                toProposedIndexPath: proposedDestinationIndexPath
+            )
+            ?? proposedDestinationIndexPath
         }
     }
 }

@@ -41,7 +41,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        addBinding(ofDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+        addBinding(atDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
@@ -50,9 +50,29 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 
         guard source.canObserve else { return }
         if source.runObserving() {
-            addBinding(ofDisplayTime: ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
+            addBinding(atDisplayTime: ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
         } else {
             debugFatalError("Observing is not running")
+        }
+    }
+
+    public func bind<T: Listenable>(_ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void) {
+        // current function requires the call on each willDisplay event.
+        // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
+        addBinding(atDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+            if let view = owner._view.value, let v = val.value {
+                assign(view, v)
+            }
+        })))
+        //        addBinding(ofDisplayTime: compactMap().join(with: value).listeningItem(onValue: assign))
+
+        sources.forEach { source in
+            guard source.canObserve else { return }
+            if source.runObserving() {
+                addBinding(atDisplayTime: ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
+            } else {
+                debugFatalError("Observing is not running")
+            }
         }
     }
 
@@ -74,7 +94,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         // current function does not require the call on each willDisplay event. It can call only on initialize `ReuseItem`.
         // But for it, need to separate dispose storages on iterated and permanent.
         _view.value.map { assign($0, value) }
-        addBinding(ofDisplayTime: compactMap().listeningItem(onValue: { assign($0, value) }))
+        addBinding(atDisplayTime: compactMap().listeningItem(onValue: { assign($0, value) }))
     }
 
     /// Adds configuration block that will be called on receive view
@@ -96,7 +116,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         disposeStorage.resume()
     }
 
-    func addBinding(ofDisplayTime item: ListeningItem) {
+    func addBinding(atDisplayTime item: ListeningItem) {
         disposeStorage.add(item)
     }
 }
@@ -145,6 +165,11 @@ public protocol RealtimeEditingTableDataSource: class {
     func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath)
     func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath)
+    func tableView(
+        _ tableView: UITableView,
+        targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath,
+        toProposedIndexPath proposedDestinationIndexPath: IndexPath
+    ) -> IndexPath
 }
 
 /// A proxy base class that provides tools to manage UITableView reactively.

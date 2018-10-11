@@ -90,7 +90,7 @@ public struct ControlEvent<C: UIControl>: Listenable {
     unowned var control: C
     let events: UIControlEvents
 
-    public func listening(_ assign: Assign<ListenEvent<(C, UIEvent)>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<(control: C, event: UIEvent)>>) -> Disposable {
         let controlListening = UIControl.Listening<C>(control, events: events, assign: assign)
         defer {
             controlListening.onStart()
@@ -98,7 +98,7 @@ public struct ControlEvent<C: UIControl>: Listenable {
         return controlListening
     }
 
-    public func listeningItem(_ assign: Assign<ListenEvent<(C, UIEvent)>>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<ListenEvent<(control: C, event: UIEvent)>>) -> ListeningItem {
         let controlListening = UIControl.Listening<C>(control, events: events, assign: assign)
         defer {
             controlListening.onStart()
@@ -115,9 +115,9 @@ extension UIControl {
     fileprivate class Listening<C: UIControl>: Disposable, Hashable {
         unowned let control: C
         let events: UIControlEvents
-        let assign: Assign<ListenEvent<(C, UIEvent)>>
+        let assign: Assign<ListenEvent<(control: C, event: UIEvent)>>
 
-        init(_ control: C, events: UIControlEvents, assign: Assign<ListenEvent<(C, UIEvent)>>) {
+        init(_ control: C, events: UIControlEvents, assign: Assign<ListenEvent<(control: C, event: UIEvent)>>) {
             self.control = control
             self.events = events
             self.assign = assign
@@ -156,12 +156,12 @@ extension UIControl: RealtimeCompatible {
     }
 }
 public extension RTime where Base: UITextField {
-    var text: Preprocessor<(Base, UIEvent), String?> {
+    var text: Preprocessor<(control: Base, event: UIEvent), String?> {
         return onEvent(.editingChanged).map { $0.0.text }
     }
 }
 public extension UITextField {
-    func onTextChange() -> Preprocessor<(UITextField, UIEvent), String?> {
+    func onTextChange() -> Preprocessor<(control: UITextField, event: UIEvent), String?> {
         return ControlEvent(control: self, events: .valueChanged).map({ $0.0.text })
     }
 }
