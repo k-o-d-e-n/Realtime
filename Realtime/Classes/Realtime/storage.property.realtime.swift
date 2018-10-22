@@ -65,7 +65,7 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
                     if let value = try self.representer.decode(FileNode(node: node, value: data)) {
                         self._setValue(.remote(value))
                     } else {
-                        self._setRemoved()
+                        self._setRemoved(isLocal: false)
                     }
                     completion?.assign(nil)
                 } catch let e {
@@ -102,7 +102,7 @@ public final class File<T>: Property<T> {
                     if let value = try self.representer.decode(FileNode(node: node, value: data)) {
                         self._setValue(.remote(value))
                     } else {
-                        self._setRemoved()
+                        self._setRemoved(isLocal: false)
                     }
                     completion?.assign(nil)
                 } catch let e {

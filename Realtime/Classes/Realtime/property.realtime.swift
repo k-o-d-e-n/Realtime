@@ -352,7 +352,7 @@ public extension ValueOption {
 public enum PropertyState<T> {
     case local(T)
     case remote(T)
-    case removed
+    case removed(local: Bool)
     indirect case error(Error, last: PropertyState<T>?)
     //        case reverted(ListenValue<T>?)
 }
@@ -381,7 +381,7 @@ extension PropertyState: _Optional {
     public typealias Wrapped = T
 
     public init(nilLiteral: ()) {
-        self = .removed
+        self = .removed(local: true)
     }
 }
 
@@ -468,6 +468,14 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
             }
         }
         return transaction
+    }
+
+    public func change(_ using: (T?) -> T) {
+        _setLocalValue(using(wrapped))
+    }
+
+    public func remove() {
+        _setRemoved(isLocal: true)
     }
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
@@ -658,7 +666,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
-        _setRemoved()
+        _setRemoved(isLocal: false)
     }
     
     // MARK: Changeable
@@ -673,7 +681,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             if let value = try representer.decode(data) {
                 _setValue(.remote(value))
             } else {
-                _setRemoved()
+                _setRemoved(isLocal: false)
             }
         } catch let e {
             _setError(e)
@@ -686,9 +694,9 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         repeater.send(.value(value))
     }
 
-    func _setRemoved() {
+    func _setRemoved(isLocal: Bool) {
         _value = nil
-        repeater.send(.value(.removed))
+        repeater.send(.value(.removed(local: isLocal)))
     }
 
     internal func _setError(_ error: Error) {

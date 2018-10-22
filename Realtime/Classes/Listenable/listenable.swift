@@ -322,6 +322,22 @@ public extension Listenable {
     internal func asAny() -> AnyListenable<Out> {
         return AnyListenable(self.listening, self.listeningItem)
     }
+    func listening(onValue: @escaping (Out) -> Void, onError: @escaping (Error) -> Void) -> Disposable {
+        return listening(Assign(assign: { event in
+            switch event {
+            case .value(let v): onValue(v)
+            case .error(let e): onError(e)
+            }
+        }))
+    }
+    func listeningItem(onValue: @escaping (Out) -> Void, onError: @escaping (Error) -> Void) -> ListeningItem {
+        return listeningItem(Assign(assign: { event in
+            switch event {
+            case .value(let v): onValue(v)
+            case .error(let e): onError(e)
+            }
+        }))
+    }
 }
 
 public struct AnyListenable<Out>: Listenable {

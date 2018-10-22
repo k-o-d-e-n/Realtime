@@ -13,12 +13,29 @@ public enum CellBuilder {
     case custom(() -> UITableViewCell)
 }
 
+struct RowState: OptionSet {
+    let rawValue: CShort
+
+    init(rawValue: CShort) {
+        self.rawValue = rawValue
+    }
+}
+extension RowState {
+    static let free: RowState = RowState(rawValue: 1 << 0)
+    static let displaying: RowState = RowState(rawValue: 1 << 1)
+    static let pending: RowState = RowState(rawValue: 1 << 2)
+    static let removed: RowState = RowState(rawValue: 1 << 3)
+}
+
 // probably `ReuseItem` should be a subclass of static item
 // can add row dependency didSelect to hide/show optional cells
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
+    var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
     lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil)
     lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap(), _model.compactMap())
     lazy var _didSelect: Repeater<IndexPath> = .unsafe()
+
+    var state: RowState = .free
 
     open internal(set) weak var model: Model? {
         set { _model.value = newValue }
@@ -37,11 +54,11 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     }
 
     open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
-        _update.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: &disposeStorage)
+        _update.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: &internalDispose)
     }
 
     open func onSelect(_ doit: @escaping ((IndexPath), Row<View, Model>) -> Void) {
-        _didSelect.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: &disposeStorage)
+        _didSelect.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: &internalDispose)
     }
 
     override func free() {
@@ -54,14 +71,13 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath)
         case .static(let cell): return cell
-        case .custom(let closure):
-            return closure()
+        case .custom(let closure): return closure()
         }
     }
 }
 public extension Row where View: UIView {
     var isVisible: Bool {
-        return view.map { $0.window != nil } ?? false
+        return view.map { !$0.isHidden && $0.window != nil } ?? false
     }
 }
 
@@ -78,59 +94,86 @@ open class Section<Model: AnyObject> {
 
     open func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) {}
     open func insertRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>, at index: Int) {}
-    open func deleteRow(at index: Int) {}
+    open func moveRow(at index: Int, to newIndex: Int) {}
+    @discardableResult
+    open func deleteRow(at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
     func item(at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
     func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
         let item = self.item(at: indexPath.row)
 
-        item.view = cell
-        item._model.value = model
+        if !item.state.contains(.displaying) || item.view !== cell {
+            item.view = cell
+            item._model.value = model
+            item.state.insert(.displaying)
+        }
     }
-
-    func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
-        // no call `free` because item does not have the binders that initializes in a display time
-    }
-
+    func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {}
     func didSelect(at indexPath: IndexPath) {}
 }
 
 open class StaticSection<Model: AnyObject>: Section<Model> {
-    var cells: [Row<UITableViewCell, Model>] = []
+    var rows: [Row<UITableViewCell, Model>] = []
+    var removedRows: [Int: Row<UITableViewCell, Model>] = [:]
 
-    override var numberOfItems: Int { return cells.count }
+    override var numberOfItems: Int { return rows.count }
 
     override func item(at index: Int) -> Row<UITableViewCell, Model> {
-        return cells[index]
+        return rows[index]
     }
 
     override open func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) {
-        insertRow(row, at: cells.count)
+        insertRow(row, at: rows.count)
     }
 
     override open func insertRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>, at index: Int) {
-        cells.insert(unsafeBitCast(row, to: Row<UITableViewCell, Model>.self), at: index)
+        rows.insert(unsafeBitCast(row, to: Row<UITableViewCell, Model>.self), at: index)
     }
 
-    override open func deleteRow(at index: Int) {
-        cells.remove(at: index)
+    override open func moveRow(at index: Int, to newIndex: Int) {
+        rows.insert(rows.remove(at: index), at: newIndex)
+    }
+
+    @discardableResult
+    override open func deleteRow(at index: Int) -> Row<UITableViewCell, Model> {
+        let removed = rows.remove(at: index)
+        removedRows[index] = removed
+        removed.state.insert(.removed)
+        return removed
+    }
+
+    override func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
+        if let removed = removedRows.removeValue(forKey: indexPath.row) {
+            removed.state.remove(.displaying)
+            if !removed.state.contains(.free) {
+                removed.free()
+                removed.state.insert(.free)
+            }
+        } else if rows.indices.contains(indexPath.row) {
+            let row = rows[indexPath.row]
+            if !row.state.contains(.free) && row.view === cell {
+                row.state.remove(.displaying)
+                row.free()
+                row.state.insert([.pending, .free])
+            }
+        }
     }
 
     override func didSelect(at indexPath: IndexPath) {
-        cells[indexPath.row]._didSelect.send(.value(indexPath))
+        rows[indexPath.row]._didSelect.send(.value(indexPath))
     }
 }
 extension StaticSection: RandomAccessCollection {
     public typealias Element = Row<UITableViewCell, Model>
-    public var startIndex: Int { return cells.startIndex }
-    public var endIndex: Int { return cells.endIndex }
+    public var startIndex: Int { return rows.startIndex }
+    public var endIndex: Int { return rows.endIndex }
     public func index(after i: Int) -> Int {
-        return cells.index(after: i)
+        return rows.index(after: i)
     }
     public func index(before i: Int) -> Int {
-        return cells.index(before: i)
+        return rows.index(before: i)
     }
     public subscript(position: Int) -> Row<UITableViewCell, Model> {
-        return cells[position]
+        return rows[position]
     }
 }
 
@@ -170,19 +213,10 @@ struct ReuseRowController<Row, Key: Hashable> where Row: ReuseItemProtocol {
 }
 
 open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, Model> {
-    lazy var bindsStorage: ListeningDisposeStore = ListeningDisposeStore()
     lazy var _rowModel: Repeater<RowModel> = Repeater.unsafe()
 
     public func onRowModel(_ doit: @escaping (RowModel, ReuseFormRow<View, Model, RowModel>) -> Void) {
-        _rowModel.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: &disposeStorage)
-    }
-
-    override func addBinding(ofDisplayTime item: ListeningItem) {
-        bindsStorage.add(item)
-    }
-
-    override func reload() {
-        bindsStorage.resume()
+        _rowModel.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: &internalDispose)
     }
 }
 
@@ -215,7 +249,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         fatalError()
     }
 
-    override open func deleteRow(at index: Int) {
+    override open func deleteRow(at index: Int) -> Row<UITableViewCell, Model> {
         fatalError()
     }
 
@@ -229,8 +263,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
 
     override func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
         if let row = reuseController.activeItem(at: indexPath.row) {
-            row.bindsStorage.dispose()
-            row.view = nil
+            row.free()
         }
     }
 
@@ -242,6 +275,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
 open class Form<Model: AnyObject> {
     lazy var table: Table = Table(self)
     var sections: [Section<Model>]
+    var removedSections: [Int: Section<Model>] = [:]
 
     open var numberOfSections: Int {
         return sections.count
@@ -293,9 +327,19 @@ open class Form<Model: AnyObject> {
         tableView?.insertRows(at: [indexPath], with: animation)
     }
 
-    open func deleteRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation) {
+    open func deleteRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation = .automatic) {
         indexPaths.forEach { sections[$0.section].deleteRow(at: $0.row) }
         tableView?.deleteRows(at: indexPaths, with: animation)
+    }
+
+    open func moveRow(at indexPath: IndexPath, to newIndexPath: IndexPath) {
+        if indexPath.section == newIndexPath.section {
+            sections[indexPath.section].moveRow(at: indexPath.row, to: newIndexPath.row)
+        } else {
+            let row = sections[indexPath.section].deleteRow(at: indexPath.row)
+            sections[newIndexPath.section].insertRow(row, at: newIndexPath.row)
+        }
+        tableView?.moveRow(at: indexPath, to: newIndexPath)
     }
 
     open func addSection(_ section: Section<Model>, with animation: UITableViewRowAnimation = .automatic) {
@@ -383,7 +427,14 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            form.sections[indexPath.section].didEndDisplay(cell, at: indexPath)
+            if let removed = form.removedSections[indexPath.section] {
+                removed.didEndDisplay(cell, at: indexPath)
+                if tableView.indexPathsForVisibleRows.map({ !$0.contains(where: { $0.section == indexPath.section }) }) ?? true {
+                    form.removedSections.removeValue(forKey: indexPath.section)
+                }
+            } else if form.sections.indices.contains(indexPath.section) {
+                form.sections[indexPath.section].didEndDisplay(cell, at: indexPath)
+            }
         }
 
         func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
