@@ -383,6 +383,13 @@ extension PropertyState: _Optional {
     public init(nilLiteral: ()) {
         self = .removed(local: true)
     }
+
+    internal var lastNonError: PropertyState<T>? {
+        switch self {
+        case .error(_, let last): return last?.lastNonError
+        default: return self
+        }
+    }
 }
 
 public extension PropertyState where T: _Optional {
@@ -495,7 +502,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
         if let changed = _changedValue {
             /// skip the call of super (_RealtimeValue)
-            transaction.addReversion(currentReversion())
+            _addReversion(to: transaction, by: node)
             transaction._addValue(updateType, try representer.encode(changed), by: node)
         }
     }
@@ -516,7 +523,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
                 throw e
             }
         case .some(.local(let v)):
-            transaction.addReversion(currentReversion())
+            _addReversion(to: transaction, by: node)
             transaction._addValue(updateType, try representer.encode(v), by: node)
         default:
             debugFatalError("Unexpected behavior")
@@ -524,11 +531,22 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
         }
     }
 
+    internal func _addReversion(to transaction: Transaction, by node: Node) {
+        transaction.addReversion(currentReversion())
+    }
+
     internal func _setLocalValue(_ value: T) {
         if !hasChanges {
             oldValue = _value
         }
         _setValue(.local(value))
+    }
+
+    override func _setRemoved(isLocal: Bool) {
+        if isLocal && !hasChanges {
+            oldValue = _value
+        }
+        super._setRemoved(isLocal: isLocal)
     }
 }
 
@@ -700,7 +718,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
 
     internal func _setError(_ error: Error) {
-        _value = .error(error, last: _value)
+        _value = .error(error, last: _value?.lastNonError)
         repeater.send(.error(error))
     }
 

@@ -16,7 +16,7 @@ internal let lazyStoragePath = ".storage"
 
 public struct RealtimeError: LocalizedError {
     let description: String
-    let source: Source
+    public let source: Source
 
     public var localizedDescription: String { return description }
 
@@ -33,8 +33,9 @@ public struct RealtimeError: LocalizedError {
     /// - coding: Error on coding process
     /// - transaction: Error in `Transaction`
     /// - cache: Error in cache
-    enum Source {
+    public enum Source {
         case value
+        case file
         case collection
 
         case listening

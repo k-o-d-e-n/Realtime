@@ -119,4 +119,8 @@ public final class File<T>: Property<T> {
             try super.apply(data, exactly: exactly)
         }
     }
+
+    override func _addReversion(to transaction: Transaction, by node: Node) {
+        transaction.addFileReversion(node, currentReversion())
+    }
 }

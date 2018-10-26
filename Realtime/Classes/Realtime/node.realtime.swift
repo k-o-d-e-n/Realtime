@@ -43,8 +43,9 @@ public class Node: Hashable {
     /// Parent node
     public internal(set) var parent: Node?
 
+    // TODO: Hasher Swift 4.2
     public var hashValue: Int {
-        return reduce(into: key.hashValue, { $0 = $0 &- $1.hashValue })
+        return parent?.reduce(into: key.hashValue, { $0 = $0 &- $1.hashValue }) ?? key.hashValue
     }
 
     /// Creates new instance with automatically generated key

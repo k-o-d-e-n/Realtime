@@ -60,12 +60,12 @@ class RealtimeTableController: UIViewController {
         delegate = SingleSectionTableViewDelegate(users) { (table, ip, _) -> UITableViewCell in
             return table.dequeueReusableCell(withIdentifier: NSStringFromClass(TableCell.self), for: ip)
         }
-        delegate.register(UITableViewCell.self) { (item, user) in
+        delegate.register(UITableViewCell.self) { (item, user, ip) in
             item.bind(user.name) { (cell, val) in
                 cell.textLabel!.text =? val
             }
         }
-        delegate.register(TableCell.self) { (item, user) in
+        delegate.register(TableCell.self) { (item, user, ip) in
             item.set(config: { (cell) in
                 cell.startIndicatorIfNeeeded()
             })
@@ -203,6 +203,17 @@ extension RealtimeTableController: UITableViewDelegate, RealtimeEditingTableData
 
     func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
 
+    }
+    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
+        return false
+    }
+
+    func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
+        return false
+    }
+
+    func tableView(_ tableView: UITableView, targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath, toProposedIndexPath proposedDestinationIndexPath: IndexPath) -> IndexPath {
+        return proposedDestinationIndexPath
     }
 }
 

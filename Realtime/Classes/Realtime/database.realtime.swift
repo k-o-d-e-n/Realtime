@@ -269,6 +269,10 @@ class FileNode: ValueNode {
 class CacheNode: ObjectNode, RealtimeDatabase {
     static let root: CacheNode = CacheNode(node: .root)
 
+    func clear() {
+        childs.removeAll()
+    }
+
 //    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
 //    var store: ListeningDisposeStore = ListeningDisposeStore()
     var cachePolicy: CachePolicy {

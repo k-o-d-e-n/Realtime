@@ -1053,6 +1053,7 @@ extension Tests {
     }
 
     func testReadonlyReference() {
+        CacheNode.root.clear()
         let exp = expectation(description: "")
         let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
         let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: [.database: CacheNode.root])

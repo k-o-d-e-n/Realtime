@@ -34,6 +34,7 @@ public class Transaction {
     fileprivate var preconditions: [(Promise) -> Void] = []
     fileprivate var completions: [(Bool) -> Void] = []
     fileprivate var cancelations: [() -> Void] = []
+    fileprivate var fileCancelations: [Node: () -> Void] = [:]
     fileprivate var scheduledMerges: [Transaction]?
     fileprivate var state: State = .waiting
     fileprivate var substate: Substate = .none
@@ -75,7 +76,6 @@ public class Transaction {
 
     fileprivate func invalidate(_ success: Bool) {
         completions.forEach { $0(success) }
-        state = success ? .completed : .failed
         clear()
     }
 }
@@ -162,18 +162,15 @@ extension Transaction {
     }
 
     func performUpdate(_ completion: @escaping (Error?, DatabaseNode) -> Void) {
-        guard updateNode.childs.count > 0 else {
-            fatalError("Try commit empty transaction")
-        }
-
         database.commit(transaction: self, completion: completion)
     }
 
-    func updateFiles(_ completion: @escaping ([(StorageMetadata?, Error?)]) -> Void) {
-//        guard updateNode.childs.count > 0 else {
-//            fatalError("Try commit empty transaction")
-//        }
+    public enum FileCompletion {
+        case meta(StorageMetadata)
+        case error(Node, Error)
+    }
 
+    func updateFiles(_ completion: @escaping ([FileCompletion]) -> Void) {
         var nearest = updateNode
         while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
             nearest = next
@@ -183,17 +180,20 @@ extension Transaction {
 
         let group = DispatchGroup()
         let lock = NSRecursiveLock()
-        var completions: [(StorageMetadata?, Error?)] = []
-        let addCompletion: (StorageMetadata?, Error?) -> Void = { md, err in
+        var completions: [FileCompletion] = []
+        let addCompletion: (Node, StorageMetadata?, Error?) -> Void = { node, md, err in
             lock.lock()
-            completions.append((md, err))
+            completions.append(md.map({ .meta($0) }) ?? .error(node, err ?? RealtimeError(source: .file, description: "Unexpected error on upload file")))
             lock.unlock()
             group.leave()
         }
         files.indices.forEach { _ in group.enter() }
         files.forEach { (file) in
             guard case let data as Data = file.value else { fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.location)") }
-            file.location.file(for: storage).putData(data, metadata: nil, completion: addCompletion)
+            let node = file.location
+            file.location.file(for: storage).putData(data, metadata: nil, completion: { (md, err) in
+                addCompletion(node, md, err)
+            })
         }
         group.notify(queue: .main) {
             completion(completions)
@@ -233,6 +233,23 @@ extension Transaction {
 extension Transaction: Reverting {
     /// reverts all changes for which cancellations have been added
     public func revert() {
+        revertValues()
+        revertFiles()
+    }
+
+    public func revertFiles() {
+        guard state == .waiting || isFailed else { fatalError("Reversion cannot be made") }
+
+        fileCancelations.forEach { $0.value() }
+    }
+
+    func revertFile(by node: Node) {
+        guard state == .waiting || isFailed else { fatalError("Reversion cannot be made") }
+
+        fileCancelations[node]?()
+    }
+
+    public func revertValues() {
         guard state == .waiting || isFailed else { fatalError("Reversion cannot be made") }
 
         cancelations.forEach { $0() }
@@ -267,7 +284,7 @@ public extension Transaction {
     ///   - filesCompletion: Completion closure with results
     public func commit(revertOnError: Bool = true,
                        with completion: ((CommitState, [Error]?) -> Void)?,
-                       filesCompletion: (([(StorageMetadata?, Error?)]) -> Void)?) {
+                       filesCompletion: (([FileCompletion]) -> Void)?) {
         runPreconditions { (errors) in
             guard errors.isEmpty else {
                 if revertOnError {
@@ -282,29 +299,45 @@ public extension Transaction {
                 try self.scheduledMerges?.forEach { try self.merge($0) }
                 self.state = .performing
 
+                guard self.updateNode.childs.count > 0 else {
+                    fatalError("Try commit empty transaction")
+                }
+
+                var error: Error?
+                let group = DispatchGroup()
+                group.enter(); group.enter()
                 self.performUpdate({ (err, _) in
-                    let result = err == nil
-                    if !result {
-                        self.state = .failed
-                        debugFatalError(String(describing: err))
-                        if revertOnError {
-                            self.revert()
-                        }
-                    }
-                    self.invalidate(result)
-                    completion?((self.state, self.substate), err.map { [$0] })
+                    error = err
+                    group.leave()
                 })
 
                 self.updateFiles({ (res) in
-                    let result = res.compactMap({ $0.1 })
-                    if result.count > 0 {
-                        self.state = .failed
-                        debugFatalError(String(describing: result))
-                        if revertOnError {
-                            self.revert()
-                        }
+                    if revertOnError {
+                        res.forEach({ (result) in
+                            switch result {
+                            case .error(let n, let e):
+                                debugLog(e.localizedDescription)
+                                self.revertFile(by: n)
+                            default: break
+                            }
+                        })
                     }
+                    group.leave()
                     filesCompletion?(res)
+                })
+
+                group.notify(queue: .main, execute: {
+                    if let e = error {
+                        self.state = .failed
+                        debugFatalError(e.localizedDescription)
+                        if revertOnError {
+                            self.revertValues()
+                        }
+                    } else {
+                        self.state = .completed
+                    }
+                    self.invalidate(self.state != .failed)
+                    completion?((self.state, self.substate), error.map { [$0] })
                 })
             } catch let e {
                 completion?((self.state, self.substate), [e])
@@ -317,6 +350,13 @@ public extension Transaction {
         guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
 
         cancelations.insert(reversion, at: 0)
+    }
+
+    /// registers new cancelation of made changes
+    public func addFileReversion(_ node: Node, _ reversion: @escaping () -> Void) {
+        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
+
+        fileCancelations[node] = reversion
     }
 
     /// registers new completion handler for transaction

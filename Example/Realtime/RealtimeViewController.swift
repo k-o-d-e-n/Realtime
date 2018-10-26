@@ -380,7 +380,13 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
 
         let update = try! u.update()
         update.commit(with: { _,_  in }, filesCompletion: { (results) in
-            let errs = results.compactMap({ $0.1 })
+            let errs = results.reduce(into: [Error]()) { (out, result) in
+                switch result {
+                case .error(_, let e):
+                    out.append(e)
+                default: break
+                }
+            }
             if !errs.isEmpty {
                 self.setError(errs.reduce("", { $0 + $1.localizedDescription }))
             } else {

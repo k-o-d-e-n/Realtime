@@ -328,7 +328,7 @@ open class Form<Model: AnyObject> {
     }
 
     open func deleteRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation = .automatic) {
-        indexPaths.forEach { sections[$0.section].deleteRow(at: $0.row) }
+        indexPaths.sorted(by: >).forEach { sections[$0.section].deleteRow(at: $0.row) }
         tableView?.deleteRows(at: indexPaths, with: animation)
     }
 
