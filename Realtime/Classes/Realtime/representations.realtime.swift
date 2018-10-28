@@ -19,9 +19,9 @@ public enum ReferenceMode {
 /// Link value describing reference to some location of database.
 struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented {
     let ref: String
-    let payload: (system: InternalPayload, user: [String: RealtimeDataValue]?)
+    let payload: (system: SystemPayload, user: [String: RealtimeDataValue]?)
 
-    init(ref: String, payload: (system: InternalPayload, user: [String: RealtimeDataValue]?)) {
+    init(ref: String, payload: (system: SystemPayload, user: [String: RealtimeDataValue]?)) {
         self.ref = ref
         self.payload = payload
     }
@@ -52,9 +52,9 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
 extension ReferenceRepresentation {
     func make<V: RealtimeValue>(in node: Node = .root, options: [ValueOption: Any]) -> V {
         var options = options
-        options[.internalPayload] = payload.system
+        options[.systemPayload] = payload.system
         if let pl = payload.user {
-            options[.payload] = pl
+            options[.userPayload] = pl
         }
         return V(in: node.child(with: ref), options: options)
     }

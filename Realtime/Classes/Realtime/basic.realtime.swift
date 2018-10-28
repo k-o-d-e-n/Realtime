@@ -62,7 +62,7 @@ public protocol DatabaseKeyRepresentable {
 
 // MARK: RealtimeValue
 
-typealias InternalPayload = (version: Int?, raw: RealtimeDataValue?)
+public typealias SystemPayload = (version: Int?, raw: RealtimeDataValue?)
 
 /// Key of RealtimeValue option
 public struct ValueOption: Hashable {
@@ -74,15 +74,15 @@ public struct ValueOption: Hashable {
 }
 public extension ValueOption {
     static let database: ValueOption = ValueOption("realtime.database")
-    static let payload: ValueOption = ValueOption("realtime.value.payload")
-    internal static let internalPayload: ValueOption = ValueOption("realtime.value.internalPayload")
+    static let userPayload: ValueOption = ValueOption("realtime.value.userPayload")
+    static let systemPayload: ValueOption = ValueOption("realtime.value.systemPayload")
 }
 public extension Dictionary where Key == ValueOption {
     var version: Int? {
-        return (self[.internalPayload] as? InternalPayload)?.version
+        return (self[.systemPayload] as? SystemPayload)?.version
     }
     var rawValue: RealtimeDataValue? {
-        return (self[.internalPayload] as? InternalPayload)?.raw
+        return (self[.systemPayload] as? SystemPayload)?.raw
     }
 }
 public extension RealtimeDataProtocol {
@@ -127,7 +127,7 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented
     init(in node: Node?, options: [ValueOption: Any])
 }
 extension RealtimeValue {
-    internal var systemPayload: InternalPayload {
+    internal var systemPayload: SystemPayload {
         return (version, raw)
     }
 }

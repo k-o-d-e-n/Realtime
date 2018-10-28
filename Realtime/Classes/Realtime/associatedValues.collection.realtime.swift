@@ -46,7 +46,7 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: HashableValue
     var elements: [K: Value] = [:]
 
     func buildElement(with key: K) -> V {
-        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.payload: $0] } ?? [:])
+        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.userPayload: $0] } ?? [:])
     }
 
     mutating func store(value: Value, by key: K) { elements[for: key] = value }

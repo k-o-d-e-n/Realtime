@@ -433,6 +433,9 @@ public extension PropertyState {
     }
 }
 
+public typealias WriteRequiredProperty<T> = Property<T!>
+public typealias OptionalProperty<T> = Property<T?>
+
 /// Defines read/write property with any value
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
     fileprivate var oldValue: PropertyState<T>?
@@ -588,6 +591,10 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 
     public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) where Optional<U> == T {
         self.init(in: node, options: options.merging([.representer: representer.optionalProperty()], uniquingKeysWith: { _, new in new }))
+    }
+
+    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) where ImplicitlyUnwrappedOptional<U> == T {
+        self.init(in: node, options: options.merging([.representer: representer.writeRequiredProperty()], uniquingKeysWith: { _, new in new }))
     }
     
     public required init(in node: Node?, options: [ValueOption: Any]) {

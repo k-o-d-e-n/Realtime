@@ -510,6 +510,26 @@ extension Representer {
             return .some(try base.decode(data))
         }
     }
+
+    public func writeRequiredProperty() -> Representer<V!?> {
+        return Representer<V!?>(writeRequiredProperty: self)
+    }
+
+    init<R: RepresenterProtocol>(writeRequiredProperty base: R) where V == R.V!? {
+        self.encoding = { (value) -> Any? in
+            switch value {
+            case .none, .some(nil): throw RealtimeError(encoding: R.V.self, reason: "Required property has not been set")
+            case .some(.some(let v)): return try base.encode(v)
+            }
+        }
+        self.decoding = { data -> V in
+            guard data.exists() else {
+                return .some(nil)
+            }
+
+            return .some(try base.decode(data))
+        }
+    }
 }
 
 public extension Representer where V: RawRepresentable {

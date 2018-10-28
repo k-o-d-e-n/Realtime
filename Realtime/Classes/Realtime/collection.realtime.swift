@@ -303,7 +303,7 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     func storedValue(by key: RCItem) -> Value? { return elements[for: key.dbKey] }
 
     func buildElement(with key: RCItem) -> V {
-        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.payload: $0] } ?? [:])
+        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.userPayload: $0] } ?? [:])
     }
 }
 

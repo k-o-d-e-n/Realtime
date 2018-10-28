@@ -559,6 +559,38 @@ extension Tests {
         transaction.revert()
     }
 
+    func testWriteRequiredPropertyFailsOnSave() {
+        let property = WriteRequiredProperty<String>(in: Node(key: "prop"), representer: Representer<String>.any)
+
+        do {
+            let transaction = Transaction()
+            defer { transaction.revert() }
+            _ = try transaction.set(property, by: .root)
+            XCTFail("Must throw error")
+        } catch let e {
+            switch e {
+            case let error as RealtimeError:
+                switch error.source {
+                case .coding: break
+                default: XCTFail("Unexpected error")
+                }
+            default: XCTFail("Unexpected error")
+            }
+        }
+    }
+
+    func testWriteRequiredPropertySuccessOnDecode() {
+        let _: String! = ""
+        let property = WriteRequiredProperty<String>(in: Node(key: "prop"), representer: Representer<String>.any)
+
+        do {
+            let data = ValueNode(node: Node(key: "prop"), value: nil)
+            try property.apply(data, exactly: true)
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+    }
+
     func testRepresenterOptional() {
         let representer = Representer<TestObject>.relation(.oneToOne("prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil)).optional()
         do {
@@ -570,7 +602,7 @@ extension Tests {
     }
 
     func testReferenceRepresentationPayload() {
-        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.payload: ["foo": "bar"]]))
+        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.userPayload: ["foo": "bar"]]))
         let representer = Representer<ValueWithPayload>.reference(.fullPath, options: [:])
 
         do {
@@ -757,19 +789,19 @@ extension Tests {
     }
 
     func testInitializeWithPayload() {
-        let value = TestObject(in: .root, options: [.payload: ["key": "val"]])
+        let value = TestObject(in: .root, options: [.userPayload: ["key": "val"]])
         XCTAssertTrue((value.payload as NSDictionary?) == ["key": "val"])
     }
 
     func testInitializeWithPayload2() {
         let payload: [String: Any] = ["key": "val"]
-        let value = TestObject(in: .root, options: [.payload: payload])
+        let value = TestObject(in: .root, options: [.userPayload: payload])
         XCTAssertTrue((value.payload as NSDictionary?) == (payload as NSDictionary))
     }
 
     func testInitializeWithPayload3() {
         let payload: Any = ["key": "val"]
-        let value = TestObject(in: .root, options: [.payload: payload])
+        let value = TestObject(in: .root, options: [.userPayload: payload])
         XCTAssertTrue((value.payload as NSDictionary?) == (payload as? NSDictionary))
     }
 

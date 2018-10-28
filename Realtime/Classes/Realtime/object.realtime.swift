@@ -32,10 +32,10 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomD
     public required init(in node: Node?, options: [ValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
-        if case let pl as [String: RealtimeDataValue] = options[.payload] {
+        if case let pl as [String: RealtimeDataValue] = options[.userPayload] {
             self.payload = pl
         }
-        if case let ipl as InternalPayload = options[.internalPayload] {
+        if case let ipl as SystemPayload = options[.systemPayload] {
             self.version = ipl.version
             self.raw = ipl.raw
         }
