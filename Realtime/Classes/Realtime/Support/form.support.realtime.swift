@@ -74,6 +74,10 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         case .custom(let closure): return closure()
         }
     }
+
+    public func sendSelectEvent(at indexPath: IndexPath) {
+        _didSelect.send(.value(indexPath))
+    }
 }
 public extension Row where View: UIView {
     var isVisible: Bool {
@@ -198,7 +202,7 @@ struct ReuseRowController<Row, Key: Hashable> where Row: ReuseItemProtocol {
 
     mutating func free(at key: Key) {
         guard let item = activeItems.removeValue(forKey: key)
-            else { return print("Try free non-active reuse item") }
+            else { return print("Try free non-active reuse item by key \(key)") }
         item.free()
         freeItems.append(item)
     }

@@ -208,7 +208,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomD
     
     public var debugDescription: String {
         return """
-        {
+        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.rootPath ?? "not referred"),
             version: \(version ?? 0),
             raw: \(raw ?? "no raw"),
@@ -476,21 +476,29 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         }
     }
     private func isNotIgnoredLabel(_ label: String?) -> Bool {
-        guard var l = label else { return true }
-
-        if l.hasSuffix(lazyStoragePath) {
-            l = String(l.prefix(upTo: l.index(l.endIndex, offsetBy: -lazyStoragePath.count)))
-        }
-        return !ignoredLabels.contains(l)
+        return label.map { lbl -> Bool in
+            if lbl.hasSuffix(lazyStoragePath) {
+                return !ignoredLabels.contains(String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count))))
+            } else {
+                return !ignoredLabels.contains(lbl)
+            }
+        } ?? true
     }
     
     override public var debugDescription: String {
         var values: String = ""
         enumerateLoadedChilds { (label, val: _RealtimeValue) in
+            let l = label.map({ lbl -> String in
+                if lbl.hasSuffix(lazyStoragePath) {
+                    return String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count)))
+                } else {
+                    return lbl
+                }
+            })
             if values.isEmpty {
                 values.append(
                     """
-                            \(label as Any): \(val.debugDescription)
+                            \(l ?? ""): \(val.debugDescription)
                     """
                 )
             } else {
@@ -503,14 +511,15 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             }
         }
         return """
-        {
+        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.rootPath ?? "not referred"),
             version: \(version ?? 0),
             raw: \(raw ?? "no raw"),
             has changes: \(_hasChanges),
             keepSynced: \(keepSynced),
-            values:
-            \(values)
+            values: [
+                \(values)
+            ]
         }
         """
     }

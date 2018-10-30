@@ -63,10 +63,15 @@ struct Bridge<I, O> {
             }
         })
     }
-    init(event: @escaping (I, ResultPromise<O>) -> Void) {
+    init(event: @escaping (I, ResultPromise<O>) throws -> Void) {
         self.init(bridge: { (e, assign) in
             switch e {
-            case .value(let v): event(v, ResultPromise(receiver: { assign(.value($0)) }, error: { assign(.error($0)) }))
+            case .value(let v):
+                do {
+                    try event(v, ResultPromise(receiver: { assign(.value($0)) }, error: { assign(.error($0)) }))
+                } catch let e {
+                    assign(.error(e))
+                }
             case .error(let e): assign(.error(e))
             }
         })
@@ -84,10 +89,15 @@ extension Bridge where I == O {
             }
         })
     }
-    init(event: @escaping (O, Promise) -> Void) {
+    init(event: @escaping (O, Promise) throws -> Void) {
         self.init(bridge: { e, assign in
             switch e {
-            case .value(let v): event(v, Promise(action: { assign(.value(v)) }, error: { assign(.error($0)) }))
+            case .value(let v):
+                do {
+                    try event(v, Promise(action: { assign(.value(v)) }, error: { assign(.error($0)) }))
+                } catch let e {
+                    assign(.error(e))
+                }
             case .error: assign(e)
             }
         })
@@ -126,7 +136,7 @@ public extension Listenable {
     /// - Warning: This does not preserve the sequence of events
     ///
     /// - Parameter event: Closure to run async work.
-    public func onReceive(_ event: @escaping (Out, Promise) -> Void) -> Preprocessor<Out, Out> {
+    public func onReceive(_ event: @escaping (Out, Promise) throws -> Void) -> Preprocessor<Out, Out> {
         return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem),
                             bridgeMaker: Bridge(event: event))
     }
@@ -134,7 +144,7 @@ public extension Listenable {
     /// and waits when is received signal in `ResultPromise`
     ///
     /// - Parameter event: Closure to run async work.
-    public func onReceiveMap<Result>(_ event: @escaping (Out, ResultPromise<Result>) -> Void) -> Preprocessor<Out, Result> {
+    public func onReceiveMap<Result>(_ event: @escaping (Out, ResultPromise<Result>) throws -> Void) -> Preprocessor<Out, Result> {
         return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem),
                             bridgeMaker: Bridge(event: event))
     }
@@ -517,3 +527,37 @@ public extension Listenable {
         return OldValue(base: AnyListenable(self.listening, self.listeningItem))
     }
 }
+
+public extension Listenable {
+    public func then<L: Listenable>(_ transform: @escaping (Out) throws -> L) -> Preprocessor<Out, L.Out> {
+        var disposable: Disposable? {
+            didSet { oldValue?.dispose() }
+        }
+        return onReceiveMap { (event, promise: ResultPromise<L.Out>) in
+            let next = try transform(event)
+            disposable = next.listening({ (out) in
+                switch out {
+                case .error(let e): promise.reject(e)
+                case .value(let v): promise.fulfill(v)
+                }
+            })
+        }
+    }
+}
+public extension Listenable where Out: _Optional {
+    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L) -> Preprocessor<Out.Wrapped, L.Out> {
+        var disposable: Disposable? {
+            didSet { oldValue?.dispose() }
+        }
+        return compactMap().onReceiveMap { (event, promise: ResultPromise<L.Out>) in
+            let next = try transform(event)
+            disposable = next.listening({ (out) in
+                switch out {
+                case .error(let e): promise.reject(e)
+                case .value(let v): promise.fulfill(v)
+                }
+            })
+        }
+    }
+}
+

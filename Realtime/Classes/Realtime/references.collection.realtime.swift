@@ -215,7 +215,7 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
 
     override public var debugDescription: String {
         return """
-        {
+        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.rootPath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
             elements: \(_view.value.map { (key: $0.dbKey, index: $0.priority) })

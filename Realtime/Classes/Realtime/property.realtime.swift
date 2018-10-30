@@ -328,7 +328,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
 
     public override var debugDescription: String {
         return """
-        {
+        \(type(of: self)): \(String(ObjectIdentifier(self).hashValue, radix: 16)) {
             ref: \(node?.debugDescription ?? "not referred"),
             keepSynced: \(keepSynced),
             value:
@@ -391,7 +391,6 @@ extension PropertyState: _Optional {
         }
     }
 }
-
 public extension PropertyState where T: _Optional {
     var wrapped: T.Wrapped? {
         switch self {
@@ -403,6 +402,16 @@ public extension PropertyState where T: _Optional {
     }
     static func <==(_ value: inout T.Wrapped?, _ prop: PropertyState<T>) {
         value = prop.wrapped
+    }
+}
+extension PropertyState: Equatable where T: Equatable {
+    public static func ==(lhs: PropertyState<T>, rhs: PropertyState<T>) -> Bool {
+        switch (lhs, rhs) {
+        case (.removed(let lhs), .removed(let rhs)): return lhs == rhs
+        case (.local(let lhs), .local(let rhs)): return lhs == rhs
+        case (.remote(let lhs), .remote(let rhs)): return lhs == rhs
+        default: return false
+        }
     }
 }
 
@@ -496,7 +505,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
                     /// test required property
                     _ = try representer.encode(nil)
                 } catch {
-                    debugFatalError("Required property has been saved, but value does not exists")
+                    debugFatalError("Required property '\(key)': \(type(of: self)) has been saved, but value does not exists")
                 }
             }
         }
@@ -522,7 +531,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
             do {
                 _ = try representer.encode(nil)
             } catch let e {
-                debugFatalError("Required property has not been set \(self)")
+                debugFatalError("Required property has not been set '\(node.key)': \(type(of: self))")
                 throw e
             }
         case .some(.local(let v)):
@@ -641,24 +650,16 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 
     @discardableResult
     public func loadValue(completion: Assign<T>, fail: Assign<Error>) -> Self {
-        let failing = fail.with { (e) in
-            switch e {
-            case _ as RealtimeError: break
-            default: self._setError(e)
-            }
-        }
-        super.load(completion: .just { err in
-            if let e = err {
-                failing.assign(e)
-            } else if let v = self._value {
+        load(completion: .just { err in
+            if let v = self._value {
                 switch v {
                 case .error(let e, last: _): fail.assign(e)
                 case .remote(let v): completion.assign(v)
                 default:
-                    failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
+                    fail.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
                 }
             } else {
-                failing.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
+                fail.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
             }
         })
 
@@ -731,7 +732,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 
     public override var debugDescription: String {
         return """
-        {
+        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.debugDescription ?? "not referred"),
             keepSynced: \(keepSynced),
             value: \(_value as Any)
@@ -760,21 +761,6 @@ public extension ReadonlyProperty {
     /// `nil` if property has no value, or has been removed
     var wrapped: T? {
         return _value?.wrapped
-    }
-}
-public extension ReadonlyProperty {
-    public func then(_ f: (T) -> Void, else e: (() -> Void)? = nil) -> ReadonlyProperty {
-        if let v = wrapped {
-            f(v)
-        } else {
-            e?()
-        }
-        return self
-    }
-    public func `else`(_ f: () -> Void) {
-        if nil == wrapped {
-            f()
-        }
     }
 }
 public extension ReadonlyProperty {

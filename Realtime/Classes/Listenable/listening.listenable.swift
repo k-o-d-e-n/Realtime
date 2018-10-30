@@ -14,6 +14,11 @@ public protocol Disposable {
     func dispose()
 }
 
+public struct EmptyDispose: Disposable {
+    public init() {}
+    public func dispose() {}
+}
+
 public class ListeningDispose: Disposable {
     let _dispose: () -> Void
     public init(_ dispose: @escaping () -> Void) {

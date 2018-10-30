@@ -34,6 +34,12 @@ internal func debugFatalError(condition: @autoclosure () -> Bool = true,
     }
 }
 
+extension ObjectIdentifier {
+    var memoryAddress: String {
+        return "0x\(String(hashValue, radix: 16))"
+    }
+}
+
 public class RealtimeApp {
     /// Default database instance
     public let database: RealtimeDatabase

@@ -141,7 +141,7 @@ class ReuseController<View: AnyObject, Key: Hashable> {
 
     func free(at key: Key) {
         guard let item = activeItems.removeValue(forKey: key)
-            else { return debugLog("Try free non-active reuse item") } //fatalError("Try free non-active reuse item") }
+            else { return debugLog("Try free non-active reuse item by key \(key)") } //fatalError("Try free non-active reuse item") }
         item.free()
         freeItems.append(item)
     }
