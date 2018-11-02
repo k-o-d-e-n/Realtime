@@ -81,11 +81,11 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
 }
 public extension Row where View: UIView {
     var isVisible: Bool {
-        return view.map { !$0.isHidden && $0.window != nil } ?? false
+        return state.contains(.displaying) && view.map { !$0.isHidden && $0.window != nil } ?? false
     }
 }
 
-open class Section<Model: AnyObject> {
+open class Section<Model: AnyObject>: RandomAccessCollection {
     open var footerTitle: String?
     open var headerTitle: String?
 
@@ -101,18 +101,26 @@ open class Section<Model: AnyObject> {
     open func moveRow(at index: Int, to newIndex: Int) {}
     @discardableResult
     open func deleteRow(at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
-    func item(at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
-    func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
-        let item = self.item(at: indexPath.row)
-
-        if !item.state.contains(.displaying) || item.view !== cell {
-            item.view = cell
-            item._model.value = model
-            item.state.insert(.displaying)
-        }
-    }
+    func dequeueRow(at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
+    func row(at index: Int) -> Row<UITableViewCell, Model>? { fatalError() }
+    func reloadCell(at indexPath: IndexPath) { fatalError() }
+    func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {}
     func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {}
     func didSelect(at indexPath: IndexPath) {}
+
+    public typealias Element = Row<UITableViewCell, Model>
+    open var startIndex: Int { fatalError("Override") }
+    open var endIndex: Int { fatalError("Override") }
+    open func index(after i: Int) -> Int {
+        fatalError("Override")
+    }
+    open func index(before i: Int) -> Int {
+        fatalError("Override")
+    }
+    open subscript(position: Int) -> Row<UITableViewCell, Model> {
+        guard let r = row(at: position) else { fatalError("Index out of range") }
+        return r
+    }
 }
 
 open class StaticSection<Model: AnyObject>: Section<Model> {
@@ -121,7 +129,11 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 
     override var numberOfItems: Int { return rows.count }
 
-    override func item(at index: Int) -> Row<UITableViewCell, Model> {
+    override func dequeueRow(at index: Int) -> Row<UITableViewCell, Model> {
+        return rows[index]
+    }
+
+    override func row(at index: Int) -> Row<UITableViewCell, Model>? {
         return rows[index]
     }
 
@@ -162,28 +174,45 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
         }
     }
 
+    override func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
+        let item = rows[indexPath.row]
+
+        if !item.state.contains(.displaying) || item.view !== cell {
+            item.view = cell
+            item._model.value = model
+            item.state.insert(.displaying)
+        }
+    }
+
     override func didSelect(at indexPath: IndexPath) {
         rows[indexPath.row]._didSelect.send(.value(indexPath))
     }
-}
-extension StaticSection: RandomAccessCollection {
-    public typealias Element = Row<UITableViewCell, Model>
-    public var startIndex: Int { return rows.startIndex }
-    public var endIndex: Int { return rows.endIndex }
-    public func index(after i: Int) -> Int {
+
+    override func reloadCell(at indexPath: IndexPath) {
+        let row = rows[indexPath.row]
+        if row.isVisible {
+            row.view = row.view
+        }
+    }
+
+    // Collection
+
+    override open var startIndex: Int { return rows.startIndex }
+    override open var endIndex: Int { return rows.endIndex }
+    override open func index(after i: Int) -> Int {
         return rows.index(after: i)
     }
-    public func index(before i: Int) -> Int {
+    override open func index(before i: Int) -> Int {
         return rows.index(before: i)
     }
-    public subscript(position: Int) -> Row<UITableViewCell, Model> {
+    override open subscript(position: Int) -> Row<UITableViewCell, Model> {
         return rows[position]
     }
 }
 
 struct ReuseRowController<Row, Key: Hashable> where Row: ReuseItemProtocol {
-    private var freeItems: [Row] = []
-    private var activeItems: [Key: Row] = [:]
+    fileprivate var freeItems: [Row] = []
+    fileprivate var activeItems: [Key: Row] = [:]
 
     typealias RowBuilder = () -> Row
 
@@ -202,7 +231,7 @@ struct ReuseRowController<Row, Key: Hashable> where Row: ReuseItemProtocol {
 
     mutating func free(at key: Key) {
         guard let item = activeItems.removeValue(forKey: key)
-            else { return print("Try free non-active reuse item by key \(key)") }
+            else { return debugLog("Try free non-active reuse item by key \(key)") }
         item.free()
         freeItems.append(item)
     }
@@ -240,9 +269,13 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
 
     override var numberOfItems: Int { return collection.count }
 
-    override func item(at index: Int) -> Row<UITableViewCell, Model> {
+    override func dequeueRow(at index: Int) -> Row<UITableViewCell, Model> {
         let item = reuseController.dequeueItem(at: index, rowBuilder: rowBuilder)
         return item
+    }
+
+    override func row(at index: Int) -> Row<UITableViewCell, Model>? {
+        return reuseController.activeItem(at: index)
     }
 
     override open func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) {
@@ -273,6 +306,21 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
 
     override func didSelect(at indexPath: IndexPath) {
         reuseController.activeItem(at: indexPath.row)?._didSelect.send(.value(indexPath))
+    }
+
+    // Collection
+
+    override open var startIndex: Int { return 0 }
+    override open var endIndex: Int { return reuseController.activeItems.count }
+    override open func index(after i: Int) -> Int {
+        return i + 1
+    }
+    override open func index(before i: Int) -> Int {
+        return i - 1
+    }
+    override open subscript(position: Int) -> Row<UITableViewCell, Model> {
+        guard let row = reuseController.activeItem(at: position) else { fatalError("Index out of range") }
+        return row
     }
 }
 
@@ -371,6 +419,14 @@ open class Form<Model: AnyObject> {
     open func didSelect(at indexPath: IndexPath) {
         sections[indexPath.section].didSelect(at: indexPath)
     }
+
+    open func reload() {
+        if let tv = tableView {
+            tv.indexPathsForVisibleRows?.forEach({ (ip) in
+                sections[ip.section].reloadCell(at: ip)
+            })
+        }
+    }
 }
 extension Form: RandomAccessCollection {
     public typealias Element = Section<Model>
@@ -423,7 +479,7 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-            return form.sections[indexPath.section].item(at: indexPath.row).buildCell(for: tableView, at: indexPath)
+            return form.sections[indexPath.section].dequeueRow(at: indexPath.row).buildCell(for: tableView, at: indexPath)
         }
 
         func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {

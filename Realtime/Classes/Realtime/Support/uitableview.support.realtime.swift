@@ -112,7 +112,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         _view.value = nil
     }
 
-    func reload() {
+    open func reload() {
         disposeStorage.resume()
     }
 
