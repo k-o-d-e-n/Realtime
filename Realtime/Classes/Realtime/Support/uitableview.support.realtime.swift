@@ -279,11 +279,14 @@ extension SingleSectionTableViewDelegate {
         }
 
         override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-            return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? 44.0
+            return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ??
+                (tableView.rowHeight != UITableViewAutomaticDimension ? tableView.rowHeight : 44.0)
         }
 
         override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-            return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ?? delegate.headerView.map { _ in 35.0 } ?? 0.0
+            return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ??
+                delegate.headerView?.frame.height ??
+                (tableView.sectionHeaderHeight != UITableViewAutomaticDimension ? tableView.sectionHeaderHeight : 0.0)
         }
 
         /// events
@@ -509,11 +512,13 @@ extension SectionedTableViewDelegate {
 //        }
 
         override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-            return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ?? 44.0
+            return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ??
+                (tableView.sectionHeaderHeight != UITableViewAutomaticDimension ? tableView.sectionHeaderHeight : 35.0)
         }
 
         override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-            return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? 44.0
+            return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ??
+                (tableView.rowHeight != UITableViewAutomaticDimension ? tableView.rowHeight : 44.0)
         }
 
         override func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {

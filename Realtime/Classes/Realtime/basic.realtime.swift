@@ -73,8 +73,11 @@ public struct ValueOption: Hashable {
     }
 }
 public extension ValueOption {
+    /// Key for `RealtimeDatabase` instance
     static let database: ValueOption = ValueOption("realtime.database")
+    /// Key for `[String : RealtimeDataValue]?` value
     static let userPayload: ValueOption = ValueOption("realtime.value.userPayload")
+    /// Key for `SystemPayload` value
     static let systemPayload: ValueOption = ValueOption("realtime.value.systemPayload")
 }
 public extension Dictionary where Key == ValueOption {
