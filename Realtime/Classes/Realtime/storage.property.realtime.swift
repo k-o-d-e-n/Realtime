@@ -51,6 +51,15 @@ public extension RawRepresentable where Self.RawValue == String {
 public final class ReadonlyFile<T>: ReadonlyProperty<T> {
     override var updateType: ValueNode.Type { return FileNode.self }
 
+    public override func runObserving() -> Bool {
+        // currently it disabled
+        return false
+    }
+
+    public override func stopObserving() {
+        // currently it disabled
+    }
+
     public override func load(completion: Assign<Error?>?) {
         guard let node = self.node, node.isRooted else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
@@ -87,6 +96,15 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
 /// Defines read/write property for files storage
 public final class File<T>: Property<T> {
     override var updateType: ValueNode.Type { return FileNode.self }
+
+    public override func runObserving() -> Bool {
+        // currently it disabled
+        return false
+    }
+
+    public override func stopObserving() {
+        // currently it disabled
+    }
 
     public override func load(completion: Assign<Error?>?) {
         guard let node = self.node, node.isRooted else {

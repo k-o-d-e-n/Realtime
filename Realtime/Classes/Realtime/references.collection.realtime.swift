@@ -50,6 +50,8 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     public internal(set) var storage: RCArrayStorage<Element>
     public var view: RealtimeCollectionView { return _view }
     public var isSynced: Bool { return _view.isSynced }
+    public override var isObserved: Bool { return _view.source.isObserved }
+    public override var canObserve: Bool { return _view.source.canObserve }
     public var keepSynced: Bool = false {
         didSet {
             guard oldValue != keepSynced else { return }

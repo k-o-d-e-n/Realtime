@@ -378,6 +378,13 @@ extension PropertyState: _Optional {
         }
     }
 
+    public var error: Error? {
+        switch self {
+        case .error(let e, _): return e
+        default: return nil
+        }
+    }
+
     public typealias Wrapped = T
 
     public init(nilLiteral: ()) {

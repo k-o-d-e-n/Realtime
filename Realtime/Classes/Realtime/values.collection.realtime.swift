@@ -58,6 +58,8 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     /// Stores an abstract elements
     public var view: RealtimeCollectionView { return _view }
     public var isSynced: Bool { return _view.isSynced }
+    public override var isObserved: Bool { return _view.source.isObserved }
+    public override var canObserve: Bool { return _view.source.canObserve }
     public var keepSynced: Bool = false {
         didSet {
             guard oldValue != keepSynced else { return }
@@ -141,7 +143,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
 
     @discardableResult
     public func runObserving() -> Bool {
-        let isNeedLoadFull = !self._view.source.isObserved
+        let isNeedLoadFull = !_view.source.isObserved
         let added = _view.source._runObserving(.child(.added))
         let removed = _view.source._runObserving(.child(.removed))
         let changed = _view.source._runObserving(.child(.changed))

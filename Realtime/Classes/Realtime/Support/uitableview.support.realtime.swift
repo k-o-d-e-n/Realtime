@@ -97,6 +97,14 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         addBinding(atDisplayTime: compactMap().listeningItem(onValue: { assign($0, value) }))
     }
 
+    public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
+        addBinding(atDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+            if let view = owner._view.value, let v = val.value {
+                assign(view, v)
+            }
+        })))
+    }
+
     /// Adds configuration block that will be called on receive view
     ///
     /// - Parameters:
@@ -231,6 +239,10 @@ public final class SingleSectionTableViewDelegate<Model>: RealtimeTableViewDeleg
             self.reuseController.freeAll()
             self.collection = AnySharedCollection(newData)
             tableView.reloadData()
+    }
+
+    public func setNewData<C: BidirectionalCollection>(_ newData: C) where C.Element == Model, C.Index == Int {
+        self.collection = AnySharedCollection(newData)
     }
 
     public override func bind(_ tableView: UITableView) {
@@ -389,7 +401,6 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
 
     func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
         self.items = items
-        items.runObserving()
         items.changes.listening(onValue: { [weak tableView] e in
             guard let tv = tableView else { return }
             tv.beginUpdates()
@@ -406,11 +417,14 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
             }
             tv.endUpdates()
         }).add(to: &disposeStorage)
+        items.runObserving()
     }
 
     func endDisplaySection(_ tableView: UITableView, at index: Int) {
-        self.items?.stopObserving()
-        self.items = nil
+        guard let itms = items else { return debugLog("Ends display section that already not visible") }
+        debugFatalError(condition: !itms.isObserved, "Trying to stop observing of section, but it is no longer observed")
+        items?.stopObserving()
+        items = nil
     }
 
     override func free() {
@@ -465,9 +479,13 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
     /// Sets new source of elements
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
         where C.Element == Section, C.Index == Int {
-            self.reuseController.freeAll()
+            self.reuseController.freeAll() // TODO: Check it
             self.sections = AnySharedCollection(newData)
             tableView.reloadData()
+    }
+
+    public func setNewData<C: BidirectionalCollection>(_ newData: C) where C.Element == Section, C.Index == Int {
+        self.sections = AnySharedCollection(newData)
     }
 
     public override func bind(_ tableView: UITableView) {

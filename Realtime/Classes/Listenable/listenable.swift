@@ -380,7 +380,7 @@ public struct ReadonlyValue<Value>: Listenable {
 }
 
 /// Provides listening value based on async action
-public struct AsyncReadonlyValue<Value>: Listenable {
+public struct AsyncReadonlyRepeater<Value>: Listenable {
     let repeater: Repeater<Value>
     private let store: ListeningDisposeStore
     
@@ -393,6 +393,34 @@ public struct AsyncReadonlyValue<Value>: Listenable {
 
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
         return repeater.listening(assign)
+    }
+}
+
+/// The same as AsyncReadonlyRepeater but with keeping value
+public struct AsyncReadonlyValue<Value>: Listenable {
+    let storage: ValueStorage<Value>
+    private let store: ListeningDisposeStore
+
+    public init<L: Listenable>(_ source: L, storage: ValueStorage<Value>, fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
+        var store = ListeningDisposeStore()
+
+        let promise = ResultPromise(receiver: storage.set, error: storage.sendError)
+        source.listening({ (e) in
+            switch e {
+            case .value(let v): fetching(v, promise)
+            case .error(let e): storage.sendError(e)
+            }
+        }).add(to: &store)
+        self.storage = storage
+        self.store = store
+    }
+
+    public func sendValue() {
+        storage.value = storage.value
+    }
+
+    public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
+        return storage.listening(assign)
     }
 }
 

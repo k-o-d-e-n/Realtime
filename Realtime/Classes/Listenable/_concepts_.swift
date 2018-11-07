@@ -142,9 +142,9 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public init(unsafeStrong value: T, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+    public init(unsafeStrong value: T?, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         let repeater = Repeater(dispatcher: dispatcher)
-        var val = value {
+        var val: T! = value {
             didSet {
                 repeater.send(.value(val))
             }
@@ -164,9 +164,9 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - value: Initial value.
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public init(strong value: T, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
+    public init(strong value: T?, lock: NSLocking, dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void) {
         let repeater = Repeater(dispatcher: dispatcher)
-        var val = value {
+        var val: T! = value {
             didSet {
                 repeater.send(.value(val))
             }
@@ -247,7 +247,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func unsafe(
-        strong value: T,
+        strong value: T?,
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
         ) -> ValueStorage {
         return ValueStorage(unsafeStrong: value, dispatcher: dispatcher)
@@ -259,7 +259,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - value: Initial value.
     ///   - queue: Queue that is used to dispatch events in async manner
     public static func unsafe(
-        strong value: T,
+        strong value: T?,
         queue: DispatchQueue
         ) -> ValueStorage {
         return ValueStorage(unsafeStrong: value) { (e, a) in
@@ -301,7 +301,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func locked(
-        strong value: T,
+        strong value: T?,
         lock: NSLocking = NSRecursiveLock(),
         dispatcher: @escaping (ListenEvent<T>, Assign<ListenEvent<T>>) -> Void = { $1.call($0) }
         ) -> ValueStorage {
