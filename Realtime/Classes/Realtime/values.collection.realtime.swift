@@ -168,10 +168,6 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     }
 
     public lazy var changes: AnyListenable<RCEvent> = {
-        guard _view.source.isRooted else {
-            fatalError("Can`t get reference")
-        }
-
         return Accumulator(repeater: .unsafe(), _view.source.dataObserver
             .filter({ [unowned self] e in self._view.isSynced || e.1 == .value })
             .map { [unowned self] (value) -> RCEvent in

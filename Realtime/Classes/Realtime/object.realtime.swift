@@ -70,13 +70,21 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomD
 
     @discardableResult
     func _runObserving(_ event: DatabaseDataEvent) -> Bool {
-        guard isRooted else { fatalError("Tries observe not rooted value") }
+        guard canObserve else {
+            /// shedule observing
+            if let o = observing[event] {
+                observing[event] = (o.token, o.counter + 1)
+            } else {
+                observing[event] = (0, 1)
+            }
+            return false
+        }
         guard let o = observing[event] else {
             observing[event] = observe(event).map { ($0, 1) }
             return observing[event] != nil
         }
 
-        debugFatalError(condition: o.counter == 0, "Counter is null. Should been invalidated")
+        debugFatalError(condition: o.counter == 0, "Internal error. Counter is null. Should been invalidated")
         observing[event] = (o.token, o.counter + 1)
         return true
     }
@@ -103,7 +111,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomD
     
     func observe(_ event: DatabaseDataEvent = .value) -> UInt? {
         guard let node = self.node, let database = self.database else {
-            fatalError("Can`t get database reference in \(self). Object must be rooted.")
+            return nil
         }
         return database.observe(event, on: node, onUpdate: { d in
             do {
@@ -117,12 +125,11 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomD
         })
     }
 
+    @discardableResult
     func endObserve(for token: UInt) {
-        guard let node = node, let database = self.database else {
-            return debugFatalError(condition: true, "Couldn`t get reference")
+        if let node = node, let database = self.database {
+            database.removeObserver(for: node, with: token)
         }
-
-        database.removeObserver(for: node, with: token)
     }
 
     public func willRemove(in transaction: Transaction, from ancestor: Node) {
@@ -160,6 +167,10 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomD
             node.parent = parent
         } else {
             self.node = Node(key: key, parent: parent)
+        }
+        /// run sheduled observing
+        observing.forEach { (item) in
+            observing[item.key] = (observe(item.key)!, item.value.counter)
         }
     }
     
