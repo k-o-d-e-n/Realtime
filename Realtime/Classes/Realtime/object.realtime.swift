@@ -10,7 +10,7 @@ import Foundation
 import FirebaseDatabase
 
 /// Base class for any database value
-open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomDebugStringConvertible {
+open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugStringConvertible {
     /// Database that associated with this value
     public fileprivate(set) var database: RealtimeDatabase?
     /// Node of database tree
@@ -125,7 +125,6 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, Hashable, CustomD
         })
     }
 
-    @discardableResult
     func endObserve(for token: UInt) {
         if let node = node, let database = self.database {
             database.removeObserver(for: node, with: token)
@@ -265,7 +264,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///         }
 ///     }
 ///
-open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
     public var keepSynced: Bool = false {
@@ -384,13 +383,27 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         fatalError("You should implement class func lazyPropertyKeyPath(for:)")
     }
 
+    /// Returns flag of condition that writing is enabled/disabled for current transaction
+    ///
+    /// Override this method to create conditional-required properties.
+    /// It calls only in save operation.
+    ///
+    /// - Parameter property: Value to evalute condition
+    /// - Returns: Boolean value of condition
+    open func conditionForWrite(of property: _RealtimeValue) -> Bool {
+        return true
+    }
+
     override func _write(to transaction: Transaction, by node: Node) throws {
         try super._write(to: transaction, by: node)
         try reflect { (mirror) in
             try mirror.children.forEach({ (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
 
-                if let value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
+                if
+                    let value: _RealtimeValue = forceValue(from: child, mirror: mirror),
+                    conditionForWrite(of: value)
+                {
                     if let valNode = value.node {
                         try value._write(to: transaction, by: node.child(with: valNode.key))
                     } else {

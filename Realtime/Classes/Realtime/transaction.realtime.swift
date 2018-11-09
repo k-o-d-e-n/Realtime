@@ -138,10 +138,10 @@ extension Transaction {
                     }
                 } else if case let u as FileNode = update, n === node {
                     u.value = value
-                    debugLog("Replaced file by node: \(node) with value: \(value as Any) in transaction: \(self)")
+                    debugLog("Replaced file by node: \(node) with value: \(value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
                 } else if case let u as ValueNode = update, n === node {
                     if ValueNode.self == valueType {
-                        debugLog("Replaced value by node: \(node) with value: \(value as Any) in transaction: \(self)")
+                        debugLog("Replaced value by node: \(node) with value: \(value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
                         u.value = value
                     } else {
                         fatalError("Tries to insert database value to storage node")
@@ -189,11 +189,19 @@ extension Transaction {
         }
         files.indices.forEach { _ in group.enter() }
         files.forEach { (file) in
-            guard case let data as Data = file.value else { fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.location)") }
             let node = file.location
-            file.location.file(for: storage).putData(data, metadata: nil, completion: { (md, err) in
-                addCompletion(node, md, err)
-            })
+            if let value = file.value {
+                guard case let data as Data = value else {
+                    fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.location)")
+                }
+                file.location.file(for: storage).putData(data, metadata: nil, completion: { (md, err) in
+                    addCompletion(node, md, err)
+                })
+            } else {
+                file.location.file(for: storage).delete(completion: { (err) in
+                    addCompletion(node, nil, err)
+                })
+            }
         }
         group.notify(queue: .main) {
             completion(completions)
@@ -378,10 +386,16 @@ public extension Transaction {
     /// - Parameters:
     ///   - value: `Data` type value
     ///   - node: Target node
-    public func addFile(_ value: Any, by node: Realtime.Node) {
+    public func addFile(_ value: Data, by node: Realtime.Node) {
         guard node.isRooted else { fatalError("Node should be rooted") }
 
         _addValue(FileNode.self, value, by: node)
+    }
+
+    public func addFile<T>(_ file: File<T>, by node: Realtime.Node? = nil) throws {
+        guard let node = node ?? file.node else { fatalError("Node should be rooted") }
+
+        try file._write(to: self, by: node)
     }
 
     /// Removes file by specified node

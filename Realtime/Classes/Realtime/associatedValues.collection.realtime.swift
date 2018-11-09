@@ -242,7 +242,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
                 try element.apply(childData, exactly: exactly)
             } else {
                 let keyEntity = Key(in: storage.keysNode.child(with: key.dbKey), options: [:])
-                storage.elements[keyEntity] = try Value(data: childData, exactly: exactly)
+                var value = storage.buildElement(with: keyEntity)
+                try value.apply(childData, exactly: exactly)
+                storage.elements[keyEntity] = value
             }
         }
     }

@@ -538,7 +538,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
             do {
                 _ = try representer.encode(nil)
             } catch let e {
-                debugFatalError("Required property has not been set '\(node.key)': \(type(of: self))")
+                debugFatalError("Required property has not been set '\(node)': \(type(of: self))")
                 throw e
             }
         case .some(.local(let v)):
@@ -613,6 +613,20 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         self.init(in: node, options: options.merging([.representer: representer.writeRequiredProperty()], uniquingKeysWith: { _, new in new }))
     }
     
+    /// Designed initializer
+    ///
+    /// Available options:
+    /// - .initialValue *(optional)* - default property value
+    /// - .representer *(required)* - instance of type `Representer<T>`.
+    ///
+    /// **Warning**: You must pass representer that returns through next methods of `Representer<T>`:
+    /// - func requiredProperty() - throws error if value is not presented
+    /// - func optionalProperty() - can have empty value
+    /// - func writeRequiredProperty() - throws error in save operation if value is not set
+    ///
+    /// - Parameters:
+    ///   - node: Database node reference
+    ///   - options: Option values
     public required init(in node: Node?, options: [ValueOption: Any]) {
         guard case let representer as Representer<T?> = options[.representer] else { fatalError("Bad options") }
 
@@ -629,7 +643,11 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
 
     public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:representer:)")
+        #if DEBUG
+        fatalError("init(data:exactly:) cannot be called. Use init(data:exactly:representer:)")
+        #else
+        throw RealtimeError(decoding: type(of: self).Type, data, reason: "Unavailable initializer")
+        #endif
     }
     
     public override func load(completion: Assign<Error?>?) {
@@ -758,6 +776,13 @@ extension ReadonlyProperty: Listenable {
         return repeater.listening(assign)
     }
 }
+extension ReadonlyProperty: Equatable where T: Equatable {
+    public static func ==(lhs: ReadonlyProperty, rhs: ReadonlyProperty) -> Bool {
+        guard lhs.node == rhs.node else { return false }
+
+        return lhs ==== rhs
+    }
+}
 public extension ReadonlyProperty {
     /// Last property state
     var lastEvent: PropertyState<T>? {
@@ -807,19 +832,6 @@ public extension ReadonlyProperty where T: _Optional {
     static func <==(_ value: inout T.Wrapped?, _ prop: ReadonlyProperty) {
         value = prop.unwrapped
     }
-    public func then(_ f: (T.Wrapped) -> Void, else e: (() -> Void)? = nil) -> ReadonlyProperty {
-        if let v = unwrapped {
-            f(v)
-        } else {
-            e?()
-        }
-        return self
-    }
-    public func `else`(_ f: () -> Void) {
-        if nil == wrapped {
-            f()
-        }
-    }
 }
 func <== <T>(_ value: inout T.Wrapped?, _ prop: ReadonlyProperty<T>?) where T: _Optional {
     value = prop?.unwrapped
@@ -838,10 +850,16 @@ infix operator ====: ComparisonPrecedence
 infix operator !===: ComparisonPrecedence
 public extension ReadonlyProperty where T: Equatable {
     static func ====(lhs: T, rhs: ReadonlyProperty) -> Bool {
-        return rhs.wrapped == lhs
+        switch (lhs, rhs.wrapped) {
+        case (_, .none): return false
+        case (let l, .some(let r)): return l == r
+        }
     }
     static func ====(lhs: ReadonlyProperty, rhs: T) -> Bool {
-        return lhs.wrapped == rhs
+        switch (rhs, lhs.wrapped) {
+        case (_, .none): return false
+        case (let l, .some(let r)): return l == r
+        }
     }
     static func ====(lhs: ReadonlyProperty, rhs: ReadonlyProperty) -> Bool {
         return rhs.wrapped == lhs.wrapped
@@ -856,16 +874,32 @@ public extension ReadonlyProperty where T: Equatable {
         return !(lhs ==== rhs)
     }
     static func ====(lhs: T?, rhs: ReadonlyProperty) -> Bool {
-        return rhs.wrapped == lhs
+        switch (lhs, rhs.wrapped) {
+        case (.none, .none): return true
+        case (.none, .some), (.some, .none): return false
+        case (.some(let l), .some(let r)): return l == r
+        }
     }
     static func ====(lhs: ReadonlyProperty, rhs: T?) -> Bool {
-        return lhs.wrapped == rhs
+        switch (rhs, lhs.wrapped) {
+        case (.none, .none): return true
+        case (.none, .some), (.some, .none): return false
+        case (.some(let l), .some(let r)): return l == r
+        }
     }
     static func !===(lhs: T?, rhs: ReadonlyProperty) -> Bool {
         return !(lhs ==== rhs)
     }
     static func !===(lhs: ReadonlyProperty, rhs: T?) -> Bool {
         return !(lhs ==== rhs)
+    }
+}
+public extension ReadonlyProperty where T: Equatable & _Optional {
+    static func ====(lhs: T, rhs: ReadonlyProperty) -> Bool {
+        return rhs.wrapped == lhs
+    }
+    static func ====(lhs: ReadonlyProperty, rhs: T) -> Bool {
+        return lhs.mapValue({ $0 == rhs }) ?? (rhs.wrapped == nil)
     }
 }
 public extension ReadonlyProperty where T: HasDefaultLiteral & _ComparableWithDefaultLiteral {

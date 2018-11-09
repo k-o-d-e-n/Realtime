@@ -561,3 +561,21 @@ public extension Listenable where Out: _Optional {
     }
 }
 
+public struct DoDebug<T>: Listenable {
+    fileprivate let listenable: AnyListenable<T>
+    fileprivate let doit: (ListenEvent<T>) -> Void
+
+    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        #if DEBUG
+        return listenable.listening(assign.with(work: doit))
+        #else
+        return listenable.listening(assign)
+        #endif
+    }
+}
+public extension Listenable {
+    /// calls closure on receive next value
+    func doOnDebug(_ something: @escaping (ListenEvent<Out>) -> Void) -> Do<Out> {
+        return Do(listenable: AnyListenable(self.listening, self.listeningItem), doit: something)
+    }
+}

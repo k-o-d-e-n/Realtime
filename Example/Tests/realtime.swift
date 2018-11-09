@@ -828,7 +828,7 @@ extension Tests {
                     do {
                         let restoredObj = try TestObject(data: CacheNode.root, exactly: false)
 
-                        XCTAssertEqual(testObject.property.unwrapped, restoredObj.property.unwrapped)
+                        XCTAssertEqual(testObject.property, restoredObj.property)
                         XCTAssertEqual(testObject.nestedObject.lazyProperty.unwrapped,
                                        restoredObj.nestedObject.lazyProperty.unwrapped)
                     } catch let e {
@@ -863,9 +863,9 @@ extension Tests {
                     restoredObj.load(completion: .just { e in
                         e.map { XCTFail($0.localizedDescription) }
 
-                        XCTAssertEqual(testObject.property.unwrapped, restoredObj.property.unwrapped)
-                        XCTAssertEqual(testObject.nestedObject.lazyProperty.unwrapped,
-                                       restoredObj.nestedObject.lazyProperty.unwrapped)
+                        XCTAssertEqual(testObject.property, restoredObj.property)
+                        XCTAssertEqual(testObject.nestedObject.lazyProperty,
+                                       restoredObj.nestedObject.lazyProperty)
                     })
                 }
             })
@@ -1126,5 +1126,77 @@ extension Tests {
                 XCTFail("value: \(value), database: \(value.database as Any)")
             }
         }
+    }
+}
+
+// MARK: Operators
+
+extension Tests {
+    func testEqualFailsRequiredPropertyWithoutValueAndValue() {
+        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        XCTAssertFalse(property ==== "")
+        XCTAssertFalse("" ==== property)
+    }
+    func testNotEqualRequiredPropertyWithoutValueAndValue() {
+        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        XCTAssertTrue(property !=== "")
+        XCTAssertTrue("" !=== property)
+    }
+    func testEqualRequiredPropertyWithoutValueAndNil() {
+        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        XCTAssertTrue(property ==== nil)
+        XCTAssertTrue(nil ==== property)
+    }
+    func testEqualFailsRequiredPropertyWithValueAndValue() {
+        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        property <== "string"
+        XCTAssertFalse(property ==== "")
+        XCTAssertFalse("" ==== property)
+    }
+    func testNotEqualRequiredPropertyWithValueAndValue() {
+        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        property <== "string"
+        XCTAssertTrue(property !=== "")
+        XCTAssertTrue("" !=== property)
+    }
+    func testNotEqualRequiredPropertyWithValueAndNil() {
+        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        property <== "string"
+        XCTAssertFalse(property ==== nil)
+        XCTAssertFalse(nil ==== property)
+    }
+    func testEqualFailsOptionalPropertyWithoutValueAndValue() {
+        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        XCTAssertFalse(property ==== "")
+        XCTAssertFalse("" ==== property)
+    }
+    func testNotEqualOptionalPropertyWithoutValueAndValue() {
+        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        XCTAssertTrue(property !=== "")
+        XCTAssertTrue("" !=== property)
+    }
+    func testEqualOptionalPropertyWithNilValueAndNil() {
+        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        property <== nil
+        XCTAssertTrue(property ==== nil)
+        XCTAssertTrue(nil ==== property)
+    }
+    func testEqualFailsOptionalPropertyWithValueAndValue() {
+        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        property <== "string"
+        XCTAssertFalse(property ==== "")
+        XCTAssertFalse("" ==== property)
+    }
+    func testNotEqualOptionalPropertyWithValueAndValue() {
+        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        property <== "string"
+        XCTAssertTrue(property !=== "")
+        XCTAssertTrue("" !=== property)
+    }
+    func testNotEqualOptionalPropertyWithValueAndNil() {
+        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        property <== "string"
+        XCTAssertFalse(property ==== nil)
+        XCTAssertFalse(nil ==== property)
     }
 }

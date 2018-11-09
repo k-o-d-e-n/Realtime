@@ -213,7 +213,9 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
             if var element = storage.elements[key.dbKey] {
                 try element.apply(childData, exactly: exactly)
             } else {
-                storage.elements[key.dbKey] = try Element(data: childData, exactly: exactly)
+                var value = storage.buildElement(with: key)
+                try value.apply(childData, exactly: exactly)
+                storage.elements[key.dbKey] = value
             }
         }
     }
