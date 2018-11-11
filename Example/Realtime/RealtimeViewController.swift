@@ -62,13 +62,14 @@ class RealtimeViewController: UIViewController {
         $0.frame = CGRect(x: 0, y: 120, width: view.bounds.width / 2, height: 30)
         $0.setTitle("Load photo", for: .normal)
     }
-
     lazy var label: UILabel! = UILabel().add(to: view) {
         $0.frame = CGRect(x: 20, y: view.bounds.height - 100, width: view.bounds.width, height: 30)
         $0.text = "Result here"
     }
+
     var user: User?
     var group: Group?
+    var conversationUser: User?
 
     deinit {
         Global.rtGroups.stopObserving()
@@ -300,17 +301,22 @@ class RealtimeViewController: UIViewController {
         let conversationUser = User()
         conversationUser.age <== 100
         conversationUser.name <== "Conversation #"
-        let transaction = try! g.conversations.write(element: conversationUser, for: u)
+        self.conversationUser = conversationUser
+        do {
+            let transaction = try g.conversations.write(element: conversationUser, for: u)
 
-        self.freeze()
-        transaction.commit(with: { _, errs in
-            self.unfreeze()
-            if let errors = errs {
-                print(errors)
-            }
+            self.freeze()
+            transaction.commit(with: { _, errs in
+                self.unfreeze()
+                if let errors = errs {
+                    print(errors)
+                }
 
-            self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-        })
+                self.setMessage(with: errs)
+            })
+        } catch let e {
+            setError(e.localizedDescription)
+        }
     }
 
     @objc func removeConversation() {
@@ -328,19 +334,25 @@ class RealtimeViewController: UIViewController {
                     print(errors)
                 }
 
-                self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
+                self.setMessage(with: errs)
             })
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
-            self.freeze()
-            try! g.conversations.first?.value.delete().commit(with: { _, errs in
-                self.unfreeze()
-                if let errors = errs {
-                    print(errors)
-                }
+            guard let conv = self.conversationUser else { return self.setError("Couldn`t retrieve conversation") }
+            do {
+                self.freeze()
+                try conv.delete().commit(with: { _, errs in
+                    self.unfreeze()
+                    if let errors = errs {
+                        print(errors)
+                    }
 
-                self.label.text = errs?.reduce("", { $0 + $1.localizedDescription }) ?? "Success! Show your firebase console"
-            })
+                    self.setMessage(with: errs)
+                })
+            } catch let e {
+                self.unfreeze()
+                self.setError(e.localizedDescription)
+            }
         })
         present(controller, animated: true, completion: nil)
     }
@@ -416,6 +428,13 @@ extension RealtimeViewController {
             label.text = label.text?.appending(" !")
         } else {
             label.text = RealtimeViewController.succesText
+        }
+    }
+    func setMessage(with errors: [Error]?) {
+        if let errorTxt = errors?.reduce("", { $0 + $1.localizedDescription }) {
+            setError(errorTxt)
+        } else {
+            setSuccess()
         }
     }
 }

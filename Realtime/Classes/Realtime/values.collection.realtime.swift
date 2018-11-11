@@ -344,7 +344,7 @@ extension Values {
         let index = priority ?? _view.count
         let key = element.node.map { $0.key } ?? String(index)
         storage.elements[key] = element
-        _ = _view.insert(RCItem(element: element, key: key, linkID: "", priority: index))
+        _ = _view.insert(RCItem(element: element, key: key, priority: index, linkID: nil))
     }
 
     @discardableResult
@@ -426,15 +426,15 @@ extension Values {
         let elementNode = element.node.map { $0.moveTo(location.storage); return $0 } ?? location.storage.childByAutoId()
         let itemNode = location.itms.child(with: elementNode.key)
         let link = elementNode.generate(linkTo: itemNode)
-        let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, priority: priority)
+        let item = RCItem(element: element, key: elementNode.key, priority: priority, linkID: link.link.id)
 
         transaction.addReversion({ [weak self] in
             self?.storage.elements.removeValue(forKey: item.dbKey)
         })
         storage.store(value: element, by: item)
-        transaction.addValue(item.rdbValue, by: itemNode)
-        transaction.addValue(link.link.rdbValue, by: link.node)
-        try transaction.set(element, by: elementNode)
+        transaction.addValue(item.rdbValue, by: itemNode) /// add item element
+        transaction.addValue(link.link.rdbValue, by: link.node) /// add link
+        try transaction.set(element, by: elementNode) /// add element
     }
 
     func _remove(_ element: Element, in transaction: Transaction) {

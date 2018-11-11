@@ -11,12 +11,24 @@ import FirebaseDatabase
 import FirebaseStorage
 
 enum InternalKeys: String, CodingKey {
+    /// version of RealtimeValue
     case modelVersion = "__mv"
-    case links = "__links"
+    /// root database key for links hierarchy
+    case links = "__links" // rename to '__lnks'
+    /// key of RealtimeValue in 'links' branch which stores all external links to this values
     case linkItems = "__l_itms"
+    /// key of RealtimeCollection in 'links' branch which stores prototypes of all collection elements
     case items = "__itms"
+    /// key of collection element prototype which indicates priority
     case index = "__i"
+    /// key to store user payload data
     case payload = "__pl"
+    /// key of associated collection element prototype
+    case key = "__key"
+    /// key of associated collection element prototype
+    case value = "__val"
+    /// ket of collection element prototype to store link key
+    case link = "__lnk"
     /// Indicates raw value of enum, or subclass
     case raw = "__raw"
 }

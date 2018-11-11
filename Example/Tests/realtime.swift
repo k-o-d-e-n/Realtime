@@ -41,7 +41,13 @@ extension XCTestCase {
     }
 }
 
-class Tests: XCTestCase {
+extension Error {
+    var describingErrorDescription: String {
+        return String(describing: self)
+    }
+}
+
+class RealtimeTests: XCTestCase {
     var store: ListeningDisposeStore = ListeningDisposeStore()
 
     override func setUp() {
@@ -168,7 +174,7 @@ func checkWillRemove(_ v: RealtimeValue, nested: Bool = false, _ line: Int = #li
     checkStates(in: v, for: .willRemove, line)
 }
 
-extension Tests {
+extension RealtimeTests {
     func testObjectSave() {
         let obj = TestObject()
 
@@ -260,7 +266,7 @@ extension Tests {
         checkWillRemove(obj.nestedObject.usualProperty, nested: true)
         checkWillRemove(obj.nestedObject.lazyProperty, nested: true)
         do {
-            let save = try obj.delete()
+            let save = try obj.delete(in: Transaction(database: CacheNode.root))
             save.commit(with: { _, errs in
                 errs.map { _ in XCTFail() }
 
@@ -283,7 +289,7 @@ extension Tests {
     }
 }
 
-extension Tests {
+extension RealtimeTests {
     func testNestedObjectChanges() {
         let testObject = TestObject(in: Node(key: "t_obj"))
 
@@ -447,7 +453,7 @@ extension Tests {
 
                 user.photo <== #imageLiteral(resourceName: "pw")
                 do {
-                    let update = try user.update()
+                    let update = try user.update(in: Transaction(database: CacheNode.root))
                     XCTAssertTrue(update.updateNode.updateValue.isEmpty)
                     update.commit(with: { _, errors in
                         errors.map { _ in XCTFail() }
@@ -805,6 +811,38 @@ extension Tests {
         XCTAssertTrue((value.payload as NSDictionary?) == (payload as? NSDictionary))
     }
 
+    func testInitializeWithPayload4() {
+        let exp = expectation(description: "")
+        let user = User2(in: nil, options: [.database: CacheNode.root, .systemPayload: SystemPayload(2, 5)])
+        XCTAssertEqual(user.version, 2)
+        XCTAssertEqual(user.raw as? Int, 5)
+
+        user.name <== "User name"
+        user.age <== 50
+        user.human <== [:]
+        do {
+            let transaction = try user.save(by: .root)
+            transaction.commit { (_, errs) in
+                errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                do {
+                    let copyUser = try User2(data: CacheNode.root, exactly: true)
+                    XCTAssertEqual(copyUser.version, 2)
+                    XCTAssertEqual(copyUser.raw as? Int, 5)
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+                exp.fulfill()
+            }
+        } catch let e {
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+
     func testReferenceFireValue() {
         let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").rootPath, payload: ((nil, nil), nil))
         let fireValue = ref.rdbValue
@@ -917,7 +955,7 @@ extension AssociatedValues: Reverting {
     }
 }
 
-extension Tests {
+extension RealtimeTests {
     func testLocalChangesLinkedArray() {
         let linkedArray: References<TestObject> = References(in: Node(key: "l_array"), options: [.elementsNode: Node.root])
 
@@ -1003,15 +1041,12 @@ extension Tests {
         transaction.revert()
     }
 
+/* Observing in CacheNode is not implemented.
     func testListeningCollectionChangesOnInsert() {
         let exp = expectation(description: "")
         let array = Values<User>(in: .root, options: [.database: CacheNode.root])
 
-        array.changes.listening({ (event) in
-            guard let value = event.value else {
-                XCTFail(event.error?.localizedDescription ?? "")
-                return
-            }
+        array.changes.listening(onValue: { (event) in
             switch value {
             case .initial:
                 XCTFail(".initial does not should call")
@@ -1020,9 +1055,9 @@ extension Tests {
                 exp.fulfill()
             }
         }).add(to: &store)
-        array.changes.listening { err in
+        array.changes.listening(onError: { err in
             XCTFail(err.localizedDescription)
-        }.add(to: &store)
+        }).add(to: &store)
 
         let element = User()
         element.name <== "User"
@@ -1034,7 +1069,7 @@ extension Tests {
             let elementNode = array.storage.sourceNode.childByAutoId()
             let itemNode = array.storage.sourceNode.child(with: InternalKeys.items).linksNode.child(with: elementNode.key)
             let link = elementNode.generate(linkTo: itemNode)
-            let item = RCItem(element: element, key: elementNode.key, linkID: link.link.id, priority: 0)
+            let item = RCItem(element: element, key: elementNode.key, priority: 0, linkID: link.link.id)
 
             transaction.addValue(item.rdbValue, by: itemNode)
             transaction.addValue(link.link.rdbValue, by: link.node)
@@ -1042,18 +1077,19 @@ extension Tests {
 
             /// simulate notification
             transaction.commit { (state, errors) in
-                errors.map { e in XCTFail(e.reduce("") { $0 + $1.localizedDescription }) }
+                errors.map { e in XCTFail(e.reduce("") { $0 + $1.describingErrorDescription }) }
                 array._view.isSynced = true
                 array._view.source.dataObserver.send(.value((CacheNode.root.child(forPath: itemNode.rootPath), .child(.added))))
             }
         } catch let e {
-            XCTFail(e.localizedDescription)
+            XCTFail(e.describingErrorDescription)
         }
 
         waitForExpectations(timeout: 4) { (error) in
-            error.map { XCTFail($0.localizedDescription) }
+            error.map { XCTFail($0.describingErrorDescription) }
         }
     }
+ */
 
     func testReadonlyRelation() {
         let exp = expectation(description: "")
@@ -1131,7 +1167,7 @@ extension Tests {
 
 // MARK: Operators
 
-extension Tests {
+extension RealtimeTests {
     func testEqualFailsRequiredPropertyWithoutValueAndValue() {
         let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
         XCTAssertFalse(property ==== "")

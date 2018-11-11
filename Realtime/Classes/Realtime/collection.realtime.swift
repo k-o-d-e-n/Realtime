@@ -10,6 +10,7 @@ import FirebaseDatabase
 
 extension ValueOption {
     static let elementBuilder = ValueOption("realtime.collection.builder")
+    static let keyBuilder = ValueOption("realtime.collection.keyBuilder")
 }
 
 public typealias Changes = (deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)])
@@ -20,71 +21,69 @@ public enum RCEvent {
 
 /// -----------------------------------------
 
-// TODO: For Value of AssociatedValues is not defined payloads
+typealias RealtimeValuePayload = (system: SystemPayload, user: [String: RealtimeDataValue]?)
+internal func databaseValue(of payload: RealtimeValuePayload) -> [String: RealtimeDataValue] {
+    var val: [String: RealtimeDataValue] = [:]
+    if let mv = payload.system.version {
+        val[InternalKeys.modelVersion.rawValue] = mv
+    }
+    if let raw = payload.system.raw {
+        val[InternalKeys.raw.rawValue] = raw
+    }
+    if let p = payload.user {
+        val[InternalKeys.payload.rawValue] = p
+    }
+    return val
+}
+
 struct RCItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
     let dbKey: String!
-    let linkID: String
     var priority: Int
-    let internalPayload: (mv: Int?, raw: RealtimeDataValue?)
-    let payload: [String: RealtimeDataValue]?
+    var linkID: String?
+    let payload: RealtimeValuePayload
 
-    init<T: RealtimeValue>(element: T, key: String, linkID: String, priority: Int) {
+    init<T: RealtimeValue>(element: T, key: String, priority: Int, linkID: String?) {
         self.dbKey = key
-        self.linkID = linkID
         self.priority = priority
-        self.payload = element.payload
-        self.internalPayload = (element.version, element.raw)
+        self.linkID = linkID
+        self.payload = RealtimeValuePayload((element.version, element.raw), element.payload)
     }
 
-    init<T: RealtimeValue>(element: T, linkID: String, priority: Int) {
+    init<T: RealtimeValue>(element: T, priority: Int, linkID: String?) {
         self.dbKey = element.dbKey
-        self.linkID = linkID
         self.priority = priority
-        self.payload = element.payload
-        self.internalPayload = (element.version, element.raw)
+        self.linkID = linkID
+        self.payload = RealtimeValuePayload((element.version, element.raw), element.payload)
     }
 
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
         guard let key = data.key else {
-            throw RealtimeError(initialization: RCItem.self, data)
+            throw RealtimeError(initialization: RDItem.self, data)
         }
-        guard let value = data.makeIterator().next() else {
-            throw RealtimeError(initialization: RCItem.self, data)
-        }
-        guard let linkID = value.key else {
-            throw RealtimeError(initialization: RCItem.self, data)
-        }
-        guard let index: Int = try InternalKeys.index.map(from: value) else {
-            throw RealtimeError(initialization: RCItem.self, data)
+        guard let index: Int = try InternalKeys.index.map(from: data) else {
+            throw RealtimeError(initialization: RDItem.self, data)
         }
 
         self.dbKey = key
-        self.linkID = linkID
         self.priority = index
-        self.payload = try InternalKeys.payload.map(from: value)
-        self.internalPayload = try (InternalKeys.modelVersion.map(from: data), InternalKeys.raw.map(from: data))
+        self.linkID = try InternalKeys.link.map(from: data)
+        let valueData = InternalKeys.value.child(from: data)
+        self.payload = RealtimeValuePayload(
+            try (InternalKeys.modelVersion.map(from: valueData), InternalKeys.raw.map(from: valueData)),
+            try InternalKeys.payload.map(from: valueData)
+        )
     }
 
     var rdbValue: RealtimeDataValue {
         var value: [String: RealtimeDataValue] = [:]
-        let link: [String: RealtimeDataValue] = [InternalKeys.index.rawValue: priority]
-        value[linkID] = link
-        if let mv = internalPayload.mv {
-            value[InternalKeys.modelVersion.rawValue] = mv
-        }
-        if let raw = internalPayload.raw {
-            value[InternalKeys.raw.rawValue] = raw
-        }
-        if let p = payload {
-            value[InternalKeys.payload.rawValue] = p
-        }
+        value[InternalKeys.value.rawValue] = databaseValue(of: payload)
+        value[InternalKeys.link.rawValue] = linkID
+        value[InternalKeys.index.rawValue] = priority
 
         return value
     }
 
-    var hashValue: Int {
-        return dbKey.hashValue &- linkID.hashValue
-    }
+    var hashValue: Int { return dbKey.hashValue }
 
     static func ==(lhs: RCItem, rhs: RCItem) -> Bool {
         return lhs.dbKey == rhs.dbKey
@@ -303,7 +302,7 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     func storedValue(by key: RCItem) -> Value? { return elements[for: key.dbKey] }
 
     func buildElement(with key: RCItem) -> V {
-        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.userPayload: $0] } ?? [:])
+        return elementBuilder(sourceNode.child(with: key.dbKey), [.systemPayload: key.payload.system, .userPayload: key.payload.user as Any])
     }
 }
 
@@ -344,27 +343,6 @@ final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyOb
                 completion(data.exists(), nil)
         },
             onCancel: { completion(false, $0) }
-        )
-    }
-
-    func _item(for key: String, completion: @escaping (RCItem?, Error?) -> Void) {
-        guard let db = source.database, let node = source.node else {
-            fatalError("Unexpected behavior")
-        }
-        db.load(
-            for: node.child(with: key),
-            completion: { (data) in
-                if data.exists() {
-                    do {
-                        completion(try RCItem(data: data), nil)
-                    } catch let e {
-                        completion(nil, e)
-                    }
-                } else {
-                    completion(nil, nil)
-                }
-        },
-            onCancel: { completion(nil, $0) }
         )
     }
 
@@ -413,6 +391,76 @@ extension AnyRealtimeCollectionView where Source == SortedArray<RCItem> {
         return i
     }
     func remove(at index: Int) -> RCItem {
+        var value = self.value
+        let removed = value.remove(at: index)
+        source._setLocalValue(value)
+        return removed
+    }
+    func removeAll() {
+        source._setLocalValue([])
+    }
+}
+extension AnyRealtimeCollectionView where Source.Element: RealtimeDataRepresented {
+    func _item(for key: String, completion: @escaping (Source.Element?, Error?) -> Void) {
+        guard let db = source.database, let node = source.node else {
+            fatalError("Unexpected behavior")
+        }
+        db.load(
+            for: node.child(with: key),
+            completion: { (data) in
+                if data.exists() {
+                    do {
+                        completion(try Source.Element(data: data), nil)
+                    } catch let e {
+                        completion(nil, e)
+                    }
+                } else {
+                    completion(nil, nil)
+                }
+        },
+            onCancel: { completion(nil, $0) }
+        )
+    }
+}
+
+extension AnyRealtimeCollectionView where Source == SortedArray<RDItem> {
+    func insertRemote(_ element: RDItem) -> Int {
+        var value = self.value
+        let i = value.insert(element)
+        source._setValue(.remote(value))
+        return i
+    }
+    func removeRemote(_ element: RDItem) -> Int? {
+        var value = self.value
+        guard let i = value.index(where: { $0.dbKey == element.dbKey }) else { return nil }
+        value.remove(at: i)
+        source._setValue(.remote(value))
+        return i
+    }
+    func moveRemote(_ element: RDItem) -> (from: Int, to: Int)? {
+        if let from = value.index(where: { $0.dbKey == element.dbKey }) {
+            var value = self.value
+            value.remove(at: from)
+            let to = value.insert(element)
+            source._setValue(.remote(value))
+            return (from, to)
+        } else {
+            debugFatalError("Cannot move element \(element), because it is not found")
+            return nil
+        }
+    }
+
+    func insertionIndex(for newElement: RDItem) -> Int {
+        return value.insertionIndex(for: newElement)
+    }
+
+    func insert(_ element: RDItem) -> Int {
+        var value = self.value
+        let i = value.insert(element)
+        source._setLocalValue(value)
+        return i
+    }
+    func remove(at index: Int) -> RDItem {
         var value = self.value
         let removed = value.remove(at: index)
         source._setLocalValue(value)

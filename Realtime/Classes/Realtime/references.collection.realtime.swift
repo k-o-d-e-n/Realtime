@@ -107,6 +107,9 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
 
     // Implementation
 
+    private var shouldLinking = true // TODO: Fix it
+    public func unlinked() -> References<Element> { shouldLinking = false; return self }
+
     /// Returns a Boolean value indicating whether the sequence contains an
     /// element that has the same key.
     ///
@@ -291,7 +294,7 @@ public extension References {
 
         let index = priority ?? _view.count
         storage.elements[element.dbKey] = element
-        _ = _view.insert(RCItem(element: element, linkID: "", priority: index))
+        _ = _view.insert(RCItem(element: element, priority: index, linkID: nil))
     }
 
     func delete(element: Element) {
@@ -372,15 +375,18 @@ public extension References {
     internal func _write(_ element: Element, with priority: Int,
                          by location: Node, in transaction: Transaction) throws {
         let itemNode = location.child(with: element.dbKey)
-        let link = element.node!.generate(linkTo: itemNode)
-        let item = RCItem(element: element, linkID: link.link.id, priority: priority)
+        var item = RCItem(element: element, priority: priority, linkID: nil)
 
         transaction.addReversion({ [weak self] in
             self?.storage.elements.removeValue(forKey: item.dbKey)
         })
         storage.store(value: element, by: item)
-        transaction.addValue(item.rdbValue, by: itemNode)
-        transaction.addValue(link.link.rdbValue, by: link.node)
+        if shouldLinking {
+            let link = element.node!.generate(linkTo: itemNode)
+            item.linkID = link.link.id
+            transaction.addValue(link.link.rdbValue, by: link.node) // add link
+        }
+        transaction.addValue(item.rdbValue, by: itemNode) // add item element
     }
 
     private func _remove(_ element: Element, in transaction: Transaction) {
@@ -396,11 +402,11 @@ public extension References {
         transaction.addReversion { [weak self] in
             self?.storage.elements[item.dbKey] = element
         }
-        let elementLinksNode = storage.sourceNode.child(with: item.dbKey).linksItemsNode.child(
-            with: item.linkID
-        )
+        if let linkID = item.linkID {
+            let elementLinksNode = storage.sourceNode.child(with: item.dbKey).linksItemsNode.child(with: linkID)
+            transaction.removeValue(by: elementLinksNode) /// remove link from element
+        }
         transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) /// remove item
-        transaction.removeValue(by: elementLinksNode) /// remove link from element
     }
 }
 

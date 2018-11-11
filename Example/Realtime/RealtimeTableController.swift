@@ -80,29 +80,29 @@ class RealtimeTableController: UIViewController {
 
         iView.startAnimating()
 
-        users.changes.listening(onValue: { [unowned self] change in
-            if self.activityView.isAnimating {
-                self.activityView.stopAnimating()
-            }
-
-            print(change)
-            switch change {
-            case .initial:
-                self.tableView.reloadData()
-            case .updated(let deleted, let inserted, let modified, let moved):
-                self.tableView.beginUpdates()
-                self.tableView.insertRows(at: inserted.map { IndexPath(row: $0, section: 0) }, with: .automatic)
-                self.tableView.deleteRows(at: deleted.map { IndexPath(row: $0, section: 0) }, with: .automatic)
-                self.tableView.reloadRows(at: modified.map { IndexPath(row: $0, section: 0) }, with: .automatic)
-                moved.forEach({ (move) in
-                    self.tableView.moveRow(at: IndexPath(row: move.from, section: 0), to: IndexPath(row: move.to, section: 0))
-                })
-                self.tableView.endUpdates()
-            }
-        }).add(to: &store)
-        users.changes.listening { (err) in
-            print("Changes error:", err.localizedDescription)
-        }.add(to: &store)
+        users.changes
+            .do({ _ in iView.stopAnimating() })
+            .listening(
+                onValue: { [unowned self] change in
+                    print(change)
+                    switch change {
+                    case .initial:
+                        self.tableView.reloadData()
+                    case .updated(let deleted, let inserted, let modified, let moved):
+                        self.tableView.beginUpdates()
+                        self.tableView.insertRows(at: inserted.map { IndexPath(row: $0, section: 0) }, with: .automatic)
+                        self.tableView.deleteRows(at: deleted.map { IndexPath(row: $0, section: 0) }, with: .automatic)
+                        self.tableView.reloadRows(at: modified.map { IndexPath(row: $0, section: 0) }, with: .automatic)
+                        moved.forEach({ (move) in
+                            self.tableView.moveRow(at: IndexPath(row: move.from, section: 0), to: IndexPath(row: move.to, section: 0))
+                        })
+                        self.tableView.endUpdates()
+                    }
+                },
+                onError: { err in
+                    print("Changes error:", err.localizedDescription)
+                }
+            ).add(to: &store)
     }
 
     override func viewWillAppear(_ animated: Bool) {
