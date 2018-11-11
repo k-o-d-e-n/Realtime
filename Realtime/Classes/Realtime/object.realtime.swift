@@ -132,19 +132,19 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     }
 
     public func willRemove(in transaction: Transaction, from ancestor: Node) {
+        // fixme: string values will be calculates and in release builder
         debugFatalError(condition: self.node == nil || !self.node!.isRooted,
                         "Value will be removed from node: \(ancestor), but has not been inserted before. Current: \(self.node?.description ?? "")")
         debugFatalError(condition: !self.node!.hasAncestor(node: ancestor),
-                        "Value will be removed from node: \(ancestor), that is not ancestor for this location: \(self.node!.description)")
+                        "Value will be removed from node: \(ancestor), but it is not ancestor for current node: \(self.node?.description ?? "")")
         debugFatalError(condition: !ancestor.isRooted, "Value will be removed from non rooted node: \(ancestor)")
     }
     public func didRemove(from ancestor: Node) {
         debugFatalError(condition: self.node == nil || !self.node!.isRooted,
                         "Value has been removed from node: \(ancestor), but has not been inserted before. Current: \(self.node?.description ?? "")")
         debugFatalError(condition: !self.node!.hasAncestor(node: ancestor),
-                        "Value has been removed from node: \(ancestor), that is not ancestor for this location: \(self.node!.description)")
+                        "Value has been removed from node: \(ancestor), that is not ancestor for current node: \(self.node?.description ?? "")")
         debugFatalError(condition: !ancestor.isRooted, "Value has been removed from non rooted node: \(ancestor)")
-
 
         node.map { n in database?.removeAllObservers(for: n) }
         observing.removeAll()
@@ -171,6 +171,13 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         observing.forEach { (item) in
             observing[item.key] = (observe(item.key)!, item.value.counter)
         }
+    }
+
+    public func didUpdate(through ancestor: Node) {
+        debugFatalError(condition: self.node == nil || !self.node!.isRooted,
+                        "Value has been updated, but has not been inserted before. Current node: \(self.node?.description ?? "")")
+        debugFatalError(condition: ancestor != self.node && !self.node!.hasAncestor(node: ancestor),
+                        "Value has been updated through node: \(ancestor), but it is not ancestor for current node: \(self.node?.description ?? "")")
     }
     
     // MARK: Changeable & Writable
@@ -308,7 +315,14 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
                 value.didSave(in: database, in: node)
             }
         } else {
-            debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.rootPath)")
+            debugFatalError("Unkeyed value has been saved to location in parent node: \(parent.rootPath)")
+        }
+    }
+
+    public override func didUpdate(through ancestor: Node) {
+        super.didUpdate(through: ancestor)
+        enumerateLoadedChilds { (_, value: _RealtimeValue) in
+            value.didUpdate(through: ancestor)
         }
     }
 

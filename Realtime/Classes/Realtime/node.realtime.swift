@@ -64,6 +64,10 @@ public class Node: Hashable {
     }
 
     public init(key: String, parent: Node?) {
+        debugFatalError(
+            condition: RealtimeApp._isInitialized && (parent?.underestimatedCount ?? 0) >= RealtimeApp.app.maxNodeDepth - 1,
+            "Maximum depth limit of child nodes exceeded"
+        )
         self.key = key
         self.parent = parent
     }
@@ -289,6 +293,7 @@ public extension Node {
 }
 
 extension Node: Sequence {
+    public var underestimatedCount: Int { return reduce(into: 0, { r, _ in r += 1 }) }
     public func makeIterator() -> AnyIterator<Node> {
         var current: Node? = self
         return AnyIterator {

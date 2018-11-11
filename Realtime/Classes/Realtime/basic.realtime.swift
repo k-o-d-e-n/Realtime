@@ -229,6 +229,10 @@ public protocol RealtimeValueEvents {
     /// - Parameter parent: Parent node
     /// - Parameter key: Location in parent node
     func didSave(in database: RealtimeDatabase, in parent: Node, by key: String)
+    /// Notifies object that it has been updated through some ancestor node
+    ///
+    /// - Parameter ancestor: Ancestor where action called
+    func didUpdate(through ancestor: Node)
     /// Must call always before removing action
     ///
     /// - Parameters:

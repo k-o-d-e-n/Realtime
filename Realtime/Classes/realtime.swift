@@ -45,11 +45,13 @@ public class RealtimeApp {
     public let database: RealtimeDatabase
     //    let storage:
     let linksNode: Node
+    let maxNodeDepth: Int
     var cachePolicy: CachePolicy = .noCache
 
-    init(db: RealtimeDatabase, linksNode: Node) {
+    init(db: RealtimeDatabase, linksNode: Node, maxDepth: Int) {
         self.database = db
         self.linksNode = linksNode
+        self.maxNodeDepth = maxDepth
     }
 
     /// Creates default configuration for Realtime application.
@@ -64,13 +66,24 @@ public class RealtimeApp {
     public static func initialize(
         with database: RealtimeDatabase = Database.database(),
         cachePolicy: CachePolicy = .default,
-        linksNode: Node? = nil
+        linksNode: Node? = nil,
+        maxNodeDepth: Int = 32
         ) {
-        RealtimeApp._app = RealtimeApp(db: database, linksNode: linksNode ?? Node(key: InternalKeys.links, parent: .root))
+        guard !_isInitialized else {
+            fatalError("Realtime application already initialized. Call it only once.")
+        }
+
+        RealtimeApp._app = RealtimeApp(
+            db: database,
+            linksNode: linksNode ?? Node(key: InternalKeys.links, parent: .root),
+            maxDepth: maxNodeDepth
+        )
         database.cachePolicy = cachePolicy
+        RealtimeApp._isInitialized = true
     }
 }
 extension RealtimeApp {
+    internal static var _isInitialized: Bool = false
     fileprivate static var _app: RealtimeApp?
     /// Instance that contained Realtime database configuration
     public static var app: RealtimeApp {

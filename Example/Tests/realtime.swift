@@ -757,6 +757,10 @@ extension Tests {
             value.didSave(in: database, in: parent, by: key)
         }
 
+        func didUpdate(through ancestor: Node) {
+            value.didUpdate(through: ancestor)
+        }
+
         func didRemove(from ancestor: Node) {
             value.didRemove(from: ancestor)
         }
@@ -829,8 +833,8 @@ extension Tests {
                         let restoredObj = try TestObject(data: CacheNode.root, exactly: false)
 
                         XCTAssertEqual(testObject.property, restoredObj.property)
-                        XCTAssertEqual(testObject.nestedObject.lazyProperty.unwrapped,
-                                       restoredObj.nestedObject.lazyProperty.unwrapped)
+                        XCTAssertEqual(testObject.nestedObject.lazyProperty,
+                                       restoredObj.nestedObject.lazyProperty)
                     } catch let e {
                         XCTFail(e.localizedDescription)
                     }

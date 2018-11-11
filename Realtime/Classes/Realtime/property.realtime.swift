@@ -710,10 +710,16 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         switch _value {
         case .some(.local(let v)):
             _setValue(.remote(v))
-        case .none: break
         default: break
-            /// now `didSave` calls on update operation, because error does not valid this case
-//            debugFatalError("Property has been saved using non local value")
+        }
+    }
+
+    public override func didUpdate(through ancestor: Node) {
+        super.didUpdate(through: ancestor)
+        switch _value {
+        case .some(.local(let v)):
+            _setValue(.remote(v))
+        default: break
         }
     }
     

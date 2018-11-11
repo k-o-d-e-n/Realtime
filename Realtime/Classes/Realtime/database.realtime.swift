@@ -359,6 +359,10 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     }
 
     init(node: Node) {
+        debugFatalError(
+            condition: RealtimeApp._isInitialized && node.underestimatedCount >= RealtimeApp.app.maxNodeDepth - 1,
+            "Maximum depth limit of child nodes exceeded"
+        )
         self.location = node
     }
 
