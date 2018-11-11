@@ -394,13 +394,18 @@ extension SingleSectionTableViewDelegate {
 }
 
 open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
-    var items: AnyRealtimeCollection<Model>?
+    var items: AnyRealtimeCollection<Model>? {
+        didSet {
+            if let itms = items, !itms.keepSynced {
+                itms.keepSynced = true
+            }
+        }
+    }
     var isNotBeingDisplay: Bool {
         return items == nil
     }
 
     func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
-        self.items = items
         items.changes.listening(onValue: { [weak tableView] e in
             guard let tv = tableView else { return }
             tv.beginUpdates()
@@ -417,13 +422,12 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
             }
             tv.endUpdates()
         }).add(to: &disposeStorage)
-        items.runObserving()
+        self.items = items
     }
 
     func endDisplaySection(_ tableView: UITableView, at index: Int) {
         guard let itms = items else { return debugLog("Ends display section that already not visible") }
         debugFatalError(condition: !itms.isObserved, "Trying to stop observing of section, but it is no longer observed")
-        items?.stopObserving()
         items = nil
     }
 
@@ -440,7 +444,11 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
     fileprivate var registeredHeaders: [TypeKey: BindingSection<UIView>] = [:]
     fileprivate var reuseSectionController: ReuseRowController<ReuseSection<Model, UIView>, Int> = ReuseRowController()
     fileprivate lazy var delegateService: Service = Service(self)
-    var sections: AnySharedCollection<Section>
+    var sections: AnySharedCollection<Section> {
+        willSet {
+            sections.lazy.map(models).forEach { $0.keepSynced = false }
+        }
+    }
     let models: (Section) -> AnyRealtimeCollection<Model>
 
     public init<C: BidirectionalCollection>(_ sections: C,
@@ -452,6 +460,10 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
             self.models = models
             self.configureSection = section
             super.init(cell: cell)
+    }
+
+    deinit {
+        sections.lazy.map(models).forEach { $0.keepSynced = false }
     }
 
     /// Registers new type of header/footer with binding closure
@@ -479,7 +491,7 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
     /// Sets new source of elements
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
         where C.Element == Section, C.Index == Int {
-            self.reuseController.freeAll() // TODO: Check it
+            self.reuseController.freeAll()
             self.sections = AnySharedCollection(newData)
             tableView.reloadData()
     }
@@ -556,18 +568,18 @@ extension SectionedTableViewDelegate {
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
 
-            guard
-                delegate.sections.count > indexPath.section + 1,
-                let items = delegate.reuseSectionController.activeItem(at: indexPath.section)?.items,
-                indexPath.row >= (items.count / 2)
-            else {
-                return
-            }
-
-            let sectionItem = delegate.reuseSectionController.dequeueItem(at: indexPath.section + 1, rowBuilder: ReuseSection.init)
-            if sectionItem.isNotBeingDisplay {
-                sectionItem.willDisplaySection(tableView, items: delegate.models(delegate.sections[indexPath.section + 1]), at: indexPath.section + 1)
-            }
+//            guard
+//                delegate.sections.count > indexPath.section + 1,
+//                let items = delegate.reuseSectionController.activeItem(at: indexPath.section)?.items,
+//                indexPath.row >= (items.count / 2)
+//            else {
+//                return
+//            }
+//
+//            let sectionItem = delegate.reuseSectionController.dequeueItem(at: indexPath.section + 1, rowBuilder: ReuseSection.init)
+//            if sectionItem.isNotBeingDisplay {
+//                sectionItem.willDisplaySection(tableView, items: delegate.models(delegate.sections[indexPath.section + 1]), at: indexPath.section + 1)
+//            }
         }
 
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {

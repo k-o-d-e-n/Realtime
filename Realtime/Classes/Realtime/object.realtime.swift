@@ -26,7 +26,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     /// Indicates that value can observe
     public var canObserve: Bool { return isRooted }
 
-    private var observing: [DatabaseDataEvent: (token: UInt, counter: Int)] = [:]
+    internal var observing: [DatabaseDataEvent: (token: UInt, counter: Int)] = [:]
     let dataObserver: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = .unsafe()
 
     public required init(in node: Node?, options: [ValueOption : Any]) {
@@ -288,7 +288,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         return _runObserving(.value)
     }
     public func stopObserving() {
-        _stopObserving(.value)
+        if !keepSynced || (observing[.value].map({ $0.counter > 1 }) ?? true) {
+            _stopObserving(.value)
+        }
     }
 
     public override func willSave(in transaction: Transaction, in parent: Node, by key: String) {

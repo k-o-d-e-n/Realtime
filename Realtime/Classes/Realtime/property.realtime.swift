@@ -670,7 +670,9 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
 
     public func stopObserving() {
-        _stopObserving(.value)
+        if !keepSynced || (observing[.value].map({ $0.counter > 1 }) ?? true) {
+            _stopObserving(.value)
+        }
     }
 
     @discardableResult
