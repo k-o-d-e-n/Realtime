@@ -39,36 +39,23 @@ public extension RawRepresentable where RawValue == String {
 }
 
 struct RDItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {
-    let dbKey: String!
-    var priority: Int
-    var linkID: String?
-    let valuePayload: RealtimeValuePayload
+    var rcItem: RCItem
     let keyPayload: RealtimeValuePayload
 
+    var dbKey: String! { return rcItem.dbKey }
+    var priority: Int { return rcItem.priority }
+    var linkID: String? {
+        set { rcItem.linkID = newValue }
+        get { return rcItem.linkID }
+    }
+
     init<V: RealtimeValue, K: RealtimeValue>(value: V, key: K, priority: Int, linkID: String?) {
-        self.dbKey = key.dbKey
-        self.linkID = linkID
-        self.priority = priority
-        self.valuePayload = RealtimeValuePayload((value.version, value.raw), value.payload)
+        self.rcItem = RCItem(element: value, key: key.dbKey, priority: priority, linkID: linkID)
         self.keyPayload = RealtimeValuePayload((key.version, key.raw), key.payload)
     }
 
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        guard let key = data.key else {
-            throw RealtimeError(initialization: RDItem.self, data)
-        }
-        guard let index: Int = try InternalKeys.index.map(from: data) else {
-            throw RealtimeError(initialization: RDItem.self, data)
-        }
-
-        self.dbKey = key
-        self.priority = index
-        self.linkID = try InternalKeys.link.map(from: data)
-        let valueData = InternalKeys.value.child(from: data)
-        self.valuePayload = RealtimeValuePayload(
-            try (InternalKeys.modelVersion.map(from: valueData), InternalKeys.raw.map(from: valueData)),
-            try InternalKeys.payload.map(from: valueData)
-        )
+        self.rcItem = try RCItem(data: data, exactly: exactly)
         let keyData = InternalKeys.key.child(from: data)
         self.keyPayload = RealtimeValuePayload(
             try (InternalKeys.modelVersion.map(from: keyData), InternalKeys.raw.map(from: keyData)),
@@ -78,10 +65,10 @@ struct RDItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepre
 
     var rdbValue: RealtimeDataValue {
         var value: [String: RealtimeDataValue] = [:]
-        value[InternalKeys.value.rawValue] = databaseValue(of: valuePayload)
+        value[InternalKeys.value.rawValue] = databaseValue(of: rcItem.payload)
         value[InternalKeys.key.rawValue] = databaseValue(of: keyPayload)
-        value[InternalKeys.link.rawValue] = linkID
-        value[InternalKeys.index.rawValue] = priority
+        value[InternalKeys.link.rawValue] = rcItem.linkID
+        value[InternalKeys.index.rawValue] = rcItem.priority
 
         return value
     }
