@@ -41,16 +41,15 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        addBinding(atDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+        addBinding(atDisplayTime: value.listening(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
         })))
-//        addBinding(ofDisplayTime: compactMap().join(with: value).listeningItem(onValue: assign))
 
         guard source.canObserve else { return }
         if source.runObserving() {
-            addBinding(atDisplayTime: ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
+            addBinding(atDisplayTime: ListeningDispose(source.stopObserving))
         } else {
             debugFatalError("Observing is not running")
         }
@@ -59,17 +58,16 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func bind<T: Listenable>(_ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        addBinding(atDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+        addBinding(atDisplayTime: value.listening(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
         })))
-        //        addBinding(ofDisplayTime: compactMap().join(with: value).listeningItem(onValue: assign))
 
         sources.forEach { source in
             guard source.canObserve else { return }
             if source.runObserving() {
-                addBinding(atDisplayTime: ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
+                addBinding(atDisplayTime: ListeningDispose(source.stopObserving))
             } else {
                 debugFatalError("Observing is not running")
             }
@@ -94,11 +92,11 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         // current function does not require the call on each willDisplay event. It can call only on initialize `ReuseItem`.
         // But for it, need to separate dispose storages on iterated and permanent.
         _view.value.map { assign($0, value) }
-        addBinding(atDisplayTime: compactMap().listeningItem(onValue: { assign($0, value) }))
+        addBinding(atDisplayTime: _view.compactMap().listening(onValue: { assign($0, value) }))
     }
 
     public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
-        addBinding(atDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+        addBinding(atDisplayTime: value.listening(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
@@ -112,7 +110,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func set(config: @escaping (View) -> Void) {
         // by analogue with `set(_:_:)` function
         _view.value.map(config)
-        compactMap().listeningItem(onValue: config).add(to: &disposeStorage)
+        _view.compactMap().listening(onValue: config).add(to: &disposeStorage)
     }
 
     func free() {
@@ -124,19 +122,18 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         disposeStorage.resume()
     }
 
-    func addBinding(atDisplayTime item: ListeningItem) {
-        disposeStorage.add(item)
-    }
-}
-extension ReuseItem: Listenable {
-    public func listening(_ assign: Assign<ListenEvent<View?>>) -> Disposable {
-        return _view.listening(assign)
+    func addBinding(atDisplayTime disposable: Disposable) {
+        disposeStorage.add(disposable)
     }
 }
 
 class ReuseController<View: AnyObject, Key: Hashable> {
     private var freeItems: [ReuseItem<View>] = []
     private var activeItems: [Key: ReuseItem<View>] = [:]
+
+    deinit {
+        free()
+    }
 
     func dequeueItem(at key: Key) -> ReuseItem<View> {
         guard let item = activeItems[key] else {
@@ -160,6 +157,12 @@ class ReuseController<View: AnyObject, Key: Hashable> {
             freeItems.append($0.value)
         }
         activeItems.removeAll()
+    }
+
+    func free() {
+        activeItems.forEach({ $0.value.free() })
+        activeItems.removeAll()
+        freeItems.removeAll()
     }
 
 //    func exchange(indexPath: IndexPath, to ip: IndexPath) {
@@ -194,6 +197,10 @@ open class RealtimeTableViewDelegate<Model, Section> {
 
     init(cell: @escaping ConfigureCell) {
         self.configureCell = cell
+    }
+
+    deinit {
+        reuseController.free()
     }
 
     /// Registers new type of cell with binding closure
@@ -463,6 +470,7 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
     }
 
     deinit {
+        reuseSectionController.free()
         sections.lazy.map(models).forEach { $0.keepSynced = false }
     }
 

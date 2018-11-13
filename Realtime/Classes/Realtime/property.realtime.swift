@@ -646,7 +646,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         #if DEBUG
         fatalError("init(data:exactly:) cannot be called. Use init(data:exactly:representer:)")
         #else
-        throw RealtimeError(decoding: type(of: self).Type, data, reason: "Unavailable initializer")
+        throw RealtimeError(decoding: type(of: self).self, data, reason: "Unavailable initializer")
         #endif
     }
     
@@ -870,6 +870,7 @@ public extension ReadonlyProperty where T: Equatable {
         }
     }
     static func ====(lhs: ReadonlyProperty, rhs: ReadonlyProperty) -> Bool {
+        guard lhs !== rhs else { return true }
         return rhs.wrapped == lhs.wrapped
     }
     static func !===(lhs: T, rhs: ReadonlyProperty) -> Bool {
@@ -1044,6 +1045,18 @@ extension MutationPoint {
     func removeValue(for key: String, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.removeValue(by: node.child(with: key))
+
+        return transaction
+    }
+}
+public extension MutationPoint where T: Codable {
+    @discardableResult
+    func addValue(by key: String? = nil, use value: T, in transaction: Transaction? = nil) throws -> Transaction {
+        let transaction = transaction ?? Transaction(database: database)
+        let representer = Representer<T>.json()
+        if let v = try representer.encode(value) {
+            transaction.addValue(v, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+        }
 
         return transaction
     }

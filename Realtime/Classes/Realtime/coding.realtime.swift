@@ -546,6 +546,11 @@ public extension Representer where V: RawRepresentable {
         )
     }
 }
+public extension Representer where V: RawRepresentable, V.RawValue: RealtimeDataValue {
+    static var rawRepresentable: Representer<V> {
+        return self.default(Representer<V.RawValue>.any)
+    }
+}
 
 public extension Representer where V == URL {
     static var `default`: Representer<URL> {

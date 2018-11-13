@@ -243,6 +243,12 @@ struct ReuseRowController<Row, Key: Hashable> where Row: ReuseItemProtocol {
         }
         activeItems.removeAll()
     }
+
+    mutating func free() {
+        activeItems.forEach { $0.value.free() }
+        activeItems.removeAll()
+        freeItems.removeAll()
+    }
 }
 
 open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, Model> {
