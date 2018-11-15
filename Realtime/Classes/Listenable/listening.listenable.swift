@@ -19,6 +19,12 @@ public struct EmptyDispose: Disposable {
     public func dispose() {}
 }
 
+public class RetainDispose: Disposable {
+    var retained: Any?
+    public init(_ value: Any) { self.retained = value }
+    public func dispose() { self.retained = nil }
+}
+
 public class ListeningDispose: Disposable {
     let _dispose: () -> Void
     public init(_ dispose: @escaping () -> Void) {
