@@ -266,11 +266,13 @@ public protocol Listenable {
     /// Listening with possibility to control active state
     func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem
 }
-public extension Listenable {
+public extension Listenable where Self: AnyObject {
     /// Listening with possibility to control active state
     func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
         return ListeningItem(resume: { self.listening(assign) }, pause: { $0.dispose() }, token: listening(assign))
     }
+}
+public extension Listenable {
     func listening(_ assign: @escaping (ListenEvent<Out>) -> Void) -> Disposable {
         return listening(.just(assign))
     }
@@ -369,13 +371,16 @@ public struct ReadonlyValue<Value>: Listenable {
 
     public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), calculation: @escaping (L.Out) -> Value) {
         var store = ListeningDisposeStore()
-        repeater.depends(on: source.map(calculation)).add(to: &store)
+        repeater.depends(on: source.map(calculation)).add(to: store)
         self.repeater = repeater
         self.store = store
     }
 
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
         return repeater.listening(assign)
+    }
+    public func listeningItem(_ assign: Assign<ListenEvent<Value>>) -> ListeningItem {
+        return repeater.listeningItem(assign)
     }
 }
 
@@ -386,13 +391,16 @@ public struct AsyncReadonlyRepeater<Value>: Listenable {
     
     public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
         var store = ListeningDisposeStore()
-        repeater.depends(on: source.onReceiveMap(fetching)).add(to: &store)
+        repeater.depends(on: source.onReceiveMap(fetching)).add(to: store)
         self.repeater = repeater
         self.store = store
     }
 
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
         return repeater.listening(assign)
+    }
+    public func listeningItem(_ assign: Closure<ListenEvent<Value>, Void>) -> ListeningItem {
+        return repeater.listeningItem(assign)
     }
 }
 
@@ -410,7 +418,7 @@ public struct AsyncReadonlyValue<Value>: Listenable {
             case .value(let v): fetching(v, promise)
             case .error(let e): storage.sendError(e)
             }
-        }).add(to: &store)
+        }).add(to: store)
         self.storage = storage
         self.store = store
     }
@@ -421,6 +429,9 @@ public struct AsyncReadonlyValue<Value>: Listenable {
 
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
         return storage.listening(assign)
+    }
+    public func listeningItem(_ assign: Closure<ListenEvent<Value>, Void>) -> ListeningItem {
+        return storage.listeningItem(assign)
     }
 }
 

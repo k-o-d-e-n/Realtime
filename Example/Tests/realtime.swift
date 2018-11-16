@@ -1023,10 +1023,10 @@ extension Tests {
                 XCTAssertEqual(inserted.count, 1)
                 exp.fulfill()
             }
-        }).add(to: &store)
+        }).add(to: store)
         array.changes.listening { err in
             XCTFail(err.localizedDescription)
-        }.add(to: &store)
+        }.add(to: store)
 
         let element = User()
         element.name <== "User"

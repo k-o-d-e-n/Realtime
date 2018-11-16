@@ -99,10 +99,10 @@ class RealtimeTableController: UIViewController {
                 })
                 self.tableView.endUpdates()
             }
-        }).add(to: &store)
+        }).add(to: store)
         users.changes.listening { (err) in
             print("Changes error:", err.localizedDescription)
-        }.add(to: &store)
+        }.add(to: store)
     }
 
     override func viewWillAppear(_ animated: Bool) {

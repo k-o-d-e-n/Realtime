@@ -214,12 +214,12 @@ public class _RealtimeTableAdapter<Models: ModelDataSource> {
             guard let proto = parent._prototypeCache[indexPath] else {
                 let proto = parent._freePrototypes.popLast() ?? ReuseViewPrototype<UITableViewCell>()
                 parent._prototypeCache[indexPath] = proto
-                parent._cellProtos[key]!(proto, parent.models.model(by: indexPath)).forEach { $0.add(to: &proto.disposeStore) }
+                parent._cellProtos[key]!(proto, parent.models.model(by: indexPath)).forEach { $0.add(to: proto.disposeStore) }
                 return cell
             }
             if parent._isNeedReload {
                 proto.disposeStore.dispose()
-                parent._cellProtos[key]!(proto, parent.models.model(by: indexPath)).forEach { $0.add(to: &proto.disposeStore) }
+                parent._cellProtos[key]!(proto, parent.models.model(by: indexPath)).forEach { $0.add(to: proto.disposeStore) }
             }
             return cell
         }

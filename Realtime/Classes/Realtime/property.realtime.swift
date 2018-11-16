@@ -733,7 +733,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         /// skip the call of super
         guard exactly else {
-            /// skip partial data, because representer can throw error
+            /// skip partial data, because it is not his responsibility and representer can throw error
             return
         }
         do {

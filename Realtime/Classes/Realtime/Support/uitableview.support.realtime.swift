@@ -41,15 +41,15 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        addBinding(atDisplayTime: value.listening(Closure.guarded(self, assign: { (val, owner) in
+        value.listening(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
-        })))
+        })).add(to: disposeStorage)
 
         guard source.canObserve else { return }
         if source.runObserving() {
-            addBinding(atDisplayTime: ListeningDispose(source.stopObserving))
+            ListeningDispose(source.stopObserving).add(to: disposeStorage)
         } else {
             debugFatalError("Observing is not running")
         }
@@ -58,16 +58,16 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func bind<T: Listenable>(_ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        addBinding(atDisplayTime: value.listening(Closure.guarded(self, assign: { (val, owner) in
+        value.listening(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
-        })))
+        })).add(to: disposeStorage)
 
         sources.forEach { source in
             guard source.canObserve else { return }
             if source.runObserving() {
-                addBinding(atDisplayTime: ListeningDispose(source.stopObserving))
+                ListeningDispose(source.stopObserving).add(to: disposeStorage)
             } else {
                 debugFatalError("Observing is not running")
             }
@@ -92,15 +92,15 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         // current function does not require the call on each willDisplay event. It can call only on initialize `ReuseItem`.
         // But for it, need to separate dispose storages on iterated and permanent.
         _view.value.map { assign($0, value) }
-        addBinding(atDisplayTime: _view.compactMap().listening(onValue: { assign($0, value) }))
+        _view.compactMap().listening(onValue: { assign($0, value) }).add(to: disposeStorage)
     }
 
     public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
-        addBinding(atDisplayTime: value.listening(Closure.guarded(self, assign: { (val, owner) in
+        value.listening(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
-        })))
+        })).add(to: disposeStorage)
     }
 
     /// Adds configuration block that will be called on receive view
@@ -110,7 +110,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func set(config: @escaping (View) -> Void) {
         // by analogue with `set(_:_:)` function
         _view.value.map(config)
-        _view.compactMap().listening(onValue: config).add(to: &disposeStorage)
+        _view.compactMap().listening(onValue: config).add(to: disposeStorage)
     }
 
     func free() {
@@ -120,10 +120,6 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 
     open func reload() {
         disposeStorage.resume()
-    }
-
-    func addBinding(atDisplayTime disposable: Disposable) {
-        disposeStorage.add(disposable)
     }
 }
 
@@ -428,7 +424,7 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
                 })
             }
             tv.endUpdates()
-        }).add(to: &disposeStorage)
+        }).add(to: disposeStorage)
         self.items = items
     }
 

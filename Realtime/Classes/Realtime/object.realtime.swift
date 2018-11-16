@@ -565,6 +565,19 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     }
 }
 
+extension RTime: Listenable where Base: Object {
+    public typealias Out = Base
+    /// Disposable listening of value
+    public func listening(_ assign: Assign<ListenEvent<Base>>) -> Disposable {
+        return base.dataObserver.map({ [weak base] _ in base }).compactMap().listening(assign)
+    }
+    /// Listening with possibility to control active state
+    public func listeningItem(_ assign: Assign<ListenEvent<Base>>) -> ListeningItem {
+        return base.dataObserver.map({ [weak base] _ in base }).compactMap().listeningItem(assign)
+    }
+}
+extension Object: RealtimeCompatible {}
+
 extension Object: Reverting {
     public func revert() {
         enumerateLoadedChilds { (_, value: Reverting) in
