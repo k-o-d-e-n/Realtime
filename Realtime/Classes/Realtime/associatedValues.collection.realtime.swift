@@ -98,8 +98,9 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: HashableValue
     let keyBuilder: (Node, [ValueOption: Any]) -> Key
     var elements: [K: Value] = [:]
 
-    func buildElement(with key: K) -> V {
-        return elementBuilder(sourceNode.child(with: key.dbKey), key.payload.map { [.userPayload: $0] } ?? [:])
+    func buildElement(with item: RDItem) -> V {
+        return elementBuilder(sourceNode.child(with: item.dbKey), [.systemPayload: item.rcItem.payload.system,
+                                                                   .userPayload: item.rcItem.payload.user as Any])
     }
 
     func buildKey(with item: RDItem) -> K {
@@ -113,7 +114,7 @@ public struct RCDictionaryStorage<K, V>: MutableRCStorage where K: HashableValue
     internal mutating func element(by key: RDItem) -> (Key, Value) {
         guard let element = storedElement(by: key.dbKey) else {
             let storeKey = buildKey(with: key)
-            let value = buildElement(with: storeKey)
+            let value = buildElement(with: key)
             store(value: value, by: storeKey)
 
             return (storeKey, value)
@@ -162,6 +163,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     /// - keysNode(**required**): Database node where keys elements are located
     /// - database: Database reference
     /// - elementBuilder: Closure that calls to build elements lazily.
+    /// - keyBuilder: Closure that calls to build key lazily.
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
@@ -206,9 +208,17 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     private var shouldLinking = true // TODO: Fix it
     public func unlinked() -> AssociatedValues<Key, Value> { shouldLinking = false; return self }
 
-    public func makeIterator() -> IndexingIterator<AssociatedValues> { return IndexingIterator(_elements: self) }
+    public func makeIterator() -> IndexingIterator<AssociatedValues> { return IndexingIterator(_elements: self) } // iterator is not safe
     public subscript(position: Int) -> Element { return storage.element(by: _view[position]) }
-    public subscript(key: Key) -> Value? { return contains(valueBy: key) ? storage.object(for: key) : nil }
+    public subscript(key: Key) -> Value? {
+        guard let v = storage.storedValue(by: key) else {
+            guard let i = _view.index(where: { $0.dbKey == key.dbKey }) else {
+                return nil
+            }
+            return storage.element(by: _view[i]).1
+        }
+        return v
+    }
     public var startIndex: Int { return _view.startIndex }
     public var endIndex: Int { return _view.endIndex }
     public func index(after i: Int) -> Int { return _view.index(after: i) }
@@ -301,7 +311,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
                 try element.apply(childData, exactly: exactly)
             } else {
                 let keyEntity = storage.buildKey(with: key)
-                var value = storage.buildElement(with: keyEntity)
+                var value = storage.buildElement(with: key)
                 try value.apply(childData, exactly: exactly)
                 storage.elements[keyEntity] = value
             }
@@ -503,7 +513,7 @@ extension AssociatedValues {
             if let element = storage.elements.removeValue(forKey: key) {
                 return element
             } else {
-                return storage.buildElement(with: key)
+                return storage.buildElement(with: item)
             }
         }
         let element = removedElement

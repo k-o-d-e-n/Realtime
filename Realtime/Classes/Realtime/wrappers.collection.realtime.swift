@@ -136,25 +136,6 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
 }
 
-public extension Values {
-    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
-        -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
-            return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
-    }
-}
-public extension References {
-    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
-        -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
-            return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
-    }
-}
-public extension AssociatedValues {
-    func keyed<Keyed: RealtimeValue, Key: RawRepresentable>(by key: Key, elementBuilder: @escaping (Node) -> Keyed)
-        -> KeyedRealtimeCollection<Keyed, Element> where Key.RawValue == String {
-            return KeyedRealtimeCollection(base: self, key: key, elementBuilder: elementBuilder)
-    }
-}
-
 struct AnySharedCollection<Element>: Collection {
     let _startIndex: () -> Int
     let _endIndex: () -> Int
@@ -172,83 +153,6 @@ struct AnySharedCollection<Element>: Collection {
     public var endIndex: Int { return _endIndex() }
     public func index(after i: Int) -> Int { return _indexAfter(i) }
     public subscript(position: Int) -> Element { return _subscript(position) }
-}
-
-@available(*, deprecated: 0.3.7, message: "KeyedRealtimeCollection is deprecated. Use MapRealtimeCollection instead")
-public struct KeyedCollectionStorage<V>: MutableRCStorage {
-    public typealias Value = V
-    let key: String
-    let sourceNode: Node!
-    let elementBuilder: (Node) -> Value
-    var elements: [AnyCollectionKey: Value] = [:]
-
-    init<Source: RCStorage>(_ base: Source, key: String, builder: @escaping (Node) -> Value) {
-        self.key = key
-        self.elementBuilder = builder
-        self.sourceNode = base.sourceNode
-    }
-
-    mutating func store(value: Value, by key: AnyCollectionKey) { elements[for: key] = value }
-    func storedValue(by key: AnyCollectionKey) -> Value? { return elements[for: key] }
-
-    func buildElement(with key: AnyCollectionKey) -> V {
-        return elementBuilder(sourceNode.child(with: key.dbKey).child(with: self.key))
-    }
-}
-
-@available(*, deprecated: 0.3.7, message: "Use MapRealtimeCollection instead")
-public final class KeyedRealtimeCollection<Element, BaseElement>: RealtimeCollection
-where Element: RealtimeValue {
-    public typealias Index = Int
-
-    private let base: _AnyRealtimeCollectionBase<BaseElement>
-    private let baseView: AnySharedCollection<AnyCollectionKey>
-
-    public var node: Node? { return base.node }
-    public var version: Int? { return base.version }
-    public var raw: RealtimeDataValue? { return base.raw }
-    public var payload: [String : RealtimeDataValue]? { return base.payload }
-    public var view: RealtimeCollectionView { return base.view }
-    public var storage: KeyedCollectionStorage<Element>
-    public var isSynced: Bool { return base.isSynced }
-    public var isObserved: Bool { return base.isObserved }
-    public var debugDescription: String { return base.debugDescription }
-    public var canObserve: Bool { return base.canObserve }
-    public var changes: AnyListenable<RCEvent> { return base.changes }
-    public var keepSynced: Bool {
-        get { return base.keepSynced }
-        set { base.keepSynced = newValue }
-    }
-
-    init<B: RC, Key: RawRepresentable>(base: B, key: Key, elementBuilder: @escaping (Node) -> Element)
-        where B.View.Iterator.Element: DatabaseKeyRepresentable,
-        B.View.Index: SignedInteger, B.Iterator.Element == BaseElement, B.Index == Int, Key.RawValue == String {
-            guard base.isRooted else { fatalError("Only rooted collections can use in keyed collection") }
-            self.base = _AnyRealtimeCollection(base: base)
-            self.storage = KeyedCollectionStorage(base.storage, key: key.rawValue, builder: elementBuilder)
-            self.baseView = AnySharedCollection(base._view.lazy.map(AnyCollectionKey.init))
-    }
-
-    public init(in node: Node?, options: [ValueOption: Any]) {
-        fatalError()
-    }
-
-    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        fatalError("Cannot use this initializer")
-    }
-
-    public var startIndex: Index { return base.startIndex }
-    public var endIndex: Index { return base.endIndex }
-    public func index(after i: Index) -> Index { return base.index(after: i) }
-    public func index(before i: Int) -> Int { return base.index(before: i) }
-    public subscript(position: Int) -> Element { return storage.object(for: baseView[position]) }
-
-    public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
-    public func runObserving() -> Bool { return base.runObserving() }
-    public func stopObserving() { base.stopObserving() }
-    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try base.apply(data, exactly: exactly)
-    }
 }
 
 public extension RealtimeCollection {

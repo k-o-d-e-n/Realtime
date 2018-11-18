@@ -1163,6 +1163,43 @@ extension RealtimeTests {
             }
         }
     }
+
+    func testAssociatedValuesWithVersionAndRawValues() {
+        let exp = expectation(description: "")
+        let assocValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.keysNode: Node.root("keys")])
+        let key = Object(in: Node.root("keys").child(with: "key"), options: [.systemPayload: (version: 3, raw: 2)])
+        let value = Object(in: nil, options: [.systemPayload: (version: 1, raw: 5)])
+        do {
+            let trans = Transaction(database: CacheNode.root)
+            try assocValues.write(element: value, for: key, in: trans)
+            trans.commit { (_, errors) in
+                _ = errors?.compactMap({ XCTFail($0.describingErrorDescription) })
+
+                let copyValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.keysNode: Node.root("keys"), .database: CacheNode.root])
+                copyValues._view.load(.just({ (err) in
+                    err.map { XCTFail($0.describingErrorDescription) }
+
+                    if let first = copyValues.first {
+                        XCTAssertEqual(first.key, key)
+                        XCTAssertEqual(first.value, value)
+                        XCTAssertEqual(first.key.version, 3)
+                        XCTAssertEqual(first.key.raw as? Int, 2)
+                        XCTAssertEqual(first.value.version, 1)
+                        XCTAssertEqual(first.value.raw as? Int, 5)
+                    } else {
+                        XCTFail("No element")
+                    }
+                    exp.fulfill()
+                }))
+            }
+        } catch let e {
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 2) { (e) in
+            e.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
 }
 
 // MARK: Operators

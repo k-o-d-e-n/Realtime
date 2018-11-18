@@ -110,20 +110,7 @@ protocol RCStorage: RealtimeCollectionStorage {
     func storedValue(by key: Key) -> Value?
 }
 protocol MutableRCStorage: RCStorage {
-    func buildElement(with key: Key) -> Value
     mutating func store(value: Value, by key: Key)
-}
-extension MutableRCStorage {
-    internal mutating func object(for key: Key) -> Value {
-        guard let element = storedValue(by: key) else {
-            let value = buildElement(with: key)
-            store(value: value, by: key)
-
-            return value
-        }
-
-        return element
-    }
 }
 
 /// A type that stores an abstract elements, receives the notify about a change of collection
@@ -302,7 +289,19 @@ public struct RCArrayStorage<V>: MutableRCStorage where V: RealtimeValue {
     func storedValue(by key: RCItem) -> Value? { return elements[for: key.dbKey] }
 
     func buildElement(with key: RCItem) -> V {
-        return elementBuilder(sourceNode.child(with: key.dbKey), [.systemPayload: key.payload.system, .userPayload: key.payload.user as Any])
+        return elementBuilder(sourceNode.child(with: key.dbKey), [.systemPayload: key.payload.system,
+                                                                  .userPayload: key.payload.user as Any])
+    }
+
+    internal mutating func object(for key: Key) -> Value {
+        guard let element = storedValue(by: key) else {
+            let value = buildElement(with: key)
+            store(value: value, by: key)
+
+            return value
+        }
+
+        return element
     }
 }
 
@@ -326,11 +325,7 @@ final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyOb
     func load(_ completion: Assign<(Error?)>) {
         guard !isSynced else { completion.assign(nil); return }
 
-        source.load(completion:
-            completion.with(work: { err in
-//                self.isSynced = err == nil
-            })
-        )
+        source.load(completion: completion)
     }
 
     func _contains(with key: String, completion: @escaping (Bool, Error?) -> Void) {
