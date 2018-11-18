@@ -160,7 +160,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public init(strong value: T?, lock: NSLocking, dispatcher: Dispatcher) {
-        let repeater = Repeater(lockedBy: lock, dispatcher: dispatcher)
+        let repeater = Repeater(dispatcher: dispatcher)
         var val: T! = value {
             didSet {
                 repeater.send(.value(val))
@@ -212,7 +212,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public init<O: AnyObject>(weak value: O?, lock: NSLocking, dispatcher: Dispatcher) where Optional<O> == T {
-        let repeater = Repeater(lockedBy: lock, dispatcher: dispatcher)
+        let repeater = Repeater(dispatcher: dispatcher)
         weak var val = value {
             didSet {
                 repeater.send(.value(val))
@@ -343,7 +343,7 @@ extension ValueStorage where T: AnyObject {
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public init(unowned value: T, lock: NSLocking, dispatcher: Dispatcher) {
-        let repeater = Repeater(lockedBy: lock, dispatcher: dispatcher)
+        let repeater = Repeater(dispatcher: dispatcher)
         unowned var val = value {
             didSet {
                 repeater.send(.value(val))
