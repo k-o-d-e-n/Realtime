@@ -170,7 +170,7 @@ extension Transaction {
         case error(Node, Error)
     }
 
-    func updateFiles(_ completion: @escaping ([FileCompletion]) -> Void) {
+    func performUpdateFiles(_ completion: @escaping ([FileCompletion]) -> Void) {
         var nearest = updateNode
         while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
             nearest = next
@@ -319,7 +319,7 @@ public extension Transaction {
                     group.leave()
                 })
 
-                self.updateFiles({ (res) in
+                self.performUpdateFiles({ (res) in
                     if revertOnError {
                         res.forEach({ (result) in
                             switch result {

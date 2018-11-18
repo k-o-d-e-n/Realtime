@@ -743,8 +743,8 @@ extension RealtimeTests {
             }
         }
 
-        func load(completion: Assign<Error?>?) {
-            value.load(completion: completion)
+        func load(timeout: DispatchTimeInterval, completion: Closure<Error?, Void>?) {
+            value.load(timeout: timeout, completion: completion)
         }
 
         func runObserving() -> Bool {

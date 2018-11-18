@@ -122,7 +122,7 @@ public protocol RealtimeCollectionActions {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
     /// - Parameter completion: Closure that called on end loading or error
-    func load(completion: Assign<Error?>?)
+    func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?)
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
     /// Enables/disables auto downloading of the data and keeping in sync
@@ -152,44 +152,6 @@ public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, Real
     var changes: AnyListenable<RCEvent> { get }
     /// Indicates that collection has actual collection view data
     var isSynced: Bool { get }
-}
-extension RealtimeCollection where Self: AnyObject, Self.Element: RealtimeCollection {
-    @discardableResult
-    public func runObservingRecursivly(_ completion: @escaping (Error?) -> Void) -> Bool {
-        guard !isSynced else {
-            forEach { (element) in
-                element.runObserving()
-            }
-            completion(nil)
-            return true
-        }
-
-        guard runObserving() else { return false }
-
-        _ = changes.once().listening({ [weak self] event in
-            switch event {
-            case .error(let e):
-                completion(e)
-            case .value(.initial):
-                guard let `self` = self else {
-                    let error = RealtimeError(source: .collection, description: "Recursivly observing is failed")
-                    return completion(error)
-                }
-                self.forEach({ $0.runObserving() })
-                completion(nil)
-            default: break
-            }
-        })
-        return true
-    }
-
-    public func stopObservingRecursivly() {
-        stopObserving()
-
-        forEach { (element) in
-            element.stopObserving()
-        }
-    }
 }
 protocol RC: RealtimeCollection, RealtimeValueEvents where Storage: RCStorage {
     associatedtype View: RCView
@@ -248,7 +210,7 @@ public extension RealtimeCollection {
                 completeIfNeeded(released)
             })
 
-            value.load(completion: .just { err in
+            value.load(timeout: .seconds(10), completion: .just { err in
                 listening.dispose()
             })
         }
@@ -334,6 +296,7 @@ final class AnyRealtimeCollectionView<Source, Viewed: RealtimeCollection & AnyOb
         }
         db.load(
             for: node.child(with: key),
+            timeout: .seconds(10),
             completion: { (data) in
                 completion(data.exists(), nil)
         },
@@ -402,6 +365,7 @@ extension AnyRealtimeCollectionView where Source.Element: RealtimeDataRepresente
         }
         db.load(
             for: node.child(with: key),
+            timeout: .seconds(10),
             completion: { (data) in
                 if data.exists() {
                     do {

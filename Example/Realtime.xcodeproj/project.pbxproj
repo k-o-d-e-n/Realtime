@@ -19,6 +19,8 @@
 		A41FD589211EF890006DC3F7 /* other.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41FD588211EF890006DC3F7 /* other.swift */; };
 		A44331B62020E9E900BA2FDE /* Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44331B52020E9E900BA2FDE /* Auth.swift */; };
 		A4773C3120DFEAB2002D182A /* RealtimeTableController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */; };
+		A4AAA56F21A1F1300085C3BA /* _concepts_.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4AAA56E21A1F1300085C3BA /* _concepts_.swift */; };
+		A4AAA57321A1F36C0085C3BA /* DispatchBenchmark.m in Sources */ = {isa = PBXBuildFile; fileRef = A4AAA57221A1F36C0085C3BA /* DispatchBenchmark.m */; };
 		A4D56D1D2143FD8200641DF3 /* FormViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D56D1C2143FD8200641DF3 /* FormViewController.swift */; };
 		A4E054522008D3B100E95A49 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A4E054512008D3B100E95A49 /* GoogleService-Info.plist */; };
 		A4F0FF782144901800395579 /* TableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F0FF772144901800395579 /* TableViewController.swift */; };
@@ -58,6 +60,10 @@
 		A41FD588211EF890006DC3F7 /* other.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = other.swift; sourceTree = "<group>"; };
 		A44331B52020E9E900BA2FDE /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTableController.swift; sourceTree = "<group>"; };
+		A4AAA56E21A1F1300085C3BA /* _concepts_.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _concepts_.swift; sourceTree = "<group>"; };
+		A4AAA57021A1F32D0085C3BA /* DispatchBenchmark.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DispatchBenchmark.h; sourceTree = "<group>"; };
+		A4AAA57121A1F36B0085C3BA /* Realtime_Tests-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Realtime_Tests-Bridging-Header.h"; sourceTree = "<group>"; };
+		A4AAA57221A1F36C0085C3BA /* DispatchBenchmark.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DispatchBenchmark.m; sourceTree = "<group>"; };
 		A4D56D1C2143FD8200641DF3 /* FormViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormViewController.swift; sourceTree = "<group>"; };
 		A4E054512008D3B100E95A49 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A4F0FF772144901800395579 /* TableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableViewController.swift; sourceTree = "<group>"; };
@@ -140,10 +146,14 @@
 		607FACE81AFB9204008FA782 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				A4AAA56E21A1F1300085C3BA /* _concepts_.swift */,
 				607FACEB1AFB9204008FA782 /* realtime.swift */,
 				A41FD586211EF800006DC3F7 /* listenable.swift */,
 				A41FD588211EF890006DC3F7 /* other.swift */,
 				607FACE91AFB9204008FA782 /* Supporting Files */,
+				A4AAA57021A1F32D0085C3BA /* DispatchBenchmark.h */,
+				A4AAA57221A1F36C0085C3BA /* DispatchBenchmark.m */,
+				A4AAA57121A1F36B0085C3BA /* Realtime_Tests-Bridging-Header.h */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -248,7 +258,7 @@
 					607FACE41AFB9204008FA782 = {
 						CreatedOnToolsVersion = 6.3.1;
 						DevelopmentTeam = 39RU298KG9;
-						LastSwiftMigration = 0900;
+						LastSwiftMigration = 0930;
 						TestTargetID = 607FACCF1AFB9204008FA782;
 					};
 				};
@@ -375,7 +385,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A4AAA56F21A1F1300085C3BA /* _concepts_.swift in Sources */,
 				A41FD587211EF800006DC3F7 /* listenable.swift in Sources */,
+				A4AAA57321A1F36C0085C3BA /* DispatchBenchmark.m in Sources */,
 				A41FD589211EF890006DC3F7 /* other.swift in Sources */,
 				607FACEC1AFB9204008FA782 /* realtime.swift in Sources */,
 			);
@@ -505,7 +517,8 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 9.3;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
-				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -570,6 +583,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = 39RU298KG9;
+				ENABLE_TESTABILITY = YES;
 				INFOPLIST_FILE = Realtime/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MODULE_NAME = ExampleApp;
@@ -622,6 +636,7 @@
 			baseConfigurationReference = 2FE2C35E600718E83079968E /* Pods-Realtime_Tests.debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
 				DEVELOPMENT_TEAM = 39RU298KG9;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(SDKROOT)/Developer/Library/Frameworks",
@@ -636,6 +651,8 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ENFORCE_EXCLUSIVE_ACCESS = "compile-time";
+				SWIFT_OBJC_BRIDGING_HEADER = "Tests/Realtime_Tests-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
 				SWIFT_VERSION = 4.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Realtime_Example.app/Realtime_Example";
@@ -647,6 +664,7 @@
 			baseConfigurationReference = 6C5D9DE5D4BA5FA219039E24 /* Pods-Realtime_Tests.release.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
 				DEVELOPMENT_TEAM = 39RU298KG9;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(SDKROOT)/Developer/Library/Frameworks",
@@ -657,6 +675,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "org.cocoapods.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ENFORCE_EXCLUSIVE_ACCESS = "compile-time";
+				SWIFT_OBJC_BRIDGING_HEADER = "Tests/Realtime_Tests-Bridging-Header.h";
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
 				SWIFT_VERSION = 4.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Realtime_Example.app/Realtime_Example";

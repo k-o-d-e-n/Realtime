@@ -47,7 +47,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
-    func load(completion: Assign<Error?>?) { fatalError() }
+    func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { fatalError() }
 }
 
 internal final class _AnyRealtimeCollection<C: RealtimeCollection>: _AnyRealtimeCollectionBase<C.Iterator.Element>
@@ -89,7 +89,7 @@ where C.Index == Int {
     override func runObserving() -> Bool { return base.runObserving() }
     override func stopObserving() { base.stopObserving() }
     override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
-    override func load(completion: Assign<Error?>?) { base.load(completion: completion) }
+    override func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
 }
 
 /// A type-erased Realtime database collection.
@@ -129,7 +129,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public func index(before i: Int) -> Int { return base.index(before: i) }
     public subscript(position: Int) -> Element { return base[position] }
 
-    public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
+    public func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
     @discardableResult
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
@@ -218,7 +218,7 @@ where Base.Index == Int {
     public func index(before i: Int) -> Int { return base.index(before: i) }
     public subscript(position: Int) -> Element { return transform(base[position]) }
 
-    public func load(completion: Assign<Error?>?) { base.load(completion: completion) }
+    public func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
     @discardableResult public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
     public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {

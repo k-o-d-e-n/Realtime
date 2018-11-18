@@ -778,7 +778,7 @@ extension ListenableTests {
         let exp = expectation(description: "")
         exp.expectedFulfillmentCount = 4
 
-        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock(), queue: DispatchQueue(label: "repeater"))
+        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock(), dispatcher: .queue(DispatchQueue(label: "repeater")))
         var counter = 0
         let bgItem = repeater.listeningItem(onValue: { v in
             print(v)
@@ -834,7 +834,7 @@ extension ListenableTests {
         exp.expectedFulfillmentCount = 20
         exp.assertForOverFulfill = true
         var store = ListeningDisposeStore()
-        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock(), queue: DispatchQueue(label: "repeater"))
+        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock(), dispatcher: .queue(DispatchQueue(label: "repeater")))
         let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { (_) in
             repeater.send(.value(5))
         }
@@ -895,11 +895,11 @@ extension ListenableTests {
     func testRepeaterOnRunloop() {
         let exp = expectation(description: "")
         var value: Int?
-        let repeater = Repeater<Int> { (e, assign) in
+        let repeater = Repeater<Int>(dispatcher: .custom({ (assign, e) in
             RunLoop.current.perform {
                 assign.assign(e)
             }
-        }
+        }))
         repeater.listening({
             value = $0.value
             exp.fulfill()

@@ -79,4 +79,6 @@ extension RealtimeApp {
         }
         return app
     }
+
+    var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
 }

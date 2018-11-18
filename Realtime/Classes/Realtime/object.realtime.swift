@@ -48,12 +48,12 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         }
     }
 
-    public func load(completion: Assign<Error?>?) {
+    public func load(timeout: DispatchTimeInterval = .seconds(30), completion: Assign<Error?>?) {
         guard let node = self.node, let database = self.database else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
 
-        database.load(for: node, completion: { d in
+        database.load(for: node, timeout: timeout, completion: { d in
             do {
                 try self.apply(d, exactly: true)
                 completion?.assign(nil)

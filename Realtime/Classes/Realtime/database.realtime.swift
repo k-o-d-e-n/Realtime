@@ -82,11 +82,30 @@ public enum DatabaseObservingEvent: Hashable {
 
 public typealias DatabaseDataEvent = DatabaseObservingEvent
 extension DatabaseDataEvent {
-    var firebase: DataEventType {
+    init(firebase events: [DataEventType]) {
+        if events.isEmpty || events.contains(.value) {
+            self = .value
+        } else {
+            self = .child(events.reduce(into: DatabaseDataChanges(rawValue: 0), { (res, event) in
+                res.rawValue &= event.rawValue - 1
+            }))
+        }
+    }
+
+    var firebase: [DataEventType] {
         switch self {
-        case .value: return .value
+        case .value: return [.value]
         case .child(let c):
-            return DataEventType(rawValue: c.rawValue - 1)!
+            return [DataEventType.childAdded, DataEventType.childChanged,
+                    DataEventType.childMoved, DataEventType.childRemoved].filter { (e) -> Bool in
+                switch e {
+                case .childAdded: return c.contains(.added)
+                case .childChanged: return c.contains(.changed)
+                case .childMoved: return c.contains(.moved)
+                case .childRemoved: return c.contains(.removed)
+                default: return false
+                }
+            }
         }
     }
 }
@@ -118,6 +137,7 @@ public protocol RealtimeDatabase: class {
     ///   - onCancel: Closure to receive cancel event
     func load(
         for node: Node,
+        timeout: DispatchTimeInterval,
         completion: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error) -> Void)?
     )
@@ -145,8 +165,18 @@ public protocol RealtimeDatabase: class {
     ///   - node: Database reference
     ///   - token: An unsigned integer value
     func removeObserver(for node: Node, with token: UInt)
+
+    var isConnectionActive: AnyListenable<Bool> { get }
 }
 extension Database: RealtimeDatabase {
+    public var isConnectionActive: AnyListenable<Bool> {
+        return AnyListenable(
+            data(.value, node: Node(key: ".info/connected", parent: .root))
+                .map({ $0.value as? Bool })
+                .compactMap()
+        )
+    }
+
     public var cachePolicy: CachePolicy {
         set {
             switch newValue {
@@ -198,13 +228,39 @@ extension Database: RealtimeDatabase {
 
     public func load(
         for node: Node,
+        timeout: DispatchTimeInterval,
         completion: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error) -> Void)?) {
-        node.reference(for: self).observeSingleEvent(
-            of: .value,
-            with: completion,
-            withCancel: onCancel
+        var invalidated: Int32 = 0
+        let ref = node.reference(for: self)
+        let invalidate = { (token: UInt) -> Bool in
+            if OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated) {
+                ref.removeObserver(withHandle: token)
+                return true
+            } else {
+                return false
+            }
+        }
+        var token: UInt!
+        token = ref.observe(
+            .value,
+            with: { d in
+                if invalidate(token) {
+                    completion(d)
+                }
+            },
+            withCancel: { error in
+                if invalidate(token) {
+                    onCancel?(error)
+                }
+            }
         )
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: {
+            if invalidate(token) {
+                onCancel?(RealtimeError(source: .database, description: "Operation timeout"))
+            }
+        })
     }
 
     public func observe(
@@ -212,7 +268,7 @@ extension Database: RealtimeDatabase {
         on node: Node,
         onUpdate: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error) -> Void)?) -> UInt {
-        return node.reference(for: self).observe(event.firebase, with: onUpdate, withCancel: onCancel)
+        return node.reference(for: self).observe(event.firebase.first!, with: onUpdate, withCancel: onCancel)
     }
 
     public func removeAllObservers(for node: Node) {
@@ -267,6 +323,8 @@ class FileNode: ValueNode {
 }
 
 class CacheNode: ObjectNode, RealtimeDatabase {
+    var isConnectionActive: AnyListenable<Bool> { return AnyListenable(Constant(true)) }
+
     static let root: CacheNode = CacheNode(node: .root)
 
     func clear() {
@@ -317,7 +375,7 @@ class CacheNode: ObjectNode, RealtimeDatabase {
 //        fatalError()
     }
 
-    func load(for node: Node, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
+    func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
         completion(child(forPath: node.rootPath))
     }
 

@@ -277,6 +277,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         transaction.addPrecondition { [unowned transaction] (promise) in
             transaction.database.load(
                 for: node,
+                timeout: .seconds(10),
                 completion: { data in
                     guard data.exists() else { return promise.fulfill() }
                     do {
@@ -646,12 +647,13 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         #if DEBUG
         fatalError("init(data:exactly:) cannot be called. Use init(data:exactly:representer:)")
         #else
-        throw RealtimeError(decoding: type(of: self).Type, data, reason: "Unavailable initializer")
+        throw RealtimeError(decoding: type(of: self).self, data, reason: "Unavailable initializer")
         #endif
     }
     
-    public override func load(completion: Assign<Error?>?) {
+    public override func load(timeout: DispatchTimeInterval = .seconds(10), completion: Assign<Error?>?) {
         super.load(
+            timeout: timeout,
             completion: Assign.just({ (err) in
                 if let e = err {
                     switch e {

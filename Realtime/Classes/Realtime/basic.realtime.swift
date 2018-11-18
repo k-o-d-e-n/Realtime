@@ -42,6 +42,8 @@ public struct RealtimeError: LocalizedError {
         case coding
         case transaction([Error])
         case cache
+        case database
+        case storage
     }
 
     init<T>(initialization type: T.Type, _ data: Any) {
@@ -199,7 +201,7 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
     /// - Parameter completion: Closure that called on end loading or error
-    func load(completion: Assign<Error?>?)
+    func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?)
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
     /// Enables/disables auto downloading of the data and keeping in sync
