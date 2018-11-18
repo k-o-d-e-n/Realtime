@@ -41,16 +41,15 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        addBinding(atDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+        value.listening(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
-        })))
-//        addBinding(ofDisplayTime: compactMap().join(with: value).listeningItem(onValue: assign))
+        })).add(to: disposeStorage)
 
         guard source.canObserve else { return }
         if source.runObserving() {
-            addBinding(atDisplayTime: ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
+            ListeningDispose(source.stopObserving).add(to: disposeStorage)
         } else {
             debugFatalError("Observing is not running")
         }
@@ -59,17 +58,16 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func bind<T: Listenable>(_ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        addBinding(atDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+        value.listening(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
-        })))
-        //        addBinding(ofDisplayTime: compactMap().join(with: value).listeningItem(onValue: assign))
+        })).add(to: disposeStorage)
 
         sources.forEach { source in
             guard source.canObserve else { return }
             if source.runObserving() {
-                addBinding(atDisplayTime: ListeningItem(resume: { () }, pause: source.stopObserving, token: nil))
+                ListeningDispose(source.stopObserving).add(to: disposeStorage)
             } else {
                 debugFatalError("Observing is not running")
             }
@@ -94,15 +92,15 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         // current function does not require the call on each willDisplay event. It can call only on initialize `ReuseItem`.
         // But for it, need to separate dispose storages on iterated and permanent.
         _view.value.map { assign($0, value) }
-        addBinding(atDisplayTime: compactMap().listeningItem(onValue: { assign($0, value) }))
+        _view.compactMap().listening(onValue: { assign($0, value) }).add(to: disposeStorage)
     }
 
     public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
-        addBinding(atDisplayTime: value.listeningItem(Closure.guarded(self, assign: { (val, owner) in
+        value.listening(Closure.guarded(self, assign: { (val, owner) in
             if let view = owner._view.value, let v = val.value {
                 assign(view, v)
             }
-        })))
+        })).add(to: disposeStorage)
     }
 
     /// Adds configuration block that will be called on receive view
@@ -112,7 +110,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public func set(config: @escaping (View) -> Void) {
         // by analogue with `set(_:_:)` function
         _view.value.map(config)
-        compactMap().listeningItem(onValue: config).add(to: &disposeStorage)
+        _view.compactMap().listening(onValue: config).add(to: disposeStorage)
     }
 
     func free() {
@@ -123,20 +121,15 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     open func reload() {
         disposeStorage.resume()
     }
-
-    func addBinding(atDisplayTime item: ListeningItem) {
-        disposeStorage.add(item)
-    }
-}
-extension ReuseItem: Listenable {
-    public func listening(_ assign: Assign<ListenEvent<View?>>) -> Disposable {
-        return _view.listening(assign)
-    }
 }
 
 class ReuseController<View: AnyObject, Key: Hashable> {
     private var freeItems: [ReuseItem<View>] = []
     private var activeItems: [Key: ReuseItem<View>] = [:]
+
+    deinit {
+        free()
+    }
 
     func dequeueItem(at key: Key) -> ReuseItem<View> {
         guard let item = activeItems[key] else {
@@ -160,6 +153,12 @@ class ReuseController<View: AnyObject, Key: Hashable> {
             freeItems.append($0.value)
         }
         activeItems.removeAll()
+    }
+
+    func free() {
+        activeItems.forEach({ $0.value.free() })
+        activeItems.removeAll()
+        freeItems.removeAll()
     }
 
 //    func exchange(indexPath: IndexPath, to ip: IndexPath) {
@@ -194,6 +193,10 @@ open class RealtimeTableViewDelegate<Model, Section> {
 
     init(cell: @escaping ConfigureCell) {
         self.configureCell = cell
+    }
+
+    deinit {
+        reuseController.free()
     }
 
     /// Registers new type of cell with binding closure
@@ -394,13 +397,18 @@ extension SingleSectionTableViewDelegate {
 }
 
 open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
-    var items: AnyRealtimeCollection<Model>?
+    var items: AnyRealtimeCollection<Model>? {
+        didSet {
+            if let itms = items, !itms.keepSynced {
+                itms.keepSynced = true
+            }
+        }
+    }
     var isNotBeingDisplay: Bool {
         return items == nil
     }
 
     func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
-        self.items = items
         items.changes.listening(onValue: { [weak tableView] e in
             guard let tv = tableView else { return }
             tv.beginUpdates()
@@ -416,14 +424,13 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
                 })
             }
             tv.endUpdates()
-        }).add(to: &disposeStorage)
-        items.runObserving()
+        }).add(to: disposeStorage)
+        self.items = items
     }
 
     func endDisplaySection(_ tableView: UITableView, at index: Int) {
         guard let itms = items else { return debugLog("Ends display section that already not visible") }
         debugFatalError(condition: !itms.isObserved, "Trying to stop observing of section, but it is no longer observed")
-        items?.stopObserving()
         items = nil
     }
 
@@ -440,7 +447,11 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
     fileprivate var registeredHeaders: [TypeKey: BindingSection<UIView>] = [:]
     fileprivate var reuseSectionController: ReuseRowController<ReuseSection<Model, UIView>, Int> = ReuseRowController()
     fileprivate lazy var delegateService: Service = Service(self)
-    var sections: AnySharedCollection<Section>
+    var sections: AnySharedCollection<Section> {
+        willSet {
+            sections.lazy.map(models).forEach { $0.keepSynced = false }
+        }
+    }
     let models: (Section) -> AnyRealtimeCollection<Model>
 
     public init<C: BidirectionalCollection>(_ sections: C,
@@ -452,6 +463,11 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
             self.models = models
             self.configureSection = section
             super.init(cell: cell)
+    }
+
+    deinit {
+        reuseSectionController.free()
+        sections.lazy.map(models).forEach { $0.keepSynced = false }
     }
 
     /// Registers new type of header/footer with binding closure
@@ -479,7 +495,7 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
     /// Sets new source of elements
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
         where C.Element == Section, C.Index == Int {
-            self.reuseController.freeAll() // TODO: Check it
+            self.reuseController.freeAll()
             self.sections = AnySharedCollection(newData)
             tableView.reloadData()
     }
@@ -556,18 +572,18 @@ extension SectionedTableViewDelegate {
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
 
-            guard
-                delegate.sections.count > indexPath.section + 1,
-                let items = delegate.reuseSectionController.activeItem(at: indexPath.section)?.items,
-                indexPath.row >= (items.count / 2)
-            else {
-                return
-            }
-
-            let sectionItem = delegate.reuseSectionController.dequeueItem(at: indexPath.section + 1, rowBuilder: ReuseSection.init)
-            if sectionItem.isNotBeingDisplay {
-                sectionItem.willDisplaySection(tableView, items: delegate.models(delegate.sections[indexPath.section + 1]), at: indexPath.section + 1)
-            }
+//            guard
+//                delegate.sections.count > indexPath.section + 1,
+//                let items = delegate.reuseSectionController.activeItem(at: indexPath.section)?.items,
+//                indexPath.row >= (items.count / 2)
+//            else {
+//                return
+//            }
+//
+//            let sectionItem = delegate.reuseSectionController.dequeueItem(at: indexPath.section + 1, rowBuilder: ReuseSection.init)
+//            if sectionItem.isNotBeingDisplay {
+//                sectionItem.willDisplaySection(tableView, items: delegate.models(delegate.sections[indexPath.section + 1]), at: indexPath.section + 1)
+//            }
         }
 
         override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {

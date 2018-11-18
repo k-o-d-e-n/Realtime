@@ -87,13 +87,13 @@ class RealtimeViewController: UIViewController {
             if self.user == nil {
                 self.user = Global.rtUsers.first
             }
-        }).add(to: &store)
+        }).add(to: store)
         Global.rtUsers.runObserving()
         Global.rtGroups.changes.listening(onValue: { _ in
             if self.group == nil {
                 self.group = Global.rtGroups.first
             }
-        }).add(to: &store)
+        }).add(to: store)
         Global.rtGroups.runObserving()
 
         addUserButton.addTarget(self, action: #selector(addUser), for: .touchUpInside)

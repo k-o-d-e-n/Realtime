@@ -672,7 +672,9 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
 
     public func stopObserving() {
-        _stopObserving(.value)
+        if !keepSynced || (observing[.value].map({ $0.counter > 1 }) ?? true) {
+            _stopObserving(.value)
+        }
     }
 
     @discardableResult
@@ -710,10 +712,16 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         switch _value {
         case .some(.local(let v)):
             _setValue(.remote(v))
-        case .none: break
         default: break
-            /// now `didSave` calls on update operation, because error does not valid this case
-//            debugFatalError("Property has been saved using non local value")
+        }
+    }
+
+    public override func didUpdate(through ancestor: Node) {
+        super.didUpdate(through: ancestor)
+        switch _value {
+        case .some(.local(let v)):
+            _setValue(.remote(v))
+        default: break
         }
     }
     
@@ -727,7 +735,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         /// skip the call of super
         guard exactly else {
-            /// skip partial data, because representer can throw error
+            /// skip partial data, because it is not his responsibility and representer can throw error
             return
         }
         do {
@@ -864,6 +872,7 @@ public extension ReadonlyProperty where T: Equatable {
         }
     }
     static func ====(lhs: ReadonlyProperty, rhs: ReadonlyProperty) -> Bool {
+        guard lhs !== rhs else { return true }
         return rhs.wrapped == lhs.wrapped
     }
     static func !===(lhs: T, rhs: ReadonlyProperty) -> Bool {
@@ -1038,6 +1047,18 @@ extension MutationPoint {
     func removeValue(for key: String, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.removeValue(by: node.child(with: key))
+
+        return transaction
+    }
+}
+public extension MutationPoint where T: Codable {
+    @discardableResult
+    func addValue(by key: String? = nil, use value: T, in transaction: Transaction? = nil) throws -> Transaction {
+        let transaction = transaction ?? Transaction(database: database)
+        let representer = Representer<T>.json()
+        if let v = try representer.encode(value) {
+            transaction.addValue(v, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+        }
 
         return transaction
     }

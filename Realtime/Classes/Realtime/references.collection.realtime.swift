@@ -143,6 +143,11 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     }
 
     public func stopObserving() {
+        // checks 'added' only, can lead to error
+        guard !keepSynced || (observing[.child(.added)].map({ $0.counter > 1 }) ?? true) else {
+            return
+        }
+
         _view.source._stopObserving(.child(.added))
         _view.source._stopObserving(.child(.removed))
         _view.source._stopObserving(.child(.changed))

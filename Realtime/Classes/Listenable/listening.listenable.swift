@@ -19,6 +19,12 @@ public struct EmptyDispose: Disposable {
     public func dispose() {}
 }
 
+public class SingleRetainDispose: Disposable {
+    var retained: AnyObject?
+    public init(_ value: AnyObject) { self.retained = value }
+    public func dispose() { self.retained = nil }
+}
+
 public class ListeningDispose: Disposable {
     let _dispose: () -> Void
     public init(_ dispose: @escaping () -> Void) {
@@ -34,34 +40,44 @@ public class ListeningDispose: Disposable {
 
 /// Listening with possibility to control connection state
 public class ListeningItem {
-    let _start: () -> Void
-    let _stop: () -> Void
+    let _resume: () -> Void
+    let _pause: () -> Void
+    let _dispose: () -> Void
     let _isListen: () -> Bool
 
     public var isListen: Bool { return _isListen() }
 
-    public init<Token>(resume: @escaping () -> Token?, pause: @escaping (Token) -> Void, token: Token?) {
+    public init<Token>(resume: @escaping () -> Token?, pause: @escaping (Token) -> Void, dispose: (() -> Void)? = nil, token: Token?) {
         var tkn = token
         self._isListen = { tkn != nil }
-        self._start = {
+        self._resume = {
             guard tkn == nil else { return }
             tkn = resume()
         }
-        self._stop = {
+        let _pause = {
             guard let token = tkn else { return }
             pause(token)
             tkn = nil
         }
+        self._pause = _pause
+        self._dispose = dispose ?? _pause
+    }
+
+    init(base: ListeningItem) {
+        self._isListen = base._isListen
+        self._resume = base._resume
+        self._pause = base._pause
+        self._dispose = base._dispose
     }
 
     public func resume() {
         if !isListen {
-            _start()
+            _resume()
         }
     }
 
     public func pause() {
-        _stop()
+        _pause()
     }
 
     deinit {
@@ -70,43 +86,48 @@ public class ListeningItem {
 }
 extension ListeningItem: Disposable {
     public func dispose() {
-        _stop()
+        _pause()
+        _dispose()
     }
 }
 
 public extension ListeningItem {
-    func add(to store: inout ListeningDisposeStore) {
+    func add(to store: ListeningDisposeStore) {
         store.add(self)
     }
 }
 
 public extension Disposable {
-    func add(to store: inout ListeningDisposeStore) {
+    func add(to store: ListeningDisposeStore) {
         store.add(self)
     }
 }
 
 /// Stores connections
-public struct ListeningDisposeStore {
+public class ListeningDisposeStore {
     private var disposes = [Disposable]()
     private var listeningItems = [ListeningItem]()
 
     public init() {}
 
-    public mutating func add(_ stop: Disposable) {
+    deinit {
+        dispose()
+    }
+
+    public func add(_ stop: Disposable) {
         disposes.append(stop)
     }
 
-    public mutating func add(_ item: ListeningItem) {
+    public func add(_ item: ListeningItem) {
         listeningItems.append(item)
     }
 
-    public mutating func disposeDisposes() {
+    public func disposeDisposes() {
         disposes.forEach { $0.dispose() }
         disposes.removeAll()
     }
 
-    public mutating func dispose() {
+    public func dispose() {
         disposes.forEach { $0.dispose() }
         disposes.removeAll()
         listeningItems.forEach { $0.dispose() }

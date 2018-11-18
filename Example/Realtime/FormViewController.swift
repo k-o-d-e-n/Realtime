@@ -111,7 +111,7 @@ class FormViewController: UIViewController {
                 .listeningItem(onValue: { (text) in
                     args.1.name <== text
                 })
-                .add(to: &row.disposeStorage)
+                .add(to: row.disposeStorage)
         }
         let age: Row<TextCell, User> = Row(reuseIdentifier: textInputCellIdentifier)
         age.onUpdate { (args, row) in
@@ -126,7 +126,7 @@ class FormViewController: UIViewController {
                 .listeningItem(onValue: { (age) in
                     args.1.age <== age
                 })
-                .add(to: &row.disposeStorage)
+                .add(to: row.disposeStorage)
         }
         let photo: Row<UITableViewCell, User> = Row(reuseIdentifier: defaultCellIdentifier)
         photo.onUpdate { [weak self] (args, row) in
@@ -142,7 +142,7 @@ class FormViewController: UIViewController {
                     user.photo <== originalImage
                     row.view?.imageView?.image = originalImage
                     row.view?.setNeedsLayout()
-                }).add(to: &row.disposeStorage)
+                }).add(to: row.disposeStorage)
                 self?.present(picker, animated: true, completion: nil)
             })
         }
@@ -232,7 +232,7 @@ class FormViewController: UIViewController {
                 })
             }
             self.tableView.endUpdates()
-        }).add(to: &store)
+        }).add(to: store)
         Global.rtUsers.runObserving()
 
         let user = User()
@@ -249,7 +249,7 @@ class FormViewController: UIViewController {
                 isEnabled = false
             }
             self.navigationItem.rightBarButtonItem?.isEnabled = isEnabled
-        }).add(to: &store)
+        }).add(to: store)
     }
 
     @objc func saveUser() {

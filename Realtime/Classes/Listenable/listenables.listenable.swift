@@ -106,6 +106,10 @@ public struct Repeater<T>: Listenable {
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return listen(assign)
     }
+
+    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        return ListeningItem(resume: { self.listen(assign) }, pause: { $0.dispose() }, token: listen(assign))
+    }
 }
 
 /// Stores value and sends event on his change
@@ -299,6 +303,10 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return repeater.listen(assign)
+    }
+
+    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        return ListeningItem(resume: { self.listen(assign) }, pause: { $0.dispose() }, token: listen(assign))
     }
 
     private static func disposed(_ lock: NSLocking, repeater: Repeater<T>) -> (Assign<ListenEvent<T>>) -> Disposable {

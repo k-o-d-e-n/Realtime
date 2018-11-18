@@ -102,7 +102,7 @@ class RealtimeTableController: UIViewController {
                 onError: { err in
                     print("Changes error:", err.localizedDescription)
                 }
-            ).add(to: &store)
+            ).add(to: store)
     }
 
     override func viewWillAppear(_ animated: Bool) {

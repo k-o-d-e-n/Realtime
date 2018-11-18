@@ -149,6 +149,11 @@ extension OtherTests {
     func testEnumStringInterpolation() {
         XCTAssertNotEqual("__raw/__mv", "\(InternalKeys.raw)/\(InternalKeys.modelVersion)")
     }
+
+//    func testNodeLimitExceeded() {
+//        let node = Node.root.child(with: (0..<32).lazy.map(String.init).joined(separator: "/"))
+//        XCTFail("\(node.underestimatedCount) levels")
+//    }
 }
 
 final class SharedCollection<Base: MutableCollection>: MutableCollection {

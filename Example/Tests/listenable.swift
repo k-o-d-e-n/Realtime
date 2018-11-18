@@ -112,7 +112,7 @@ class ListenableTests: XCTestCase {
             case 1: XCTAssertEqual(v, IndexSet(integersIn: 100...500).reduce(0, +) + 1)
             default: XCTFail("Extra call")
             }
-        }).add(to: &store)
+        }).add(to: store)
 
         propertyIndexSet.value.insert(1)
         propertyIndexSet.value.insert(integersIn: 100...500)
@@ -142,7 +142,7 @@ class ListenableTests: XCTestCase {
             default: XCTFail("Extra call")
             }
             exp.fulfill()
-        }).add(to: &store)
+        }).add(to: store)
 
         propertyIndexSet.value.insert(1)
         propertyIndexSet.value.insert(integersIn: 100...500)
@@ -185,7 +185,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 view.backgroundColor = $0
             })
-            .add(to: &store)
+            .add(to: store)
 
         backgroundProperty <== .red
         XCTAssertEqual(view.backgroundColor, .red)
@@ -212,7 +212,7 @@ class ListenableTests: XCTestCase {
                     XCTAssertFalse(cache.object(forKey: "key")!.boolValue)
                     exp.fulfill()
                 })
-                .add(to: &store)
+                .add(to: store)
 
             stringProperty <== assignedValue as NSString
         }
@@ -369,7 +369,7 @@ class ListenableTests: XCTestCase {
         let propertyDouble = ValueStorage<Double>.unsafe(strong: .pi)
 
         var doubleValue = 0.0
-        propertyDouble.listening(onValue: { doubleValue = $0 }).add(to: &store)
+        propertyDouble.listening(onValue: { doubleValue = $0 }).add(to: store)
         propertyDouble.value = 10.0
         XCTAssertEqual(doubleValue, 10.0)
 
@@ -378,7 +378,7 @@ class ListenableTests: XCTestCase {
         XCTAssertEqual(doubleValue, 10.0)
 
         let item = propertyDouble.listeningItem(onValue: { doubleValue = $0 })
-        item.add(to: &store)
+        item.add(to: store)
 
         propertyDouble.value = .pi
         XCTAssertEqual(doubleValue, .pi)
@@ -409,7 +409,7 @@ class ListenableTests: XCTestCase {
         var doubleValue = 0.0 {
             didSet { isChanged = true }
         }
-        propertyDouble.filter { $0 != .infinity }.map { print($0); return $0 }.listening(onValue: { doubleValue = $0 }).add(to: &store)
+        propertyDouble.filter { $0 != .infinity }.map { print($0); return $0 }.listening(onValue: { doubleValue = $0 }).add(to: store)
 
         propertyDouble.value = 10.0
         XCTAssertEqual(doubleValue, 10.0)
@@ -423,7 +423,7 @@ class ListenableTests: XCTestCase {
         var property = ValueStorage<Double>.unsafe(strong: .pi)
         property.distinctUntilChanged().listening({ (v) in
             counter += 1
-        }).add(to: &store)
+        }).add(to: store)
 
         property <== 0
         XCTAssertEqual(counter, 1)
@@ -449,7 +449,7 @@ class ListenableTests: XCTestCase {
                 print(owner ?? "nil")
                 value = v
             })
-            .add(to: &store)
+            .add(to: store)
 
         propertyDouble.value = "Test #1"
         XCTAssertEqual(value, "Test #1" + " is successful")
@@ -469,7 +469,7 @@ class ListenableTests: XCTestCase {
         var doubleValue = 0.0 {
             didSet { isChanged = true }
         }
-        map(propertyDouble.filter { $0 != .infinity }, { print($0); return $0 }).listening(onValue: .just { doubleValue = $0 }).add(to: &store)
+        map(propertyDouble.filter { $0 != .infinity }, { print($0); return $0 }).listening(onValue: .just { doubleValue = $0 }).add(to: store)
 
         propertyDouble.value = 10.0
         XCTAssertEqual(doubleValue, 10.0)
@@ -487,7 +487,7 @@ class ListenableTests: XCTestCase {
             .filter { $0.count <= 10 }
             .map { $0.count }
             .listening { textLength = $0 }
-            .add(to: &store)
+            .add(to: store)
 
         property.value = "10.0"
         XCTAssertEqual(textLength, 4)
@@ -511,7 +511,7 @@ class ListenableTests: XCTestCase {
             .map { $0.count }
             .map(String.init)
             .listening { textLength = $0 }
-            .add(to: &store)
+            .add(to: store)
 
         property.value = "10.0"
         XCTAssertEqual(textLength, "4")
@@ -537,7 +537,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 exponentValue = $0
             })
-            .add(to: &store)
+            .add(to: store)
 
         let exp = expectation(description: "")
         property <== 0
@@ -574,7 +574,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 exponentValue = $0
             })
-            .add(to: &store)
+            .add(to: store)
 
         let exp = expectation(description: "")
         property <== 0
@@ -608,7 +608,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 exponentValue = $0
             })
-            .add(to: &store)
+            .add(to: store)
 
         let exp = expectation(description: "")
         property <== 0
@@ -645,7 +645,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: {
                 exponentValue = $0
             })
-            .add(to: &store)
+            .add(to: store)
 
         let exp = expectation(description: "")
         property <== 0
@@ -671,7 +671,7 @@ class ListenableTests: XCTestCase {
     func testBindProperty() {
         var backgroundProperty = ValueStorage<UIColor>.unsafe(strong: .white)
         let otherBackgroundProperty = ValueStorage<UIColor>.unsafe(strong: .black)
-        backgroundProperty.bind(to: otherBackgroundProperty).add(to: &store)
+        backgroundProperty.bind(to: otherBackgroundProperty).add(to: store)
 
         backgroundProperty <== .red
 
@@ -903,7 +903,7 @@ extension ListenableTests {
         repeater.listening({
             value = $0.value
             exp.fulfill()
-        }).add(to: &store)
+        }).add(to: store)
 
         DispatchQueue.global().async {
             repeater.send(.value(4))
@@ -933,7 +933,7 @@ extension ListenableTests {
             case 1: XCTAssertEqual(v, 199)
             default: XCTFail()
             }
-        }).add(to: &store)
+        }).add(to: store)
 
         source1.send(.value(5))
         source2.send(.value(199))
@@ -946,7 +946,7 @@ extension ListenableTests {
             case 1: XCTAssertTrue(e is RealtimeError) //XCTAssertEqual(e.localizedDescription, "Source2 error")
             default: XCTFail()
             }
-        }).add(to: &store)
+        }).add(to: store)
 
         source1.send(.error(RealtimeError(source: .listening, description: "Source1 error")))
         source1.send(.error(RealtimeError(source: .listening, description: "Source2 error")))
@@ -965,7 +965,7 @@ extension ListenableTests {
             case (5, "199"): print("true")
             default: XCTFail()
             }
-        }).add(to: &store)
+        }).add(to: store)
 
         source1.send(.value(5))
         source2.send(.value("199"))
@@ -978,9 +978,40 @@ extension ListenableTests {
             case 1: XCTAssertTrue(e is RealtimeError) //XCTAssertEqual(e.localizedDescription, "Source2 error")
             default: XCTFail()
             }
-        }).add(to: &store)
+        }).add(to: store)
 
         source1.send(.error(RealtimeError(source: .listening, description: "Source1 error")))
         source1.send(.error(RealtimeError(source: .listening, description: "Source2 error")))
+    }
+
+    func testCombine() {
+        let exp = expectation(description: "")
+
+        let source1 = Repeater<Int>.unsafe()
+        let source2 = Repeater<Int>.unsafe()
+
+        var value_counter = 0
+        source1.combine(with: source2).listening(onValue: { v in
+            defer { value_counter += 1 }
+            switch value_counter {
+            case 0:
+                XCTAssertEqual(v.0, 5)
+                XCTAssertEqual(v.1, 199)
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
+                    exp.fulfill()
+                }
+            default: XCTFail()
+            }
+        }).add(to: store)
+
+        source1.send(.value(5))
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1)) {
+            source2.send(.value(199))
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.localizedDescription) })
+            self.store.dispose()
+        }
     }
 }

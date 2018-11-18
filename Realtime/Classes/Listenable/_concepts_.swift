@@ -32,6 +32,10 @@ struct Trivial<T>: Listenable, ValueWrapper {
     func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return repeater.listen(assign)
     }
+
+    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        return ListeningItem(resume: { self.repeater.listen(assign) }, pause: { $0.dispose() }, token: repeater.listen(assign))
+    }
 }
 
 /// Stores value and sends event on his change
@@ -203,7 +207,7 @@ public extension _Promise {
                     promise.unsafeReject(e)
                 }
             }
-        }).add(to: &promise.disposes)
+        }).add(to: promise.disposes)
         return promise
     }
 
@@ -220,7 +224,7 @@ public extension _Promise {
                     promise.unsafeReject(e)
                 }
             }
-        }).add(to: &promise.disposes)
+        }).add(to: promise.disposes)
         return promise
     }
 
@@ -238,12 +242,12 @@ public extension _Promise {
                         case .error(let e): promise.unsafeReject(e)
                         case .value(let v): promise.unsafeFulfill(v)
                         }
-                    }).add(to: &promise.disposes)
+                    }).add(to: promise.disposes)
                 } catch let e {
                     promise.unsafeReject(e)
                 }
             }
-        }).add(to: &promise.disposes)
+        }).add(to: promise.disposes)
         return promise
     }
 
@@ -256,7 +260,7 @@ public extension _Promise {
                 promise.unsafeReject(e)
             case .value(let v): promise.unsafeFulfill(v)
             }
-        }).add(to: &promise.disposes)
+        }).add(to: promise.disposes)
         return promise
     }
 }

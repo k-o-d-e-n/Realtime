@@ -1,5 +1,6 @@
 import UIKit
 import XCTest
+import SystemConfiguration
 @testable import Realtime
 @testable import Realtime_Example
 
@@ -763,6 +764,10 @@ extension RealtimeTests {
             value.didSave(in: database, in: parent, by: key)
         }
 
+        func didUpdate(through ancestor: Node) {
+            value.didUpdate(through: ancestor)
+        }
+
         func didRemove(from ancestor: Node) {
             value.didRemove(from: ancestor)
         }
@@ -867,8 +872,8 @@ extension RealtimeTests {
                         let restoredObj = try TestObject(data: CacheNode.root, exactly: false)
 
                         XCTAssertEqual(testObject.property, restoredObj.property)
-                        XCTAssertEqual(testObject.nestedObject.lazyProperty.unwrapped,
-                                       restoredObj.nestedObject.lazyProperty.unwrapped)
+                        XCTAssertEqual(testObject.nestedObject.lazyProperty,
+                                       restoredObj.nestedObject.lazyProperty)
                     } catch let e {
                         XCTFail(e.localizedDescription)
                     }
@@ -1054,10 +1059,10 @@ extension RealtimeTests {
                 XCTAssertEqual(inserted.count, 1)
                 exp.fulfill()
             }
-        }).add(to: &store)
-        array.changes.listening(onError: { err in
+        }).add(to: store)
+        array.changes.listening { err in
             XCTFail(err.localizedDescription)
-        }).add(to: &store)
+        }.add(to: store)
 
         let element = User()
         element.name <== "User"
@@ -1198,6 +1203,47 @@ extension RealtimeTests {
 
         waitForExpectations(timeout: 2) { (e) in
             e.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+
+    func testTimoutOnLoad() {
+        func isNetworkReachable(with flags: SCNetworkReachabilityFlags) -> Bool {
+            let isReachable = flags.contains(.reachable)
+            let needsConnection = flags.contains(.connectionRequired)
+            let canConnectAutomatically = flags.contains(.connectionOnDemand) || flags.contains(.connectionOnTraffic)
+            let canConnectWithoutUserInteraction = canConnectAutomatically && !flags.contains(.interventionRequired)
+
+            return isReachable && (!needsConnection || canConnectWithoutUserInteraction)
+        }
+        guard let reachability = SCNetworkReachabilityCreateWithName(nil, "www.google.com") else { return }
+
+        var flags = SCNetworkReachabilityFlags()
+        SCNetworkReachabilityGetFlags(reachability, &flags)
+
+        if isNetworkReachable(with: flags) {
+            print("Error: Test available only without internet connection")
+            return
+        }
+
+        let exp = expectation(description: "")
+        let prop = ReadonlyProperty<String>(in: Node.root("___tests/prop"), options: [.representer: Representer<String>.any.requiredProperty()])
+
+        prop.load(timeout: .seconds(3), completion: .just { err in
+            guard let e = err else { return XCTFail("Must be timout error") }
+            switch e {
+            case let re as RealtimeError:
+                if case .database = re.source {
+                    exp.fulfill()
+                } else {
+                    XCTFail("Unexpected error")
+                }
+            default:
+                XCTFail("Unexpected error")
+            }
+        })
+
+        waitForExpectations(timeout: 10) { (e) in
+            e.map { XCTFail($0.describingErrorDescription) }
         }
     }
 }

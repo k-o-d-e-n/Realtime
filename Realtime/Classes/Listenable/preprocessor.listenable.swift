@@ -111,6 +111,9 @@ public struct Preprocessor<I, O>: Listenable {
     public func listening(_ assign: Assign<ListenEvent<O>>) -> Disposable {
         return listenable.listening(bridgeMaker.wrapAssign(assign))
     }
+    public func listeningItem(_ assign: Assign<ListenEvent<O>>) -> ListeningItem {
+        return listenable.listeningItem(bridgeMaker.wrapAssign(assign))
+    }
 }
 
 public extension Listenable {
@@ -181,6 +184,12 @@ public struct OnFire<T>: Listenable {
             self.onFire()
         })
     }
+
+    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        let base = listenable.listeningItem(assign)
+        return ListeningItem(resume: base.resume, pause: base.pause,
+                             dispose: { base.dispose(); self.onFire() }, token: ())
+    }
 }
 public extension Listenable {
     /// calls closure on disconnect
@@ -195,6 +204,10 @@ public struct Do<T>: Listenable {
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return listenable.listening(assign.with(work: doit))
+    }
+
+    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        return listenable.listeningItem(assign.with(work: doit))
     }
 }
 public extension Listenable {
@@ -229,6 +242,30 @@ public struct Once<T>: Listenable {
                 })
         )
         return disposable!
+    }
+
+    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        /// calls once and sets to pause, on resume call enabled once event yet
+        var shouldCall = true
+        var baseItem: ListeningItem?
+        let item = ListeningItem(
+            resume: {
+                shouldCall = true
+                return baseItem!.resume()
+            },
+            pause: baseItem!.pause,
+            dispose: baseItem!.dispose,
+            token: ()
+        )
+        baseItem = listenable
+            .filter({ _ in shouldCall })
+            .listeningItem(
+                assign.with(work: { (_) in
+                    item.pause()
+                    shouldCall = false
+                })
+        )
+        return item
     }
 }
 public extension Listenable {
@@ -274,6 +311,17 @@ public struct Deadline<T>: Listenable {
         }))
         return disposable
     }
+    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        var base: ListeningItem?
+        base = listenable.listeningItem(assign.filter({ _ -> Bool in
+            guard self.deadline >= .now() else {
+                base?.dispose()
+                return false
+            }
+            return true
+        }))
+        return base!
+    }
 }
 public extension Listenable {
     /// works until time has not reached deadline
@@ -301,6 +349,18 @@ public struct Livetime<T>: Listenable {
             return true
         }))
         return disposable
+    }
+
+    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        var base: ListeningItem?
+        base = listenable.listeningItem(assign.filter({ _ -> Bool in
+            guard self.livingItem != nil else {
+                base?.dispose()
+                return false
+            }
+            return true
+        }))
+        return base!
     }
 }
 public extension Listenable {
@@ -351,14 +411,14 @@ public struct Accumulator<T>: Listenable {
     public init<L: Listenable>(repeater: Repeater<T>, _ inputs: L...) where L.Out == T {
         self.repeater = repeater
         inputs.forEach { l in
-            repeater.depends(on: l).add(to: &store)
+            repeater.depends(on: l).add(to: store)
         }
     }
 
     public init<L: Listenable>(repeater: Repeater<T>, _ inputs: [L]) where L.Out == T {
         self.repeater = repeater
         inputs.forEach { l in
-            repeater.depends(on: l).add(to: &store)
+            repeater.depends(on: l).add(to: store)
         }
     }
 
@@ -389,8 +449,8 @@ public struct Accumulator<T>: Listenable {
                 }
             }
         }
-        one.listening({ event.one = $0 }).add(to: &store)
-        two.listening({ event.two = $0 }).add(to: &store)
+        one.listening({ event.one = $0 }).add(to: store)
+        two.listening({ event.two = $0 }).add(to: store)
     }
 
     struct Compound3<V1, V2, V3> {
@@ -439,25 +499,69 @@ public struct Accumulator<T>: Listenable {
                 event.fulfill().map(repeater.send)
             }
         }
-        first.listening({ event.first = $0 }).add(to: &store)
-        second.listening({ event.second = $0 }).add(to: &store)
-        third.listening({ event.third = $0 }).add(to: &store)
+        first.listening({ event.first = $0 }).add(to: store)
+        second.listening({ event.second = $0 }).add(to: store)
+        third.listening({ event.third = $0 }).add(to: store)
     }
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return repeater.listening(assign)
     }
+    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        return repeater.listeningItem(assign)
+    }
 }
-public extension Listenable {
-    func join(with others: Self...) -> Accumulator<Out> {
-        return Accumulator(repeater: .unsafe(), [self] + others)
+public struct Combine<T>: Listenable {
+    let accumulator: Accumulator<T>
+
+    public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
+        let disposer = accumulator.listening(assign)
+        let unmanaged = Unmanaged.passRetained(accumulator.store).retain()
+        return ListeningDispose.init({
+            unmanaged.release()
+            disposer.dispose()
+        })
     }
 
-    func combine<L: Listenable>(with other: L) -> Accumulator<(Out, L.Out)> {
+    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        let item = accumulator.listeningItem(assign)
+        let unmanaged = Unmanaged.passRetained(accumulator.store).retain()
+        return ListeningItem(
+            resume: item.resume,
+            pause: item.pause,
+            dispose: { item.dispose(); unmanaged.release() },
+            token: ()
+        )
+    }
+}
+
+public extension Listenable {
+    func joined(with others: Self...) -> Accumulator<Out> {
+        return Accumulator(repeater: .unsafe(), [self] + others)
+    }
+    func join(with others: Self...) -> Combine<Out> {
+        return Combine(accumulator: Accumulator(repeater: .unsafe(), [self] + others))
+    }
+
+    /// Returns listenable object that emits event when all sources emit at least one event
+    ///
+    /// - Parameter other: Other source
+    /// - Returns: Unretained accumulator object
+    func combined<L: Listenable>(with other: L) -> Accumulator<(Out, L.Out)> {
         return Accumulator(repeater: .unsafe(), self, other)
     }
-    func combine<L1: Listenable, L2: Listenable>(with other1: L1, _ other2: L2) -> Accumulator<(Out, L1.Out, L2.Out)> {
+    func combined<L1: Listenable, L2: Listenable>(with other1: L1, _ other2: L2) -> Accumulator<(Out, L1.Out, L2.Out)> {
         return Accumulator(repeater: .unsafe(), self, other1, other2)
+    }
+    /// Preprocessor that emits event when all sources emit at least one event
+    ///
+    /// - Parameter other: Other source
+    /// - Returns: Preprocessor object
+    func combine<L: Listenable>(with other: L) -> Combine<(Out, L.Out)> {
+        return Combine(accumulator: combined(with: other))
+    }
+    func combine<L1: Listenable, L2: Listenable>(with other1: L1, _ other2: L2) -> Combine<(Out, L1.Out, L2.Out)> {
+        return Combine(accumulator: Accumulator(repeater: .unsafe(), self, other1, other2))
     }
 }
 
@@ -521,6 +625,18 @@ public struct OldValue<T>: Listenable {
             })
             .listening(assign)
     }
+    public func listeningItem(_ assign: Closure<ListenEvent<(new: T, old: T?)>, Void>) -> ListeningItem {
+        var old: T?
+        var current: T? {
+            didSet { old = oldValue }
+        }
+        return base
+            .map({ (v) -> (T, T?) in
+                current = v
+                return (current!, old)
+            })
+            .listeningItem(assign)
+    }
 }
 public extension Listenable {
     func oldValue() -> OldValue<Out> {
@@ -570,6 +686,13 @@ public struct DoDebug<T>: Listenable {
         return listenable.listening(assign.with(work: doit))
         #else
         return listenable.listening(assign)
+        #endif
+    }
+    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        #if DEBUG
+        return listenable.listeningItem(assign.with(work: doit))
+        #else
+        return listenable.listeningItem(assign)
         #endif
     }
 }

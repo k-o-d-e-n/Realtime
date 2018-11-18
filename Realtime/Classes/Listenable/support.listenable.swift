@@ -184,6 +184,10 @@ extension UIImagePickerController: RealtimeCompatible {
             }
             return listening
         }
+        public func listeningItem(_ assign: Closure<ListenEvent<(UIImagePickerController, [String : Any])>, Void>) -> ListeningItem {
+            let listening = Listening(controller, assign: assign)
+            return ListeningItem(resume: listening.start, pause: listening.stop, dispose: listening.dispose, token: listening.start())
+        }
     }
     @available (iOS 9.0, *)
     fileprivate class Listening: NSObject, Disposable, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
@@ -231,6 +235,124 @@ extension UIImagePickerController: RealtimeCompatible {
             }
 
             controller.dismiss(animated: true, completion: nil)
+        }
+    }
+}
+
+public extension RTime where Base: URLSession {
+    public func dataTask(for request: URLRequest) -> DataTask {
+        return DataTask(session: base, request: request)
+    }
+    public func dataTask(for url: URL) -> DataTask {
+        return dataTask(for: URLRequest(url: url))
+    }
+
+    public func repeatedDataTask(for request: URLRequest) -> RepeatedDataTask {
+        return RepeatedDataTask(session: base, request: request)
+    }
+    public func repeatedDataTask(for url: URL) -> RepeatedDataTask {
+        return RepeatedDataTask(session: base, request: URLRequest(url: url))
+    }
+
+    public struct DataTask: Listenable {
+        var session: URLSession
+        let task: URLSessionDataTask
+        let storage: ValueStorage<(Data?, URLResponse?)>
+
+        init(session: URLSession, request: URLRequest, storage: ValueStorage<(Data?, URLResponse?)> = .unsafe(strong: (nil, nil))) {
+            self.session = session
+            self.task = session.dataTask(for: request, storage: storage)
+            self.storage = storage
+        }
+
+        public func listening(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> Disposable {
+            task.resume()
+            return storage.listening(assign)
+        }
+
+        public func listeningItem(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> ListeningItem {
+            switch task.state {
+            case .completed, .canceling:
+                let value = self.storage.value
+                let error = task.error
+                return ListeningItem(
+                    resume: { assign.call(error.map({ .error($0) }) ?? .value(value)) },
+                    pause: {},
+                    token: ()
+                )
+            default:
+                task.resume()
+                return storage.listeningItem(assign)
+            }
+        }
+    }
+
+    public class RepeatedDataTask: Listenable {
+        var session: URLSession
+        let request: URLRequest
+        var task: URLSessionDataTask
+        let repeater: Repeater<(Data?, URLResponse?)>
+
+        init(session: URLSession, request: URLRequest, repeater: Repeater<(Data?, URLResponse?)> = .unsafe()) {
+            self.session = session
+            self.request = request
+            self.task = session.dataTask(for: request, repeater: repeater)
+            self.repeater = repeater
+        }
+
+        public func listening(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> Disposable {
+            task.resume()
+            return repeater.listening(assign)
+        }
+
+        public func listeningItem(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> ListeningItem {
+            restartIfNeeded()
+            return ListeningItem(
+                resume: { [weak self] () -> Void? in
+                    return self?.restartIfNeeded()
+                },
+                pause: task.suspend,
+                dispose: task.cancel,
+                token: ()
+            )
+        }
+
+        private func restartIfNeeded() {
+            switch task.state {
+            case .completed, .canceling:
+                task = session.dataTask(for: request, repeater: repeater)
+            default: break
+            }
+            task.resume()
+        }
+    }
+}
+extension URLSessionTask {
+    var isInvalidated: Bool {
+        switch state {
+        case .canceling, .completed: return true
+        case .running, .suspended: return false
+        }
+    }
+}
+extension URLSession: RealtimeCompatible {
+    fileprivate func dataTask(for request: URLRequest, storage: ValueStorage<(Data?, URLResponse?)>) -> URLSessionDataTask {
+        return dataTask(with: request) { (data, response, error) in
+            if let e = error {
+                storage.sendError(e)
+            } else {
+                storage.value = (data, response)
+            }
+        }
+    }
+
+    fileprivate func dataTask(for request: URLRequest, repeater: Repeater<(Data?, URLResponse?)>) -> URLSessionDataTask {
+        return dataTask(with: request) { (data, response, error) in
+            if let e = error {
+                repeater.send(.error(e))
+            } else {
+                repeater.send(.value((data, response)))
+            }
         }
     }
 }

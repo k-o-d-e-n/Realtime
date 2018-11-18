@@ -454,11 +454,10 @@ public extension Transaction {
     func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) throws {
         guard let updatedNode = value.node else { fatalError("Value must be rooted") }
 
-        let database = self.database
         try _update(value, by: updatedNode)
         addCompletion { (result) in
             if result {
-                value.didSave(in: database, in: updatedNode.parent ?? .root, by: updatedNode.key)
+                value.didUpdate(through: updatedNode)
             }
         }
     }
