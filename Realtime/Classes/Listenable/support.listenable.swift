@@ -35,7 +35,7 @@ extension Optional: _Optional {
 
 public extension Listenable where Out: RealtimeValueActions {
     /// Loads a value is associated with `RealtimeValueActions` value
-    func load(timeout: DispatchTimeInterval) -> Preprocessor<Out, Out> {
+    func load(timeout: DispatchTimeInterval = .seconds(10)) -> Preprocessor<Out, Out> {
         return onReceive({ (prop, promise) in
             prop.load(timeout: timeout, completion: <-{ err in
                 if let e = err {
