@@ -166,7 +166,7 @@ extension Transaction {
     }
 
     public enum FileCompletion {
-        case meta([String: Any])
+        case meta(RealtimeMetadata)
         case error(Node, Error)
     }
 

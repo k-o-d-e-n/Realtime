@@ -284,13 +284,15 @@ extension Database: RealtimeDatabase {
 
 import FirebaseStorage
 
+public typealias RealtimeMetadata = [String: Any]
+
 public protocol StorageNode {
     func delete(completion: ((Error?) -> Void)?)
-    func put(_ data: Data, metadata: [String: Any]?, completion: @escaping ([String: Any]?, Error?) -> Void)
+    func put(_ data: Data, metadata: RealtimeMetadata?, completion: @escaping (RealtimeMetadata?, Error?) -> Void)
 }
 
 extension StorageReference: StorageNode {
-    public func put(_ data: Data, metadata: [String: Any]?, completion: @escaping ([String: Any]?, Error?) -> Void) {
+    public func put(_ data: Data, metadata: RealtimeMetadata?, completion: @escaping (RealtimeMetadata?, Error?) -> Void) {
         var smd: StorageMetadata?
         if let md = metadata {
             smd = StorageMetadata(dictionary: md)
