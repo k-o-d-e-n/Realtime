@@ -7,6 +7,7 @@
 
 import Foundation
 import FirebaseDatabase
+import FirebaseStorage
 
 internal func debugAction(_ action: () -> Void) {
     #if DEBUG
@@ -43,13 +44,14 @@ extension ObjectIdentifier {
 public class RealtimeApp {
     /// Default database instance
     public let database: RealtimeDatabase
-    //    let storage:
+    public let storage: RealtimeStorage
     let linksNode: Node
     let maxNodeDepth: Int
     var cachePolicy: CachePolicy = .noCache
 
-    init(db: RealtimeDatabase, linksNode: Node, maxDepth: Int) {
+    init(db: RealtimeDatabase, storage: RealtimeStorage, linksNode: Node, maxDepth: Int) {
         self.database = db
+        self.storage = storage
         self.linksNode = linksNode
         self.maxNodeDepth = maxDepth
     }
@@ -65,6 +67,7 @@ public class RealtimeApp {
     /// is related with creation external links.
     public static func initialize(
         with database: RealtimeDatabase = Database.database(),
+        storage: RealtimeStorage = Storage.storage(),
         cachePolicy: CachePolicy = .default,
         linksNode: Node? = nil,
         maxNodeDepth: Int = 32
@@ -74,7 +77,7 @@ public class RealtimeApp {
         }
 
         RealtimeApp._app = RealtimeApp(
-            db: database,
+            db: database, storage: storage,
             linksNode: linksNode ?? Node(key: InternalKeys.links, parent: .root),
             maxDepth: maxNodeDepth
         )

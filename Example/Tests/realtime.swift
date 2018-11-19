@@ -71,8 +71,8 @@ class TestObject: Object {
     lazy var array: Values<TestObject> = "array".values(in: self)
     lazy var dictionary: AssociatedValues<Object, TestObject> = "dict".dictionary(in: self, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
-    lazy var readonlyFile: ReadonlyFile<UIImage> = "readonlyFile".readonlyFile(in: self, representer: .png)
-    lazy var file: File<UIImage> = "file".file(in: self, representer: .jpeg())
+    lazy var readonlyFile: ReadonlyFile<UIImage?> = "readonlyFile".readonlyFile(in: self, representer: .png)
+    lazy var file: File<UIImage?> = "file".file(in: self, representer: .jpeg())
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -202,7 +202,7 @@ extension RealtimeTests {
         checkWillSave(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
         checkWillSave(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
         do {
-            let save = try obj.save(by: .root, in: Transaction(database: CacheNode.root))
+            let save = try obj.save(by: .root, in: Transaction(database: CacheNode.root, storage: CacheNode.root))
             save.commit(with: { _, errs in
                 errs.map { _ in XCTFail() }
 
@@ -267,7 +267,7 @@ extension RealtimeTests {
         checkWillRemove(obj.nestedObject.usualProperty, nested: true)
         checkWillRemove(obj.nestedObject.lazyProperty, nested: true)
         do {
-            let save = try obj.delete(in: Transaction(database: CacheNode.root))
+            let save = try obj.delete(in: Transaction(database: CacheNode.root, storage: CacheNode.root))
             save.commit(with: { _, errs in
                 errs.map { _ in XCTFail() }
 
@@ -296,7 +296,6 @@ extension RealtimeTests {
 
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
-        testObject.file <== #imageLiteral(resourceName: "pw")
 
         do {
             let trans = try testObject.save(in: .root)
@@ -420,10 +419,10 @@ extension RealtimeTests {
 
             let object = try TestObject(data: data.child(forPath: element.node!.rootPath), exactly: false)
             
-            XCTAssertNotNil(object.file.wrapped)
-//            XCTAssertEqual(object.file.wrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
-            XCTAssertNotNil(object.readonlyFile.wrapped)
-            XCTAssertEqual(object.readonlyFile.wrapped.flatMap(UIImagePNGRepresentation), imgData)
+            XCTAssertNotNil(object.file.unwrapped)
+//            XCTAssertEqual(object.file.unwrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
+            XCTAssertNotNil(object.readonlyFile.unwrapped)
+            XCTAssertEqual(object.readonlyFile.unwrapped.flatMap(UIImagePNGRepresentation), imgData)
             XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
@@ -445,7 +444,7 @@ extension RealtimeTests {
         user.ownedGroup <== group
 
         do {
-            let cache = Transaction(database: CacheNode.root)
+            let cache = Transaction(database: CacheNode.root, storage: CacheNode.root)
             let transaction = try user.save(in: .root, in: cache)
             transaction.commit(with: { (_, errors) in
                 errors.map { _ in XCTFail() }
@@ -454,7 +453,7 @@ extension RealtimeTests {
 
                 user.photo <== #imageLiteral(resourceName: "pw")
                 do {
-                    let update = try user.update(in: Transaction(database: CacheNode.root))
+                    let update = try user.update(in: Transaction(database: CacheNode.root, storage: CacheNode.root))
                     XCTAssertTrue(update.updateNode.updateValue.isEmpty)
                     update.commit(with: { _, errors in
                         errors.map { _ in XCTFail() }
@@ -885,7 +884,7 @@ extension RealtimeTests {
     }
 
     func testCacheObject() {
-        let transaction = Transaction(database: CacheNode.root)
+        let transaction = Transaction(database: CacheNode.root, storage: CacheNode.root)
         let testObject = TestObject(in: .root)
 
         testObject.property <== "string"

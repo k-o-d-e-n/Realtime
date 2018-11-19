@@ -91,6 +91,11 @@ extension ReadonlyProperty {
     }
 }
 
+extension ValueOption {
+    /// Key for `RealtimeStorage` instance
+    static var storage: ValueOption = ValueOption("realtime.storage")
+}
+
 /// Defines readonly property for files storage
 public final class ReadonlyFile<T>: ReadonlyProperty<T> {
     override var updateType: ValueNode.Type { return FileNode.self }

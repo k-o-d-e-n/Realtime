@@ -13,6 +13,7 @@ import FirebaseDatabase
 /// A type that contains data associated with database node.
 public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
     var database: RealtimeDatabase? { get }
+    var storage: RealtimeStorage? { get }
     var node: Node? { get }
     var key: String? { get }
     var value: Any? { get }
@@ -34,6 +35,7 @@ extension DataSnapshot: RealtimeDataProtocol, Sequence {
     }
 
     public var database: RealtimeDatabase? { return ref.database }
+    public var storage: RealtimeStorage? { return nil }
     public var node: Node? { return Node.from(ref) }
 
     public func child(forPath path: String) -> RealtimeDataProtocol {
@@ -49,6 +51,7 @@ extension DataSnapshot: RealtimeDataProtocol, Sequence {
 }
 extension MutableData: RealtimeDataProtocol, Sequence {
     public var database: RealtimeDatabase? { return nil }
+    public var storage: RealtimeStorage? { return nil }
     public var node: Node? { return key.map(Node.init) }
 
     public func exists() -> Bool {

@@ -29,7 +29,7 @@ extension Reverting where Self: ChangeableRealtimeValue {
 /// Provides addition of operations with completion handler, cancelation, and async preconditions.
 public class Transaction {
     let database: RealtimeDatabase
-    let storage: Storage
+    let storage: RealtimeStorage
     internal var updateNode: ObjectNode = ObjectNode(node: .root)
     fileprivate var preconditions: [(Promise) -> Void] = []
     fileprivate var completions: [(Bool) -> Void] = []
@@ -56,7 +56,7 @@ public class Transaction {
     }
 
     public init(database: RealtimeDatabase = RealtimeApp.app.database,
-                storage: Storage = Storage.storage()) {
+                storage: RealtimeStorage = RealtimeApp.app.storage) {
         self.database = database
         self.storage = storage
     }
@@ -166,46 +166,12 @@ extension Transaction {
     }
 
     public enum FileCompletion {
-        case meta(StorageMetadata)
+        case meta([String: Any])
         case error(Node, Error)
     }
 
     func performUpdateFiles(_ completion: @escaping ([FileCompletion]) -> Void) {
-        var nearest = updateNode
-        while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
-            nearest = next
-        }
-        let files = nearest.files
-        guard !files.isEmpty else { return completion([]) }
-
-        let group = DispatchGroup()
-        let lock = NSRecursiveLock()
-        var completions: [FileCompletion] = []
-        let addCompletion: (Node, StorageMetadata?, Error?) -> Void = { node, md, err in
-            lock.lock()
-            completions.append(md.map({ .meta($0) }) ?? .error(node, err ?? RealtimeError(source: .file, description: "Unexpected error on upload file")))
-            lock.unlock()
-            group.leave()
-        }
-        files.indices.forEach { _ in group.enter() }
-        files.forEach { (file) in
-            let node = file.location
-            if let value = file.value {
-                guard case let data as Data = value else {
-                    fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.location)")
-                }
-                file.location.file(for: storage).putData(data, metadata: nil, completion: { (md, err) in
-                    addCompletion(node, md, err)
-                })
-            } else {
-                file.location.file(for: storage).delete(completion: { (err) in
-                    addCompletion(node, nil, err)
-                })
-            }
-        }
-        group.notify(queue: .main) {
-            completion(completions)
-        }
+        storage.commit(transaction: self, completion: completion)
     }
 
     internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Realtime.Node) throws {
