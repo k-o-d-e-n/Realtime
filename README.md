@@ -154,11 +154,6 @@ do {
 }
 ```
 
-***KeyedRealtimeCollection*** *(Deprecated)* is immutable collection that gets elements from elements of base collection by specific key path. This is the result of x.keyed(by:elementBuilder:) method, where x is any RealtimeCollection. 
-```swift
-let userNames = Values<User>(in: usersNode).keyed(by: Nodes.name)
-```
-
 ***MapRealtimeCollection*** is immutable collection that gets elements from map function. This is the result of x.lazyMap(_ transform:) method, where x is any RealtimeCollection. 
 ```swift
 let userNames = Values<User>(in: usersNode).lazyMap { user in
