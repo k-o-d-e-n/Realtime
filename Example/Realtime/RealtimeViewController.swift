@@ -71,11 +71,6 @@ class RealtimeViewController: UIViewController {
     var group: Group?
     var conversationUser: User?
 
-    deinit {
-        Global.rtGroups.stopObserving()
-        Global.rtUsers.stopObserving()
-    }
-
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .white
@@ -83,18 +78,16 @@ class RealtimeViewController: UIViewController {
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .trash, target: self, action: #selector(free))
 
-        Global.rtUsers.changes.listening(onValue: { _ in
+        Global.rtUsers.changes.listening(onValue: { [unowned self] _ in
             if self.user == nil {
                 self.user = Global.rtUsers.first
             }
         }).add(to: store)
-        Global.rtUsers.runObserving()
-        Global.rtGroups.changes.listening(onValue: { _ in
+        Global.rtGroups.changes.listening(onValue: { [unowned self] _ in
             if self.group == nil {
                 self.group = Global.rtGroups.first
             }
         }).add(to: store)
-        Global.rtGroups.runObserving()
 
         addUserButton.addTarget(self, action: #selector(addUser), for: .touchUpInside)
         removeUserButton.addTarget(self, action: #selector(removeUser), for: .touchUpInside)
@@ -105,6 +98,18 @@ class RealtimeViewController: UIViewController {
         linkButton.addTarget(self, action: #selector(linkUserGroup), for: .touchUpInside)
         unlinkButton.addTarget(self, action: #selector(unlinkUserGroup), for: .touchUpInside)
         loadPhoto.addTarget(self, action: #selector(loadUserPhoto), for: .touchUpInside)
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        Global.rtUsers.runObserving()
+        Global.rtGroups.runObserving()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        Global.rtUsers.stopObserving()
+        Global.rtGroups.stopObserving()
     }
 
     @objc func free() {

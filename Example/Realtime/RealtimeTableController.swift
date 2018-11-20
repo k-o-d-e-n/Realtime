@@ -78,10 +78,24 @@ class RealtimeTableController: UIViewController {
         delegate.tableDelegate = self
         delegate.editingDataSource = self
 
-        iView.startAnimating()
+        if !users.isObserved {
+            iView.startAnimating()
+        }
 
         users.changes
-            .do({ _ in iView.stopAnimating() })
+            .do({ [unowned self] e in
+                iView.stopAnimating()
+                let titleView: UILabel = (self.navigationItem.titleView as? UILabel) ?? UILabel()
+                switch e {
+                case .value(let e):
+                    titleView.text = "Event: \(e)"
+                    titleView.textColor = .black
+                case .error(let e):
+                    titleView.textColor = UIColor.red.withAlphaComponent(0.7)
+                    titleView.text = String(describing: e)
+                }
+                self.navigationItem.titleView = titleView
+            })
             .listening(
                 onValue: { [unowned self] change in
                     print(change)

@@ -1179,21 +1179,33 @@ extension RealtimeTests {
             trans.commit { (_, errors) in
                 _ = errors?.compactMap({ XCTFail($0.describingErrorDescription) })
 
-                let copyValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.keysNode: Node.root("keys"), .database: CacheNode.root])
-                copyValues._view.load(.just({ (err) in
-                    err.map { XCTFail($0.describingErrorDescription) }
+                /// we can use Values for readonly access to values, AssociatedValues and Values must be compatible
+                let copyAssocitedValues = AssociatedValues<Object, Object>(in: Node.root("values"),
+                                                                           options: [.keysNode: Node.root("keys"), .database: CacheNode.root])
+                let copyValues = copyAssocitedValues.values()
+                /// we can use References for readonly access to keys
+//                let copyKeys = References<Object>(in: Node.root("values").child(with: InternalKeys.items).linksNode,
+//                                                  options: [.elementsNode: Node.root("keys"), .database: CacheNode.root])
+                copyValues._view.load(.just({ (v_err) in
+                    v_err.map { XCTFail($0.describingErrorDescription) }
+//                    copyKeys._view.load(.just({ k_err in
+//                        k_err.map { XCTFail($0.describingErrorDescription) }
+                    copyAssocitedValues._view.load(.just({ av_err in
+                        av_err.map { XCTFail($0.describingErrorDescription) }
 
-                    if let first = copyValues.first {
-                        XCTAssertEqual(first.key, key)
-                        XCTAssertEqual(first.value, value)
-                        XCTAssertEqual(first.key.version, 3)
-                        XCTAssertEqual(first.key.raw as? Int, 2)
-                        XCTAssertEqual(first.value.version, 1)
-                        XCTAssertEqual(first.value.raw as? Int, 5)
-                    } else {
-                        XCTFail("No element")
-                    }
-                    exp.fulfill()
+                        if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first /*let copyKey = copyKeys.first*/ {
+                            XCTAssertEqual(copyAValue.key, key)
+                            XCTAssertEqual(copyAValue.key.version, 3)
+                            XCTAssertEqual(copyAValue.key.raw as? Int, 2)
+                            XCTAssertEqual(copyValue, value)
+                            XCTAssertEqual(copyValue.version, 1)
+                            XCTAssertEqual(copyValue.raw as? Int, 5)
+                        } else {
+                            XCTFail("No element")
+                        }
+                        exp.fulfill()
+                    }))
+//                    }))
                 }))
             }
         } catch let e {

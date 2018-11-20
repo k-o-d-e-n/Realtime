@@ -58,10 +58,10 @@ struct RCItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepre
 
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
         guard let key = data.key else {
-            throw RealtimeError(initialization: RDItem.self, data)
+            throw RealtimeError(initialization: RCItem.self, data)
         }
         guard let index: Int = try InternalKeys.index.map(from: data) else {
-            throw RealtimeError(initialization: RDItem.self, data)
+            throw RealtimeError(initialization: RCItem.self, data)
         }
 
         self.dbKey = key

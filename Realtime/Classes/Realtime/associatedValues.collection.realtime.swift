@@ -203,6 +203,22 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
 
     // MARK: Implementation
 
+    /// not implemented, currently returns values
+    public func keys() -> References<Key> {
+        fatalError("In future release")
+        return References(
+            in: _view.source.node,
+            options: [.database: database as Any, .elementsNode: storage.keysNode]
+        )
+    }
+
+    public func values() -> Values<Value> {
+        return Values(
+            in: node,
+            options: [.database: database as Any, .elementBuilder: storage.elementBuilder]
+        )
+    }
+
     public typealias Element = (key: Key, value: Value)
 
     private var shouldLinking = true // TODO: Fix it

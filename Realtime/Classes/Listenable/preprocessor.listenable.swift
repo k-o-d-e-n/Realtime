@@ -248,15 +248,7 @@ public struct Once<T>: Listenable {
         /// calls once and sets to pause, on resume call enabled once event yet
         var shouldCall = true
         var baseItem: ListeningItem?
-        let item = ListeningItem(
-            resume: {
-                shouldCall = true
-                return baseItem!.resume()
-            },
-            pause: baseItem!.pause,
-            dispose: baseItem!.dispose,
-            token: ()
-        )
+        var item: ListeningItem!
         baseItem = listenable
             .filter({ _ in shouldCall })
             .listeningItem(
@@ -264,6 +256,15 @@ public struct Once<T>: Listenable {
                     item.pause()
                     shouldCall = false
                 })
+        )
+        item = ListeningItem(
+            resume: {
+                shouldCall = true
+                return baseItem!.resume()
+            },
+            pause: baseItem!.pause,
+            dispose: baseItem!.dispose,
+            token: ()
         )
         return item
     }
