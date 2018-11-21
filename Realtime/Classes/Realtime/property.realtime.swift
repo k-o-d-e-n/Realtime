@@ -156,11 +156,9 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
         super.init(in: node, options: options.merging([.representer: o.representer], uniquingKeysWith: { _, new in new }))
     }
 
-
     required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:options) instead")
+        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:exactly:) instead")
     }
-
 
     @discardableResult
     public override func setValue(_ value: Referenced, in transaction: Transaction? = nil) throws -> Transaction {
@@ -210,11 +208,9 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         super.init(in: node, options: options.merging([.representer: relation.representer], uniquingKeysWith: { _, new in new }))
     }
 
-
     required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:options) instead")
+        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:exactly:) instead")
     }
-
 
     @discardableResult
     public override func setValue(_ value: Related, in transaction: Transaction? = nil) throws -> Transaction {
@@ -628,7 +624,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 
     public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         #if DEBUG
-        fatalError("init(data:exactly:) cannot be called. Use init(data:exactly:representer:)")
+        fatalError("init(data:exactly:) cannot be called. Use combination init(in:options:) and apply(_:exactly:) instead")
         #else
         throw RealtimeError(decoding: type(of: self).self, data, reason: "Unavailable initializer")
         #endif

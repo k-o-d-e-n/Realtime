@@ -237,7 +237,7 @@ public final class SortedCollectionView<Element: RCViewElementProtocol & Compara
                 self.map { this in
                     this.isSynced = this.isObserved && e == nil
                 }
-                })
+            })
         }
         return added && removed && changed
     }
@@ -270,6 +270,8 @@ public final class SortedCollectionView<Element: RCViewElementProtocol & Compara
     }
 
     public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        /// partial data processing happened in `changes`
+        guard exactly else { return }
         let representer = Representer<SortedArray<Element>>(collection: Representer.realtimeData).defaultOnEmpty()
         self._elements = try representer.decode(data)
     }

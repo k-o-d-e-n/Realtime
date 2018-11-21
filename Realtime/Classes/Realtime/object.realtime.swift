@@ -228,8 +228,8 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.rootPath ?? "not referred"),
             version: \(version ?? 0),
-            raw: \(raw ?? "no raw"),
-            has changes: \(_hasChanges)
+            raw: \(raw ?? "null"),
+            hasChanges: \(_hasChanges)
         }
         """
     }
