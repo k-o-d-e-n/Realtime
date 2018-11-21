@@ -51,7 +51,7 @@ extension OtherTests {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
         let source = Property<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any.requiredProperty(), .initialValue: [0]])
-        let one = AnyRealtimeCollectionView<[Int], Values<Object>>(source)//SharedCollection([1])
+        let one = SharedCollection([1])
 
         let lazyOne = one.lazy.map(mapValue)
         _ = lazyOne.first
@@ -199,4 +199,27 @@ func ∈ <T: Equatable>(lhs: T, rhs: [T]) -> Bool {
 
 func any<T: Equatable>(of values: T...) -> (T) -> Bool {
     return { values.contains($0) }
+}
+
+internal func _makeCollectionDescription<C: Collection>(_ collection: C,
+    withTypeName type: String? = nil
+    ) -> String {
+    var result = ""
+    if let type = type {
+        result += "\(type)(["
+    } else {
+        result += "["
+    }
+
+    var first = true
+    for item in collection {
+        if first {
+            first = false
+        } else {
+            result += ", "
+        }
+        debugPrint(item, terminator: "", to: &result)
+    }
+    result += type != nil ? "])" : "]"
+    return result
 }

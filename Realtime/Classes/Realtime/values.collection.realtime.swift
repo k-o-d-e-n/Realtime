@@ -37,38 +37,33 @@ public extension Node {
     }
 }
 
-// MARK: Implementation RealtimeCollection`s
-
 public extension Values {
     convenience init<E>(in node: Node?, elements: References<E>) {
         self.init(in: node,
                   options: [.elementBuilder: elements.storage.elementBuilder],
-                  viewSource: elements._view.source)
+                  view: elements.view)
     }
 }
 
 /// A Realtime database collection that stores elements in own database node as is, as full objects.
-public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC where Element: WritableRealtimeValue & RealtimeValueEvents {
+public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection where Element: WritableRealtimeValue & RealtimeValueEvents {
+    /// Stores collection values and responsible for lazy initialization elements
+    internal(set) var storage: RCArrayStorage<RCItem, Element>
+    override var _hasChanges: Bool { return view._hasChanges }
+
     public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
-    override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
-    /// Stores collection values and responsible for lazy initialization elements
-    public internal(set) var storage: RCArrayStorage<Element>
     /// Stores an abstract elements
-    public var view: RealtimeCollectionView { return _view }
-    public var isSynced: Bool { return _view.isSynced }
-    public override var isObserved: Bool { return _view.source.isObserved }
-    public override var canObserve: Bool { return _view.source.canObserve }
-    public var keepSynced: Bool = false {
-        didSet {
-            guard oldValue != keepSynced else { return }
-            if keepSynced { runObserving() }
-            else { stopObserving() }
-        }
+    public let view: SortedCollectionView<RCItem> 
+    public var isSynced: Bool { return view.isSynced }
+    public override var isObserved: Bool { return view.isObserved }
+    public override var canObserve: Bool { return view.canObserve }
+    public var keepSynced: Bool {
+        set { view.keepSynced = newValue }
+        get { return view.keepSynced }
     }
-
-    let _view: AnyRealtimeCollectionView<SortedArray<RCItem>, Values>
+    public var changes: AnyListenable<RCEvent> { return view.changes }
 
     /// Create new instance with default element builder
     ///
@@ -84,132 +79,41 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public convenience required init(in node: Node?, options: [ValueOption: Any]) {
+    public required convenience init(in node: Node?, options: [ValueOption: Any]) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
-        self.init(
-            in: node,
-            options: options,
-            viewSource: Property<SortedArray<RCItem>>(
-                in: Node(key: InternalKeys.items, parent: viewParentNode),
-                options: [
-                    .database: options[.database] as Any,
-                    .representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData).requiredProperty()
-                ]
-            ).defaultOnEmpty()
-        )
-    }
-
-    init(in node: Node?,
-         options: [ValueOption: Any],
-         viewSource: Property<SortedArray<RCItem>>) {
-        let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
-        self.storage = RCArrayStorage(sourceNode: node, elementBuilder: builder, elements: [:])
-        self._view = AnyRealtimeCollectionView(viewSource)
-        super.init(in: node, options: options)
+        let viewNode = Node(key: InternalKeys.items, parent: viewParentNode)
+        let view = SortedCollectionView<RCItem>(in: viewNode, options: [.database: options[.database] as Any])
+        self.init(in: node, options: options, view: view)
     }
 
     public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         let node = data.node
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
+        let viewNode = Node(key: InternalKeys.items, parent: viewParentNode)
         self.storage = RCArrayStorage(sourceNode: node, elementBuilder: Element.init, elements: [:])
-        self._view = AnyRealtimeCollectionView(
-            Property<SortedArray<RCItem>>(
-                in: Node(key: InternalKeys.items, parent: viewParentNode),
-                options: [
-                    .database: data.database as Any,
-                    .representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData).requiredProperty()
-                ]
-            ).defaultOnEmpty()
-        )
+        self.view = SortedCollectionView(in: viewNode, options: [.database: data.database as Any])
         try super.init(data: data, exactly: exactly)
+    }
+
+    init(in node: Node?, options: [ValueOption: Any], view: SortedCollectionView<RCItem>) {
+        let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
+        self.storage = RCArrayStorage(sourceNode: node, elementBuilder: builder, elements: [:])
+        self.view = view
+        super.init(in: node, options: options)
     }
 
     // Implementation
 
-    /// Returns a Boolean value indicating whether the sequence contains an
-    /// element that has the same key.
-    ///
-    /// - Parameter element: The element to check for containment.
-    /// - Returns: `true` if `element` is contained in the range; otherwise,
-    ///   `false`.
-    public func contains(_ element: Element) -> Bool {
-        return _view.contains { $0.dbKey == element.dbKey }
-    }
-    public subscript(position: Int) -> Element { return storage.object(for: _view[position]) }
-    public var startIndex: Int { return _view.startIndex }
-    public var endIndex: Int { return _view.endIndex }
-    public func index(after i: Int) -> Int { return _view.index(after: i) }
-    public func index(before i: Int) -> Int { return _view.index(before: i) }
-
-    @discardableResult
-    public func runObserving() -> Bool {
-        let isNeedLoadFull = !_view.source.isObserved
-        let added = _view.source._runObserving(.child(.added))
-        let removed = _view.source._runObserving(.child(.removed))
-        let changed = _view.source._runObserving(.child(.changed))
-        if isNeedLoadFull {
-            // overhead if often switches run/stop
-            _view.load(.just { [weak self] e in
-                self.map { this in
-                    this._view.isSynced = this._view.source.isObserved && e == nil
-                }
-            })
-        }
-        return added && removed && changed
-    }
-
-    public func stopObserving() {
-        // checks 'added' only, can lead to error
-        guard !keepSynced || (observing[.child(.added)].map({ $0.counter > 1 }) ?? true) else {
-            return
-        }
-
-        _view.source._stopObserving(.child(.added))
-        _view.source._stopObserving(.child(.removed))
-        _view.source._stopObserving(.child(.changed))
-        if !_view.source.isObserved {
-            _view.isSynced = false
-        }
-    }
-
-    public lazy var changes: AnyListenable<RCEvent> = {
-        return Accumulator(repeater: .unsafe(), _view.source.dataObserver
-            .filter({ [unowned self] e in self._view.isSynced || e.1 == .value })
-            .map { [unowned self] (value) -> RCEvent in
-                switch value.1 {
-                case .value:
-                    return .initial
-                case .child(.added):
-                    let item = try RCItem(data: value.0)
-                    let index: Int = self._view.insertRemote(item)
-                    return .updated((deleted: [], inserted: [index], modified: [], moved: []))
-                case .child(.removed):
-                    let item = try RCItem(data: value.0)
-                    if let index = self._view.removeRemote(item) {
-                        self.storage.elements.removeValue(forKey: item.dbKey)
-                        return .updated((deleted: [index], inserted: [], modified: [], moved: []))
-                    } else {
-                        throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
-                    }
-                case .child(.changed):
-                    let item = try RCItem(data: value.0)
-                    let indexes = self._view.moveRemote(item)
-                    return .updated((deleted: [], inserted: [], modified: [], moved: indexes.map { [$0] } ?? []))
-                default:
-                    throw RealtimeError(source: .collection, description: "Unexpected data event: \(value)")
-                }
-            })
-            .asAny()
-    }()
+    public subscript(position: Int) -> Element { return storage.object(for: view[position]) }
 
     var _snapshot: (RealtimeDataProtocol, Bool)?
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        guard _view.isSynced else {
+        guard view.isSynced else {
             _snapshot = (data, exactly)
             return
         }
         _snapshot = nil
-        try _view.forEach { key in
+        try view.forEach { key in
             guard data.hasChild(key.dbKey) else {
                 if exactly { storage.elements.removeValue(forKey: key.dbKey) }
                 return
@@ -231,11 +135,11 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         /// skip the call of super (_RealtimeValue)
         let elems = storage.elements
         storage.elements.removeAll()
-        let view = _view.value
+        let view = self.view.elements
         transaction.addReversion { [weak self] in
-            self?._view.source <== view
+            self?.view.elements = view
         }
-        _view.removeAll()
+        self.view.removeAll()
         for item in view {
             try _write(elems[item.dbKey]!,
                        with: item.priority,
@@ -248,7 +152,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
-            _view.source.didSave(in: database, in: node.linksNode)
+            view.didSave(in: database, in: node.linksNode)
             storage.sourceNode = node
         }
         storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0) }
@@ -263,7 +167,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
     }
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
-        _view.source.didRemove()
+        view.didRemove()
         storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
     }
 
@@ -272,7 +176,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RC 
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.rootPath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
-            elements: \(_view.value.map { (key: $0.dbKey, index: $0.priority) })
+            elements: \(view.map { (key: $0.dbKey, index: $0.priority) })
         }
         """
     }
@@ -299,7 +203,7 @@ extension Values {
         guard isSynced || element.node == nil else {
             let transaction = transaction ?? Transaction(database: database)
             transaction.addPrecondition { [unowned transaction] promise in
-                self._view._contains(with: element.dbKey) { contains, err in
+                self.view._contains(with: element.dbKey) { contains, err in
                     if let e = err {
                         promise.reject(e)
                     } else if contains {
@@ -346,20 +250,20 @@ extension Values {
             fatalError("Element with such key already exists")
         }
 
-        let index = priority ?? _view.count
+        let index = priority ?? view.count
         let key = element.node.map { $0.key } ?? String(index)
         storage.elements[key] = element
-        _ = _view.insert(RCItem(element: element, key: key, priority: index, linkID: nil))
+        _ = view.insert(RCItem(element: element, key: key, priority: index, linkID: nil))
     }
 
     @discardableResult
     public func delete(at index: Int) -> Element {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
-        guard _view.count >= index else {
+        guard view.count >= index else {
             fatalError("Index out of range")
         }
 
-        guard let element = storage.elements.removeValue(forKey: _view.remove(at: index).dbKey) else {
+        guard let element = storage.elements.removeValue(forKey: view.remove(at: index).dbKey) else {
             fatalError("Internal exception: Element is not found")
         }
         return element
@@ -380,7 +284,7 @@ extension Values {
         let transaction = transaction ?? Transaction(database: database)
         guard isSynced else {
             transaction.addPrecondition { [unowned transaction] promise in
-                self._view._item(for: element.dbKey) { item, err in
+                self.view._item(for: element.dbKey) { item, err in
                     if let e = err {
                         promise.reject(e)
                     } else if let item = item {
@@ -412,7 +316,7 @@ extension Values {
         guard isSynced else { fatalError("Cannot be removed at index, because collection is not synced.") }
 
         let transaction = transaction ?? Transaction(database: database)
-        _remove(for: _view[index], in: transaction)
+        _remove(for: view[index], in: transaction)
         return transaction
     }
 
@@ -422,7 +326,7 @@ extension Values {
         in database: RealtimeDatabase, in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, with: priority ?? _view.last.map { $0.priority + 1 } ?? 0, by: (storage: node!, itms: _view.source.node!), in: transaction)
+        try _write(element, with: priority ?? view.last.map { $0.priority + 1 } ?? 0, by: (storage: node!, itms: view.node!), in: transaction)
         return transaction
     }
 
@@ -443,7 +347,7 @@ extension Values {
     }
 
     func _remove(_ element: Element, in transaction: Transaction) {
-        if let item = _view.first(where: { $0.dbKey == element.dbKey }) {
+        if let item = view.first(where: { $0.dbKey == element.dbKey }) {
             return _remove(for: item, in: transaction)
         } else {
             debugFatalError("Tries to remove not existed value")
@@ -463,7 +367,7 @@ extension Values {
         transaction.addReversion { [weak self] in
             self?.storage.elements[item.dbKey] = element
         }
-        transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) /// remove item element
+        transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item element
         transaction.removeValue(by: storage.sourceNode.child(with: item.dbKey)) /// remove element
         transaction.addCompletion { result in
             if result {

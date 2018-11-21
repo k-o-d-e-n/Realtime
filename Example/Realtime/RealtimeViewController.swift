@@ -246,8 +246,8 @@ class RealtimeViewController: UIViewController {
     @objc func linkUserGroup() {
         guard let u = user ?? Global.rtUsers.first, let g = group ?? Global.rtGroups.first else { fatalError() }
 
-        let ug = try! u.groups.write(element: g)
-        let gu = try! g.users.write(element: u)
+        let ug = try! u.groups.write(g)
+        let gu = try! g.users.write(u)
 
         let transaction = Transaction()
         try! u.ownedGroup.setValue(g, in: transaction)

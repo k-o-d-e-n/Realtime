@@ -8,8 +8,8 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func references<Element>(in object: Object, elements: Node) -> References<Element> {
-        return References(
+    func references<C, Element>(in object: Object, elements: Node) -> C where C: References<Element> {
+        return C(
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
@@ -17,7 +17,7 @@ public extension RawRepresentable where RawValue == String {
             ]
         )
     }
-    func references<Element>(in object: Object, elements: Node, elementOptions: [ValueOption: Any]) -> References<Element> {
+    func references<C, Element>(in object: Object, elements: Node, elementOptions: [ValueOption: Any]) -> C where C: References<Element> {
         let db = object.database as Any
         return references(in: object, elements: elements, builder: { (node, options) in
             var compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
@@ -25,8 +25,8 @@ public extension RawRepresentable where RawValue == String {
             return Element(in: node, options: compoundOptions)
         })
     }
-    func references<Element>(in object: Object, elements: Node, builder: @escaping RCElementBuilder<Element>) -> References<Element> {
-        return References(
+    func references<C, Element>(in object: Object, elements: Node, builder: @escaping RCElementBuilder<Element>) -> C where C: References<Element> {
+        return C(
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
@@ -42,25 +42,21 @@ public extension ValueOption {
 }
 
 /// A Realtime database collection that stores elements in own database node as references.
-public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue, RC where Element: RealtimeValue {
+public class __References<Element, Ref: RCViewItem>: _RealtimeValue, WritableRealtimeCollection where Element: RealtimeValue {
+    internal var storage: RCArrayStorage<Ref, Element>
+
     public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
-    override var _hasChanges: Bool { return isStandalone && storage.elements.count > 0 }
-    public internal(set) var storage: RCArrayStorage<Element>
-    public var view: RealtimeCollectionView { return _view }
-    public var isSynced: Bool { return _view.isSynced }
-    public override var isObserved: Bool { return _view.source.isObserved }
-    public override var canObserve: Bool { return _view.source.canObserve }
-    public var keepSynced: Bool = false {
-        didSet {
-            guard oldValue != keepSynced else { return }
-            if keepSynced { runObserving() }
-            else { stopObserving() }
-        }
+    public let view: SortedCollectionView<Ref>
+    public var isSynced: Bool { return view.isSynced }
+    public override var isObserved: Bool { return view.isObserved }
+    public override var canObserve: Bool { return view.canObserve }
+    public var keepSynced: Bool {
+        set { view.keepSynced = newValue }
+        get { return view.keepSynced }
     }
-
-    let _view: AnyRealtimeCollectionView<SortedArray<RCItem>, References>
+    public var changes: AnyListenable<RCEvent> { return view.changes }
 
     /// Creates new instance associated with database node
     ///
@@ -71,23 +67,24 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required init(in node: Node?, options: [ValueOption: Any]) {
+    public required init(in node: Node?, options: [ValueOption : Any]) {
         guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
         let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
 
         self.storage = RCArrayStorage(sourceNode: elements,
                                       elementBuilder: builder,
                                       elements: [:])
-        self._view = AnyRealtimeCollectionView(
-            Property<SortedArray<RCItem>>(
-                in: node,
-                options: [
-                    .database: options[.database] as Any,
-                    .representer: Representer<SortedArray<RCItem>>(collection: Representer.realtimeData).requiredProperty()
-                ]
-            ).defaultOnEmpty()
-        )
+        self.view = SortedCollectionView(in: node, options: options)
         super.init(in: node, options: options)
+    }
+
+    /// Currently, no available.
+    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        #if DEBUG
+        fatalError("References does not supported init(data:exactly:) yet.")
+        #else
+        throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
+        #endif
     }
 
     public convenience init(data: RealtimeDataProtocol, exactly: Bool, elementsNode: Node) throws {
@@ -96,127 +93,34 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         try apply(data, exactly: exactly)
     }
 
-    /// Currently, no available.
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        #if DEBUG
-            fatalError("References does not supported init(data:exactly:) yet.")
-        #else
-            throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
-        #endif
-    }
-
     // Implementation
 
-    private var shouldLinking = true // TODO: Fix it
-    public func unlinked() -> References<Element> { shouldLinking = false; return self }
-
-    /// Returns a Boolean value indicating whether the sequence contains an
-    /// element that has the same key.
-    ///
-    /// - Parameter element: The element to check for containment.
-    /// - Returns: `true` if `element` is contained in the range; otherwise,
-    ///   `false`.
-    public func contains(_ element: Element) -> Bool {
-        return _view.contains { $0.dbKey == element.dbKey }
-    }
-
-    public subscript(position: Int) -> Element { return storage.object(for: _view[position]) }
-    public var startIndex: Int { return _view.startIndex }
-    public var endIndex: Int { return _view.endIndex }
-    public func index(after i: Int) -> Int { return _view.index(after: i) }
-    public func index(before i: Int) -> Int { return _view.index(before: i) }
-
-    @discardableResult
-    public func runObserving() -> Bool {
-        let isNeedLoadFull = !self._view.source.isObserved
-        let added = _view.source._runObserving(.child(.added))
-        let removed = _view.source._runObserving(.child(.removed))
-        let changed = _view.source._runObserving(.child(.changed))
-        if isNeedLoadFull {
-            _view.load(.just { [weak self] e in
-                self.map { this in
-                    this._view.isSynced = this._view.source.isObserved && e == nil
-                }
-            })
-        }
-        return added && removed && changed
-    }
-
-    public func stopObserving() {
-        // checks 'added' only, can lead to error
-        guard !keepSynced || (observing[.child(.added)].map({ $0.counter > 1 }) ?? true) else {
-            return
-        }
-
-        _view.source._stopObserving(.child(.added))
-        _view.source._stopObserving(.child(.removed))
-        _view.source._stopObserving(.child(.changed))
-        if !_view.source.isObserved {
-            _view.isSynced = false
-        }
-    }
-
-    public lazy var changes: AnyListenable<RCEvent> = {
-        return Accumulator(repeater: .unsafe(), _view.source.dataObserver
-            .filter({ [unowned self] e in self._view.isSynced || e.1 == .value })
-            .map { [unowned self] (value) -> RCEvent in
-                switch value.1 {
-                case .value:
-                    return .initial
-                case .child(.added):
-                    let item = try RCItem(data: value.0)
-                    let index: Int = self._view.insertRemote(item)
-                    return .updated((deleted: [], inserted: [index], modified: [], moved: []))
-                case .child(.removed):
-                    let item = try RCItem(data: value.0)
-                    if let index = self._view.removeRemote(item) {
-                        self.storage.elements.removeValue(forKey: item.dbKey)
-                        return .updated((deleted: [index], inserted: [], modified: [], moved: []))
-                    } else {
-                        throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
-                    }
-                case .child(.changed):
-                    let item = try RCItem(data: value.0)
-                    let indexes = self._view.moveRemote(item)
-                    return .updated((deleted: [], inserted: [], modified: [], moved: indexes.map { [$0] } ?? []))
-                default:
-                    throw RealtimeError(source: .collection, description: "Unexpected data event: \(value)")
-                }
-            })
-            .asAny()
-    }()
+    public subscript(position: Int) -> Element { return storage.object(for: view[position]) }
 
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try super.apply(data, exactly: exactly)
-        try _view.source.apply(data, exactly: exactly)
+        try view.apply(data, exactly: exactly)
     }
 
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super
-        let view = _view.value
-        transaction.addReversion { [weak self] in
-            self?._view.source <== view
-        }
-        _view.removeAll()
-        for item in view {
-            try _write(storage.elements[item.dbKey]!, with: item.priority, by: node, in: transaction)
-        }
+        try view._write(to: transaction, by: node)
     }
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
-        _view.source.didSave(in: database, in: parent)
+        view.didSave(in: database, in: parent)
     }
 
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
-        _view.source.willRemove(in: transaction, from: ancestor)
+        view.willRemove(in: transaction, from: ancestor)
     }
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
-        _view.source.didRemove(from: ancestor)
+        view.didRemove(from: ancestor)
     }
 
     override public var debugDescription: String {
@@ -224,15 +128,36 @@ public final class References<Element>: _RealtimeValue, ChangeableRealtimeValue,
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.rootPath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
-            elements: \(_view.value.map { (key: $0.dbKey, index: $0.priority) })
+            elements: \(view.map { $0.dbKey })
         }
         """
     }
 }
 
+public class References<Element: RealtimeValue>: __References<Element, RCItem> {}
+
 // MARK: Mutating
 
-public extension References {
+public final class MutableReferences<Element: RealtimeValue>: References<Element>, MutableRealtimeCollection {
+    override var _hasChanges: Bool { return view._hasChanges }
+
+    private var shouldLinking = true // TODO: Fix it
+    public func unlinked() -> MutableReferences<Element> { shouldLinking = false; return self }
+
+    public func write(_ element: Element, to transaction: Transaction) throws {
+        try write(element: element, with: count, in: transaction)
+    }
+    public func write(_ element: Element) throws -> Transaction {
+        return try write(element: element, with: count, in: nil)
+    }
+
+    public func erase(at index: Int, in transaction: Transaction) {
+        remove(at: index, in: transaction)
+    }
+    public func erase(at index: Int) -> Transaction {
+        return remove(at: index, in: nil)
+    }
+
     /// Adds element to collection at passed priority,
     /// and writes a changes to transaction.
     ///
@@ -251,7 +176,7 @@ public extension References {
         guard isSynced else {
             let transaction = transaction ?? Transaction(database: database)
             transaction.addPrecondition { [unowned transaction] promise in
-                self._view._contains(with: element.dbKey) { contains, err in
+                self.view._contains(with: element.dbKey) { contains, err in
                     if let e = err {
                         promise.reject(e)
                     } else if contains {
@@ -289,7 +214,7 @@ public extension References {
     /// - Parameters:
     ///   - element: The element to write
     ///   - index: Priority value or `nil` if you want to add to end of collection.
-    func insert(element: Element, with priority: Int? = nil) {
+    public func insert(element: Element, with priority: Int? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
         let contains = element.node.map { n in storage.elements[n.key] != nil } ?? false
@@ -297,12 +222,12 @@ public extension References {
             fatalError("Element with such key already exists")
         }
 
-        let index = priority ?? _view.count
+        let index = priority ?? view.count
         storage.elements[element.dbKey] = element
-        _ = _view.insert(RCItem(element: element, priority: index, linkID: nil))
+        view.insert(RCItem(element: element, priority: index, linkID: nil))
     }
 
-    func delete(element: Element) {
+    public func delete(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
         let contains = element.node.map { n in storage.elements[n.key] != nil } ?? false
@@ -311,10 +236,10 @@ public extension References {
         }
 
         storage.elements.removeValue(forKey: element.dbKey)
-        guard let index = _view.index(where: { $0.dbKey == element.dbKey }) else {
+        guard let index = view.index(where: { $0.dbKey == element.dbKey }) else {
             return
         }
-        _ = _view.remove(at: index)
+        view.remove(at: index)
     }
 
     /// Removes element from collection if collection contains this element.
@@ -324,13 +249,13 @@ public extension References {
     ///   - transaction: Write transaction or `nil`
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    func remove(element: Element, in transaction: Transaction? = nil) -> Transaction? {
+    public func remove(element: Element, in transaction: Transaction? = nil) -> Transaction? {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
 
         let transaction = transaction ?? Transaction(database: database)
         guard isSynced else {
             transaction.addPrecondition { [unowned transaction] promise in
-                self._view._item(for: element.dbKey) { item, err in
+                self.view._item(for: element.dbKey) { item, err in
                     if let e = err {
                         promise.reject(e)
                     } else if let item = item {
@@ -363,17 +288,17 @@ public extension References {
         guard isSynced else { fatalError("Cannot be removed at index, because collection is not synced.") }
 
         let transaction = transaction ?? Transaction(database: database)
-        _remove(for: _view[index], in: transaction)
+        _remove(for: view[index], in: transaction)
         return transaction
     }
 
     @discardableResult
     internal func _write(
-        _ element: Element, with priority: Int? = nil,
+        _ element: Element, with priority: Int?,
         in database: RealtimeDatabase, in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, with: priority ?? _view.last.map { $0.priority + 1 } ?? 0, by: node!, in: transaction)
+        try _write(element, with: priority ?? view.last.map { $0.priority + 1 } ?? 0, by: node!, in: transaction)
         return transaction
     }
 
@@ -395,7 +320,7 @@ public extension References {
     }
 
     private func _remove(_ element: Element, in transaction: Transaction) {
-        if let item = _view.first(where: { $0.dbKey == element.dbKey }) {
+        if let item = view.first(where: { $0.dbKey == element.dbKey }) {
             _remove(for: item, in: transaction)
         } else {
             debugFatalError("Tries to remove not existed value")
@@ -411,7 +336,7 @@ public extension References {
             let elementLinksNode = storage.sourceNode.child(with: item.dbKey).linksItemsNode.child(with: linkID)
             transaction.removeValue(by: elementLinksNode) /// remove link from element
         }
-        transaction.removeValue(by: _view.source.node!.child(with: item.dbKey)) /// remove item
+        transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item
     }
 }
 

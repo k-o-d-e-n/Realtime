@@ -67,7 +67,7 @@ class RealtimeTests: XCTestCase {
 class TestObject: Object {
     lazy var property: Property<String?> = "prop".property(in: self)
     lazy var readonlyProperty: ReadonlyProperty<Int> = "readonlyProp".readonlyProperty(in: self).defaultOnEmpty()
-    lazy var linkedArray: References<Object> = "linked_array".references(in: self, elements: .root)
+    lazy var linkedArray: MutableReferences<Object> = "linked_array".references(in: self, elements: .root)
     lazy var array: Values<TestObject> = "array".values(in: self)
     lazy var dictionary: AssociatedValues<Object, TestObject> = "dict".dictionary(in: self, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
@@ -342,19 +342,19 @@ extension RealtimeTests {
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
         linkedObject.property <== "#1"
-        testObject.linkedArray._view.isSynced = true
-        XCTAssertNoThrow(try testObject.linkedArray.write(element: linkedObject, in: transaction))
+        testObject.linkedArray.view.isSynced = true
+        XCTAssertNoThrow(try testObject.linkedArray.write(linkedObject, to: transaction))
 
         let object = TestObject(in: Node(key: "elem_1"))
         object.file <== #imageLiteral(resourceName: "pw")
         object.property <== "prop"
-        testObject.array._view.isSynced = true
+        testObject.array.view.isSynced = true
         XCTAssertNoThrow(try testObject.array.write(element: object, in: transaction))
 
         let element = TestObject()
         element.file <== #imageLiteral(resourceName: "pw")
         element.property <== "element #1"
-        testObject.dictionary._view.isSynced = true
+        testObject.dictionary.view.isSynced = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
 
         let value = transaction.updateNode.updateValue
@@ -408,7 +408,7 @@ extension RealtimeTests {
             let child = TestObject()
             child.property <== "element #1"
             child.file <== #imageLiteral(resourceName: "pw")
-            element.array._view.isSynced = true
+            element.array.view.isSynced = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
             let imgData = UIImagePNGRepresentation(#imageLiteral(resourceName: "pw"))!
@@ -923,7 +923,7 @@ extension References: Reverting {
     public func revert() {
         guard _hasChanges else { return }
         storage.elements.removeAll()
-        _view.removeAll()
+        view.removeAll()
     }
 
     public func currentReversion() -> () -> Void {
@@ -936,7 +936,7 @@ extension Values: Reverting {
     public func revert() {
         guard _hasChanges else { return }
         storage.elements.removeAll()
-        _view.removeAll()
+        view.removeAll()
     }
 
     public func currentReversion() -> () -> Void {
@@ -949,7 +949,7 @@ extension AssociatedValues: Reverting {
     public func revert() {
         guard _hasChanges else { return }
         storage.elements.removeAll()
-        _view.removeAll()
+        view.removeAll()
     }
 
     public func currentReversion() -> () -> Void {
@@ -961,7 +961,7 @@ extension AssociatedValues: Reverting {
 
 extension RealtimeTests {
     func testLocalChangesLinkedArray() {
-        let linkedArray: References<TestObject> = References(in: Node(key: "l_array"), options: [.elementsNode: Node.root])
+        let linkedArray: MutableReferences<TestObject> = MutableReferences(in: Node(key: "l_array"), options: [.elementsNode: Node.root])
 
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
@@ -976,7 +976,7 @@ extension RealtimeTests {
 
         let transaction = Transaction()
         do {
-            try transaction._update(linkedArray, by: .root)
+            try transaction.set(linkedArray, by: .root)
             XCTAssertEqual(linkedArray.storage.elements.count, 2)
             /// after write to transaction array switches to remote
             XCTAssertEqual(linkedArray.count, 0)
@@ -1184,28 +1184,30 @@ extension RealtimeTests {
                                                                            options: [.keysNode: Node.root("keys"), .database: CacheNode.root])
                 let copyValues = copyAssocitedValues.values()
                 /// we can use References for readonly access to keys
-//                let copyKeys = References<Object>(in: Node.root("values").child(with: InternalKeys.items).linksNode,
-//                                                  options: [.elementsNode: Node.root("keys"), .database: CacheNode.root])
-                copyValues._view.load(.just({ (v_err) in
+                let copyKeys = copyAssocitedValues.keys()
+                copyValues.view.load(.just({ (v_err) in
                     v_err.map { XCTFail($0.describingErrorDescription) }
-//                    copyKeys._view.load(.just({ k_err in
-//                        k_err.map { XCTFail($0.describingErrorDescription) }
-                    copyAssocitedValues._view.load(.just({ av_err in
+                    copyKeys.view.load(.just({ k_err in
+                        k_err.map { XCTFail($0.describingErrorDescription) }
+                    copyAssocitedValues.view.load(.just({ av_err in
                         av_err.map { XCTFail($0.describingErrorDescription) }
 
-                        if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first /*let copyKey = copyKeys.first*/ {
+                        if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first, let copyKey = copyKeys.first {
                             XCTAssertEqual(copyAValue.key, key)
                             XCTAssertEqual(copyAValue.key.version, 3)
                             XCTAssertEqual(copyAValue.key.raw as? Int, 2)
                             XCTAssertEqual(copyValue, value)
                             XCTAssertEqual(copyValue.version, 1)
                             XCTAssertEqual(copyValue.raw as? Int, 5)
+                            XCTAssertEqual(copyKey, key)
+                            XCTAssertEqual(copyKey.version, 3)
+                            XCTAssertEqual(copyKey.raw as? Int, 2)
                         } else {
                             XCTFail("No element")
                         }
                         exp.fulfill()
                     }))
-//                    }))
+                    }))
                 }))
             }
         } catch let e {

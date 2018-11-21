@@ -9,27 +9,12 @@ import Foundation
 
 // MARK: Type erased realtime collection
 
-struct AnyCollectionKey: Hashable, DatabaseKeyRepresentable {
-    let dbKey: String!
-    var hashValue: Int { return dbKey.hashValue }
-
-    init<Base: DatabaseKeyRepresentable>(_ key: Base) {
-        self.dbKey = key.dbKey
-    }
-    //    init<Base: RealtimeCollectionContainerKey>(_ key: Base) where Base.Key == String {
-    //        self.key = key.key
-    //    }
-    static func ==(lhs: AnyCollectionKey, rhs: AnyCollectionKey) -> Bool {
-        return lhs.dbKey == rhs.dbKey
-    }
-}
-
 internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var node: Node? { fatalError() }
     var version: Int? { fatalError() }
     var raw: RealtimeDataValue? { fatalError() }
     var payload: [String : RealtimeDataValue]? { fatalError() }
-    var view: RealtimeCollectionView { fatalError() }
+    var view: AnyRealtimeCollectionView { fatalError() }
     var isSynced: Bool { fatalError() }
     var isObserved: Bool { fatalError() }
     var keepSynced: Bool { set { fatalError() } get { fatalError() } }
@@ -51,12 +36,12 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
 }
 
 internal final class _AnyRealtimeCollection<C: RealtimeCollection>: _AnyRealtimeCollectionBase<C.Iterator.Element>
-where C.Index == Int {
+where C.Index == Int, C.View.Element: DatabaseKeyRepresentable {
     var base: C
 
     override var node: Node? { return base.node }
     override var payload: [String : RealtimeDataValue]? { return base.payload }
-    override var view: RealtimeCollectionView { return base.view }
+    override var view: AnyRealtimeCollectionView { return AnyRealtimeCollectionView(base.view) }
     override var isSynced: Bool { return base.isSynced }
     override var isObserved: Bool { return base.isObserved }
     override var canObserve: Bool { return base.canObserve }
@@ -100,8 +85,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public var version: Int? { return base.version }
     public var raw: RealtimeDataValue? { return base.raw }
     public var payload: [String : RealtimeDataValue]? { return base.payload }
-    public var storage: AnyRCStorage = AnyRCStorage()
-    public var view: RealtimeCollectionView { return base.view }
+    public var view: AnyRealtimeCollectionView { return base.view }
     public var isSynced: Bool { return base.isSynced }
     public var isObserved: Bool { return base.isObserved }
     public var debugDescription: String { return base.debugDescription }
@@ -112,7 +96,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     }
     public var changes: AnyListenable<RCEvent> { return base.changes }
 
-    public init<C: RealtimeCollection>(_ base: C) where C.Iterator.Element == Element, C.Index == Int {
+    public init<C: RealtimeCollection>(_ base: C) where C.Iterator.Element == Element, C.Index == Int, C.View.Element: DatabaseKeyRepresentable {
         self.base = _AnyRealtimeCollection<C>(base: base)
     }
 
@@ -175,7 +159,7 @@ public extension RealtimeCollection {
 ///
 /// This is the result of `x.lazyMap(_ transform:)` method, where `x` is any RealtimeCollection.
 public final class MapRealtimeCollection<Element, Base: RealtimeCollection>: RealtimeCollection
-where Base.Index == Int {
+where Base.Index == Int, Base.View.Element: DatabaseKeyRepresentable {
     public typealias Index = Int
 
     private let transform: (Base.Element) -> Element
@@ -185,8 +169,7 @@ where Base.Index == Int {
     public var version: Int? { return base.version }
     public var raw: RealtimeDataValue? { return base.raw }
     public var payload: [String : RealtimeDataValue]? { return base.payload }
-    public var view: RealtimeCollectionView { return base.view }
-    public var storage: AnyRCStorage
+    public var view: AnyRealtimeCollectionView { return base.view }
     public var isSynced: Bool { return base.isSynced }
     public var isObserved: Bool { return base.isObserved }
     public var changes: AnyListenable<RCEvent> { return base.changes }
@@ -200,7 +183,6 @@ where Base.Index == Int {
     public required init(base: Base, transform: @escaping (Base.Element) -> Element) {
         guard base.isRooted else { fatalError("Only rooted collections can use in map collection") }
         self.base = _AnyRealtimeCollection<Base>(base: base)
-        self.storage = AnyRCStorage()
         self.transform = transform
     }
 

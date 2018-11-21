@@ -30,7 +30,7 @@ class Conversation: Object {
 
 class Group: Object {
     lazy var name: Property<String> = "name".property(in: self)
-    lazy var users: References<User> = "users".references(in: self, elements: Global.rtUsers.node!)
+    lazy var users: MutableReferences<User> = "users".references(in: self, elements: Global.rtUsers.node!)
     lazy var conversations: AssociatedValues<User, User> = "conversations".dictionary(in: self, keys: Global.rtUsers.node!)
     lazy var manager: Relation<User?> = "manager".relation(in: self, .oneToOne("ownedGroup"))
 
@@ -52,8 +52,8 @@ class User: Object {
     lazy var name: Property<String> = "name".property(in: self)
     lazy var age: Property<Int> = "age".property(in: self)
     lazy var photo: File<UIImage?> = "photo".file(in: self, representer: .png)
-    lazy var groups: References<Group> = "groups".references(in: self, elements: Global.rtGroups.node!)
-    lazy var followers: References<User> = "followers".references(in: self, elements: Global.rtUsers.node!)
+    lazy var groups: MutableReferences<Group> = "groups".references(in: self, elements: Global.rtGroups.node!)
+    lazy var followers: MutableReferences<User> = "followers".references(in: self, elements: Global.rtUsers.node!)
     lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".values(in: self)
 
     lazy var ownedGroup: Relation<Group?> = "ownedGroup".relation(in: self, .oneToOne("manager"))

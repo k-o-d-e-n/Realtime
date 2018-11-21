@@ -156,17 +156,11 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
         super.init(in: node, options: options.merging([.representer: o.representer], uniquingKeysWith: { _, new in new }))
     }
 
-    public init(data: RealtimeDataProtocol, exactly: Bool, mode: Mode) throws {
-        try super.init(data: data, exactly: exactly, representer: mode.representer)
-    }
 
     required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
         fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:options) instead")
     }
 
-    required public init(data: RealtimeDataProtocol, exactly: Bool, representer: Representer<Referenced?>) throws {
-        fatalError("init(data:strongly:representer:) cannot be called. Use init(data:exactly:options) instead")
-    }
 
     @discardableResult
     public override func setValue(_ value: Referenced, in transaction: Transaction? = nil) throws -> Transaction {
@@ -216,18 +210,11 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         super.init(in: node, options: options.merging([.representer: relation.representer], uniquingKeysWith: { _, new in new }))
     }
 
-    public init(data: RealtimeDataProtocol, exactly: Bool, options: Options) throws {
-        self.options = options
-        try super.init(data: data, exactly: exactly, representer: options.representer)
-    }
 
     required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
         fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:options) instead")
     }
 
-    required public init(data: RealtimeDataProtocol, exactly: Bool, representer: Representer<Related?>) throws {
-        fatalError("init(data:strongly:representer:) cannot be called. Use init(data:exactly:options) instead")
-    }
 
     @discardableResult
     public override func setValue(_ value: Related, in transaction: Transaction? = nil) throws -> Transaction {
@@ -638,10 +625,6 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         super.init(in: node, options: options)
     }
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool, representer: Representer<T?>) throws {
-        self.representer = representer
-        try super.init(data: data, exactly: exactly)
-    }
 
     public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         #if DEBUG
