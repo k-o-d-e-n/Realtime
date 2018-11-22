@@ -40,7 +40,7 @@ public extension Node {
 public extension Values {
     convenience init<E>(in node: Node?, elements: References<E>) {
         self.init(in: node,
-                  options: [.elementBuilder: elements.storage.elementBuilder],
+                  options: [.elementBuilder: elements.builder.impl],
                   view: elements.view)
     }
 }
@@ -48,7 +48,8 @@ public extension Values {
 /// A Realtime database collection that stores elements in own database node as is, as full objects.
 public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection where Element: WritableRealtimeValue & RealtimeValueEvents {
     /// Stores collection values and responsible for lazy initialization elements
-    internal(set) var storage: RCArrayStorage<RCItem, Element>
+    internal(set) var storage: RCKeyValueStorage<Element>
+    internal private(set) var builder: RealtimeValueBuilder<Element>
     override var _hasChanges: Bool { return view._hasChanges }
 
     public override var version: Int? { return nil }
@@ -90,21 +91,31 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         let node = data.node
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         let viewNode = Node(key: InternalKeys.items, parent: viewParentNode)
-        self.storage = RCArrayStorage(sourceNode: node, elementBuilder: Element.init, elements: [:])
+        self.builder = RealtimeValueBuilder(spaceNode: node, impl: Element.init)
+        self.storage = RCKeyValueStorage()
         self.view = SortedCollectionView(in: viewNode, options: [.database: data.database as Any])
         try super.init(data: data, exactly: exactly)
     }
 
     init(in node: Node?, options: [ValueOption: Any], view: SortedCollectionView<RCItem>) {
         let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
-        self.storage = RCArrayStorage(sourceNode: node, elementBuilder: builder, elements: [:])
+        self.builder = RealtimeValueBuilder(spaceNode: node, impl: builder)
+        self.storage = RCKeyValueStorage()
         self.view = view
         super.init(in: node, options: options)
     }
 
     // Implementation
 
-    public subscript(position: Int) -> Element { return storage.object(for: view[position]) }
+    public subscript(position: Int) -> Element {
+        let item = view[position]
+        guard let element = storage.value(for: item.dbKey) else {
+            let element = builder.build(with: item)
+            storage.set(value: element, for: item.dbKey)
+            return element
+        }
+        return element
+    }
 
     var _snapshot: (RealtimeDataProtocol, Bool)?
     override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
@@ -115,16 +126,16 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         _snapshot = nil
         try view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if exactly { storage.elements.removeValue(forKey: key.dbKey) }
+                if exactly { storage.remove(for: key.dbKey) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
-            if var element = storage.elements[key.dbKey] {
+            if var element = storage[key.dbKey] {
                 try element.apply(childData, exactly: exactly)
             } else {
-                var value = storage.buildElement(with: key)
+                var value = builder.build(with: key)
                 try value.apply(childData, exactly: exactly)
-                storage.elements[key.dbKey] = value
+                storage[key.dbKey] = value
             }
         }
     }
@@ -133,8 +144,8 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super (_RealtimeValue)
-        let elems = storage.elements
-        storage.elements.removeAll()
+        let elems = storage
+        storage.removeAll()
         let view = self.view.elements
         transaction.addReversion { [weak self] in
             self?.view.elements = view
@@ -153,9 +164,9 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
             view.didSave(in: database, in: node.linksNode)
-            storage.sourceNode = node
+            builder.spaceNode = node
         }
-        storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0) }
+        storage.forEach { $0.value.didSave(in: database, in: builder.spaceNode, by: $0.key) }
     }
 
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
@@ -163,12 +174,12 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         if ancestor == node?.parent {
             transaction.removeValue(by: node!.linksNode)
         }
-        storage.elements.values.forEach { $0.willRemove(in: transaction, from: ancestor) }
+        storage.values.forEach { $0.willRemove(in: transaction, from: ancestor) }
     }
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
         view.didRemove()
-        storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
+        storage.values.forEach { $0.didRemove(from: builder.spaceNode) }
     }
 
     override public var debugDescription: String {
@@ -198,7 +209,7 @@ extension Values {
     @discardableResult
     public func write(element: Element, with priority: Int? = nil, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
-        guard !element.isReferred || element.node!.parent == storage.sourceNode
+        guard !element.isReferred || element.node!.parent == builder.spaceNode
             else { fatalError("Element must not be referred in other location") }
         guard isSynced || element.node == nil else {
             let transaction = transaction ?? Transaction(database: database)
@@ -243,16 +254,16 @@ extension Values {
     ///   - priority: Priority value or `nil` if you want to add to end of collection.
     public func insert(element: Element, with priority: Int? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
-        guard !element.isReferred || element.node!.parent == storage.sourceNode
+        guard !element.isReferred || element.node!.parent == builder.spaceNode
             else { fatalError("Element must not be referred in other location") }
-        let contains = element.node.map { n in storage.elements[n.key] != nil } ?? false
+        let contains = element.node.map { n in storage[n.key] != nil } ?? false
         guard !contains else {
             fatalError("Element with such key already exists")
         }
 
         let index = priority ?? view.count
         let key = element.node.map { $0.key } ?? String(index)
-        storage.elements[key] = element
+        storage[key] = element
         _ = view.insert(RCItem(element: element, key: key, priority: index, linkID: nil))
     }
 
@@ -263,7 +274,7 @@ extension Values {
             fatalError("Index out of range")
         }
 
-        guard let element = storage.elements.removeValue(forKey: view.remove(at: index).dbKey) else {
+        guard let element = storage.removeValue(forKey: view.remove(at: index).dbKey) else {
             fatalError("Internal exception: Element is not found")
         }
         return element
@@ -338,9 +349,9 @@ extension Values {
         let item = RCItem(element: element, key: elementNode.key, priority: priority, linkID: link.link.id)
 
         transaction.addReversion({ [weak self] in
-            self?.storage.elements.removeValue(forKey: item.dbKey)
+            self?.storage.removeValue(forKey: item.dbKey)
         })
-        storage.store(value: element, by: item)
+        storage.set(value: element, for: item.dbKey)
         transaction.addValue(item.rdbValue, by: itemNode) /// add item element
         transaction.addValue(link.link.rdbValue, by: link.node) /// add link
         try transaction.set(element, by: elementNode) /// add element
@@ -356,19 +367,19 @@ extension Values {
 
     func _remove(for item: RCItem, in transaction: Transaction) {
         var removedElement: Element {
-            if let element = storage.elements.removeValue(forKey: item.dbKey) {
+            if let element = storage.removeValue(forKey: item.dbKey) {
                 return element
             } else {
-                return storage.buildElement(with: item)
+                return builder.build(with: item)
             }
         }
         let element = removedElement
-        element.willRemove(in: transaction, from: storage.sourceNode)
+        element.willRemove(in: transaction, from: builder.spaceNode)
         transaction.addReversion { [weak self] in
-            self?.storage.elements[item.dbKey] = element
+            self?.storage[item.dbKey] = element
         }
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item element
-        transaction.removeValue(by: storage.sourceNode.child(with: item.dbKey)) /// remove element
+        transaction.removeValue(by: builder.spaceNode.child(with: item.dbKey)) /// remove element
         transaction.addCompletion { result in
             if result {
                 element.didRemove()

@@ -57,8 +57,7 @@ class User: Object {
     lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".values(in: self)
 
     lazy var ownedGroup: Relation<Group?> = "ownedGroup".relation(in: self, .oneToOne("manager"))
-
-//    lazy var ownedGroups: 
+    lazy var ownedGroups: Relations<Group> = "ownedGroups".relations(in: self, .oneToOne("_manager"))
 
     //    override class var keyPaths: [String: AnyKeyPath] {
     //        return super.keyPaths.merging(["name": \RealtimeUser.name, "age": \RealtimeUser.age], uniquingKeysWith: { (_, new) -> AnyKeyPath in

@@ -117,27 +117,6 @@ public protocol MutableRealtimeCollection: RealtimeCollection {
     func erase(at index: Int) -> Transaction
 }
 
-/// MARK: Values separated, new version
-
-protocol KeyValueAccessableCollection {
-    associatedtype Key
-    associatedtype Value
-    subscript(for key: Key) -> Value? { get set }
-}
-
-extension Array: KeyValueAccessableCollection {
-    subscript(for key: Int) -> Element? {
-        get { return self[key] }
-        set { self[key] = newValue! }
-    }
-}
-extension Dictionary: KeyValueAccessableCollection {
-    subscript(for key: Key) -> Value? {
-        get { return self[key] }
-        set { self[key] = newValue }
-    }
-}
-
 public extension RealtimeCollection {
     /// RealtimeCollection actions
 

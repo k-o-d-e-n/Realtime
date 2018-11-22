@@ -71,8 +71,10 @@ extension RealtimeValue {
 /// Defines relation type.
 /// Associated value is path to relation property
 ///
-/// - oneToOne: Defines 'one to one' relation type
-/// - oneToMany: Defines 'one to many' relation type
+/// - **oneToOne**: Defines 'one to one' relation type.
+/// `String` value is path to property from owner object
+/// - **oneToMany**: Defines 'one to many' relation type.
+/// `String` value is path to property from owner object
 public enum RelationMode {
     case oneToOne(String)
     case oneToMany(String)
@@ -85,7 +87,7 @@ public enum RelationMode {
     }
 }
 
-struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented, Codable {
+public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented, Codable {
     /// Path to related object
     let targetPath: String
     /// Property of related object that represented this relation
@@ -101,13 +103,13 @@ struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValueReprese
         case relatedProperty = "r_prop"
     }
 
-    var rdbValue: RealtimeDataValue {
+    public var rdbValue: RealtimeDataValue {
         let v: [String: RealtimeDataValue] = [CodingKeys.targetPath.rawValue: targetPath,
                                           CodingKeys.relatedProperty.rawValue: relatedProperty]
         return v
     }
 
-    init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
         guard
             let path: String = try CodingKeys.targetPath.map(from: data),
             let property: String = try CodingKeys.relatedProperty.map(from: data)

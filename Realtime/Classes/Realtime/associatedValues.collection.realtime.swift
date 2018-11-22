@@ -51,6 +51,8 @@ public final class AssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealt
 where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     override var _hasChanges: Bool { return view._hasChanges }
     internal(set) var storage: RCDictionaryStorage<Key, Value>
+    internal private(set) var valueBuilder: RealtimeValueBuilder<Value>
+    internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
 
     public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
@@ -81,8 +83,10 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
 
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         let valueBuilder = options[.elementBuilder] as? RCElementBuilder<Value> ?? Value.init
+        self.valueBuilder = RealtimeValueBuilder(spaceNode: node, impl: valueBuilder)
         let keyBuilder = options[.keyBuilder] as? RCElementBuilder<Key> ?? Key.init
-        self.storage = RCDictionaryStorage(sourceNode: node, keysNode: keysNode, elementBuilder: valueBuilder, keyBuilder: keyBuilder, elements: [:])
+        self.keyBuilder = RealtimeValueBuilder(spaceNode: keysNode, impl: keyBuilder)
+        self.storage = RCDictionaryStorage()
         self.view = SortedCollectionView(in: Node(key: InternalKeys.items, parent: viewParentNode), options: [.database: options[.database] as Any])
         super.init(in: node, options: options)
     }
@@ -109,13 +113,22 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     public func unlinked() -> AssociatedValues<Key, Value> { shouldLinking = false; return self }
 
     public func makeIterator() -> IndexingIterator<AssociatedValues> { return IndexingIterator(_elements: self) } // iterator is not safe
-    public subscript(position: Int) -> Element { return storage.element(by: view[position]) }
+    public subscript(position: Int) -> Element {
+        let item = view[position]
+        guard let element = storage.element(for: item.dbKey) else {
+            let key = keyBuilder.buildKey(with: item)
+            let value = valueBuilder.buildValue(with: item)
+            storage.set(value: value, for: key)
+            return (key, value)
+        }
+        return element
+    }
     public subscript(key: Key) -> Value? {
-        guard let v = storage.storedValue(by: key) else {
+        guard let v = storage.value(for: key) else {
             guard let i = view.index(where: { $0.dbKey == key.dbKey }) else {
                 return nil
             }
-            return storage.element(by: view[i]).1
+            return storage.element(for: view[i].dbKey)?.value
         }
         return v
     }
@@ -127,7 +140,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     ///   `false`.
     public func contains(valueBy key: Key) -> Bool {
         if isStandalone {
-            return storage.elements[key] != nil
+            return storage.value(for: key) != nil
         } else {
             return view.contains(where: { $0.dbKey == key.dbKey })
         }
@@ -142,17 +155,17 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         _snapshot = nil
         try view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if exactly, let contained = storage.elements.first(where: { $0.0.dbKey == key.dbKey }) { storage.elements.removeValue(forKey: contained.key) }
+                if exactly, let contained = storage.first(where: { $0.0.dbKey == key.dbKey }) { storage.remove(for: contained.key) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
-            if var element = storage.elements.first(where: { $0.0.dbKey == key.dbKey })?.value {
+            if var element = storage.first(where: { $0.0.dbKey == key.dbKey })?.value {
                 try element.apply(childData, exactly: exactly)
             } else {
-                let keyEntity = storage.buildKey(with: key)
-                var value = storage.buildElement(with: key)
+                let keyEntity = keyBuilder.buildKey(with: key)
+                var value = valueBuilder.buildValue(with: key)
                 try value.apply(childData, exactly: exactly)
-                storage.elements[keyEntity] = value
+                storage.set(value: value, for: keyEntity)
             }
         }
     }
@@ -166,7 +179,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
             self?.view.elements = view
         }
         self.view.removeAll()
-        for (key: key, value: value) in storage.elements {
+        for (key: key, value: value) in storage {
             try _write(value,
                        for: key,
                        by: (storage: node,
@@ -179,9 +192,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
             view.didSave(in: database, in: node.linksNode)
-            storage.sourceNode = node
+            valueBuilder.spaceNode = node
         }
-        storage.elements.forEach { $1.didSave(in: database, in: storage.sourceNode, by: $0.dbKey) }
+        storage.forEach { $0.value.didSave(in: database, in: valueBuilder.spaceNode, by: $0.key.dbKey) }
     }
 
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
@@ -189,12 +202,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         if ancestor == node?.parent {
             transaction.removeValue(by: node!.linksNode)
         }
-        storage.elements.forEach { $1.willRemove(in: transaction, from: ancestor) }
+        storage.forEach { $1.willRemove(in: transaction, from: ancestor) }
     }
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
         view.didRemove()
-        storage.elements.values.forEach { $0.didRemove(from: storage.sourceNode) }
+        storage.forEach { $0.value.didRemove(from: valueBuilder.spaceNode) }
     }
 
     override public var debugDescription: String {
@@ -208,7 +221,40 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     }
 }
 extension AssociatedValues {
-    public typealias Keys = __References<Key, RDItem>
+    public final class __Elements<Element: RealtimeValue>: __RepresentableCollection<Element, RDItem> {
+        internal let builder: RealtimeValueBuilder<Element>
+
+        /// Creates new instance associated with database node
+        ///
+        /// Available options:
+        /// - elementsNode(**required**): Database node where source elements are located.
+        /// - database: Database reference
+        /// - elementBuilder: Closure that calls to build elements lazily.
+        ///
+        /// - Parameter node: Node location for value
+        /// - Parameter options: Dictionary of options
+        public required init(in node: Node?, options: [ValueOption : Any]) {
+            guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
+            let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
+            self.builder = RealtimeValueBuilder(spaceNode: elements, impl: builder)
+            super.init(in: node, options: options)
+        }
+
+        override func buildElement(with item: RDItem) -> Element {
+            return builder.buildKey(with: item)
+        }
+
+        /// Currently, no available.
+        public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+            #if DEBUG
+            fatalError("References does not supported init(data:exactly:) yet.")
+            #else
+            throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
+            #endif
+        }
+    }
+
+    public typealias Keys = __Elements<Key>
     /// Returns `RealtimeCollection` that has itself storage
     ///
     /// Use it if you need only key objects, and you want to avoid allocating `Value` values.
@@ -218,7 +264,9 @@ extension AssociatedValues {
     public func keys() -> Keys {
         return Keys(
             in: view.node,
-            options: [.database: database as Any, .elementsNode: storage.keysNode]
+            options: [.database: database as Any,
+                      .elementsNode: keyBuilder.spaceNode,
+                      .elementBuilder: keyBuilder.impl]
         )
     }
     /// Returns `RealtimeCollection` that has itself storage
@@ -228,9 +276,10 @@ extension AssociatedValues {
     ///
     /// - Returns: `RealtimeCollection` of key objects
     public func values() -> Values<Value> {
+        // TODO: avoid using `Values` type because it is mutable
         return Values(
             in: node,
-            options: [.database: database as Any, .elementBuilder: storage.elementBuilder]
+            options: [.database: database as Any, .elementBuilder: valueBuilder.impl]
         )
     }
 }
@@ -248,12 +297,12 @@ extension AssociatedValues {
     ///   - key: The element to get database key.
     public func set(element: Value, for key: Key) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:for:in:)") }
-        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard keyBuilder.spaceNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
         _ = view.insert(RDItem(value: element, key: key, priority: view.count, linkID: nil))
-        storage.store(value: element, by: key)
+        storage.set(value: element, for: key)
     }
 
     /// Sets element to collection by database key of `Key` element,
@@ -269,7 +318,7 @@ extension AssociatedValues {
     @discardableResult
     public func write(element: Value, for key: Key, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method set(element:for:)") }
-        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard keyBuilder.spaceNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
@@ -314,7 +363,7 @@ extension AssociatedValues {
     @discardableResult
     public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction? {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
-        guard storage.keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard keyBuilder.spaceNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         let transaction = transaction ?? Transaction(database: database)
         guard isSynced else {
             transaction.addPrecondition { [unowned transaction] promise in
@@ -355,9 +404,9 @@ extension AssociatedValues {
         var item = RDItem(value: element, key: key, priority: count, linkID: nil)
 
         transaction.addReversion({ [weak self] in
-            self?.storage.elements.removeValue(forKey: key)
+            self?.storage.remove(for: key)
         })
-        storage.store(value: element, by: key)
+        storage.set(value: element, for: key)
 
         if shouldLinking {
             let keyLink = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
@@ -375,27 +424,27 @@ extension AssociatedValues {
     }
 
     func _remove(for item: RDItem, key: Key, in transaction: Transaction) {
-        var removedElement: Value {
-            if let element = storage.elements.removeValue(forKey: key) {
+        var removedValue: Value {
+            if let element = storage.remove(for: key) {
                 return element
             } else {
-                return storage.buildElement(with: item)
+                return valueBuilder.buildValue(with: item)
             }
         }
-        let element = removedElement
-        element.willRemove(in: transaction, from: storage.sourceNode)
+        let value = removedValue
+        value.willRemove(in: transaction, from: valueBuilder.spaceNode)
 
         transaction.addReversion { [weak self] in
-            self?.storage.elements[key] = element
+            self?.storage.set(value: value, for: key)
         }
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) // remove item element
-        transaction.removeValue(by: storage.sourceNode.child(with: item.dbKey)) // remove element
+        transaction.removeValue(by: valueBuilder.spaceNode.child(with: item.dbKey)) // remove element
         if let linkID = item.linkID {
             transaction.removeValue(by: key.node!.linksItemsNode.child(with: linkID)) // remove link from key object
         }
         transaction.addCompletion { result in
             if result {
-                element.didRemove()
+                value.didRemove()
             }
         }
     }

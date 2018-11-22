@@ -506,10 +506,11 @@ extension RealtimeTests {
 
             let groupCopy = try Group(data: data.child(forPath: group.node!.rootPath), exactly: false)
 
-            let groupBackwardRelation: Relation<Group> = group._manager.options.property.path(for: group.node!).relation(in: user, rootLevelsUp: nil, .oneToOne("_manager"))
-            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: true)
+            let ownedGroups = user.ownedGroups
+            let groupsData = data.child(forPath: ownedGroups.node!.rootPath)
+            try ownedGroups.apply(groupsData, exactly: true)
 
-            XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
+            XCTAssertTrue(ownedGroups.first?.dbKey == group.dbKey)
             XCTAssertTrue(group._manager.wrapped?.dbKey == user.dbKey)
             XCTAssertTrue(groupCopy._manager.wrapped?.dbKey == user.dbKey)
         } catch let e {
@@ -922,7 +923,7 @@ extension RealtimeTests {
 extension References: Reverting {
     public func revert() {
         guard _hasChanges else { return }
-        storage.elements.removeAll()
+        storage.removeAll()
         view.removeAll()
     }
 
@@ -935,7 +936,7 @@ extension References: Reverting {
 extension Values: Reverting {
     public func revert() {
         guard _hasChanges else { return }
-        storage.elements.removeAll()
+        storage.removeAll()
         view.removeAll()
     }
 
@@ -948,7 +949,7 @@ extension Values: Reverting {
 extension AssociatedValues: Reverting {
     public func revert() {
         guard _hasChanges else { return }
-        storage.elements.removeAll()
+        storage.removeAll()
         view.removeAll()
     }
 
@@ -977,7 +978,7 @@ extension RealtimeTests {
         let transaction = Transaction()
         do {
             try transaction.set(linkedArray, by: .root)
-            XCTAssertEqual(linkedArray.storage.elements.count, 2)
+            XCTAssertEqual(linkedArray.storage.count, 2)
             /// after write to transaction array switches to remote
             XCTAssertEqual(linkedArray.count, 0)
         } catch let e {
@@ -1006,7 +1007,7 @@ extension RealtimeTests {
         let transaction = Transaction()
         do {
             try transaction._update(array, by: .root)
-            XCTAssertEqual(array.storage.elements.count, 2)
+            XCTAssertEqual(array.storage.count, 2)
             /// after write to transaction array switches to remote
             XCTAssertEqual(array.count, 0)
         } catch let e {
@@ -1036,7 +1037,7 @@ extension RealtimeTests {
         let transaction = Transaction()
         do {
             try transaction._update(dict, by: .root)
-            XCTAssertEqual(dict.storage.elements.count, 2)
+            XCTAssertEqual(dict.storage.count, 2)
             /// after write to transaction array switches to remote
             XCTAssertEqual(dict.count, 0)
         } catch let e {
