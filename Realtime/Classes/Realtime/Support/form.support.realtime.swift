@@ -84,6 +84,15 @@ public extension Row where View: UIView {
         return state.contains(.displaying) && view.map { !$0.isHidden && $0.window != nil } ?? false
     }
 }
+extension Row: CustomDebugStringConvertible {
+    public var debugDescription: String {
+        return """
+            view: \(view)",
+            model: \(_model.value),
+            state: \(state)
+        """
+    }
+}
 
 open class Section<Model: AnyObject>: RandomAccessCollection {
     open var footerTitle: String?
@@ -299,14 +308,19 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     override func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
         let item = reuseController.dequeueItem(at: indexPath.row, rowBuilder: rowBuilder)
 
-        item._rowModel.send(.value(collection[indexPath.row]))
-        item.view = cell
-        item.model = model
+        if !item.state.contains(.displaying) || item.view !== cell {
+            item._rowModel.send(.value(collection[indexPath.row]))
+            item.view = cell
+            item.model = model
+            item.state.insert(.displaying)
+        }
     }
 
     override func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
         if let row = reuseController.activeItem(at: indexPath.row) {
+            row.state.remove(.displaying)
             row.free()
+            row.state.insert([.pending, .free])
         }
     }
 

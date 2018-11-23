@@ -24,10 +24,10 @@ internal func debugLog(_ message: String, _ file: String = #file, _ line: Int = 
 }
 
 internal func debugFatalError(condition: @autoclosure () -> Bool = true,
-                              _ message: String = "", _ file: String = #file, _ line: Int = #line) {
+                              _ message: @autoclosure () -> String = "", _ file: String = #file, _ line: Int = #line) {
     debugAction {
         if condition() {
-            debugLog(message, file, line)
+            debugLog(message(), file, line)
             if ProcessInfo.processInfo.arguments.contains("REALTIME_CRASH_ON_ERROR") {
                 fatalError(message)
             }

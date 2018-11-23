@@ -165,6 +165,7 @@ class FormViewController: UIViewController {
                 let groupPicker = PickTableViewController(delegate: delegate)
                 groupPicker.didSelect = { [unowned row] _,_, group in
                     user.ownedGroup <== group
+                    user.ownedGroups.insert(element: group)
                     row.view?.detailTextLabel?.text <== group.name
                     row.view?.setNeedsLayout()
                     Global.rtGroups.stopObserving()
@@ -202,10 +203,12 @@ class FormViewController: UIViewController {
 
                     let isAdded = c.accessoryType == .none
                     c.accessoryType = isAdded ? .checkmark : .none
-                    if isAdded {
-                        user.followers.insert(element: Global.rtUsers[ip.row])
-                    } else {
-                        user.followers.delete(element: Global.rtUsers[ip.row])
+                    let follower = Global.rtUsers[ip.row]
+                    let contains = user.followers.contains(follower)
+                    if isAdded, !contains {
+                        user.followers.insert(element: follower)
+                    } else if contains {
+                        user.followers.delete(element: follower)
                     }
                 }
             })
@@ -254,8 +257,9 @@ class FormViewController: UIViewController {
 
     @objc func saveUser() {
         let alert = showWaitingAlert()
+        let transaction = Transaction()
         do {
-            let transaction = try Global.rtUsers.write(element: form.model)
+            try Global.rtUsers.write(element: form.model, in: transaction)
             transaction.commit { [weak self] (state, errors) in
                 if let err = errors?.first {
                     fatalError(err.localizedDescription)
@@ -267,6 +271,7 @@ class FormViewController: UIViewController {
                 })
             }
         } catch let e {
+            transaction.revert()
             fatalError(e.localizedDescription)
         }
     }

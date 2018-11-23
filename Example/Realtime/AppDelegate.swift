@@ -34,7 +34,7 @@ class Group: Object {
     lazy var conversations: AssociatedValues<User, User> = "conversations".dictionary(in: self, keys: Global.rtUsers.node!)
     lazy var manager: Relation<User?> = "manager".relation(in: self, .oneToOne("ownedGroup"))
 
-    lazy var _manager: Relation<User?> = "_manager".relation(in: self, rootLevelsUp: nil, .oneToMany("ownedGroups"))
+    lazy var _manager: Relation<User?> = "_manager".relation(in: self, .oneToMany("ownedGroups"))
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -73,6 +73,7 @@ class User: Object {
         case "groups": return \User.groups
         case "followers": return \User.followers
         case "ownedGroup": return \User.ownedGroup
+        case "ownedGroups": return \User.ownedGroups
         case "scheduledConversations": return \User.scheduledConversations
         default: return nil
         }

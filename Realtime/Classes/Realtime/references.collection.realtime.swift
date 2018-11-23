@@ -378,12 +378,12 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
 
 public struct RelationsItem: RCViewItem, Comparable {
     public let dbKey: String!
-    let relation: RelationRepresentation
+    let relation: RelationRepresentation!
     public var payload: RealtimeValuePayload {
         return RealtimeValuePayload(system: (nil, nil), user: nil)
     }
 
-    public init(_ element: (key: String, relation: RelationRepresentation)) {
+    public init(_ element: (key: String, relation: RelationRepresentation?)) {
         self.relation = element.relation
         self.dbKey = element.key
     }
@@ -407,7 +407,7 @@ public struct RelationsItem: RCViewItem, Comparable {
 }
 
 public extension RawRepresentable where RawValue == String {
-    func relations<V: Object>(in object: Object, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> Relations<V> {
+    func relations<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationMode) -> Relations<V> {
         return Relations(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -428,6 +428,12 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
 
     public required init(in node: Node?, options: [ValueOption: Any]) {
         guard case let relation as Options = options[.relation] else { fatalError("Skipped required options") }
+        if let error = relation.validate() {
+            fatalError("Options invalid. Reason: \(error)")
+        }
+//        guard let n = node, n.ancestor(onLevelUp: relation.ownerLevelsUp) != nil else {
+//            fatalError("Collection node is not have ancestor on \(relation.ownerLevelsUp) level up")
+//        }
 
         self.options = relation
         super.init(in: node, options: options)
@@ -443,31 +449,67 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
 
     public struct Options {
         /// Levels up by hierarchy to the same node for both related values. Default nil, that means root node
-        let rootLevelsUp: Int?
+        let rootLevelsUp: UInt?
         /// Levels up by hierarchy to relation owner of this property
-        let ownerLevelsUp: Int
+        let ownerLevelsUp: UInt
         /// String path from related object to his relation property
         let property: RelationMode
 
         func representer(with ownerNode: Node) -> Representer<Element?> {
             return Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ValueStorage<Node?>.unsafe(strong: ownerNode))
         }
+
+        fileprivate func validate() -> String? {
+            guard rootLevelsUp.map({ $0 > 0 }) ?? true else {
+                return "`rootLevelsUp` must be more than 0 or nil"
+            }
+            guard ownerLevelsUp > 0 else {
+                return "`ownerLevelUp` must be more than 0"
+            }
+            return nil
+        }
+    }
+
+    override func _write(to transaction: Transaction, by node: Node) throws {
+        /// skip the call of super
+        guard let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) else {
+            throw RealtimeError(source: .collection, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
+        }
+        let view = storage.map { (keyValue) -> RelationsItem in
+            let elementNode = keyValue.value.node!
+            let anchorNode = options.rootLevelsUp.flatMap(ownerNode.ancestor) ?? .root
+            let relation = RelationRepresentation(path: elementNode.path(from: anchorNode), property: options.property.path(for: ownerNode))
+            /// a backward write
+            let ownerRelation = RelationRepresentation(path: ownerNode.path(from: anchorNode), property: node.child(with: keyValue.key).path(from: ownerNode))
+            transaction.addValue(ownerRelation.rdbValue, by: elementNode.child(with: options.property.propertyPath))
+            return RelationsItem((keyValue.key, relation))
+        }
+        self.view.elements = SortedArray(view)
+        try self.view._write(to: transaction, by: node)
     }
 
     override func buildElement(with item: RelationsItem) -> Element {
-        guard let node = self.node else { fatalError("Collection must be rooted") }
-        let anchorNode: Node = options.rootLevelsUp.flatMap { node.ancestor(onLevelUp: $0) } ?? Node.root
+        guard let ownerNode = self.node?.ancestor(onLevelUp: options.ownerLevelsUp) else { fatalError("Collection must be rooted") }
+        let anchorNode: Node = options.rootLevelsUp.flatMap { ownerNode.ancestor(onLevelUp: $0) } ?? Node.root
         let elementNode = Node.root.child(with: options.property.path(for: anchorNode)).child(with: item.dbKey)
         return Element(in: elementNode, options: [:])
     }
+
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        debugFatalError(
+            condition: options.rootLevelsUp != nil && parent.ancestor(onLevelUp: options.rootLevelsUp! - 1) != nil,
+            "Collection did save in node that is not have ancestor on \(options.ownerLevelsUp) level up"
+        )
+        super.didSave(in: database, in: parent, by: key)
+    }
 }
-/*
+
 extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
     public func write(_ element: Element, to transaction: Transaction) throws {
-        try write(element: element, with: count, in: transaction)
+        try write(element: element, in: transaction)
     }
     public func write(_ element: Element) throws -> Transaction {
-        return try write(element: element, with: count, in: nil)
+        return try write(element: element, in: nil)
     }
 
     public func erase(at index: Int, in transaction: Transaction) {
@@ -488,10 +530,12 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
     ///   - transaction: Write transaction to keep the changes
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    func write(element: Element, with priority: Int? = nil,
-               in transaction: Transaction? = nil) throws -> Transaction {
-        guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
-        guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
+    func write(element: Element, in transaction: Transaction? = nil) throws -> Transaction {
+        guard let node = self.node, node.isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
+        let anchorNode = options.rootLevelsUp.flatMap(node.ancestor) ?? .root
+        guard
+            element.node.map({ $0.hasAncestor(node: anchorNode) }) ?? false
+        else { fatalError("Element must be located in elements node") }
         guard isSynced else {
             let transaction = transaction ?? Transaction(database: database)
             transaction.addPrecondition { [unowned transaction] promise in
@@ -505,7 +549,7 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
                         ))
                     } else {
                         do {
-                            try self._write(element, with: priority, in: database, in: transaction)
+                            try self._write(element, in: database, in: transaction)
                             promise.fulfill()
                         } catch let e {
                             promise.reject(e)
@@ -522,7 +566,7 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
                 description: "Element already contains. Element: \(element)"
             )
         }
-        return try _write(element, with: priority, in: database, in: transaction)
+        return try _write(element, in: database, in: transaction)
     }
 
     /// Adds element with default sorting priority index or if `nil` to end of collection
@@ -533,28 +577,30 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
     /// - Parameters:
     ///   - element: The element to write
     ///   - index: Priority value or `nil` if you want to add to end of collection.
-    public func insert(element: Element, with priority: Int? = nil) {
+    public func insert(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
-        guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
-        let contains = element.node.map { n in storage.elements[n.key] != nil } ?? false
+        let contains = element.node.map { n in storage[n.key] != nil } ?? false
         guard !contains else {
             fatalError("Element with such key already exists")
         }
-
-        let index = priority ?? view.count
-        storage.elements[element.dbKey] = element
-        view.insert(RelationRepresentation(path: <#T##String#>, property: <#T##String#>))
+        let relation = self.node?.ancestor(onLevelUp: options.ownerLevelsUp).map { owner -> RelationRepresentation in
+            let node = element.node!
+            let anchorNode = options.rootLevelsUp.flatMap(owner.ancestor) ?? .root
+            return RelationRepresentation(path: node.path(from: anchorNode), property: options.property.path(for: owner))
+        }
+        let item = RelationsItem((element.dbKey, relation))
+        storage.set(value: element, for: item.dbKey)
+        view.insert(item)
     }
 
     public func delete(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
-        guard element.node?.parent == storage.sourceNode else { fatalError("Element must be located in elements node") }
-        let contains = element.node.map { n in storage.elements[n.key] != nil } ?? false
+        let contains = element.node.map { n in storage[n.key] != nil } ?? false
         guard contains else {
             fatalError("Element with such key does not exist")
         }
 
-        storage.elements.removeValue(forKey: element.dbKey)
+        storage.remove(for: element.dbKey)
         guard let index = view.index(where: { $0.dbKey == element.dbKey }) else {
             return
         }
@@ -613,29 +659,32 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
 
     @discardableResult
     internal func _write(
-        _ element: Element, with priority: Int?,
-        in database: RealtimeDatabase, in transaction: Transaction? = nil
+        _ element: Element,
+        in database: RealtimeDatabase,
+        in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, with: priority ?? view.last.map { $0.priority + 1 } ?? 0, by: node!, in: transaction)
+        try _write(element, by: node!, in: transaction)
         return transaction
     }
 
-    internal func _write(_ element: Element, with priority: Int,
-                         by location: Node, in transaction: Transaction) throws {
+    internal func _write(_ element: Element, by location: Node, in transaction: Transaction) throws {
+        let owner = location.ancestor(onLevelUp: options.ownerLevelsUp)!
         let itemNode = location.child(with: element.dbKey)
-        var item = RCItem(element: element, priority: priority, linkID: nil)
+        let elementNode = element.node!
+        let anchorNode = options.rootLevelsUp.flatMap(owner.ancestor) ?? .root
+        let elementRelation = RelationRepresentation(path: elementNode.path(from: anchorNode), property: options.property.path(for: owner))
+        let item = RelationsItem((elementNode.key, elementRelation))
 
         transaction.addReversion({ [weak self] in
-            self?.storage.elements.removeValue(forKey: item.dbKey)
+            self?.storage.remove(for: item.dbKey)
         })
-        storage.store(value: element, by: item)
-        if shouldLinking {
-            let link = element.node!.generate(linkTo: itemNode)
-            item.linkID = link.link.id
-            transaction.addValue(link.link.rdbValue, by: link.node) // add link
-        }
-        transaction.addValue(item.rdbValue, by: itemNode) // add item element
+        storage.set(value: element, for: item.dbKey)
+        transaction.addValue(item.rdbValue, by: itemNode) /// add item element
+
+        /// a backward write
+        let ownerRelation = RelationRepresentation(path: owner.path(from: anchorNode), property: itemNode.path(from: owner))
+        transaction.addValue(ownerRelation.rdbValue, by: elementNode.child(with: options.property.propertyPath))
     }
 
     private func _remove(_ element: Element, in transaction: Transaction) {
@@ -646,16 +695,15 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
         }
     }
 
-    private func _remove(for item: RCItem, in transaction: Transaction) {
-        let element = storage.elements.removeValue(forKey: item.dbKey)
+    private func _remove(for item: RelationsItem, in transaction: Transaction) {
+        let element = storage.remove(for: item.dbKey)
         transaction.addReversion { [weak self] in
-            self?.storage.elements[item.dbKey] = element
-        }
-        if let linkID = item.linkID {
-            let elementLinksNode = storage.sourceNode.child(with: item.dbKey).linksItemsNode.child(with: linkID)
-            transaction.removeValue(by: elementLinksNode) /// remove link from element
+            self?.storage[item.dbKey] = element
         }
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item
+        /// a backward remove
+        let owner = self.node!.ancestor(onLevelUp: options.ownerLevelsUp)!
+        let anchorNode = options.rootLevelsUp.flatMap(owner.ancestor) ?? .root
+        transaction.removeValue(by: anchorNode.child(with: item.relation.targetPath).child(with: item.relation.relatedProperty))
     }
 }
-*/

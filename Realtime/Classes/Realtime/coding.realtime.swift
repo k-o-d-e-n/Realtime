@@ -410,7 +410,7 @@ public extension Representer where V: RealtimeValue {
     ///   - rootLevelsUp: Level of root node to do relation path
     ///   - ownerNode: Database node of relation owner
     /// - Returns: Relation representer
-    static func relation(_ mode: RelationMode, rootLevelsUp: Int?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
+    static func relation(_ mode: RelationMode, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
@@ -424,11 +424,12 @@ public extension Representer where V: RealtimeValue {
                 }
 
                 return RelationRepresentation(path: node.path(from: rootNode ?? .root), property: mode.path(for: owner)).rdbValue
-        },
+            },
             decoding: { d in
                 let relation = try RelationRepresentation(data: d)
                 return V(in: Node.root.child(with: relation.targetPath), options: [:])
-        })
+            }
+        )
     }
 
     /// Representer that convert `RealtimeValue` as database reference.
@@ -452,14 +453,14 @@ public extension Representer where V: RealtimeValue {
                         throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
                     }
                 }
-        },
+            },
             decoding: { (data) in
                 let reference = try ReferenceRepresentation(data: data)
                 switch mode {
                 case .fullPath: return reference.make(options: options)
                 case .path(from: let n): return reference.make(in: n, options: options)
                 }
-        }
+            }
         )
     }
 }

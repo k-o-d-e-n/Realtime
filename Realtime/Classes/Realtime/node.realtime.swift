@@ -123,7 +123,7 @@ public class Node: Hashable {
     ///
     /// - Parameter level: Number of levels up to ancestor
     /// - Returns: Ancestor node
-    func ancestor(onLevelUp level: Int) -> Node? {
+    func ancestor(onLevelUp level: UInt) -> Node? {
         guard level > 0 else { fatalError("Level must be more than 0") }
         
         var currentLevel = 1
@@ -140,7 +140,7 @@ public class Node: Hashable {
     ///
     /// - Parameter level: Level up
     /// - Returns: String of path
-    func path(fromLevelUp level: Int) -> String {
+    func path(fromLevelUp level: UInt) -> String {
         var path = key
         var currentLevel = 0
         var current = self

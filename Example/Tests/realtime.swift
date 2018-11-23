@@ -495,7 +495,7 @@ extension RealtimeTests {
     }
 
     func testRelationOneToMany() {
-        let transaction = Transaction()
+        let transaction = Transaction(database: CacheNode.root)
 
         do {
             let user = User(in: Node(key: "user", parent: .root))
@@ -518,6 +518,44 @@ extension RealtimeTests {
         }
 
         transaction.revert()
+    }
+
+    func testRelationManyToOne() {
+        let exp = expectation(description: "")
+        let transaction = Transaction(database: CacheNode.root)
+
+        do {
+            let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
+            let group = Group(in: Node(key: "group", parent: .root), options: [.database: CacheNode.root])
+
+            try user.ownedGroups.write(group, to: transaction)
+            transaction.commit(with: { (_, errors) in
+                errors?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                do {
+                    let userCopy = try User(data: CacheNode.root.child(forPath: user.node!.rootPath), exactly: false)
+
+                    let manager = group._manager
+                    let managerData = CacheNode.root.child(forPath: manager.node!.rootPath)
+                    try manager.apply(managerData, exactly: true)
+
+                    XCTAssertTrue(manager.unwrapped?.dbKey == user.dbKey)
+                    // cache while is not observed
+//                    XCTAssertTrue(user.ownedGroups.first?.dbKey == group.dbKey)
+                    XCTAssertTrue(userCopy.ownedGroups.first?.dbKey == group.dbKey)
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+                exp.fulfill()
+            })
+
+            waitForExpectations(timeout: 5) { (err) in
+                err.map({ XCTFail($0.describingErrorDescription) })
+            }
+        } catch let e {
+            transaction.revert()
+            XCTFail(e.localizedDescription)
+        }
     }
 
     func testOptionalRelation() {

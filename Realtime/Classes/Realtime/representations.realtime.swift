@@ -79,6 +79,13 @@ public enum RelationMode {
     case oneToOne(String)
     case oneToMany(String)
 
+    var propertyPath: String {
+        switch self {
+        case .oneToOne(let p): return p
+        case .oneToMany(let p): return p
+        }
+    }
+
     func path(for relatedValueNode: Node) -> String {
         switch self {
         case .oneToOne(let p): return p
