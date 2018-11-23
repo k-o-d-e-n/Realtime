@@ -69,7 +69,7 @@ public class RealtimeApp {
         with database: RealtimeDatabase = Database.database(),
         storage: RealtimeStorage = Storage.storage(),
         cachePolicy: CachePolicy = .default,
-        linksNode: Node? = nil,
+        linksNode: BranchNode? = nil,
         maxNodeDepth: Int = 32
         ) {
         guard !_isInitialized else {
@@ -78,7 +78,7 @@ public class RealtimeApp {
 
         RealtimeApp._app = RealtimeApp(
             db: database, storage: storage,
-            linksNode: linksNode ?? Node(key: InternalKeys.links, parent: .root),
+            linksNode: linksNode ?? BranchNode(key: InternalKeys.links),
             maxDepth: maxNodeDepth
         )
         database.cachePolicy = cachePolicy

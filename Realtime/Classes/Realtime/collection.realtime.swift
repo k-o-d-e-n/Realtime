@@ -69,7 +69,9 @@ public protocol RealtimeCollectionActions {
 }
 
 /// A type that stores an abstract elements, receives the notify about a change of collection
-public protocol RealtimeCollectionView: BidirectionalCollection, RealtimeCollectionActions {}
+public protocol RealtimeCollectionView: BidirectionalCollection, RealtimeCollectionActions {
+    func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void)
+}
 
 /// A type that represents Realtime database collection
 public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RealtimeCollectionActions {
@@ -111,7 +113,7 @@ public protocol WritableRealtimeCollection: RealtimeCollection, WritableRealtime
 }
 
 public protocol MutableRealtimeCollection: RealtimeCollection {
-    func write(_ element: Element, to transaction: Transaction) throws
+    func write(_ element: Element, in transaction: Transaction) throws
     func write(_ element: Element) throws -> Transaction
     func erase(at index: Int, in transaction: Transaction)
     func erase(at index: Int) -> Transaction

@@ -23,7 +23,9 @@ extension DatabaseReference: DatabaseNode {
     public var cachedData: RealtimeDataProtocol? { return nil }
     public func update(use keyValuePairs: [String : Any], completion: ((Error?, DatabaseNode) -> Void)?) {
         if let completion = completion {
-            updateChildValues(keyValuePairs, withCompletionBlock: completion)
+            updateChildValues(keyValuePairs, withCompletionBlock: { error, dbNode in
+                completion(error.map({ RealtimeError(external: $0, in: .database) }), dbNode)
+            })
         } else {
             updateChildValues(keyValuePairs)
         }
@@ -249,9 +251,9 @@ extension Database: RealtimeDatabase {
                     completion(d)
                 }
             },
-            withCancel: { error in
+            withCancel: { e in
                 if invalidate(token) {
-                    onCancel?(error)
+                    onCancel?(RealtimeError(external: e, in: .database))
                 }
             }
         )
@@ -268,7 +270,9 @@ extension Database: RealtimeDatabase {
         on node: Node,
         onUpdate: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error) -> Void)?) -> UInt {
-        return node.reference(for: self).observe(event.firebase.first!, with: onUpdate, withCancel: onCancel)
+        return node.reference(for: self).observe(event.firebase.first!, with: onUpdate, withCancel: { e in
+            onCancel?(RealtimeError(external: e, in: .database))
+        })
     }
 
     public func removeAllObservers(for node: Node) {
@@ -299,7 +303,7 @@ extension StorageReference: StorageNode {
             debugFatalError(condition: smd == nil, "Initializing metadata is failed")
         }
         putData(data, metadata: smd, completion: { md, err in
-            completion(md?.dictionaryRepresentation(), err)
+            completion(md?.dictionaryRepresentation(), err.map({ RealtimeError(external: $0, in: .storage) }))
         })
     }
 }
@@ -327,7 +331,13 @@ extension Storage: RealtimeStorage {
         var completions: [Transaction.FileCompletion] = []
         let addCompletion: (Node, [String: Any]?, Error?) -> Void = { node, md, err in
             lock.lock()
-            completions.append(md.map({ .meta($0) }) ?? .error(node, err ?? RealtimeError(source: .file, description: "Unexpected error on upload file")))
+            completions.append(
+                md.map({ .meta($0) }) ??
+                .error(
+                    node,
+                    err ?? RealtimeError(source: .file, description: "Unexpected error on upload file")
+                )
+            )
             lock.unlock()
             group.leave()
         }
@@ -343,7 +353,7 @@ extension Storage: RealtimeStorage {
                 })
             } else {
                 node(with: file.location).delete(completion: { (err) in
-                    addCompletion(location, nil, err)
+                    addCompletion(location, nil, err.map({ RealtimeError(external: $0, in: .value) }))
                 })
             }
         }

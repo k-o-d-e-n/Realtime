@@ -271,7 +271,9 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                         promise.reject(e)
                     }
                 },
-                onCancel: promise.reject
+                onCancel: { e in
+                    promise.reject(RealtimeError(external: e, in: .value))
+                }
             )
         }
     }

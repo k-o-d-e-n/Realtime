@@ -14,7 +14,7 @@ enum InternalKeys: String, CodingKey {
     /// version of RealtimeValue
     case modelVersion = "__mv"
     /// root database key for links hierarchy
-    case links = "__links" // rename to '__lnks'
+    case links = "__lnks"
     /// key of RealtimeValue in 'links' branch which stores all external links to this values
     case linkItems = "__l_itms"
     /// key of RealtimeCollection in 'links' branch which stores prototypes of all collection elements
@@ -33,14 +33,34 @@ enum InternalKeys: String, CodingKey {
     case raw = "__raw"
 }
 
+/// Represents branch of database tree
+public final class BranchNode: Node {
+    public init(key: String) {
+        super.init(key: key, parent: .root)
+    }
+    public init<T: RawRepresentable>(key: T) where T.RawValue == String {
+        super.init(key: key.rawValue, parent: .root)
+    }
+    override public var parent: Node? { set {} get { return .root } }
+    override var isRoot: Bool { return false }
+    override var isAnchor: Bool { return true }
+    override var isRooted: Bool { return true }
+    override var root: Node? { return .root }
+    override var first: Node? { return nil }
+    override func path(from node: Node) -> String { return key }
+    override func hasAncestor(node: Node) -> Bool { return node == .root }
+    override public var description: String { return "branch: \(key)" }
+}
+
 /// Represents reference to database tree node
 public class Node: Hashable {
     /// Root node
     public static let root: Node = Root()
-    class Root: Node {
+    final class Root: Node {
         init() { super.init(key: "", parent: nil) }
         override var parent: Node? { set {} get { return nil } }
         override var isRoot: Bool { return true }
+        override var isAnchor: Bool { return true }
         override var isRooted: Bool { return true }
         override var root: Node? { return nil }
         override var first: Node? { return nil }
@@ -93,10 +113,23 @@ public class Node: Hashable {
     /// Returns the most senior node excluding Node.root instance.
     var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
 
+    var isAnchor: Bool { return false }
+    /// Returns current anchor node
+    var branch: Node? { return isAnchor ? self : parent?.branch }
+
     /// Returns path from the most senior node.
-    public var rootPath: String {
-        return parent.map { $0.isRoot ? key : $0.rootPath + "/" + key } ?? key
+    public var absolutePath: String {
+        return parent.map { $0.isRoot ? key : $0.absolutePath + "/" + key } ?? key
     }
+
+    /// Returns path from the nearest anchor node or
+    /// if anchor node does not exist from the most senior node.
+    public var path: String {
+        return parent.map { $0.isAnchor ? key : $0.path + "/" + key } ?? key
+    }
+
+    @available(iOS, renamed: "absolutePath", deprecated: 0.8.5, message: "Use `path` or `absolutePath` instead.")
+    public var rootPath: String { return absolutePath }
 
     /// Returns path from passed node.
     ///
@@ -208,6 +241,10 @@ public extension Node {
     /// - Returns: Database reference node
     static func root<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
         return Node.root.child(with: path.rawValue)
+    }
+
+    static func branch<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
+        return BranchNode(key: path)
     }
 
     /// Generates an automatically calculated key of database.

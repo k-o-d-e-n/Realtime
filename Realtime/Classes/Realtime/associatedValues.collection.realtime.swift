@@ -327,7 +327,7 @@ extension AssociatedValues {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.view._contains(with: key.dbKey) { contains, err in
                     if let e = err {
-                        promise.reject(e)
+                        promise.reject(RealtimeError(external: e, in: .collection))
                     } else if contains {
                         promise.reject(RealtimeError(
                             source: .collection,
@@ -369,7 +369,7 @@ extension AssociatedValues {
             transaction.addPrecondition { [unowned transaction] promise in
                 self.view._item(for: key.dbKey) { item, err in
                     if let e = err {
-                        promise.reject(e)
+                        promise.reject(RealtimeError(external: e, in: .collection))
                     } else if let item = item {
                         self._remove(for: item, key: key, in: transaction)
                         promise.fulfill()

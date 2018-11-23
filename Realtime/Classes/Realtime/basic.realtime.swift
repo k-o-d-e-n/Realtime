@@ -34,6 +34,8 @@ public struct RealtimeError: LocalizedError {
     /// - transaction: Error in `Transaction`
     /// - cache: Error in cache
     public enum Source {
+        indirect case external(Error, Source)
+
         case value
         case file
         case collection
@@ -46,6 +48,10 @@ public struct RealtimeError: LocalizedError {
         case storage
     }
 
+    init(external error: Error, in source: Source, description: String = "") {
+        self.source = .external(error, source)
+        self.description = "External error: \(String(describing: error))"
+    }
     init<T>(initialization type: T.Type, _ data: Any) {
         self.init(source: .coding, description: "Failed initialization type: \(T.self) with data: \(data)")
     }

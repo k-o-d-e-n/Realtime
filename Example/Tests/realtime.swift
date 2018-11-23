@@ -343,7 +343,7 @@ extension RealtimeTests {
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
         linkedObject.property <== "#1"
         testObject.linkedArray.view.isSynced = true
-        XCTAssertNoThrow(try testObject.linkedArray.write(linkedObject, to: transaction))
+        XCTAssertNoThrow(try testObject.linkedArray.write(linkedObject, in: transaction))
 
         let object = TestObject(in: Node(key: "elem_1"))
         object.file <== #imageLiteral(resourceName: "pw")
@@ -528,7 +528,7 @@ extension RealtimeTests {
             let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
             let group = Group(in: Node(key: "group", parent: .root), options: [.database: CacheNode.root])
 
-            try user.ownedGroups.write(group, to: transaction)
+            try user.ownedGroups.write(group, in: transaction)
             transaction.commit(with: { (_, errors) in
                 errors?.first.map({ XCTFail($0.describingErrorDescription) })
 

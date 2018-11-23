@@ -139,13 +139,19 @@ public struct RDItem: RCViewItem {
 
 public struct AnyRealtimeCollectionView: RealtimeCollectionView {
     var _value: RealtimeCollectionActions
+    let _contains: (String, @escaping (Bool, Error?) -> Void) -> Void
     let _view: AnyBidirectionalCollection<String>
 
     internal(set) var isSynced: Bool = false
 
     init<CV: RealtimeCollectionView>(_ view: CV) where CV.Element: DatabaseKeyRepresentable {
         self._value = view
+        self._contains = view.contains(elementWith:completion:)
         self._view = AnyBidirectionalCollection(view.lazy.map({ $0.dbKey }))
+    }
+
+    public func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void) {
+        _contains(key, completion)
     }
 
     public func load(timeout: DispatchTimeInterval, completion: Closure<Error?, Void>?) {
@@ -274,6 +280,10 @@ public final class SortedCollectionView<Element: RCViewElementProtocol & Compara
         guard exactly else { return }
         let representer = Representer<SortedArray<Element>>(collection: Representer.realtimeData).defaultOnEmpty()
         self._elements = try representer.decode(data)
+    }
+
+    public func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void) {
+        _contains(with: key, completion: completion)
     }
 
     public var startIndex: Int { return _elements.startIndex }

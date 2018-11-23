@@ -78,11 +78,12 @@ extension RealtimeValue {
 public enum RelationMode {
     case oneToOne(String)
     case oneToMany(String)
+    case manyToMany(String)
 
     var propertyPath: String {
         switch self {
-        case .oneToOne(let p): return p
-        case .oneToMany(let p): return p
+        case .oneToOne(let p), .oneToMany(let p), .manyToMany(let p):
+            return p
         }
     }
 
@@ -90,6 +91,7 @@ public enum RelationMode {
         switch self {
         case .oneToOne(let p): return p
         case .oneToMany(let p): return p + "/" + relatedValueNode.key
+        case .manyToMany(let p): return p + "/" + relatedValueNode.key
         }
     }
 }
