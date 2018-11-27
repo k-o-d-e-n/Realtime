@@ -215,6 +215,23 @@ public extension Listenable {
     func `do`(_ something: @escaping (ListenEvent<Out>) -> Void) -> Do<Out> {
         return Do(listenable: AnyListenable(self.listening, self.listeningItem), doit: something)
     }
+
+    func `do`(onValue something: @escaping (Out) -> Void) -> Do<Out> {
+        return self.do({ event in
+            switch event {
+            case .value(let v): something(v)
+            default: break
+            }
+        })
+    }
+    func `do`(onError something: @escaping (Error) -> Void) -> Do<Out> {
+        return self.do({ event in
+            switch event {
+            case .error(let e): something(e)
+            default: break
+            }
+        })
+    }
 }
 
 public struct Once<T>: Listenable {

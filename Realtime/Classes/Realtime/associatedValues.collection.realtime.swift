@@ -125,10 +125,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     }
     public subscript(key: Key) -> Value? {
         guard let v = storage.value(for: key) else {
-            guard let i = view.index(where: { $0.dbKey == key.dbKey }) else {
+            guard let item = view.first(where: { $0.dbKey == key.dbKey }) else {
                 return nil
             }
-            return storage.element(for: view[i].dbKey)?.value
+            let value = valueBuilder.buildValue(with: item)
+            storage.set(value: value, for: key)
+            return value
         }
         return v
     }
@@ -224,20 +226,11 @@ extension AssociatedValues {
     public final class __Elements<Element: RealtimeValue>: __RepresentableCollection<Element, RDItem> {
         internal let builder: RealtimeValueBuilder<Element>
 
-        /// Creates new instance associated with database node
-        ///
-        /// Available options:
-        /// - elementsNode(**required**): Database node where source elements are located.
-        /// - database: Database reference
-        /// - elementBuilder: Closure that calls to build elements lazily.
-        ///
-        /// - Parameter node: Node location for value
-        /// - Parameter options: Dictionary of options
-        public required init(in node: Node?, options: [ValueOption : Any]) {
+        override init(view: SortedCollectionView<RDItem>, options: [ValueOption : Any]) {
             guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
             let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
             self.builder = RealtimeValueBuilder(spaceNode: elements, impl: builder)
-            super.init(in: node, options: options)
+            super.init(view: view, options: options)
         }
 
         override func buildElement(with item: RDItem) -> Element {
@@ -252,6 +245,10 @@ extension AssociatedValues {
             throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
             #endif
         }
+
+        public required init(in node: Node?, options: [ValueOption : Any]) {
+            fatalError("init(in:options:) cannot be used")
+        }
     }
 
     public typealias Keys = __Elements<Key>
@@ -263,7 +260,7 @@ extension AssociatedValues {
     /// - Returns: `RealtimeCollection` of key objects
     public func keys() -> Keys {
         return Keys(
-            in: view.node,
+            view: view,
             options: [.database: database as Any,
                       .elementsNode: keyBuilder.spaceNode,
                       .elementBuilder: keyBuilder.impl]
@@ -279,7 +276,8 @@ extension AssociatedValues {
         // TODO: avoid using `Values` type because it is mutable
         return Values(
             in: node,
-            options: [.database: database as Any, .elementBuilder: valueBuilder.impl]
+            options: [.database: database as Any,
+                      .elementBuilder: valueBuilder.impl]
         )
     }
 }

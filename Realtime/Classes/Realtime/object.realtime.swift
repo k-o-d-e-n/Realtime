@@ -220,6 +220,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         payload = try InternalKeys.payload.map(from: data)
     }
     open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        debugFatalError(condition: data.node.map { $0 != node } ?? false, "Tries apply data with incorrect reference")
         try _apply_RealtimeValue(data, exactly: exactly)
     }
     
@@ -312,7 +313,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
             enumerateLoadedChilds { (_, value: _RealtimeValue) in
-                value.didSave(in: database, in: node)
+                if conditionForWrite(of: value) {
+                    value.didSave(in: database, in: node)
+                }
             }
         } else {
             debugFatalError("Unkeyed value has been saved to location in parent node: \(parent.rootPath)")
