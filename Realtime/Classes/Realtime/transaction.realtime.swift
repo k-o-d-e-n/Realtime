@@ -43,11 +43,12 @@ public class Transaction {
     public var isReverted: Bool { return substate == .reverted }
     public var isFailed: Bool { return state == .failed }
     public var isPerforming: Bool { return state == .performing }
+    public var isCancelled: Bool { return state == .cancelled }
     public var isMerged: Bool { return state == .merged }
-    public var isInvalidated: Bool { return isCompleted || isFailed || isMerged || isReverted }
+    public var isInvalidated: Bool { return isCompleted || isFailed || isCancelled || isMerged || isReverted }
 
     public enum State {
-        case waiting, performing, completed, failed
+        case waiting, performing, completed, cancelled, failed
         case merged
     }
     public enum Substate {
@@ -446,5 +447,11 @@ public extension Transaction {
         other.completions.forEach(addCompletion)
         addReversion(other.currentReversion())
         other.state = .merged
+    }
+
+    /// cancels transaction without revertion
+    public func cancel() {
+        state = .cancelled
+        invalidate(false)
     }
 }

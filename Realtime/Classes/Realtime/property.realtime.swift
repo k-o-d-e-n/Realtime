@@ -257,6 +257,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     }
 
     private func removeOldValueIfExists(in transaction: Transaction, by node: Node) {
+        let options = self.options
         transaction.addPrecondition { [unowned transaction] (promise) in
             transaction.database.load(
                 for: node,
@@ -264,9 +265,14 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                 completion: { data in
                     guard data.exists() else { return promise.fulfill() }
                     do {
-                        let relation = try RelationRepresentation(data: data)
-                        transaction.removeValue(by: Node.root.child(with: relation.targetPath).child(with: relation.relatedProperty))
-                        promise.fulfill()
+                        if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
+                            let anchorNode = options.rootLevelsUp.flatMap(ownerNode.ancestor) ?? .root
+                            let relation = try RelationRepresentation(data: data)
+                            transaction.removeValue(by: anchorNode.child(with: relation.targetPath).child(with: relation.relatedProperty))
+                            promise.fulfill()
+                        } else {
+                            throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
+                        }
                     } catch let e {
                         promise.reject(e)
                     }

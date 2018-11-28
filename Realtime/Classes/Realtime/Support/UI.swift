@@ -44,6 +44,8 @@ internal class _TableViewSectionedAdapter: NSObject, UITableViewDataSource, UITa
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {}
 //    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {}
 
+    func tableView(_ tableView: UITableView, shouldIndentWhileEditingRowAt indexPath: IndexPath) -> Bool { return true }
+
     // UIScrollView
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {}

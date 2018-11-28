@@ -69,8 +69,13 @@ extension RealtimeValueBuilder {
             .userPayload: item.rcItem.payload.user as Any
         ])
     }
-
     func buildKey(with item: RDItem) -> Value {
+        return impl(spaceNode.child(with: item.dbKey), [
+            .systemPayload: item.payload.system,
+            .userPayload: item.payload.user as Any
+        ])
+    }
+    func build<T>(with item: T) -> Value where T: RCViewItem {
         return impl(spaceNode.child(with: item.dbKey), [
             .systemPayload: item.payload.system,
             .userPayload: item.payload.user as Any
@@ -103,7 +108,7 @@ extension Dictionary: RealtimeCollectionStorage where Key == String {
 extension Dictionary: RCStorage where Key == String {}
 extension Dictionary: MutableRCStorage where Key == String {}
 
-struct RCDictionaryStorage<K, V>: MutableRCStorage where K: HashableValue, V: RealtimeValue {
+struct RCDictionaryStorage<K, V>: MutableRCStorage where K: HashableValue {
     typealias Value = V
     typealias Key = K
     private var elements: [K: Value] = [:]
