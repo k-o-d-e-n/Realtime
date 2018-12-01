@@ -205,6 +205,11 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         guard case let relation as Relation<Related>.Options = options[.relation] else { fatalError("Skipped required options") }
 
         self.options = relation
+
+        if let ownerNode = node?.ancestor(onLevelUp: self.options.ownerLevelsUp) {
+            self.options.ownerNode.value = ownerNode
+        }
+
         super.init(in: node, options: options.merging([.representer: relation.representer], uniquingKeysWith: { _, new in new }))
     }
 
@@ -629,7 +634,6 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         super.init(in: node, options: options)
     }
 
-
     public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
         #if DEBUG
         fatalError("init(data:exactly:) cannot be called. Use combination init(in:options:) and apply(_:exactly:) instead")
@@ -743,7 +747,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
 
     func _setRemoved(isLocal: Bool) {
-        _value = nil
+        _value = .removed(local: isLocal)
         repeater.send(.value(.removed(local: isLocal)))
     }
 

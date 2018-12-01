@@ -158,6 +158,10 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         debugFatalError(condition: !parent.isRooted, "Value will be saved non rooted node: \(parent)")
     }
     public func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        _RealtimeValue_didSave(in: database, in: parent, by: key)
+    }
+
+    func _RealtimeValue_didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
         debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
 
@@ -284,7 +288,13 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     }
 
     /// Parent object
-    open weak var parent: Object?
+    open weak var parent: Object? {
+        didSet {
+            if let node = self.node {
+                node.parent = parent.node
+            }
+        }
+    }
 
     /// Labels of properties that shouldn`t represent as database data
     open var ignoredLabels: [String] {
@@ -315,6 +325,8 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             enumerateLoadedChilds { (_, value: _RealtimeValue) in
                 if conditionForWrite(of: value) {
                     value.didSave(in: database, in: node)
+                } else {
+                    value._RealtimeValue_didSave(in: database, in: parent, by: key)
                 }
             }
         } else {

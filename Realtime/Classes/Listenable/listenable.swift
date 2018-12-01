@@ -410,7 +410,7 @@ public struct AsyncReadonlyValue<Value>: Listenable {
     private let store: ListeningDisposeStore
 
     public init<L: Listenable>(_ source: L, storage: ValueStorage<Value>, fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
-        var store = ListeningDisposeStore()
+        let store = ListeningDisposeStore()
 
         let promise = ResultPromise(receiver: storage.set, error: storage.sendError)
         source.listening({ (e) in

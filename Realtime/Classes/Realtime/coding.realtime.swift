@@ -415,7 +415,7 @@ public extension Representer where V: RealtimeValue {
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
                 guard let node = v.node else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation value node.") }
-                let rootNode = try rootLevelsUp.map { level -> Node in
+                let anchorNode = try rootLevelsUp.map { level -> Node in
                     if let ancestor = owner.ancestor(onLevelUp: level) {
                         return ancestor
                     } else {
@@ -423,11 +423,20 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
 
-                return RelationRepresentation(path: node.path(from: rootNode ?? .root), property: mode.path(for: owner)).rdbValue
+                return RelationRepresentation(path: node.path(from: anchorNode ?? .root), property: mode.path(for: owner)).rdbValue
             },
             decoding: { d in
+                guard let owner = ownerNode.value
+                else { throw RealtimeError(decoding: V.self, d, reason: "Can`t get relation owner node") }
+                let anchorNode = try rootLevelsUp.map { level -> Node in
+                    if let ancestor = owner.ancestor(onLevelUp: level) {
+                        return ancestor
+                    } else {
+                        throw RealtimeError(decoding: V.self, d, reason: "Couldn`t get root node")
+                    }
+                }
                 let relation = try RelationRepresentation(data: d)
-                return V(in: Node.root.child(with: relation.targetPath), options: [:])
+                return V(in: (anchorNode ?? .root).child(with: relation.targetPath), options: [:])
             }
         )
     }
