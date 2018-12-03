@@ -457,7 +457,7 @@ extension SortedArray: ExpressibleBySequence where Element: Comparable {
 extension SortedArray: HasDefaultLiteral, _ComparableWithDefaultLiteral where Element: Comparable {}
 extension SortedArray where Element: Equatable {
     public mutating func move(_ element: Element) -> (from: Int, to: Int)? {
-        guard let from = index(of: element) else {
+        guard let from = _elements.index(of: element) else {
             return nil
         }
         remove(at: from)

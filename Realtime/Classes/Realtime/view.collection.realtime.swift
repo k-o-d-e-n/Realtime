@@ -206,8 +206,15 @@ public final class SortedCollectionView<Element: RCViewElementProtocol & Compara
                     }
                 case .child(.changed):
                     let item = try Element(data: value.0)
-                    let indexes = self._elements.move(item)
-                    return .updated((deleted: [], inserted: [], modified: [], moved: indexes.map { [$0] } ?? []))
+                    if let indexes = self._elements.move(item) {
+                        if indexes.from != indexes.to {
+                            return .updated((deleted: [], inserted: [], modified: [], moved: [indexes]))
+                        } else {
+                            return .updated((deleted: [], inserted: [], modified: [indexes.to], moved: []))
+                        }
+                    } else {
+                        throw RealtimeError(source: .collection, description: "Cannot move items")
+                    }
                 default:
                     throw RealtimeError(source: .collection, description: "Unexpected data event: \(value)")
                 }
@@ -239,11 +246,15 @@ public final class SortedCollectionView<Element: RCViewElementProtocol & Compara
         let removed = _runObserving(.child(.removed))
         let changed = _runObserving(.child(.changed))
         if isNeedLoadFull {
-            load(completion: .just { [weak self] e in
-                self.map { this in
-                    this.isSynced = this.isObserved && e == nil
-                }
-            })
+            if isRooted {
+                load(completion: .just { [weak self] e in
+                    self.map { this in
+                        this.isSynced = this.isObserved && e == nil
+                    }
+                })
+            } else {
+                isSynced = true
+            }
         }
         return added && removed && changed
     }

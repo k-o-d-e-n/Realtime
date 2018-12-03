@@ -285,6 +285,12 @@ extension AssociatedValues {
 // MARK: Mutating
 
 extension AssociatedValues {
+    public func removeAll() {
+        guard isStandalone else { return }
+        view.removeAll()
+        storage.removeAll()
+    }
+
     /// Writes element to collection by database key of `Key` element.
     ///
     /// This method is available only if collection is **standalone**,
@@ -465,7 +471,27 @@ where Value: RCViewItem & Comparable, Key: HashableValue {
         set { view.keepSynced = newValue }
         get { return view.keepSynced }
     }
-    public var changes: AnyListenable<RCEvent> { return view.changes }
+    public var changes: AnyListenable<RCEvent> {
+        return view.changes
+            .do(onValue: { [unowned self] (e) in
+                switch e {
+                case .initial: break
+                case .updated(let deleted, _, let modified, _):
+                    deleted.forEach({ i in
+                        _ = self.storage
+                            .element(for: self.view[i].dbKey)
+                            .map({ self.storage.remove(for: $0.key) })
+                    })
+                    modified.forEach({ (i) in
+                        let value = self.view[i]
+                        self.storage
+                            .element(for: value.dbKey)
+                            .map({ self.storage.set(value: value, for: $0.key) })
+                    })
+                }
+            })
+            .asAny()
+    }
 
     /// Creates new instance associated with database node
     ///
@@ -518,7 +544,7 @@ where Value: RCViewItem & Comparable, Key: HashableValue {
             storage.set(value: value, for: key)
             return (key, value)
         }
-        return element
+        return (element.key, value)
     }
     public subscript(key: Key) -> Value? {
         guard let v = storage.value(for: key) else {

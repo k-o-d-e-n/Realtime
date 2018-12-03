@@ -326,11 +326,15 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
                 if conditionForWrite(of: value) {
                     value.didSave(in: database, in: node)
                 } else {
-                    value._RealtimeValue_didSave(in: database, in: parent, by: key)
+                    if let node = value.node {
+                        value._RealtimeValue_didSave(in: database, in: parent, by: node.key)
+                    } else {
+                        debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.absolutePath)")
+                    }
                 }
             }
         } else {
-            debugFatalError("Unkeyed value has been saved to location in parent node: \(parent.rootPath)")
+            debugFatalError("Unkeyed value has been saved to location in parent node: \(parent.absolutePath)")
         }
     }
 

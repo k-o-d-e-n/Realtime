@@ -160,10 +160,6 @@ class ReuseController<View: AnyObject, Key: Hashable> {
         activeItems.removeAll()
         freeItems.removeAll()
     }
-
-//    func exchange(indexPath: IndexPath, to ip: IndexPath) {
-//        swap(&items[indexPath], &items[ip])
-//    }
 }
 
 /// A type that responsible for editing of table

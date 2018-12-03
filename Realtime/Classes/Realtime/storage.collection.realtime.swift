@@ -121,10 +121,6 @@ struct RCDictionaryStorage<K, V>: MutableRCStorage where K: HashableValue {
         return elements.removeValue(forKey: key)
     }
 
-    fileprivate func storedElement(by key: String) -> (Key, Value)? {
-        return elements.first(where: { $0.key.dbKey == key })
-    }
-
     subscript(for key: Key) -> Value? {
         get { return self.elements[key] }
         set { self.elements[key] = newValue }
