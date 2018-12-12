@@ -776,7 +776,10 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
         /// a backward write
         if shouldWriteBackward {
             let ownerRelation = RelationRepresentation(path: owner.path(from: anchorNode.owner), property: itemNode.path(from: owner))
-            transaction.addValue(ownerRelation.rdbValue, by: elementNode.copy(to: anchorNode.element).child(with: options.property.propertyPath))
+            transaction.addValue(
+                ownerRelation.rdbValue,
+                by: elementNode.copy(to: anchorNode.element).child(with: options.property.propertyPath).child(with: owner.key)
+            )
         }
     }
 
@@ -802,6 +805,9 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
 
     private func _removeBackward(for item: RelationsItem, element: Element?, in transaction: Transaction) {
         let anchorNode = options.anchor(forElement: (element ?? buildElement(with: item)).node!, collection: self.node!)!.element
-        transaction.removeValue(by: anchorNode.child(with: item.relation.targetPath).child(with: item.relation.relatedProperty))
+        let ownerNode = self.node!.ancestor(onLevelUp: options.ownerLevelsUp)!
+        transaction.removeValue(
+            by: anchorNode.child(with: item.relation.targetPath).child(with: item.relation.relatedProperty).child(with: ownerNode.key)
+        )
     }
 }

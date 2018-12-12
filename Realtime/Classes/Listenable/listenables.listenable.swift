@@ -404,7 +404,7 @@ extension ValueStorage where T: AnyObject {
 
 public struct Constant<T>: Listenable {
     let value: T
-    init(_ value: T) {
+    public init(_ value: T) {
         self.value = value
     }
     public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
