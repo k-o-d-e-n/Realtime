@@ -240,8 +240,8 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
             if let backwardValueNode = wrapped?.node {
                 let backwardPropertyNode = backwardValueNode.child(with: options.property.path(for: ownerNode))
                 let thisProperty = node.path(from: ownerNode)
-                let backwardRelation = RelationRepresentation(path: options.rootLevelsUp.map(ownerNode.path) ?? ownerNode.rootPath, property: thisProperty)
-                transaction.addValue(backwardRelation.rdbValue, by: backwardPropertyNode)
+                let backwardRelation = RelationRepresentation(path: options.rootLevelsUp.map(ownerNode.path) ?? ownerNode.absolutePath, property: thisProperty)
+                transaction.addValue(try backwardRelation.defaultRepresentation(), by: backwardPropertyNode)
             }
         } else {
             throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
@@ -1007,15 +1007,15 @@ public final class MutationPoint<T> {
     }
 }
 public extension MutationPoint where T: RealtimeDataRepresented & RealtimeDataValueRepresented {
-    func set(value: T, in transaction: Transaction? = nil) -> Transaction {
+    func set(value: T, in transaction: Transaction? = nil) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(value.rdbValue, by: node)
+        transaction.addValue(try value.defaultRepresentation(), by: node)
 
         return transaction
     }
-    func mutate(by key: String? = nil, use value: T, in transaction: Transaction? = nil) -> Transaction {
+    func mutate(by key: String? = nil, use value: T, in transaction: Transaction? = nil) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(value.rdbValue, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+        transaction.addValue(try value.defaultRepresentation(), by: key.map { node.child(with: $0) } ?? node.childByAutoId())
 
         return transaction
     }

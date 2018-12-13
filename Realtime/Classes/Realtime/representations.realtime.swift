@@ -30,7 +30,7 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
         case ref = "ref"
     }
 
-    var rdbValue: RealtimeDataValue {
+    func defaultRepresentation() throws -> Any {
         var v: [String: RealtimeDataValue] = [CodingKeys.ref.stringValue: ref]
         if let mv = payload.system.version {
             v[InternalKeys.modelVersion.rawValue] = mv
@@ -43,6 +43,7 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
         }
         return v
     }
+
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
         guard let ref: String = try CodingKeys.ref.stringValue.map(from: data) else { throw RealtimeError(initialization: ReferenceRepresentation.self, data) }
         self.ref = ref
@@ -90,8 +91,8 @@ public enum RelationMode {
     func path(for relatedValueNode: Node) -> String {
         switch self {
         case .oneToOne(let p): return p
-        case .oneToMany(let p): return p + "/" + relatedValueNode.key
-        case .manyToMany(let p): return p + "/" + relatedValueNode.key
+        case .oneToMany(let p), .manyToMany(let p):
+            return p + "/" + relatedValueNode.key
         }
     }
 }
@@ -112,9 +113,9 @@ public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValue
         case relatedProperty = "r_prop"
     }
 
-    public var rdbValue: RealtimeDataValue {
+    public func defaultRepresentation() throws -> Any {
         let v: [String: RealtimeDataValue] = [CodingKeys.targetPath.rawValue: targetPath,
-                                          CodingKeys.relatedProperty.rawValue: relatedProperty]
+                                              CodingKeys.relatedProperty.rawValue: relatedProperty]
         return v
     }
 
@@ -138,7 +139,10 @@ struct SourceLink: RealtimeDataRepresented, RealtimeDataValueRepresented, Codabl
         self.links = links
     }
 
-    var rdbValue: RealtimeDataValue { return links }
+    func defaultRepresentation() throws -> Any {
+        return links
+    }
+
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
         guard
             let id = data.key
@@ -153,9 +157,9 @@ extension Representer where V == [SourceLink] {
     static var links: Representer<V> {
         return Representer(
             encoding: { (items) -> Any? in
-                return items.reduce([:], { (res, link) -> [String: Any] in
+                return try items.reduce([:], { (res, link) -> [String: Any] in
                     var res = res
-                    res[link.id] = link.rdbValue
+                    res[link.id] = try link.defaultRepresentation()
                     return res
                 })
             },

@@ -160,7 +160,7 @@ class FormViewController: UIViewController {
                 delegate.register(UITableViewCell.self, binding: { (item, group, ip) in
                     item.bind(group.name, { (cell, name) in
                         cell.textLabel?.text <== name
-                    })
+                    }, nil)
                 })
                 let groupPicker = PickTableViewController(delegate: delegate)
                 groupPicker.didSelect = { [unowned row] _,_, group in
@@ -192,7 +192,7 @@ class FormViewController: UIViewController {
                 row.view?.textLabel?.text <== user.name
                 row.bind(user.name, { (cell, name) in
                     cell.textLabel?.text <== name
-                })
+                }, nil)
             })
             row.onUpdate { (args, row) in
                 let (cell, user) = args

@@ -30,11 +30,11 @@ struct Trivial<T>: Listenable, ValueWrapper {
     }
 
     func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        return repeater.listen(assign)
+        return repeater.listening(assign)
     }
 
     public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return ListeningItem(resume: { self.repeater.listen(assign) }, pause: { $0.dispose() }, token: repeater.listen(assign))
+        return repeater.listeningItem(assign)
     }
 }
 
@@ -82,7 +82,7 @@ public class _Promise<T>: Listenable {
 
         self.init(
             get: { val }, set: { val = $0 },
-            listen: repeater.listen
+            listen: repeater.listening
         )
     }
 

@@ -352,8 +352,8 @@ extension Values {
             self?.storage.removeValue(forKey: item.dbKey)
         })
         storage.set(value: element, for: item.dbKey)
-        transaction.addValue(item.rdbValue, by: itemNode) /// add item element
-        transaction.addValue(link.link.rdbValue, by: link.node) /// add link
+        transaction.addValue(try item.defaultRepresentation(), by: itemNode) /// add item element
+        transaction.addValue(try link.link.defaultRepresentation(), by: link.node) /// add link
         try transaction.set(element, by: elementNode) /// add element
     }
 
@@ -387,3 +387,101 @@ extension Values {
         }
     }
 }
+
+public final class ExplicitValues<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
+where Element: RealtimeValue & RCViewItem & Comparable {
+    override var _hasChanges: Bool { return view._hasChanges }
+
+    public override var version: Int? { return nil }
+    public override var raw: RealtimeDataValue? { return nil }
+    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public let view: SortedCollectionView<Element>
+    public var isSynced: Bool { return view.isSynced }
+    public override var isObserved: Bool { return view.isObserved }
+    public override var canObserve: Bool { return view.canObserve }
+    public var keepSynced: Bool {
+        set { view.keepSynced = newValue }
+        get { return view.keepSynced }
+    }
+    public var changes: AnyListenable<RCEvent> {
+        return view.changes
+    }
+
+    /// Create new instance with default element builder
+    ///
+    /// - Parameter node: Database node
+    public convenience required init(in node: Node?) {
+        self.init(in: node, options: [:])
+    }
+    /// Creates new instance associated with database node
+    ///
+    /// Available options:
+    /// - database: Database reference
+    /// - elementBuilder: Closure that calls to build elements lazily.
+    ///
+    /// - Parameter node: Node location for value
+    /// - Parameter options: Dictionary of options
+    public required convenience init(in node: Node?, options: [ValueOption: Any]) {
+        let view = SortedCollectionView<Element>(in: node, options: [.database: options[.database] as Any])
+        self.init(in: node, options: options, view: view)
+    }
+
+    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        let node = data.node
+        self.view = SortedCollectionView(in: node, options: [.database: data.database as Any])
+        try super.init(data: data, exactly: exactly)
+    }
+
+    init(in node: Node?, options: [ValueOption: Any], view: SortedCollectionView<Element>) {
+        self.view = view
+        super.init(in: node, options: options)
+    }
+
+    // Implementation
+
+    public subscript(position: Int) -> Element {
+        return view[position]
+    }
+
+    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        try view.apply(data, exactly: exactly)
+    }
+
+    /// Collection does not respond for versions and raw value, and also payload.
+    /// To change value version/raw can use enum, but use modified representer.
+    override func _write(to transaction: Transaction, by node: Node) throws {
+        /// readonly
+    }
+
+    public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        super.didSave(in: database, in: parent, by: key)
+        if let node = self.node {
+            view.didSave(in: database, in: node)
+        }
+//        storage.forEach { $0.value.didSave(in: database, in: builder.spaceNode, by: $0.key) }
+    }
+
+    public override func willRemove(in transaction: Transaction, from ancestor: Node) {
+        super.willRemove(in: transaction, from: ancestor)
+        if ancestor == node?.parent {
+            transaction.removeValue(by: node!)
+        }
+//        storage.values.forEach { $0.willRemove(in: transaction, from: ancestor) }
+    }
+    override public func didRemove(from ancestor: Node) {
+        super.didRemove(from: ancestor)
+        view.didRemove()
+//        storage.values.forEach { $0.didRemove(from: builder.spaceNode) }
+    }
+
+    override public var debugDescription: String {
+        return """
+        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        ref: \(node?.rootPath ?? "not referred"),
+        synced: \(isSynced), keep: \(keepSynced),
+        elements: \(view.map { $0.dbKey })
+        }
+        """
+    }
+}
+

@@ -110,7 +110,7 @@ public class Node: Hashable {
     var isRooted: Bool { return root === Node.root }
     /// Returns the most senior node. It may no equal Node.root
     var root: Node? { return parent.map { $0.root ?? $0 } }
-    /// Returns the most senior node excluding Node.root instance.
+    /// Returns the most senior node excluding Node.root instance or nil if node is not rooted.
     var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
 
     var isAnchor: Bool { return false }
@@ -150,6 +150,40 @@ public class Node: Hashable {
         }
 
         fatalError("Path cannot be get from non parent node")
+    }
+
+    /// Returns ancestor node that is child to passed node
+    ///
+    /// - Parameter ancestor: Related ancestor node
+    /// - Returns: Ancestor node or nil
+    func first(after ancestor: Node) -> Node? {
+        guard ancestor != self else { fatalError("Cannot get from the same node") }
+
+        var current: Node = self
+        while let next = current.parent {
+            if next != ancestor {
+                return current
+            } else {
+                current = next
+            }
+        }
+
+        fatalError("Cannot be get from non parent node")
+    }
+
+    func after(ancestor: Node) -> [Node] {
+        guard ancestor != self else { fatalError("Cannot get from the same node") }
+
+        var result: [Node] = [self]
+        while let next = result[0].parent {
+            if next == ancestor {
+                return result
+            } else {
+                result.insert(next, at: 0)
+            }
+        }
+
+        fatalError("Cannot be get from non parent node")
     }
 
     /// Returns ancestor node on specified level up

@@ -10,7 +10,8 @@ import Foundation
 /// Provides subscribing and delivering events to listeners
 public struct Repeater<T>: Listenable {
     let sender: (ListenEvent<T>) -> Void
-    let listen: (Assign<ListenEvent<T>>) -> Disposable
+    let _remove: (UInt) -> Void
+    let _add: (Assign<ListenEvent<T>>) -> UInt
 
     public enum Dispatcher {
         case `default`
@@ -46,15 +47,17 @@ public struct Repeater<T>: Listenable {
             })
         }
 
-        self.listen = { assign in
+        self._add = { assign in
             defer { nextToken += 1 }
 
             let token = nextToken
             listeners[token] = assign
 
-            return ListeningDispose {
-                listeners.removeValue(forKey: token)
-            }
+            return token
+        }
+
+        self._remove = { token in
+            listeners.removeValue(forKey: token)
         }
     }
 
@@ -79,7 +82,7 @@ public struct Repeater<T>: Listenable {
             })
         }
 
-        self.listen = { assign in
+        self._add = { assign in
             lock.lock()
             defer {
                 nextToken += 1
@@ -89,13 +92,22 @@ public struct Repeater<T>: Listenable {
             let token = nextToken
             listeners[token] = assign
 
-            return ListeningDispose {
-                lock.lock(); defer { lock.unlock() }
-                listeners.removeValue(forKey: token)
-            }
+            return token
+        }
+        self._remove = { token in
+            lock.lock(); defer { lock.unlock() }
+            listeners.removeValue(forKey: token)
         }
     }
 
+    func add(_ assign: Assign<ListenEvent<T>>) -> UInt {
+        return _add(assign)
+    }
+
+    func remove(_ token: UInt) {
+        _remove(token)
+    }
+    
     /// Sends passed event to listeners
     ///
     /// - Parameter event: Event type with associated value
@@ -104,11 +116,14 @@ public struct Repeater<T>: Listenable {
     }
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        return listen(assign)
+        let token = _add(assign)
+        return ListeningDispose({
+            self._remove(token)
+        })
     }
 
     public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return ListeningItem(resume: { self.listen(assign) }, pause: { $0.dispose() }, token: listen(assign))
+        return ListeningItem(resume: { self._add(assign) }, pause: _remove, token: _add(assign))
     }
 }
 
@@ -152,7 +167,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         self.init(
             repeater: repeater,
             get: { val }, set: { val = $0 },
-            listen: repeater.listen
+            listen: repeater.listening
         )
     }
 
@@ -204,7 +219,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         self.init(
             repeater: repeater,
             get: { val }, set: { val = $0 },
-            listen: repeater.listen
+            listen: repeater.listening
         )
     }
 
@@ -302,7 +317,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     }
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        return repeater.listen(assign)
+        return listen(assign)
     }
 
     public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
@@ -339,7 +354,7 @@ extension ValueStorage where T: AnyObject {
         self.init(
             repeater: repeater,
             get: { val }, set: { val = $0 },
-            listen: repeater.listen
+            listen: repeater.listening
         )
     }
 

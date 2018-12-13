@@ -198,8 +198,8 @@ extension Transaction {
     }
 }
 extension Transaction {
-    func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) {
-        addValue(link.rdbValue, by: value.node!.linksItemsNode.child(with: link.id))
+    func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) throws {
+        addValue(try link.defaultRepresentation(), by: value.node!.linksItemsNode.child(with: link.id))
     }
 }
 
@@ -443,7 +443,7 @@ public extension Transaction {
             scheduledMerges = scheduledMerges.map { $0 + [other] } ?? [other]
             return
         }
-        try updateNode.merge(with: other.updateNode, conflictResolver: conflictResolver)
+        try updateNode.merge(with: other.updateNode, conflictResolver: conflictResolver, didAppend: nil)
         other.completions.forEach(addCompletion)
         addReversion(other.currentReversion())
         other.state = .merged

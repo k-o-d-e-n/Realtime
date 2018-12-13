@@ -59,26 +59,26 @@ struct RealtimeValueBuilder<Value>: RealtimeValueBuilderProtocol {
 extension RealtimeValueBuilder {
     func build(with item: RCItem) -> Value {
         return impl(spaceNode.child(with: item.dbKey), [
-            .systemPayload: item.payload.system,
-            .userPayload: item.payload.user as Any
+            .systemPayload: item.valuePayload.system,
+            .userPayload: item.valuePayload.user as Any
         ])
     }
     func buildValue(with item: RDItem) -> Value {
         return impl(spaceNode.child(with: item.dbKey), [
-            .systemPayload: item.rcItem.payload.system,
-            .userPayload: item.rcItem.payload.user as Any
+            .systemPayload: item.rcItem.valuePayload.system,
+            .userPayload: item.rcItem.valuePayload.user as Any
         ])
     }
     func buildKey(with item: RDItem) -> Value {
         return impl(spaceNode.child(with: item.dbKey), [
-            .systemPayload: item.payload.system,
-            .userPayload: item.payload.user as Any
+            .systemPayload: item.valuePayload.system,
+            .userPayload: item.valuePayload.user as Any
         ])
     }
     func build<T>(with item: T) -> Value where T: RCViewItem {
         return impl(spaceNode.child(with: item.dbKey), [
-            .systemPayload: item.payload.system,
-            .userPayload: item.payload.user as Any
+            .systemPayload: item.valuePayload.system,
+            .userPayload: item.valuePayload.user as Any
         ])
     }
 }
@@ -87,7 +87,7 @@ extension RealtimeValueBuilder {
 typealias AnyRCStorage = EmptyCollection
 
 public typealias RCElementBuilder<Element> = (Node, [ValueOption: Any]) -> Element
-typealias RCKeyValueStorage<V: RealtimeValue> = Dictionary<String, V>
+typealias RCKeyValueStorage<V> = Dictionary<String, V>
 extension String: DatabaseKeyRepresentable {
     public var dbKey: String! { return self }
 }

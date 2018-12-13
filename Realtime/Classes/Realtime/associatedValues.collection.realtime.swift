@@ -414,16 +414,16 @@ extension AssociatedValues {
 
         if shouldLinking {
             let keyLink = key.node!.generate(linkTo: [itemNode, elementNode, elementNode.linksNode])
-            transaction.addValue(keyLink.link.rdbValue, by: keyLink.node) /// add link to key object
+            transaction.addValue(try keyLink.link.defaultRepresentation(), by: keyLink.node) /// add link to key object
             let valueLink = elementNode.generate(linkKeyedBy: keyLink.link.id, to: [itemNode, keyLink.node])
             item.linkID = valueLink.link.id
-            transaction.addValue(valueLink.link.rdbValue, by: valueLink.node) /// add link to value object
+            transaction.addValue(try valueLink.link.defaultRepresentation(), by: valueLink.node) /// add link to value object
         } else {
             let valueLink = elementNode.generate(linkTo: itemNode)
             item.linkID = valueLink.link.id
-            transaction.addValue(valueLink.link.rdbValue, by: valueLink.node) /// add link to value object
+            transaction.addValue(try valueLink.link.defaultRepresentation(), by: valueLink.node) /// add link to value object
         }
-        transaction.addValue(item.rdbValue, by: itemNode) /// add item of element
+        transaction.addValue(try item.defaultRepresentation(), by: itemNode) /// add item of element
         try transaction.set(element, by: elementNode) /// add element
     }
 
@@ -538,8 +538,8 @@ where Value: RCViewItem & Comparable, Key: HashableValue {
         let value = view[position]
         guard let element = storage.element(for: value.dbKey) else {
             let key = keyBuilder.build(with: value.dbKey, options: [
-                .systemPayload: value.payload.system,
-                .userPayload: value.payload.user as Any
+                .systemPayload: value.valuePayload.system,
+                .userPayload: value.valuePayload.user as Any
             ])
             storage.set(value: value, for: key)
             return (key, value)

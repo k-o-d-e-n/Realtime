@@ -69,13 +69,12 @@ class CacheNode: ObjectNode, RealtimeDatabase, RealtimeStorage {
     var isConnectionActive: AnyListenable<Bool> { return AnyListenable(Constant(true)) }
 
     static let root: CacheNode = CacheNode(node: .root)
+    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
 
     func clear() {
         childs.removeAll()
     }
 
-    //    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
-    //    var store: ListeningDisposeStore = ListeningDisposeStore()
     var cachePolicy: CachePolicy {
         set {
             switch newValue {
@@ -91,43 +90,82 @@ class CacheNode: ObjectNode, RealtimeDatabase, RealtimeStorage {
         return Database.database().generateAutoID() // need avoid using Firebase database
     }
 
-    func node(with valueNode: Node) -> DatabaseNode {
-        if valueNode.isRoot {
+    func node(with referenceNode: Node) -> DatabaseNode {
+        if referenceNode.isRoot {
             return self
         } else {
-            let path = valueNode.rootPath
-            return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: location), value: nil)
+            return child(by: referenceNode) ?? ValueNode(node: referenceNode, value: nil)
         }
     }
 
     func commit(transaction: Transaction, completion: ((Error?, DatabaseNode) -> Void)?) {
         do {
-            try merge(with: transaction.updateNode, conflictResolver: { _, new in new.value })
+            var notifications: [Node: (RealtimeDataProtocol, DatabaseDataEvent)] = [:]
+            try merge(
+                with: transaction.updateNode,
+                conflictResolver: { old, new in
+                    if observers.count > 0 {
+                        notifications[new.location] = (new, .value)
+                        new.location.parent.map({ notifications[$0] = (new, .child(new.value == nil ? .removed : .changed)) })
+                    }
+                    return new.value
+                },
+                didAppend: observers.isEmpty ? nil : { parent, child in
+                    notifications[child.location] = (child, .value)
+                    notifications[parent.location] = (child, .child(child.value == nil ? .removed : .added))
+                }
+            )
             completion?(nil, self)
-            //            _ = transaction.updateNode.sendEvents(for: observers)
+            notifications.forEach { (args) in
+                observers[args.key]?.send(.value(args.value))
+            }
         } catch let e {
             completion?(e, self)
         }
     }
 
     func removeAllObservers(for node: Node) {
-        //        fatalError()
+        observers.removeValue(forKey: node)
     }
 
     func removeObserver(for node: Node, with token: UInt) {
-        //        fatalError()
+        observers[node]?.remove(token)
     }
 
     func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
-        completion(child(forPath: node.rootPath))
+        if node == location {
+            completion(self)
+        } else {
+            completion(child(by: node) ?? ValueNode(node: node, value: nil))
+        }
+    }
+
+    private func repeater(for node: Node) -> Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> {
+        guard let rep = observers[node] else {
+            let rep = Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>(dispatcher: .default)
+            observers[node] = rep
+            return rep
+        }
+        return rep
     }
 
     func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
-        //        let repeater: Repeater<RealtimeDataProtocol> = observers[node] ?? Repeater.unsafe()
-        //
-        //        return 0
-        //        fatalError()
-        return 0
+        let repeater: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
+        
+        return repeater.add(Closure.just { e in
+            switch e {
+            case .value(let val): onUpdate(val.0)
+            case .error(let err): onCancel?(err)
+            }
+        }.filter({ (e) -> Bool in
+            switch (e, event) {
+            case (.error, _): return true
+            case (.value(_, .value), .value): return true
+            case (.value(_, .child(let received)), .child(let defined)):
+                return received == defined
+            default: return false
+            }
+        }))
     }
 
     // storage
@@ -136,11 +174,10 @@ class CacheNode: ObjectNode, RealtimeDatabase, RealtimeStorage {
         if referenceNode.isRoot {
             fatalError("File cannot be put in root")
         } else {
-            let path = referenceNode.rootPath
-            if case let file as FileNode = child(by: path.split(separator: "/").lazy.map(String.init)) {
+            if case let file as FileNode = child(by: referenceNode) {
                 return file
             } else {
-                return FileNode(node: Node(key: path, parent: location), value: nil)
+                return FileNode(node: referenceNode, value: nil)
             }
         }
     }
@@ -256,24 +293,6 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
         }
     }
 
-    //    func sendEvents(for observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>]) -> DatabaseDataEvent {
-    //        var childEvents: [DatabaseDataEvent] = []
-    //        childs.forEach { (updateNode) in
-    //            if case let obj as ObjectNode = updateNode {
-    //                let event = obj.sendEvents(for: observers)
-    //                childEvents.append(obj.sendEvents(for: observers))
-    //                if let rptr = observers[obj.location] {
-    //                    rptr.send(.value((obj, event)))
-    //                }
-    //            } else {
-    //                childEvents.append(updateNode.value == nil ? .childRemoved : .childAdded)
-    //                if let rptr = observers[updateNode.location] {
-    //                    rptr.send(.value((updateNode, .value)))
-    //                }
-    //            }
-    //        }
-    //    }
-
     fileprivate func update(dbNode: UpdateNode, with value: Any) throws {
         if case let valNode as ValueNode = dbNode {
             valNode.value = value
@@ -285,7 +304,7 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     }
 
     fileprivate func replaceNode(with dbNode: UpdateNode) throws {
-        if case let parent as ObjectNode = child(by: dbNode.location.ancestor(onLevelUp: 1)!.rootPath.split(separator: "/").lazy.map(String.init)) {
+        if case let parent as ObjectNode = child(by: dbNode.location.parent!) {
             parent.childs.remove(at: parent.childs.index(where: { $0.node === dbNode.node })!)
             parent.childs.append(dbNode)
         } else {
@@ -310,6 +329,24 @@ extension ObjectNode {
             return path.isEmpty ? f : nil
         }
     }
+    func child(by node: Node) -> UpdateNode? {
+        var after = node.after(ancestor: location)
+
+        var current = self
+        while let first = after.first, let f = current.childs.first(where: { $0.location == first }) {
+            if f.location == node {
+                return f
+            } else {
+                if case let o as ObjectNode = f {
+                    after.remove(at: 0)
+                    current = o
+                } else {
+                    return nil
+                }
+            }
+        }
+        return nil
+    }
     func nearestChild(by path: [String]) -> (node: UpdateNode, leftPath: [String]) {
         guard !path.isEmpty else { return (self, path) }
 
@@ -326,11 +363,11 @@ extension ObjectNode {
             return (f, path)
         }
     }
-    func merge(with other: ObjectNode, conflictResolver: (UpdateNode, UpdateNode) -> Any?) throws {
+    func merge(with other: ObjectNode, conflictResolver: (UpdateNode, UpdateNode) -> Any?, didAppend: ((UpdateNode, UpdateNode) -> Void)?) throws {
         try other.childs.forEach { (child) in
             if let currentChild = childs.first(where: { $0.location == child.location }) {
                 if let objectChild = currentChild as? ObjectNode {
-                    try objectChild.merge(with: child as! ObjectNode, conflictResolver: conflictResolver)
+                    try objectChild.merge(with: child as! ObjectNode, conflictResolver: conflictResolver, didAppend: didAppend)
                 } else if case let c as ValueNode = currentChild {
                     if type(of: c) == type(of: child) {
                         c.value = conflictResolver(currentChild, child)
@@ -342,6 +379,7 @@ extension ObjectNode {
                 }
             } else {
                 childs.append(child)
+                didAppend?(self, child)
             }
         }
     }
@@ -367,7 +405,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
         return AnyIterator(
             dict.lazy.map { (keyValue) in
                 ValueNode(node: Node(key: keyValue.key, parent: self.location), value: keyValue.value)
-                }.makeIterator()
+            }.makeIterator()
         )
     }
     func exists() -> Bool { return value != nil }
@@ -410,7 +448,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
             try transform(ValueNode(node: Node(key: keyValue.key, parent: location), value: keyValue.value))
         }
     }
-    var debugDescription: String { return "\(location.rootPath): \(value as Any)" }
+    var debugDescription: String { return "\(location.absolutePath): \(value as Any)" }
     var description: String { return debugDescription }
 }
 
@@ -437,6 +475,9 @@ extension ObjectNode: RealtimeDataProtocol, Sequence {
 
     public func child(forPath path: String) -> RealtimeDataProtocol {
         return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: location), value: nil)
+    }
+    public func child(forNode node: Node) -> RealtimeDataProtocol {
+        return child(by: node) ?? ValueNode(node: node, value: nil)
     }
 
     public func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {

@@ -204,7 +204,7 @@ class ListenableTests: XCTestCase {
                 .queue(.global(qos: .background))
                 .map { _ in Thread.isMainThread }
                 .queue(.main)
-                .do { _ in XCTAssertTrue(Thread.isMainThread) }
+                .do({ _ in XCTAssertTrue(Thread.isMainThread) })
                 .queue(.global())
                 .listening(onValue: { value in
                     cache.setObject(value as NSNumber, forKey: "key")

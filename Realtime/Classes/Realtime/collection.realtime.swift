@@ -39,7 +39,7 @@ internal func databaseValue(of payload: RealtimeValuePayload) -> [String: Realti
 public protocol RCViewElementProtocol: DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {}
 
 public protocol RCViewItem: Hashable, Comparable, RCViewElementProtocol {
-    var payload: RealtimeValuePayload { get }
+    var valuePayload: RealtimeValuePayload { get }
     associatedtype Element
     init(_ element: Element)
 }

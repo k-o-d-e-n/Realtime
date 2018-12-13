@@ -353,9 +353,9 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
         if shouldLinking {
             let link = element.node!.generate(linkTo: itemNode)
             item.linkID = link.link.id
-            transaction.addValue(link.link.rdbValue, by: link.node) // add link
+            transaction.addValue(try link.link.defaultRepresentation(), by: link.node) // add link
         }
-        transaction.addValue(item.rdbValue, by: itemNode) // add item element
+        transaction.addValue(try item.defaultRepresentation(), by: itemNode) // add item element
     }
 
     private func _remove(_ element: Element, in transaction: Transaction) {
@@ -384,7 +384,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
 public struct RelationsItem: RCViewItem, Comparable {
     public let dbKey: String!
     let relation: RelationRepresentation!
-    public var payload: RealtimeValuePayload {
+    public var valuePayload: RealtimeValuePayload {
         return RealtimeValuePayload(system: (nil, nil), user: nil)
     }
 
@@ -398,8 +398,8 @@ public struct RelationsItem: RCViewItem, Comparable {
         self.relation = try RelationRepresentation(data: data, exactly: exactly)
     }
 
-    public var rdbValue: RealtimeDataValue {
-        return relation.rdbValue
+    public func defaultRepresentation() throws -> Any {
+        return try relation.defaultRepresentation()
     }
 
     public var hashValue: Int { return dbKey.hashValue }
@@ -549,13 +549,13 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         guard let anchorNode = options.anchorNode(forOwner: ownerNode) else {
             throw RealtimeError(source: .collection, description: "Couldn`t get anchor node for node \(ownerNode)")
         }
-        let view = storage.map { (keyValue) -> RelationsItem in
+        let view = try storage.map { (keyValue) -> RelationsItem in
             let elementNode = keyValue.value.node!
             let relation = RelationRepresentation(path: elementNode.path(from: anchorNode), property: options.property.path(for: ownerNode))
             /// a backward write
             if shouldWriteBackward {
                 let ownerRelation = RelationRepresentation(path: ownerNode.path(from: anchorNode), property: node.child(with: keyValue.key).path(from: ownerNode))
-                transaction.addValue(ownerRelation.rdbValue, by: elementNode.child(with: options.property.propertyPath))
+                transaction.addValue(try ownerRelation.defaultRepresentation(), by: elementNode.child(with: options.property.propertyPath))
             }
             return RelationsItem((keyValue.key, relation))
         }
@@ -771,15 +771,17 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
             self?.storage.remove(for: item.dbKey)
         })
         storage.set(value: element, for: item.dbKey)
-        transaction.addValue(item.rdbValue, by: itemNode) /// add item element
+        transaction.addValue(try item.defaultRepresentation(), by: itemNode) /// add item element
 
         /// a backward write
         if shouldWriteBackward {
+            var node = elementNode.copy(to: anchorNode.element).child(with: options.property.propertyPath)
+            switch options.property {
+            case .oneToMany, .manyToMany: node = node.child(with: owner.key)
+            case .oneToOne: break
+            }
             let ownerRelation = RelationRepresentation(path: owner.path(from: anchorNode.owner), property: itemNode.path(from: owner))
-            transaction.addValue(
-                ownerRelation.rdbValue,
-                by: elementNode.copy(to: anchorNode.element).child(with: options.property.propertyPath).child(with: owner.key)
-            )
+            transaction.addValue(try ownerRelation.defaultRepresentation(), by: node)
         }
     }
 
@@ -806,8 +808,12 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
     private func _removeBackward(for item: RelationsItem, element: Element?, in transaction: Transaction) {
         let anchorNode = options.anchor(forElement: (element ?? buildElement(with: item)).node!, collection: self.node!)!.element
         let ownerNode = self.node!.ancestor(onLevelUp: options.ownerLevelsUp)!
-        transaction.removeValue(
-            by: anchorNode.child(with: item.relation.targetPath).child(with: item.relation.relatedProperty).child(with: ownerNode.key)
-        )
+
+        var node = anchorNode.child(with: item.relation.targetPath).child(with: item.relation.relatedProperty)
+        switch options.property {
+        case .oneToMany, .manyToMany: node = node.child(with: ownerNode.key)
+        case .oneToOne: break
+        }
+        transaction.removeValue(by: node)
     }
 }

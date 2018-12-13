@@ -11,28 +11,28 @@ public struct RCItem: RCViewItem {
     public let dbKey: String!
     var priority: Int
     var linkID: String?
-    public let payload: RealtimeValuePayload
+    public let valuePayload: RealtimeValuePayload
 
     public typealias Element = (key: String, payload: RealtimeValuePayload)
     public init(_ element: Element) {
         self.dbKey = element.key
         self.priority = 0
         self.linkID = nil
-        self.payload = element.payload
+        self.valuePayload = element.payload
     }
 
     init<T: RealtimeValue>(element: T, key: String, priority: Int, linkID: String?) {
         self.dbKey = key
         self.priority = priority
         self.linkID = linkID
-        self.payload = RealtimeValuePayload((element.version, element.raw), element.payload)
+        self.valuePayload = RealtimeValuePayload((element.version, element.raw), element.payload)
     }
 
     init<T: RealtimeValue>(element: T, priority: Int, linkID: String?) {
         self.dbKey = element.dbKey
         self.priority = priority
         self.linkID = linkID
-        self.payload = RealtimeValuePayload((element.version, element.raw), element.payload)
+        self.valuePayload = RealtimeValuePayload((element.version, element.raw), element.payload)
     }
 
     public init(data: RealtimeDataProtocol, exactly: Bool) throws {
@@ -47,15 +47,15 @@ public struct RCItem: RCViewItem {
         self.priority = index
         self.linkID = try InternalKeys.link.map(from: data)
         let valueData = InternalKeys.value.child(from: data)
-        self.payload = RealtimeValuePayload(
+        self.valuePayload = RealtimeValuePayload(
             try (InternalKeys.modelVersion.map(from: valueData), InternalKeys.raw.map(from: valueData)),
             try InternalKeys.payload.map(from: valueData)
         )
     }
 
-    public var rdbValue: RealtimeDataValue {
+    public func defaultRepresentation() throws -> Any {
         var value: [String: RealtimeDataValue] = [:]
-        value[InternalKeys.value.rawValue] = databaseValue(of: payload)
+        value[InternalKeys.value.rawValue] = databaseValue(of: valuePayload)
         value[InternalKeys.link.rawValue] = linkID
         value[InternalKeys.index.rawValue] = priority
 
@@ -81,7 +81,7 @@ public struct RCItem: RCViewItem {
 
 public struct RDItem: RCViewItem {
     var rcItem: RCItem
-    public let payload: RealtimeValuePayload
+    public let valuePayload: RealtimeValuePayload
 
     public var dbKey: String! { return rcItem.dbKey }
     var priority: Int { return rcItem.priority }
@@ -93,27 +93,27 @@ public struct RDItem: RCViewItem {
     public typealias Element = (key: String, keyPayload: RealtimeValuePayload, valuePayload: RealtimeValuePayload)
     public init(_ element: Element) {
         self.rcItem = RCItem((key: element.key, element.valuePayload))
-        self.payload = element.keyPayload
+        self.valuePayload = element.keyPayload
     }
 
     init<V: RealtimeValue, K: RealtimeValue>(value: V, key: K, priority: Int, linkID: String?) {
         self.rcItem = RCItem(element: value, key: key.dbKey, priority: priority, linkID: linkID)
-        self.payload = RealtimeValuePayload((key.version, key.raw), key.payload)
+        self.valuePayload = RealtimeValuePayload((key.version, key.raw), key.payload)
     }
 
     public init(data: RealtimeDataProtocol, exactly: Bool) throws {
         self.rcItem = try RCItem(data: data, exactly: exactly)
         let keyData = InternalKeys.key.child(from: data)
-        self.payload = RealtimeValuePayload(
+        self.valuePayload = RealtimeValuePayload(
             try (InternalKeys.modelVersion.map(from: keyData), InternalKeys.raw.map(from: keyData)),
             try InternalKeys.payload.map(from: keyData)
         )
     }
 
-    public var rdbValue: RealtimeDataValue {
+    public func defaultRepresentation() throws -> Any {
         var value: [String: RealtimeDataValue] = [:]
-        value[InternalKeys.value.rawValue] = databaseValue(of: rcItem.payload)
-        value[InternalKeys.key.rawValue] = databaseValue(of: payload)
+        value[InternalKeys.value.rawValue] = databaseValue(of: rcItem.valuePayload)
+        value[InternalKeys.key.rawValue] = databaseValue(of: valuePayload)
         value[InternalKeys.link.rawValue] = rcItem.linkID
         value[InternalKeys.index.rawValue] = rcItem.priority
 
@@ -188,7 +188,9 @@ public final class SortedCollectionView<Element: RCViewElementProtocol & Compara
 
     var changes: AnyListenable<RCEvent> {
         return dataObserver
-            .filter({ [unowned self] e in self.isSynced || e.1 == .value })
+            .filter({ [unowned self] e in
+                self.isSynced || e.1 == .value                
+            })
             .map { [unowned self] (value) -> RCEvent in
                 switch value.1 {
                 case .value:
@@ -282,12 +284,12 @@ public final class SortedCollectionView<Element: RCViewElementProtocol & Compara
         _elements.removeAll()
         for item in view {
             let itemNode = node.child(with: item.dbKey)
-            transaction.addValue(item.rdbValue, by: itemNode)
+            transaction.addValue(try item.defaultRepresentation(), by: itemNode)
         }
     }
 
     public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        /// partial data processing happened in `changes`
+        /// partial data processing see in `changes`
         guard exactly else { return }
         let representer = Representer<SortedArray<Element>>(collection: Representer.realtimeData).defaultOnEmpty()
         self._elements = try representer.decode(data)

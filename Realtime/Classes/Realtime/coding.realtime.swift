@@ -109,7 +109,7 @@ extension RealtimeDataRepresented {
 /// A type that can represented to an adopted Realtime database value
 public protocol RealtimeDataValueRepresented {
     /// Value adopted for Realtime database
-    var rdbValue: RealtimeDataValue { get } // TODO: Instead add variable that will return representer, or method `func represented()`
+    func defaultRepresentation() throws -> Any
 }
 
 public protocol ExpressibleBySequence {
@@ -423,7 +423,7 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
 
-                return RelationRepresentation(path: node.path(from: anchorNode ?? .root), property: mode.path(for: owner)).rdbValue
+                return try RelationRepresentation(path: node.path(from: anchorNode ?? .root), property: mode.path(for: owner)).defaultRepresentation()
             },
             decoding: { d in
                 guard let owner = ownerNode.value
@@ -451,13 +451,13 @@ public extension Representer where V: RealtimeValue {
                 switch mode {
                 case .fullPath:
                     if let ref = v.reference() {
-                        return ref.rdbValue
+                        return try ref.defaultRepresentation()
                     } else {
                         throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
                     }
                 case .path(from: let n):
                     if let ref = v.reference(from: n) {
-                        return ref.rdbValue
+                        return try ref.defaultRepresentation()
                     } else {
                         throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
                     }
@@ -480,7 +480,7 @@ public extension Representer {
 }
 public extension Representer where V: RealtimeDataRepresented & RealtimeDataValueRepresented {
     static var realtimeData: Representer<V> {
-        return Representer<V>(encoding: { $0.rdbValue }, decoding: V.init)
+        return Representer<V>(encoding: { try $0.defaultRepresentation() }, decoding: V.init)
     }
 }
 

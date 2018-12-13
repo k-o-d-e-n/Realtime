@@ -61,18 +61,18 @@ class RealtimeTableController: UIViewController {
             return table.dequeueReusableCell(withIdentifier: NSStringFromClass(TableCell.self), for: ip)
         }
         delegate.register(UITableViewCell.self) { (item, user, ip) in
-            item.bind(user.name) { (cell, val) in
+            item.bind(user.name, { (cell, val) in
                 cell.textLabel!.text =? val
-            }
+            }, nil)
         }
         delegate.register(TableCell.self) { (item, user, ip) in
             item.set(config: { (cell) in
                 cell.startIndicatorIfNeeeded()
             })
-            item.bind(user.name) { (cell, name) in
+            item.bind(user.name, { (cell, name) in
                 cell.label.text =? name
                 cell.indicator.stopAnimating()
-            }
+            }, nil)
         }
         delegate.bind(tableView)
         delegate.tableDelegate = self

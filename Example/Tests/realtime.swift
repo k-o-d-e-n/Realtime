@@ -417,7 +417,7 @@ extension RealtimeTests {
 
             let data = try element.update(in: transaction).updateNode
 
-            let object = try TestObject(data: data.child(forPath: element.node!.rootPath), exactly: false)
+            let object = try TestObject(data: data.child(forNode: element.node!), exactly: false)
             
             XCTAssertNotNil(object.file.unwrapped)
 //            XCTAssertEqual(object.file.unwrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
@@ -480,9 +480,9 @@ extension RealtimeTests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try User(data: data.child(forPath: user.node!.rootPath), exactly: false)
+            let userCopy = try User(data: data.child(forNode: user.node!), exactly: false)
 
-            try group.apply(data.child(forPath: group.node!.rootPath), exactly: false)
+            try group.apply(data.child(forNode: group.node!), exactly: false)
 
             XCTAssertTrue(group.manager.unwrapped.dbKey == user.dbKey)
             XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == group.dbKey)
@@ -504,10 +504,10 @@ extension RealtimeTests {
 
             let data = try group.update(in: transaction).updateNode
 
-            let groupCopy = try Group(data: data.child(forPath: group.node!.rootPath), exactly: false)
+            let groupCopy = try Group(data: data.child(forNode: group.node!), exactly: false)
 
             let ownedGroups = user.ownedGroups
-            let groupsData = data.child(forPath: ownedGroups.node!.rootPath)
+            let groupsData = data.child(forNode: ownedGroups.node!)
             try ownedGroups.apply(groupsData, exactly: true)
 
             XCTAssertTrue(ownedGroups.first?.dbKey == group.dbKey)
@@ -533,10 +533,10 @@ extension RealtimeTests {
                 errors?.first.map({ XCTFail($0.describingErrorDescription) })
 
                 do {
-                    let userCopy = try User(data: CacheNode.root.child(forPath: user.node!.rootPath), exactly: false)
+                    let userCopy = try User(data: CacheNode.root.child(forNode: user.node!), exactly: false)
 
                     let manager = group._manager
-                    let managerData = CacheNode.root.child(forPath: manager.node!.rootPath)
+                    let managerData = CacheNode.root.child(forNode: manager.node!)
                     try manager.apply(managerData, exactly: true)
 
                     XCTAssertTrue(manager.unwrapped?.dbKey == user.dbKey)
@@ -567,7 +567,7 @@ extension RealtimeTests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try User(data: data.child(forPath: user.node!.rootPath), exactly: false)
+            let userCopy = try User(data: data.child(forNode: user.node!), exactly: false)
 
             if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -590,7 +590,7 @@ extension RealtimeTests {
 
             let data = try conversation.update(in: transaction).updateNode
 
-            let conversationCopy = try Conversation(data: data.child(forPath: conversation.node!.rootPath), exactly: false)
+            let conversationCopy = try Conversation(data: data.child(forNode: conversation.node!), exactly: false)
 
             if case .error(let e, _)? = conversation.chairman.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -665,19 +665,19 @@ extension RealtimeTests {
         let first = Node(key: "first", parent: .root)
 
         let second = Node(key: "second", parent: first)
-        XCTAssertEqual(second.rootPath, "first/second")
+        XCTAssertEqual(second.absolutePath, "first/second")
         XCTAssertEqual(second.path(from: first), "second")
         XCTAssertTrue(second.hasAncestor(node: first))
         XCTAssertTrue(second.isRooted)
 
         let third = second.child(with: "third")
-        XCTAssertEqual(third.rootPath, "first/second/third")
+        XCTAssertEqual(third.absolutePath, "first/second/third")
         XCTAssertEqual(third.path(from: first), "second/third")
         XCTAssertTrue(third.hasAncestor(node: first))
         XCTAssertTrue(third.isRooted)
 
         let fourth = third.child(with: "fourth")
-        XCTAssertEqual(fourth.rootPath, "first/second/third/fourth")
+        XCTAssertEqual(fourth.absolutePath, "first/second/third/fourth")
         XCTAssertEqual(fourth.path(from: first), "second/third/fourth")
         XCTAssertTrue(fourth.hasAncestor(node: first))
         XCTAssertTrue(fourth.isRooted)
@@ -686,7 +686,7 @@ extension RealtimeTests {
     func testLinksNode() {
         let fourth = Node.root.child(with: "first/second/third/fourth")
         let linksNode = fourth.linksNode
-        XCTAssertEqual(linksNode.rootPath, RealtimeApp.app.linksNode.child(with: "first/second/third/fourth").rootPath)
+        XCTAssertEqual(linksNode.absolutePath, RealtimeApp.app.linksNode.child(with: "first/second/third/fourth").absolutePath)
     }
 
     func testConnectNode() {
@@ -887,8 +887,8 @@ extension RealtimeTests {
     }
 
     func testReferenceFireValue() {
-        let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").rootPath, payload: ((nil, nil), nil))
-        let fireValue = ref.rdbValue
+        let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").absolutePath, payload: ((nil, nil), nil))
+        let fireValue = try? ref.defaultRepresentation()
         XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "first/two"])
     }
 
@@ -1147,7 +1147,7 @@ extension RealtimeTests {
 
                 let ownedGroup = Relation<Group?>.readonly(in: user.ownedGroup.node, config: user.ownedGroup.options)
                 do {
-                    try ownedGroup.apply(CacheNode.root.child(forPath: user.ownedGroup.node!.rootPath), exactly: true)
+                    try ownedGroup.apply(CacheNode.root.child(forNode: user.ownedGroup.node!), exactly: true)
                     XCTAssertEqual(ownedGroup.wrapped, user.ownedGroup.wrapped)
                     exp.fulfill()
                 } catch let e {
@@ -1180,7 +1180,7 @@ extension RealtimeTests {
                     mode: Reference<User>.Mode.required(.fullPath, options: [.database: CacheNode.root])
                 )
                 do {
-                    try chairman.apply(CacheNode.root.child(forPath: conversation.chairman.node!.rootPath), exactly: true)
+                    try chairman.apply(CacheNode.root.child(forNode: conversation.chairman.node!), exactly: true)
                     XCTAssertEqual(chairman.wrapped, conversation.chairman.wrapped)
                     exp.fulfill()
                 } catch let e {
@@ -1209,9 +1209,9 @@ extension RealtimeTests {
 
     func testAssociatedValuesWithVersionAndRawValues() {
         let exp = expectation(description: "")
-        let assocValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.keysNode: Node.root("keys")])
-        let key = Object(in: Node.root("keys").child(with: "key"), options: [.systemPayload: (version: 3, raw: 2)])
-        let value = Object(in: nil, options: [.systemPayload: (version: 1, raw: 5)])
+        let assocValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.database: CacheNode.root, .keysNode: Node.root("keys")])
+        let key = Object(in: Node.root("keys").child(with: "key"), options: [.database: CacheNode.root, .systemPayload: (version: 3, raw: 2)])
+        let value = Object(in: nil, options: [.database: CacheNode.root, .systemPayload: (version: 1, raw: 5)])
         do {
             let trans = Transaction(database: CacheNode.root)
             try assocValues.write(element: value, for: key, in: trans)

@@ -206,7 +206,7 @@ extension Database: RealtimeDatabase {
         if valueNode.isRoot {
             return reference()
         } else {
-            return reference(withPath: valueNode.rootPath)
+            return reference(withPath: valueNode.absolutePath)
         }
     }
 
