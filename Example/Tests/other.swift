@@ -50,15 +50,15 @@ extension OtherTests {
     func testAnyCollection() {
         var calculator: Int = 0
         let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = Property<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any.requiredProperty(), .initialValue: [0]])
-        let one = SharedCollection([1])
+        var source = [0]
+        let one = SharedCollection(source)
 
         let lazyOne = one.lazy.map(mapValue)
         _ = lazyOne.first
         XCTAssertTrue(calculator == 1)
         let anyLazyOne = AnySharedCollection(lazyOne)
         XCTAssertTrue(calculator == 1)
-        source._setLocalValue([0, 0])
+        source.append(1)
         XCTAssertTrue(one.count == 2)
         XCTAssertTrue(lazyOne.count == 2)
         XCTAssertTrue(anyLazyOne.count == 2)

@@ -498,7 +498,7 @@ extension Representer {
         }
         self.decoding = { data -> V in
             guard data.exists() else {
-                return nil
+                throw RealtimeError(decoding: R.V.self, data, reason: "Required property is not exists")
             }
             return .some(try base.decode(data))
         }
