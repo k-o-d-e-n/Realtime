@@ -110,9 +110,15 @@ class CacheNode: ObjectNode, RealtimeDatabase, RealtimeStorage {
                     }
                     return new.value
                 },
-                didAppend: observers.isEmpty ? nil : { parent, child in
-                    notifications[child.location] = (child, .value)
-                    notifications[parent.location] = (child, .child(child.value == nil ? .removed : .added))
+                didAppend: observers.isEmpty ? nil : { parent, childs in
+                    childs.forEach({ (child) in
+                        if case let objectChild as ObjectNode = child {
+                            objectChild.putAdditionNotifications(to: &notifications)
+                        } else {
+                            notifications[child.location] = (child, .value)
+                            notifications[parent.location] = (child, .child(child.value == nil ? .removed : .added))
+                        }
+                    })
                 }
             )
             completion?(nil, self)
@@ -314,6 +320,16 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
 }
 
 extension ObjectNode {
+    func putAdditionNotifications(to collector: inout [Node: (RealtimeDataProtocol, DatabaseDataEvent)]) {
+        childs.forEach { (child) in
+            if case let objectChild as ObjectNode = child {
+                objectChild.putAdditionNotifications(to: &collector)
+            } else {
+                collector[child.location] = (child, .value)
+                collector[location] = (child, .child(child.value == nil ? .removed : .added))
+            }
+        }
+    }
     func child(by path: [String]) -> UpdateNode? {
         guard !path.isEmpty else { return self }
 
@@ -363,7 +379,7 @@ extension ObjectNode {
             return (f, path)
         }
     }
-    func merge(with other: ObjectNode, conflictResolver: (UpdateNode, UpdateNode) -> Any?, didAppend: ((UpdateNode, UpdateNode) -> Void)?) throws {
+    func merge(with other: ObjectNode, conflictResolver: (UpdateNode, UpdateNode) -> Any?, didAppend: ((UpdateNode, [UpdateNode]) -> Void)?) throws {
         try other.childs.forEach { (child) in
             if let currentChild = childs.first(where: { $0.location == child.location }) {
                 if let objectChild = currentChild as? ObjectNode {
@@ -375,11 +391,19 @@ extension ObjectNode {
                         throw RealtimeError(source: .cache, description: "Database value and storage value located in the same node.")
                     }
                 } else {
-                    throw RealtimeError(source: .cache, description: "Database value and storage value located in the same node.")
+                    throw RealtimeError(source: .cache, description: "Internal error: Unexpected type of update node.")
                 }
             } else {
                 childs.append(child)
-                didAppend?(self, child)
+                if let did = didAppend {
+                    if case let objectChild as ObjectNode = child {
+                        did(objectChild, objectChild.childs)
+                    } else if case let c as ValueNode = child {
+                        did(self, [c])
+                    } else {
+                        throw RealtimeError(source: .cache, description: "Internal error: Unexpected type of update node.")
+                    }
+                }
             }
         }
     }

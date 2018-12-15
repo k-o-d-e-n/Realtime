@@ -9,14 +9,104 @@
 import Foundation
 import FirebaseDatabase
 
+public struct Version: Comparable, Equatable {
+    /// The major version.
+    public let major: Int
+
+    /// The minor version.
+    public let minor: Int
+
+    /// Create a version object.
+    public init(_ major: Int, _ minor: Int) {
+        precondition(major >= 0 && minor >= 0, "Negative versioning is invalid.")
+        self.major = major
+        self.minor = minor
+    }
+
+    public static func < (lhs: Version, rhs: Version) -> Bool {
+        return lhs.major < rhs.major || lhs.minor < rhs.minor
+    }
+}
+
+// TODO: Breaks possibillity to use superclass to read model, and can destroy model structure.
+// Reason: Taking version of subclass in superclass level
+public struct Versioner {
+    // unavailable symbols in firebase: '.', '#', '$', ']', '[', '/'
+    static let pushChars = Array("-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz")
+
+    var isCollector: Bool
+    var finalized: String?
+    var levels: [Version] = []
+    var isEmpty: Bool { return levels.isEmpty }
+
+    init() {
+        self.isCollector = true
+    }
+    init(version: String) {
+        self.isCollector = false
+        self.finalized = version
+        self.levels = (0..<(version.count / 2)).reduce(into: [], { (result, index) in
+            let firstIndex = index * 2
+            let secondIndex = firstIndex + 1
+            let firstChar = version[version.index(version.startIndex, offsetBy: firstIndex)]
+            let secondChar = version[version.index(version.startIndex, offsetBy: secondIndex)]
+
+            result.append(Version(
+                Versioner.pushChars.index(of: firstChar)!,
+                Versioner.pushChars.index(of: secondChar)!
+            ))
+        })
+    }
+
+    mutating func finalize() -> String {
+        guard let final = self.finalized else {
+            let finalized = levels.reduce(into: "", { (result, version) in
+                // TODO: Breaks if version will be more than 64
+                result.append(Versioner.pushChars[version.major % 64])
+                result.append(Versioner.pushChars[version.minor % 64])
+            })
+            self.finalized = finalized
+            return finalized
+        }
+        return final
+    }
+
+    /// Returns version from the lowest level by removing
+    ///
+    /// - Returns: Version object
+    /// - Throws: No more levels
+    public mutating func dequeue() throws -> Version {
+        guard !isCollector else { fatalError("Versioner was created to collect versions") }
+        if levels.isEmpty {
+            throw RealtimeError(source: .value, description: "No more levels")
+        } else {
+            return levels.removeFirst()
+        }
+    }
+
+    public mutating func enqueue(_ version: Version) {
+        guard isCollector else { fatalError("Versioner was created with immutable version value") }
+        levels.append(version)
+    }
+
+    fileprivate mutating func _turn() {
+        isCollector = !isCollector
+    }
+}
+extension Versioner: CustomDebugStringConvertible {
+    public var debugDescription: String {
+        return levels.isEmpty ? "0.0" : levels.map { "\($0.major).\($0.minor)" }.debugDescription
+    }
+}
+
 /// Base class for any database value
 open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugStringConvertible {
+    /// Remote version of model
+    fileprivate(set) var _version: String?
     /// Database that associated with this value
     public fileprivate(set) var database: RealtimeDatabase?
     /// Node of database tree
     public fileprivate(set) var node: Node?
-    /// Version of representation
-    public fileprivate(set) var version: Int?
     /// Raw value if Realtime value represented as enumerated type
     public fileprivate(set) var raw: RealtimeDataValue?
     /// User defined payload related with this value
@@ -35,9 +125,8 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         if case let pl as [String: RealtimeDataValue] = options[.userPayload] {
             self.payload = pl
         }
-        if case let ipl as SystemPayload = options[.systemPayload] {
-            self.version = ipl.version
-            self.raw = ipl.raw
+        if case let ipl as SystemPayload = options[.rawValue] {
+            self.raw = ipl
         }
     }
 
@@ -177,6 +266,13 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         }
     }
 
+    public func willUpdate(through ancestor: Node, in transaction: Transaction) {
+        debugFatalError(condition: self.node == nil || !self.node!.isRooted,
+                        "Value will be updated, but has not been inserted before. Current node: \(self.node?.description ?? "")")
+        debugFatalError(condition: ancestor != self.node && !self.node!.hasAncestor(node: ancestor),
+                        "Value will be updated through node: \(ancestor), but it is not ancestor for current node: \(self.node?.description ?? "")")
+    }
+
     public func didUpdate(through ancestor: Node) {
         debugFatalError(condition: self.node == nil || !self.node!.isRooted,
                         "Value has been updated, but has not been inserted before. Current node: \(self.node?.description ?? "")")
@@ -195,8 +291,15 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     }
 
     internal final func _write_RealtimeValue(to transaction: Transaction, by node: Node) {
-        if let mv = version {
-            transaction.addValue(mv, by: Node(key: InternalKeys.modelVersion, parent: node))
+        var versioner = Versioner()
+        putVersion(into: &versioner)
+        if !versioner.isEmpty {
+            let finalizedVersion = versioner.finalize()
+            transaction.addValue(finalizedVersion, by: Node(key: InternalKeys.modelVersion, parent: node))
+            transaction.addCompletion { [weak self] (result) in
+                guard result, let `self` = self else { return }
+                self._version = finalizedVersion
+            }
         }
         if let rw = raw {
             transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
@@ -213,26 +316,32 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     // MARK: Realtime Value
 
     public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        self.database = data.database
+        self.database = data.database ?? RealtimeApp.app.database
         self.node = data.node
         try apply(data, exactly: exactly)
     }
 
     func _apply_RealtimeValue(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        version = try data.version()
-        raw = try data.rawValue()
-        payload = try InternalKeys.payload.map(from: data)
+        self._version = try data.version()
+        self.raw = try data.rawValue()
+        self.payload = try InternalKeys.payload.map(from: data)
     }
     open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         debugFatalError(condition: data.node.map { $0 != node } ?? false, "Tries apply data with incorrect reference")
         try _apply_RealtimeValue(data, exactly: exactly)
     }
+
+    /// support Versionable
+    open func putVersion(into versioner: inout Versioner) {
+        // override in subclass
+        // always call super method first, to achieve correct version value
+    }
     
     public var debugDescription: String {
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
-            ref: \(node?.rootPath ?? "not referred"),
-            version: \(version ?? 0),
+            ref: \(node?.absolutePath ?? "not referred"),
+            version: \(/*version ?? */0),
             raw: \(raw ?? "null"),
             hasChanges: \(_hasChanges)
         }
@@ -276,9 +385,18 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///         }
 ///     }
 ///
-open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Versionable {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
+    /// Object version of current type
+//    public var version: Version? {
+//        guard var versioner = _version.map(Versioner.init(version:)) else { return nil }
+//        var version: Version?
+//        while let v = try? versioner.dequeue() {
+//            version = v
+//        }
+//        return version
+//    }
     public var keepSynced: Bool = false {
         didSet {
             guard oldValue != keepSynced else { return }
@@ -335,6 +453,20 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             }
         } else {
             debugFatalError("Unkeyed value has been saved to location in parent node: \(parent.absolutePath)")
+        }
+    }
+
+    public override func willUpdate(through ancestor: Node, in transaction: Transaction) {
+        super.willUpdate(through: ancestor, in: transaction)
+
+        guard var current = self._version.map(Versioner.init(version:)) else {
+            _performMigrationIfNeeded(in: transaction)
+            return
+        }
+        var targetVersion = Versioner()
+        putVersion(into: &targetVersion)
+        if !targetVersion.isEmpty, targetVersion.finalize() > current.finalize() {
+            _performMigration(from: &current, to: &targetVersion, in: transaction)
         }
     }
 
@@ -404,6 +536,64 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             if var value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
                 try value.apply(parentDataIfNeeded: data, exactly: exactly)
             }
+        }
+    }
+
+    open func performMigration(from currentVersion: inout Versioner, to newVersion: inout Versioner, in transaction: Transaction) throws {
+        // override in subclass
+        // always call super method first, otherwise result of migration can be unexpected
+    }
+
+    func _performMigrationIfNeeded(in transaction: Transaction) {
+        guard let node = self.node, node.isRooted else { return }
+
+        var targetVersion = Versioner()
+        putVersion(into: &targetVersion)
+        targetVersion._turn()
+        transaction.addPrecondition { [unowned self] (promise) in
+            transaction.database.load(
+                for: Node(key: InternalKeys.modelVersion, parent: node),
+                timeout: .seconds(10),
+                completion: { (data) in
+                    do {
+                        var currentVersion = data.exists() ? Versioner(version: try data.unbox(as: String.self)) : Versioner(version: "")
+                        if !targetVersion.isEmpty, targetVersion.finalize() > currentVersion.finalize() {
+                            self._performMigration(from: &currentVersion, to: &targetVersion, in: transaction)
+                        }
+                        promise.fulfill()
+                    } catch let e {
+                        debugPrintLog("Migration aborted. Error: \(String(describing: e))")
+//                        promise.reject(err)
+                        // or
+                        promise.fulfill()
+                    }
+                },
+                onCancel: { err in
+                    debugPrintLog("Migration aborted. Cannot load model version. Error: \(String(describing: err))")
+//                    promise.reject(err)
+                    // or
+                    promise.fulfill()
+                }
+            )
+        }
+    }
+
+    func _performMigration(from oldVersion: inout Versioner, to newVersion: inout Versioner, in transaction: Transaction) {
+        debugPrintLog("Begin migration from \(oldVersion) to \(newVersion)")
+        do {
+            try performMigration(from: &oldVersion, to: &newVersion, in: transaction)
+            let finalizedVersion = newVersion.finalize()
+            transaction.addValue(finalizedVersion, by: Node(key: InternalKeys.modelVersion, parent: self.node))
+            transaction.addCompletion { [weak self] (result) in
+                if result {
+                    self?._version = finalizedVersion
+                    debugPrintLog("Migration was ended successful")
+                } else {
+                    debugPrintLog("Migration was ended with errors:")
+                }
+            }
+        } catch let e {
+            debugPrintLog("Migration failed. Error: \(String(describing: e))")
         }
     }
 
@@ -571,8 +761,8 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         }
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
-            ref: \(node?.rootPath ?? "not referred"),
-            version: \(version ?? 0),
+            ref: \(node?.absolutePath ?? "not referred"),
+            version: \(/*version ?? */0),
             raw: \(raw ?? "no raw"),
             has changes: \(_hasChanges),
             keepSynced: \(keepSynced),

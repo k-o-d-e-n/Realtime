@@ -32,10 +32,7 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
 
     func defaultRepresentation() throws -> Any {
         var v: [String: RealtimeDataValue] = [CodingKeys.ref.stringValue: ref]
-        if let mv = payload.system.version {
-            v[InternalKeys.modelVersion.rawValue] = mv
-        }
-        if let rw = payload.system.raw {
+        if let rw = payload.system {
             v[InternalKeys.raw.rawValue] = rw
         }
         if let pl = payload.user {
@@ -47,13 +44,13 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
         guard let ref: String = try CodingKeys.ref.stringValue.map(from: data) else { throw RealtimeError(initialization: ReferenceRepresentation.self, data) }
         self.ref = ref
-        self.payload = ((try InternalKeys.modelVersion.map(from: data), try InternalKeys.raw.map(from: data)), try InternalKeys.payload.map(from: data))
+        self.payload = (try data.rawValue(), try InternalKeys.payload.map(from: data))
     }
 }
 extension ReferenceRepresentation {
     func make<V: RealtimeValue>(in node: Node = .root, options: [ValueOption: Any]) -> V {
         var options = options
-        options[.systemPayload] = payload.system
+        options[.rawValue] = payload.system
         if let pl = payload.user {
             options[.userPayload] = pl
         }

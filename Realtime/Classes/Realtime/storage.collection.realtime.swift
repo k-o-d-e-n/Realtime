@@ -59,25 +59,25 @@ struct RealtimeValueBuilder<Value>: RealtimeValueBuilderProtocol {
 extension RealtimeValueBuilder {
     func build(with item: RCItem) -> Value {
         return impl(spaceNode.child(with: item.dbKey), [
-            .systemPayload: item.valuePayload.system,
+            .rawValue: item.valuePayload.system,
             .userPayload: item.valuePayload.user as Any
         ])
     }
     func buildValue(with item: RDItem) -> Value {
         return impl(spaceNode.child(with: item.dbKey), [
-            .systemPayload: item.rcItem.valuePayload.system,
+            .rawValue: item.rcItem.valuePayload.system,
             .userPayload: item.rcItem.valuePayload.user as Any
         ])
     }
     func buildKey(with item: RDItem) -> Value {
         return impl(spaceNode.child(with: item.dbKey), [
-            .systemPayload: item.valuePayload.system,
+            .rawValue: item.valuePayload.system,
             .userPayload: item.valuePayload.user as Any
         ])
     }
     func build<T>(with item: T) -> Value where T: RCViewItem {
         return impl(spaceNode.child(with: item.dbKey), [
-            .systemPayload: item.valuePayload.system,
+            .rawValue: item.valuePayload.system,
             .userPayload: item.valuePayload.user as Any
         ])
     }

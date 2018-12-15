@@ -59,6 +59,7 @@ class RealtimeTests: XCTestCase {
     override func tearDown() {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
         super.tearDown()
+        CacheNode.root.clear()
     }
 }
 
@@ -310,12 +311,13 @@ extension RealtimeTests {
     }
 
     func testMergeTransactions() {
-        let testObject = TestObject(in: .root)
+        let exp = expectation(description: "")
+        let testObject = TestObject(in: .root, options: [.database: CacheNode.root])
 
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
 
-        let element = TestObject(in: Node.root.child(with: "element_1"))
+        let element = TestObject(in: Node.root.child(with: "element_1"), options: [.database: CacheNode.root])
         element.property <== "element #1"
         element.nestedObject.lazyProperty <== "value"
 
@@ -324,14 +326,21 @@ extension RealtimeTests {
             let objectTransaction = try testObject.update()
             try elementTransaction.merge(objectTransaction)
 
-            let value = elementTransaction.updateNode.updateValue
-            let expectedValue = ["prop":"string", "nestedObject/lazyprop":"nested_string",
-                                 "element_1/prop":"element #1", "element_1/nestedObject/lazyprop":"value"] as [String: Any?]
+            elementTransaction.commit { (_, err) in
+                err?.forEach { XCTFail($0.describingErrorDescription) }
+                let value = CacheNode.root.updateValue
+                let expectedValue = ["prop":"string", "nestedObject/lazyprop":"nested_string",
+                                     "element_1/prop":"element #1", "element_1/nestedObject/lazyprop":"value"] as [String: Any?]
 
-            XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
-            elementTransaction.revert()
+                XCTAssertEqual((value as NSDictionary), (expectedValue as NSDictionary))
+                exp.fulfill()
+            }
         } catch let e {
             XCTFail(e.localizedDescription)
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
         }
     }
 
@@ -728,7 +737,6 @@ extension RealtimeTests {
     }
 
     enum ValueWithPayload: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
-        var version: Int? { return value.version }
         var raw: RealtimeDataValue? {
             switch self {
             case .two: return 1
@@ -802,6 +810,10 @@ extension RealtimeTests {
             value.didSave(in: database, in: parent, by: key)
         }
 
+        func willUpdate(through ancestor: Node, in transaction: Transaction) {
+            value.willUpdate(through: ancestor, in: transaction)
+        }
+
         func didUpdate(through ancestor: Node) {
             value.didUpdate(through: ancestor)
         }
@@ -856,8 +868,7 @@ extension RealtimeTests {
 
     func testInitializeWithPayload4() {
         let exp = expectation(description: "")
-        let user = User2(in: nil, options: [.database: CacheNode.root, .systemPayload: SystemPayload(2, 5)])
-        XCTAssertEqual(user.version, 2)
+        let user = User2(in: nil, options: [.database: CacheNode.root, .rawValue: 5])
         XCTAssertEqual(user.raw as? Int, 5)
 
         user.name <== "User name"
@@ -870,7 +881,6 @@ extension RealtimeTests {
 
                 do {
                     let copyUser = try User2(data: CacheNode.root, exactly: true)
-                    XCTAssertEqual(copyUser.version, 2)
                     XCTAssertEqual(copyUser.raw as? Int, 5)
                 } catch let e {
                     XCTFail(e.describingErrorDescription)
@@ -887,7 +897,7 @@ extension RealtimeTests {
     }
 
     func testReferenceFireValue() {
-        let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").absolutePath, payload: ((nil, nil), nil))
+        let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").absolutePath, payload: (nil, nil))
         let fireValue = try? ref.defaultRepresentation()
         XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "first/two"])
     }
@@ -1084,13 +1094,13 @@ extension RealtimeTests {
         transaction.revert()
     }
 
-/* Observing in CacheNode is not implemented.
     func testListeningCollectionChangesOnInsert() {
         let exp = expectation(description: "")
         let array = Values<User>(in: .root, options: [.database: CacheNode.root])
 
+        array.runObserving()
         array.changes.listening(onValue: { (event) in
-            switch value {
+            switch event {
             case .initial:
                 XCTFail(".initial does not should call")
             case .updated(_, let inserted, _, _):
@@ -1109,30 +1119,20 @@ extension RealtimeTests {
 
         do {
             let transaction = Transaction(database: CacheNode.root)
-            let elementNode = array.storage.sourceNode.childByAutoId()
-            let itemNode = array.storage.sourceNode.child(with: InternalKeys.items).linksNode.child(with: elementNode.key)
-            let link = elementNode.generate(linkTo: itemNode)
-            let item = RCItem(element: element, key: elementNode.key, priority: 0, linkID: link.link.id)
-
-            transaction.addValue(item.rdbValue, by: itemNode)
-            transaction.addValue(link.link.rdbValue, by: link.node)
-            try transaction.set(element, by: elementNode)
+            try array.write(element: element, in: transaction)
 
             /// simulate notification
             transaction.commit { (state, errors) in
                 errors.map { e in XCTFail(e.reduce("") { $0 + $1.describingErrorDescription }) }
-                array._view.isSynced = true
-                array._view.source.dataObserver.send(.value((CacheNode.root.child(forPath: itemNode.rootPath), .child(.added))))
             }
         } catch let e {
             XCTFail(e.describingErrorDescription)
         }
 
-        waitForExpectations(timeout: 4) { (error) in
+        waitForExpectations(timeout: 10) { (error) in
             error.map { XCTFail($0.describingErrorDescription) }
         }
     }
- */
 
     func testReadonlyRelation() {
         let exp = expectation(description: "")
@@ -1210,8 +1210,8 @@ extension RealtimeTests {
     func testAssociatedValuesWithVersionAndRawValues() {
         let exp = expectation(description: "")
         let assocValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.database: CacheNode.root, .keysNode: Node.root("keys")])
-        let key = Object(in: Node.root("keys").child(with: "key"), options: [.database: CacheNode.root, .systemPayload: (version: 3, raw: 2)])
-        let value = Object(in: nil, options: [.database: CacheNode.root, .systemPayload: (version: 1, raw: 5)])
+        let key = Object(in: Node.root("keys").child(with: "key"), options: [.database: CacheNode.root, .rawValue: 2])
+        let value = Object(in: nil, options: [.database: CacheNode.root, .rawValue: 5])
         do {
             let trans = Transaction(database: CacheNode.root)
             try assocValues.write(element: value, for: key, in: trans)
@@ -1233,13 +1233,10 @@ extension RealtimeTests {
 
                         if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first, let copyKey = copyKeys.first {
                             XCTAssertEqual(copyAValue.key, key)
-                            XCTAssertEqual(copyAValue.key.version, 3)
                             XCTAssertEqual(copyAValue.key.raw as? Int, 2)
                             XCTAssertEqual(copyValue, value)
-                            XCTAssertEqual(copyValue.version, 1)
                             XCTAssertEqual(copyValue.raw as? Int, 5)
                             XCTAssertEqual(copyKey, key)
-                            XCTAssertEqual(copyKey.version, 3)
                             XCTAssertEqual(copyKey.raw as? Int, 2)
                         } else {
                             XCTFail("No element")
@@ -1369,5 +1366,306 @@ extension RealtimeTests {
         property <== "string"
         XCTAssertFalse(property ==== nil)
         XCTAssertFalse(nil ==== property)
+    }
+}
+
+// MARK: Migration
+
+@available(*, deprecated: 0.8)
+class VersionableObject: Object {
+    // removed
+    @available(*, deprecated: 0.5)
+    lazy var nullVersionVariable: ReadonlyProperty<String?> = "nullVersionVariable".readonlyProperty(in: self)
+
+    // added
+    lazy var firstMinorVersionVariable: WriteRequiredProperty<String> = WriteRequiredProperty(
+        in: Node(key: "firstMinorVersionVariable", parent: self.node),
+        representer: Representer<String>.any,
+        options: [.database: self.database as Any]
+    )
+
+    // renamed
+    @available(*, deprecated: 0.7)
+    lazy var renamedFromVariable: ReadonlyProperty<String?> = "renamedFromVariable".readonlyProperty(in: self)
+    lazy var renamedToVariable: WriteRequiredProperty<String> = WriteRequiredProperty(
+        in: Node(key: "renamedToVariable", parent: self.node),
+        representer: Representer<String>.any,
+        options: [.database: self.database as Any]
+    )
+
+    override var ignoredLabels: [String] {
+        return ["_calledMigration"]
+    }
+
+    override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "nullVersionVariable": return \VersionableObject.nullVersionVariable
+        case "firstMinorVersionVariable": return \VersionableObject.firstMinorVersionVariable
+        case "renamedFromVariable": return \VersionableObject.renamedFromVariable
+        case "renamedToVariable": return \VersionableObject.renamedToVariable
+        default: return nil
+        }
+    }
+
+    override func conditionForWrite(of property: _RealtimeValue) -> Bool {
+//        if property === nullVersionVariable {
+//            return false
+//        }
+        return super.conditionForWrite(of: property)
+    }
+
+    static var modelVersion: Version { return Version(1, 0) }
+    override func putVersion(into versioner: inout Versioner) {
+        super.putVersion(into: &versioner)
+        versioner.enqueue(VersionableObject.modelVersion)
+    }
+
+    var _calledMigration = false
+
+    override func performMigration(from oldVersion: inout Versioner, to newVersion: inout Versioner, in transaction: Transaction) throws {
+        try super.performMigration(from: &oldVersion, to: &newVersion, in: transaction)
+        let old = (try? oldVersion.dequeue()) ?? Version(0, 0)
+        let new = try newVersion.dequeue()
+        guard old < new else { return }
+
+        if old.major == 0 {
+            if !renamedToVariable.hasChanges {
+                if let renamedValue = renamedFromVariable.unwrapped {
+                    // migration called before update operation because value doesn't add explicitly to transaction
+                    renamedToVariable <== renamedValue
+                } else {
+                    transaction.addPrecondition { [unowned self] (promise) in
+                        self.renamedFromVariable.loadValue(
+                            completion: <-{ value in
+                                // updates already added to transaction because add migration changes explicitly
+                                try! self.renamedToVariable.setValue(value, in: transaction)
+                                promise.fulfill()
+                            },
+                            fail: <-promise.reject
+                        )
+                    }
+                }
+                transaction.removeValue(by: renamedFromVariable.node!)
+            }
+        }
+
+        _calledMigration = true
+    }
+}
+
+class VersionableObjectV2: Object {
+    lazy var requiredPropertyV2: Property<Date> = "requiredPropertyV2".date(in: self)
+
+    override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "requiredPropertyV2": return \VersionableObjectV2.requiredPropertyV2
+        default: return nil
+        }
+    }
+
+    override func putVersion(into versioner: inout Versioner) {
+        super.putVersion(into: &versioner)
+        versioner.enqueue(Version(2, 0))
+    }
+}
+
+/// Version over model
+///
+/// - v1: Model in first major version
+/// - v2: Model in second major version
+enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
+    case v1(VersionableObject)
+    case v2(VersionableObjectV2)
+
+    var raw: RealtimeDataValue? { return value.raw }
+    var node: Node? { return value.node }
+    var payload: [String : RealtimeDataValue]? { return value.payload }
+    var canObserve: Bool { return value.canObserve }
+    var keepSynced: Bool {
+        get { return value.keepSynced }
+        set { value.keepSynced = newValue }
+    }
+
+    var value: Object {
+        switch self {
+        case .v1(let v): return v
+        case .v2(let v): return v
+        }
+    }
+
+    init(in node: Node?, options: [ValueOption : Any]) {
+        self = .v2(VersionableObjectV2(in: node, options: options))
+    }
+
+    init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard var versioner = try data.versioner() else {
+            self = .v1(try VersionableObject(data: data, exactly: exactly))
+            return
+        }
+        var version: Version?
+        while let v = try? versioner.dequeue() {
+            version = v
+        }
+
+        switch version?.major {
+        case 2: self = .v2(try VersionableObjectV2(data: data, exactly: exactly))
+        default: self = .v1(try VersionableObject(data: data, exactly: exactly))
+        }
+    }
+
+    mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+        try value.apply(data, exactly: exactly)
+    }
+    func load(timeout: DispatchTimeInterval, completion: Closure<Error?, Void>?) { value.load(timeout: timeout, completion: completion) }
+    func runObserving() -> Bool { return value.runObserving() }
+    func stopObserving() { value.stopObserving() }
+    func willSave(in transaction: Transaction, in parent: Node, by key: String) { value.willSave(in: transaction, in: parent, by: key) }
+    func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) { value.didSave(in: database, in: parent, by: key) }
+    func willUpdate(through ancestor: Node, in transaction: Transaction) { value.willUpdate(through: ancestor, in: transaction) }
+    func didUpdate(through ancestor: Node) { value.didUpdate(through: ancestor) }
+    func didRemove(from ancestor: Node) { value.didRemove(from: ancestor) }
+    func willRemove(in transaction: Transaction, from ancestor: Node) { value.willRemove(in: transaction, from: ancestor) }
+    func write(to transaction: Transaction, by node: Node) throws { try value.write(to: transaction, by: node) }
+}
+
+extension RealtimeTests {
+    func testVersioner() {
+        var versioner1 = Versioner()
+        versioner1.enqueue(Version(0, 0))
+        versioner1.enqueue(Version(3, 5))
+        var versioner2 = Versioner()
+        versioner2.enqueue(Version(1, 0))
+
+        XCTAssertLessThan(versioner1.finalize(), versioner2.finalize())
+    }
+
+    func testObjectVersionerEmpty() {
+        let obj = Object(in: nil)
+
+        XCTAssertTrue(obj.modelVersion.isEmpty)
+    }
+    func testVersionableObject() {
+        let exp = expectation(description: "")
+        let versionableObj = VersionableObject(
+            in: Node(key: "obj", parent: .root),
+            options: [.database: CacheNode.root]
+        )
+
+        let preconditionTransaction = Transaction(database: CacheNode.root)
+        preconditionTransaction.addValue("renamed", by: versionableObj.renamedFromVariable.node!)
+        preconditionTransaction.commit { (_, errs) in
+            errs?.first.map({ XCTFail($0.describingErrorDescription) })
+            XCTAssertNotNil(CacheNode.root.child(by: versionableObj.renamedFromVariable.node!))
+
+            versionableObj.firstMinorVersionVariable <== "null"
+            let transaction = Transaction(database: CacheNode.root)
+            do {
+                try versionableObj.update(in: transaction)
+                transaction.commit { (state, errs) in
+                    errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                    exp.fulfill()
+                }
+            } catch let e {
+                transaction.cancel()
+                XCTFail(e.describingErrorDescription)
+            }
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+
+            XCTAssertTrue(versionableObj._calledMigration)
+            XCTAssertNotNil(versionableObj._version)
+            XCTAssertTrue(versionableObj.renamedToVariable.wrapped == "renamed")
+        }
+    }
+
+    func testVersionableValue() {
+        let exp = expectation(description: "")
+        let versionableObj = VersionableObject(
+            in: Node(key: "obj", parent: .root),
+            options: [.database: CacheNode.root]
+        )
+
+        let preconditionTransaction = Transaction(database: CacheNode.root)
+        preconditionTransaction.addValue("renamed", by: versionableObj.renamedFromVariable.node!)
+        preconditionTransaction.commit { (_, errs) in
+            errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+            versionableObj.firstMinorVersionVariable <== "null"
+            let transaction = Transaction(database: CacheNode.root)
+            do {
+                try versionableObj.update(in: transaction)
+                transaction.commit { (state, errs) in
+                    errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                    do {
+                        let versionableValue = try VersionableValue(data: CacheNode.root.child(by: versionableObj.node!)!)
+                        switch versionableValue {
+                        case .v1(let obj):
+                            XCTAssertNotNil(obj._version)
+                            XCTAssertTrue(obj.firstMinorVersionVariable.wrapped == "null")
+                            XCTAssertTrue(obj.renamedToVariable.wrapped == "renamed")
+                            exp.fulfill()
+                        case .v2: XCTFail("Unexpected version")
+                        }
+                    } catch let e {
+                        XCTFail(e.describingErrorDescription)
+                    }
+                }
+            } catch let e {
+                transaction.cancel()
+                XCTFail(e.describingErrorDescription)
+            }
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+
+            XCTAssertTrue(versionableObj._calledMigration)
+            XCTAssertNotNil(versionableObj._version)
+            XCTAssertTrue(versionableObj.renamedToVariable.wrapped == "renamed")
+        }
+    }
+
+    func testVersionableValue2() {
+        let exp = expectation(description: "")
+        let versionableObj = VersionableObjectV2(
+            in: Node(key: "obj", parent: nil),
+            options: [.database: CacheNode.root]
+        )
+
+        let now = Date()
+        versionableObj.requiredPropertyV2 <== now
+        let transaction = Transaction(database: CacheNode.root)
+        do {
+            try versionableObj.save(in: .root, in: transaction)
+            transaction.commit { (state, errs) in
+                errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                do {
+                    let versionableValue = try VersionableValue(data: CacheNode.root.child(by: versionableObj.node!)!)
+                    switch versionableValue {
+                    case .v1: XCTFail("Unexpected version")
+                    case .v2(let obj):
+                        XCTAssertNotNil(obj._version)
+                        XCTAssertEqual(obj.requiredPropertyV2.wrapped?.timeIntervalSince1970.rounded(), now.timeIntervalSince1970.rounded())
+                        exp.fulfill()
+                    }
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+            }
+        } catch let e {
+            transaction.cancel()
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+
+            XCTAssertNotNil(versionableObj._version)
+        }
     }
 }

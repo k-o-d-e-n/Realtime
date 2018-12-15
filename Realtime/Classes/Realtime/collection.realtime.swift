@@ -24,10 +24,7 @@ public enum RCEvent {
 public typealias RealtimeValuePayload = (system: SystemPayload, user: [String: RealtimeDataValue]?)
 internal func databaseValue(of payload: RealtimeValuePayload) -> [String: RealtimeDataValue] {
     var val: [String: RealtimeDataValue] = [:]
-    if let mv = payload.system.version {
-        val[InternalKeys.modelVersion.rawValue] = mv
-    }
-    if let raw = payload.system.raw {
+    if let raw = payload.system {
         val[InternalKeys.raw.rawValue] = raw
     }
     if let p = payload.user {

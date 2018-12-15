@@ -45,7 +45,6 @@ public extension ValueOption {
 public class __RepresentableCollection<Element, Ref: RCViewItem>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
     internal var storage: RCKeyValueStorage<Element>
 
-    public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
     public let view: SortedCollectionView<Ref>
@@ -385,7 +384,7 @@ public struct RelationsItem: RCViewItem, Comparable {
     public let dbKey: String!
     let relation: RelationRepresentation!
     public var valuePayload: RealtimeValuePayload {
-        return RealtimeValuePayload(system: (nil, nil), user: nil)
+        return RealtimeValuePayload(system: nil, user: nil)
     }
 
     public init(_ element: (key: String, relation: RelationRepresentation?)) {

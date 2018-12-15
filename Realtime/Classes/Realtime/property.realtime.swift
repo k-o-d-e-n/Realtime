@@ -147,7 +147,6 @@ public extension ValueOption {
 
 /// Defines read/write property where value is Realtime database reference
 public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities>: Property<Referenced> {
-    public override var version: Int? { return super._version }
     public override var raw: RealtimeDataValue? { return super._raw }
     public override var payload: [String : RealtimeDataValue]? { return super._payload }
 
@@ -197,7 +196,6 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
 /// Defines read/write property where value is Realtime database relation
 public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: Property<Related> {
     var options: Options
-    public override var version: Int? { return super._version }
     public override var raw: RealtimeDataValue? { return super._raw }
     public override var payload: [String : RealtimeDataValue]? { return super._payload }
 
@@ -580,11 +578,9 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T?>
 
-    internal var _version: Int? { return super.version }
     internal var _raw: RealtimeDataValue? { return super.raw }
     internal var _payload: [String : RealtimeDataValue]? { return super.payload }
 
-    public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
 
@@ -668,8 +664,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         }
     }
 
-    @discardableResult
-    public func loadValue(completion: Assign<T>, fail: Assign<Error>) -> Self {
+    public func loadValue(completion: Assign<T>, fail: Assign<Error>) {
         load(completion: .just { err in
             if let v = self._value {
                 switch v {
@@ -682,8 +677,6 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
                 fail.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
             }
         })
-
-        return self
     }
 
     internal var updateType: ValueNode.Type { return ValueNode.self }

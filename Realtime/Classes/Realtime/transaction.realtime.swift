@@ -36,9 +36,11 @@ public class Transaction {
     fileprivate var cancelations: [() -> Void] = []
     fileprivate var fileCancelations: [Node: () -> Void] = [:]
     fileprivate var scheduledMerges: [Transaction]?
+    fileprivate var mergedToTransaction: Transaction?
     fileprivate var state: State = .waiting
     fileprivate var substate: Substate = .none
 
+    public var hasOperations: Bool { return updateNode.childs.count > 0 || preconditions.count > 0 }
     public var isCompleted: Bool { return state == .completed }
     public var isReverted: Bool { return substate == .reverted }
     public var isFailed: Bool { return state == .failed }
@@ -193,8 +195,9 @@ extension Transaction {
         guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
         guard value.hasChanges else { return debugFatalError("Value has not changes") }
 
+        value.willUpdate(through: updatedNode, in: self)
         try value.writeChanges(to: self, by: updatedNode)
-        reversion(for: value)
+        reverse(value)
     }
 }
 extension Transaction {
@@ -271,7 +274,7 @@ public extension Transaction {
                 return
             }
             do {
-                try self.scheduledMerges?.forEach { try self.merge($0) }
+                try self.scheduledMerges?.forEach { try self._merge($0) }
                 self.state = .performing
 
                 guard self.updateNode.childs.count > 0 else {
@@ -322,30 +325,46 @@ public extension Transaction {
 
     /// registers new cancelation of made changes
     public func addReversion(_ reversion: @escaping () -> Void) {
-        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
+        if let merged = mergedToTransaction {
+            merged.addReversion(reversion)
+        } else {
+            guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
 
-        cancelations.insert(reversion, at: 0)
+            cancelations.insert(reversion, at: 0)
+        }
     }
 
     /// registers new cancelation of made changes
     public func addFileReversion(_ node: Node, _ reversion: @escaping () -> Void) {
-        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
+        if let merged = mergedToTransaction {
+            merged.addFileReversion(node, reversion)
+        } else {
+            guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
 
-        fileCancelations[node] = reversion
+            fileCancelations[node] = reversion
+        }
     }
 
     /// registers new completion handler for transaction
     public func addCompletion(_ completion: @escaping (Bool) -> Void) {
-        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
+        if let merged = mergedToTransaction {
+            merged.addCompletion(completion)
+        } else {
+            guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
 
-        completions.append(completion)
+            completions.append(completion)
+        }
     }
 
     /// registers new precondition action
     public func addPrecondition(_ precondition: @escaping (Promise) -> Void) {
-        guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
+        if let merged = mergedToTransaction {
+            merged.addPrecondition(precondition)
+        } else {
+            guard !isInvalidated else { fatalError("Transaction is invalidated. Create new.") }
 
-        preconditions.append(precondition)
+            preconditions.append(precondition)
+        }
     }
 
     /// Adds `Data` value as file
@@ -354,15 +373,23 @@ public extension Transaction {
     ///   - value: `Data` type value
     ///   - node: Target node
     public func addFile(_ value: Data, by node: Realtime.Node) {
-        guard node.isRooted else { fatalError("Node should be rooted") }
+        if let merged = mergedToTransaction {
+            merged.addFile(value, by: node)
+        } else {
+            guard node.isRooted else { fatalError("Node should be rooted") }
 
-        _addValue(FileNode.self, value, by: node)
+            _addValue(FileNode.self, value, by: node)
+        }
     }
 
     public func addFile<T>(_ file: File<T>, by node: Realtime.Node? = nil) throws {
-        guard let node = node ?? file.node else { fatalError("Node should be rooted") }
+        if let merged = mergedToTransaction {
+            try merged.addFile(file, by: node)
+        } else {
+            guard let node = node ?? file.node else { fatalError("Node should be rooted") }
 
-        try file._write(to: self, by: node)
+            try file._write(to: self, by: node)
+        }
     }
 
     /// Removes file by specified node
@@ -370,9 +397,13 @@ public extension Transaction {
     /// - Parameters:
     ///   - node: Target node
     public func removeFile(by node: Realtime.Node) {
-        guard node.isRooted else { fatalError("Node should be rooted") }
+        if let merged = mergedToTransaction {
+            merged.removeFile(by: node)
+        } else {
+            guard node.isRooted else { fatalError("Node should be rooted") }
 
-        _addValue(FileNode.self, nil, by: node)
+            _addValue(FileNode.self, nil, by: node)
+        }
     }
 
     /// Adds Realtime database value
@@ -381,9 +412,13 @@ public extension Transaction {
     ///   - value: Untyped value
     ///   - node: Target node
     public func addValue(_ value: Any, by node: Realtime.Node) {
-        guard node.isRooted else { fatalError("Node should be rooted") }
+        if let merged = mergedToTransaction {
+            merged.addValue(value, by: node)
+        } else {
+            guard node.isRooted else { fatalError("Node should be rooted") }
 
-        _addValue(ValueNode.self, value, by: node)
+            _addValue(ValueNode.self, value, by: node)
+        }
     }
 
     /// Removes Realtime data by specified node
@@ -391,55 +426,77 @@ public extension Transaction {
     /// - Parameters:
     ///   - node: Target node
     public func removeValue(by node: Realtime.Node) {
-        guard node.isRooted else { fatalError("Node should be rooted") }
+        if let merged = mergedToTransaction {
+            merged.removeValue(by: node)
+        } else {
+            guard node.isRooted else { fatalError("Node should be rooted") }
 
-        _addValue(ValueNode.self, nil, by: node)
+            _addValue(ValueNode.self, nil, by: node)
+        }
     }
 
     /// adds operation of save RealtimeValue as single value
     func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) throws {
-        let database = self.database
-        try _set(value, by: node)
-        addCompletion { (result) in
-            if result {
-                value.didSave(in: database, in: node.parent ?? .root, by: node.key)
+        if let merged = mergedToTransaction {
+            try merged.set(value, by: node)
+        } else {
+            let database = self.database
+            try _set(value, by: node)
+            addCompletion { (result) in
+                if result {
+                    value.didSave(in: database, in: node.parent ?? .root, by: node.key)
+                }
             }
         }
     }
 
     /// adds operation of delete RealtimeValue
     func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) throws {
-        try _delete(value)
-        addCompletion { (result) in
-            if result {
-                value.didRemove()
+        if let merged = mergedToTransaction {
+            try merged.delete(value)
+        } else {
+            try _delete(value)
+            addCompletion { (result) in
+                if result {
+                    value.didRemove()
+                }
             }
         }
     }
 
     /// adds operation of update RealtimeValue
     func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T) throws {
-        guard let updatedNode = value.node else { fatalError("Value must be rooted") }
+        if let merged = mergedToTransaction {
+            try merged.update(value)
+        } else {
+            guard let updatedNode = value.node else { fatalError("Value must be rooted") }
 
-        try _update(value, by: updatedNode)
-        addCompletion { (result) in
-            if result {
-                value.didUpdate(through: updatedNode)
+            try _update(value, by: updatedNode)
+            addCompletion { (result) in
+                if result {
+                    value.didUpdate(through: updatedNode)
+                }
             }
         }
     }
 
     /// adds current revertion action for reverting entity
-    public func reversion<T: Reverting>(for cancelable: T) {
+    public func reverse<T: Reverting>(_ cancelable: T) {
         addReversion(cancelable.currentReversion())
     }
 
     /// method to merge actions of other transaction
     public func merge(_ other: Transaction, conflictResolver: (UpdateNode, UpdateNode) -> Any? = { f, s in f.value }) throws {
+        guard other.mergedToTransaction == nil else { fatalError("Transaction already merged to other transaction") }
+        try _merge(other, conflictResolver: conflictResolver)
+    }
+
+    internal func _merge(_ other: Transaction, conflictResolver: (UpdateNode, UpdateNode) -> Any? = { f, s in f.value }) throws {
         guard other !== self else { fatalError("Attemption merge the same transaction") }
         guard other.preconditions.isEmpty else {
             other.preconditions.forEach(addPrecondition)
             other.preconditions.removeAll()
+            other.mergedToTransaction = self
             scheduledMerges = scheduledMerges.map { $0 + [other] } ?? [other]
             return
         }
@@ -447,10 +504,12 @@ public extension Transaction {
         other.completions.forEach(addCompletion)
         addReversion(other.currentReversion())
         other.state = .merged
+        other.mergedToTransaction = nil
     }
 
     /// cancels transaction without revertion
     public func cancel() {
+        guard mergedToTransaction == nil else { fatalError("Transaction already merged to other transaction") }
         state = .cancelled
         invalidate(false)
     }

@@ -52,7 +52,6 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     internal private(set) var builder: RealtimeValueBuilder<Element>
     override var _hasChanges: Bool { return view._hasChanges }
 
-    public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
     /// Stores an abstract elements
@@ -392,7 +391,6 @@ public final class ExplicitValues<Element>: _RealtimeValue, ChangeableRealtimeVa
 where Element: RealtimeValue & RCViewItem & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
 
-    public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
     public let view: SortedCollectionView<Element>

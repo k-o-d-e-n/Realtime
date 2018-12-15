@@ -54,7 +54,6 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     internal private(set) var valueBuilder: RealtimeValueBuilder<Value>
     internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
 
-    public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
     public let view: SortedCollectionView<RDItem>
@@ -460,7 +459,6 @@ where Value: RCViewItem & Comparable, Key: HashableValue {
     internal(set) var storage: RCDictionaryStorage<Key, Value>
     internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
 
-    public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
     public let view: SortedCollectionView<Value>
@@ -538,7 +536,7 @@ where Value: RCViewItem & Comparable, Key: HashableValue {
         let value = view[position]
         guard let element = storage.element(for: value.dbKey) else {
             let key = keyBuilder.build(with: value.dbKey, options: [
-                .systemPayload: value.valuePayload.system,
+                .rawValue: value.valuePayload.system,
                 .userPayload: value.valuePayload.user as Any
             ])
             storage.set(value: value, for: key)

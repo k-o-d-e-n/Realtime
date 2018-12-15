@@ -23,6 +23,12 @@ internal func debugLog(_ message: String, _ file: String = #file, _ line: Int = 
     }
 }
 
+internal func debugPrintLog(_ message: String) {
+    debugAction {
+        debugPrint("Realtime log: \(message)")
+    }
+}
+
 internal func debugFatalError(condition: @autoclosure () -> Bool = true,
                               _ message: @autoclosure () -> String = "", _ file: String = #file, _ line: Int = #line) {
     debugAction {
@@ -47,6 +53,7 @@ public class RealtimeApp {
     public let storage: RealtimeStorage
     let linksNode: Node
     let maxNodeDepth: Int
+    let unavailableSymbols: CharacterSet = CharacterSet(charactersIn: ".#$][/")
     var cachePolicy: CachePolicy = .noCache
 
     init(db: RealtimeDatabase, storage: RealtimeStorage, linksNode: Node, maxDepth: Int) {

@@ -11,7 +11,6 @@ import Foundation
 
 internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var node: Node? { fatalError() }
-    var version: Int? { fatalError() }
     var raw: RealtimeDataValue? { fatalError() }
     var payload: [String : RealtimeDataValue]? { fatalError() }
     var view: AnyRealtimeCollectionView { fatalError() }
@@ -82,7 +81,6 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     private let base: _AnyRealtimeCollectionBase<Element>
 
     public var node: Node? { return base.node }
-    public var version: Int? { return base.version }
     public var raw: RealtimeDataValue? { return base.raw }
     public var payload: [String : RealtimeDataValue]? { return base.payload }
     public var view: AnyRealtimeCollectionView { return base.view }
@@ -166,7 +164,6 @@ where Base.Index == Int, Base.View.Element: DatabaseKeyRepresentable {
     private let base: _AnyRealtimeCollectionBase<Base.Element>
 
     public var node: Node? { return base.node }
-    public var version: Int? { return base.version }
     public var raw: RealtimeDataValue? { return base.raw }
     public var payload: [String : RealtimeDataValue]? { return base.payload }
     public var view: AnyRealtimeCollectionView { return base.view }

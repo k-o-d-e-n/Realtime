@@ -89,6 +89,10 @@ extension OtherTests {
 
         print(oneMirror, testMirror)
     }
+    func testReflectClass() {
+        let mirror = Mirror(reflecting: TestObject.self)
+        print(mirror.children.map({ $0 }), mirror.superclassMirror)
+    }
 
     func testCodableEnum() {
         struct Err: Error {

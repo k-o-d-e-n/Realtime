@@ -68,9 +68,18 @@ public protocol DatabaseKeyRepresentable {
     var dbKey: String! { get }
 }
 
-// MARK: RealtimeValue
+public protocol Versionable {
+    func putVersion(into versioner: inout Versioner)
+}
+extension Versionable {
+    var modelVersion: String {
+        var versioner = Versioner()
+        putVersion(into: &versioner)
+        return versioner.finalize()
+    }
+}
 
-public typealias SystemPayload = (version: Int?, raw: RealtimeDataValue?)
+// MARK: RealtimeValue
 
 /// Key of RealtimeValue option
 public struct ValueOption: Hashable {
@@ -87,19 +96,19 @@ public extension ValueOption {
     /// use it only when you need added required information for lazy initialization of `RealtimeValue`
     static let userPayload: ValueOption = ValueOption("realtime.value.userPayload")
     /// Key for `SystemPayload` value
-    static let systemPayload: ValueOption = ValueOption("realtime.value.systemPayload")
+    static let rawValue: ValueOption = ValueOption("realtime.value.systemPayload")
 }
 public extension Dictionary where Key == ValueOption {
-    var version: Int? {
-        return (self[.systemPayload] as? SystemPayload)?.version
-    }
     var rawValue: RealtimeDataValue? {
-        return (self[.systemPayload] as? SystemPayload)?.raw
+        return self[.rawValue] as? RealtimeDataValue
     }
 }
 public extension RealtimeDataProtocol {
-    func version() throws -> Int? {
+    internal func version() throws -> String? {
         return try InternalKeys.modelVersion.map(from: self)
+    }
+    func versioner() throws -> Versioner? {
+        return try InternalKeys.modelVersion.map(from: self).map(Versioner.init(version:))
     }
     func rawValue() throws -> RealtimeDataValue? {
         return try InternalKeys.raw.map(from: self)
@@ -123,8 +132,6 @@ extension _RealtimeValue: _RealtimeValueUtilities {}
 
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented {
-    /// Current version of value.
-    var version: Int? { get }
     /// Indicates specific representation of this value, e.g. subclass or enum associated value
     var raw: RealtimeDataValue? { get }
     /// Some data associated with value
@@ -138,14 +145,14 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented
     /// - Parameter options: Dictionary of options
     init(in node: Node?, options: [ValueOption: Any])
 }
+public typealias SystemPayload = RealtimeDataValue?
 extension RealtimeValue {
     internal var systemPayload: SystemPayload {
-        return (version, raw)
+        return raw
     }
 }
 
 extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
-    public var version: Int? { return self?.version }
     public var raw: RealtimeDataValue? { return self?.raw }
     public var payload: [String : RealtimeDataValue]? { return self?.payload }
     public var node: Node? { return self?.node }
@@ -238,6 +245,12 @@ public protocol RealtimeValueEvents {
     /// - Parameter parent: Parent node
     /// - Parameter key: Location in parent node
     func didSave(in database: RealtimeDatabase, in parent: Node, by key: String)
+    /// Must call always before save(update) action
+    ///
+    /// - Parameters:
+    ///   - ancestor: Ancestor where action called
+    ///   - transaction: Update transaction
+    func willUpdate(through ancestor: Node, in transaction: Transaction)
     /// Notifies object that it has been updated through some ancestor node
     ///
     /// - Parameter ancestor: Ancestor where action called

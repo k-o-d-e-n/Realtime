@@ -25,14 +25,14 @@ public struct RCItem: RCViewItem {
         self.dbKey = key
         self.priority = priority
         self.linkID = linkID
-        self.valuePayload = RealtimeValuePayload((element.version, element.raw), element.payload)
+        self.valuePayload = RealtimeValuePayload(element.raw, element.payload)
     }
 
     init<T: RealtimeValue>(element: T, priority: Int, linkID: String?) {
         self.dbKey = element.dbKey
         self.priority = priority
         self.linkID = linkID
-        self.valuePayload = RealtimeValuePayload((element.version, element.raw), element.payload)
+        self.valuePayload = RealtimeValuePayload(element.raw, element.payload)
     }
 
     public init(data: RealtimeDataProtocol, exactly: Bool) throws {
@@ -48,7 +48,7 @@ public struct RCItem: RCViewItem {
         self.linkID = try InternalKeys.link.map(from: data)
         let valueData = InternalKeys.value.child(from: data)
         self.valuePayload = RealtimeValuePayload(
-            try (InternalKeys.modelVersion.map(from: valueData), InternalKeys.raw.map(from: valueData)),
+            try valueData.rawValue(),
             try InternalKeys.payload.map(from: valueData)
         )
     }
@@ -98,14 +98,14 @@ public struct RDItem: RCViewItem {
 
     init<V: RealtimeValue, K: RealtimeValue>(value: V, key: K, priority: Int, linkID: String?) {
         self.rcItem = RCItem(element: value, key: key.dbKey, priority: priority, linkID: linkID)
-        self.valuePayload = RealtimeValuePayload((key.version, key.raw), key.payload)
+        self.valuePayload = RealtimeValuePayload(key.raw, key.payload)
     }
 
     public init(data: RealtimeDataProtocol, exactly: Bool) throws {
         self.rcItem = try RCItem(data: data, exactly: exactly)
         let keyData = InternalKeys.key.child(from: data)
         self.valuePayload = RealtimeValuePayload(
-            try (InternalKeys.modelVersion.map(from: keyData), InternalKeys.raw.map(from: keyData)),
+            try keyData.rawValue(),
             try InternalKeys.payload.map(from: keyData)
         )
     }
