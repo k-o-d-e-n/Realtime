@@ -158,6 +158,67 @@ extension OtherTests {
 //        let node = Node.root.child(with: (0..<32).lazy.map(String.init).joined(separator: "/"))
 //        XCTFail("\(node.underestimatedCount) levels")
 //    }
+
+    func testVersionerFunc() {
+        var old: Versioner = Versioner(version: "")
+        for i in stride(from: 1 as UInt32, to: 1000, by: 1) {
+            for y in stride(from: 1 as UInt32, to: 1000, by: 1) {
+                var versioner = Versioner()
+                versioner.enqueue(Version(i, y))
+                XCTAssertTrue(old < versioner, "\(old) !< \(versioner)")
+                old = versioner
+            }
+        }
+    }
+
+    func testNewVersionerFunc() {
+        let vers1 = Version(46, 23)
+        let vers2 = Version(24, 43)
+
+        struct Part {
+            let level: UInt8
+            let version: Version
+
+            var data: Data {
+                mutating get {
+                    return Data(bytes: &self, count: MemoryLayout<Part>.size)
+                }
+            }
+        }
+
+        var part1 = Part(level: 0, version: vers1)
+        var part2 = Part(level: 0, version: vers2)
+
+        let data1 = part1.data
+        let data2 = part2.data
+
+        let copyPart1: Part = data1.withUnsafeBytes({ $0.pointee })
+        let copyPart2: Part = data2.withUnsafeBytes({ $0.pointee })
+
+        XCTAssertEqual(copyPart1.level, part1.level)
+        XCTAssertEqual(copyPart1.version, part1.version)
+        XCTAssertEqual(copyPart2.level, part2.level)
+        XCTAssertEqual(copyPart2.version, part2.version)
+    }
+
+    func testNewVersionerFunc2() {
+        let vers1 = Version(46, 23)
+        let vers2 = Version(24, 43)
+        let versions = [vers1, vers2]
+
+        var levels = versions
+        let base64String = Data(bytes: &levels, count: MemoryLayout<Version>.size * levels.count).base64EncodedString()
+
+        levels = Data(base64Encoded: base64String).map({ d in
+            let size = d.count / MemoryLayout<Version>.size
+            return (0 ..< size).reduce(into: [], { (res, i) in
+                let offset = i * MemoryLayout<Version>.size
+                res.append(d.subdata(in: (offset..<offset + MemoryLayout<Version>.size)).withUnsafeBytes({ $0.pointee }))
+            })
+        }) ?? []
+
+        XCTAssertEqual(levels, versions)
+    }
 }
 
 final class SharedCollection<Base: MutableCollection>: MutableCollection {

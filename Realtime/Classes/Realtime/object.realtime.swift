@@ -7,17 +7,16 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 public struct Version: Comparable, Equatable {
     /// The major version.
-    public let major: Int
+    public let major: UInt32
 
     /// The minor version.
-    public let minor: Int
+    public let minor: UInt32
 
     /// Create a version object.
-    public init(_ major: Int, _ minor: Int) {
+    public init(_ major: UInt32, _ minor: UInt32) {
         precondition(major >= 0 && minor >= 0, "Negative versioning is invalid.")
         self.major = major
         self.minor = minor
@@ -31,8 +30,8 @@ public struct Version: Comparable, Equatable {
 // TODO: Breaks possibillity to use superclass to read model, and can destroy model structure.
 // Reason: Taking version of subclass in superclass level
 public struct Versioner {
+//    static let pushChars = Array("-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz")
     // unavailable symbols in firebase: '.', '#', '$', ']', '[', '/'
-    static let pushChars = Array("-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz")
 
     var isCollector: Bool
     var finalized: String?
@@ -42,29 +41,26 @@ public struct Versioner {
     init() {
         self.isCollector = true
     }
+
     init(version: String) {
         self.isCollector = false
         self.finalized = version
-        self.levels = (0..<(version.count / 2)).reduce(into: [], { (result, index) in
-            let firstIndex = index * 2
-            let secondIndex = firstIndex + 1
-            let firstChar = version[version.index(version.startIndex, offsetBy: firstIndex)]
-            let secondChar = version[version.index(version.startIndex, offsetBy: secondIndex)]
-
-            result.append(Version(
-                Versioner.pushChars.index(of: firstChar)!,
-                Versioner.pushChars.index(of: secondChar)!
-            ))
-        })
+        self.levels = Data(base64Encoded: version).map({ d in
+            let size = d.count / MemoryLayout<Version>.size
+            return (0 ..< size).reduce(into: [], { (res, i) in
+                let offset = i * MemoryLayout<Version>.size
+                res.append(
+                    d.subdata(in: (offset..<offset + MemoryLayout<Version>.size))
+                        .withUnsafeBytes({ $0.pointee })
+                )
+            })
+        }) ?? []
     }
 
     mutating func finalize() -> String {
         guard let final = self.finalized else {
-            let finalized = levels.reduce(into: "", { (result, version) in
-                // TODO: Breaks if version will be more than 64
-                result.append(Versioner.pushChars[version.major % 64])
-                result.append(Versioner.pushChars[version.minor % 64])
-            })
+            var levels = self.levels
+            let finalized = Data(bytes: &levels, count: MemoryLayout<Version>.size * levels.count).base64EncodedString()
             self.finalized = finalized
             return finalized
         }
@@ -91,6 +87,36 @@ public struct Versioner {
 
     fileprivate mutating func _turn() {
         isCollector = !isCollector
+    }
+
+    public static func < (lhs: Versioner, rhs: Versioner) -> Bool {
+        if lhs.isEmpty {
+            return !rhs.isEmpty
+        } else {
+            let count = min(lhs.levels.count, rhs.levels.count)
+            let contains = (0..<count).contains { (i) -> Bool in
+                let left = lhs.levels[i]
+                let right = rhs.levels[i]
+                return left < right
+            }
+
+            return contains
+        }
+    }
+
+    public static func ==(lhs: Versioner, rhs: Versioner) -> Bool {
+        let count = min(lhs.levels.count, rhs.levels.count)
+        let contains = (0..<count).contains { (i) -> Bool in
+            let left = lhs.levels[i]
+            let right = rhs.levels[i]
+            return left != right
+        }
+
+        return !contains
+    }
+
+    public static func ===(lhs: Versioner, rhs: Versioner) -> Bool {
+        return lhs.levels == rhs.levels
     }
 }
 extension Versioner: CustomDebugStringConvertible {
@@ -465,7 +491,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         }
         var targetVersion = Versioner()
         putVersion(into: &targetVersion)
-        if !targetVersion.isEmpty, targetVersion.finalize() > current.finalize() {
+        if !targetVersion.isEmpty, current < targetVersion {
             _performMigration(from: &current, to: &targetVersion, in: transaction)
         }
     }
@@ -557,7 +583,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
                 completion: { (data) in
                     do {
                         var currentVersion = data.exists() ? Versioner(version: try data.unbox(as: String.self)) : Versioner(version: "")
-                        if !targetVersion.isEmpty, targetVersion.finalize() > currentVersion.finalize() {
+                        if !targetVersion.isEmpty, currentVersion < targetVersion {
                             self._performMigration(from: &currentVersion, to: &targetVersion, in: transaction)
                         }
                         promise.fulfill()

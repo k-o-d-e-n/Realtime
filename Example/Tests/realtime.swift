@@ -1536,7 +1536,18 @@ extension RealtimeTests {
         var versioner2 = Versioner()
         versioner2.enqueue(Version(1, 0))
 
-        XCTAssertLessThan(versioner1.finalize(), versioner2.finalize())
+        XCTAssertTrue(versioner1 < versioner2)
+    }
+
+    func testVersioner2() {
+        var versioner = Versioner()
+        versioner.enqueue(Version(46, 23))
+        versioner.enqueue(Version(24, 43))
+
+        let versionValue = versioner.finalize()
+        let copyVersioner = Versioner(version: versionValue)
+
+        XCTAssertTrue(versioner == copyVersioner)
     }
 
     func testObjectVersionerEmpty() {
