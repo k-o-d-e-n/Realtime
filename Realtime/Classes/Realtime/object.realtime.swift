@@ -27,12 +27,7 @@ public struct Version: Comparable, Equatable {
     }
 }
 
-// TODO: Breaks possibillity to use superclass to read model, and can destroy model structure.
-// Reason: Taking version of subclass in superclass level
 public struct Versioner {
-//    static let pushChars = Array("-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz")
-    // unavailable symbols in firebase: '.', '#', '$', ']', '[', '/'
-
     var isCollector: Bool
     var finalized: String?
     var levels: [Version] = []
@@ -367,7 +362,6 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.absolutePath ?? "not referred"),
-            version: \(/*version ?? */0),
             raw: \(raw ?? "null"),
             hasChanges: \(_hasChanges)
         }
@@ -414,15 +408,6 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Versionable {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
-    /// Object version of current type
-//    public var version: Version? {
-//        guard var versioner = _version.map(Versioner.init(version:)) else { return nil }
-//        var version: Version?
-//        while let v = try? versioner.dequeue() {
-//            version = v
-//        }
-//        return version
-//    }
     public var keepSynced: Bool = false {
         didSet {
             guard oldValue != keepSynced else { return }
@@ -788,7 +773,6 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.absolutePath ?? "not referred"),
-            version: \(/*version ?? */0),
             raw: \(raw ?? "no raw"),
             has changes: \(_hasChanges),
             keepSynced: \(keepSynced),

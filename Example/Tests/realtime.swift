@@ -1453,8 +1453,29 @@ class VersionableObject: Object {
     }
 }
 
+extension Representer where V == Date {
+    static func dateV2() -> Representer<Date> {
+        let oldBase = Representer.date(.secondsSince1970)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM.yyyy"
+        let newBase = Representer.date(DateCodingStrategy.formatted(formatter))
+        return Representer.init(
+            encoding: newBase.encode,
+            decoding: { (data) -> Date in
+                guard case let value as String = data.value else {
+                    return try oldBase.decode(data)
+                }
+                guard let date = formatter.date(from: value) else {
+                    throw NSError(domain: "tests", code: 0, userInfo: nil)
+                }
+                return date
+            }
+        )
+    }
+}
+
 class VersionableObjectV2: Object {
-    lazy var requiredPropertyV2: Property<Date> = "requiredPropertyV2".date(in: self)
+    lazy var requiredPropertyV2: Property<Date> = "requiredPropertyV2".property(in: self, representer: .dateV2())
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -1465,7 +1486,38 @@ class VersionableObjectV2: Object {
 
     override func putVersion(into versioner: inout Versioner) {
         super.putVersion(into: &versioner)
-        versioner.enqueue(Version(2, 0))
+        versioner.enqueue(Version(2, 1))
+    }
+
+    override func performMigration(from currentVersion: inout Versioner, to newVersion: inout Versioner, in transaction: Transaction) throws {
+        try super.performMigration(from: &currentVersion, to: &newVersion, in: transaction)
+
+        let old = (try? currentVersion.dequeue()) ?? Version(0, 0)
+        let new = try newVersion.dequeue()
+
+        guard old < new else { return }
+
+        if old.major == 2 {
+            if old.minor == 0 {
+                if !requiredPropertyV2.hasChanges {
+                    if let value = requiredPropertyV2.wrapped {
+                        // migration called before update operation because value doesn't add explicitly to transaction
+                        requiredPropertyV2 <== value
+                    } else {
+                        transaction.addPrecondition { [unowned self] (promise) in
+                            self.requiredPropertyV2.loadValue(
+                                completion: <-{ value in
+                                    // updates already added to transaction because add migration changes explicitly
+                                    try! self.requiredPropertyV2.setValue(value, in: transaction)
+                                    promise.fulfill()
+                                },
+                                fail: <-promise.reject
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1660,8 +1712,13 @@ extension RealtimeTests {
                     switch versionableValue {
                     case .v1: XCTFail("Unexpected version")
                     case .v2(let obj):
+                        let representer = Representer.dateV2()
                         XCTAssertNotNil(obj._version)
-                        XCTAssertEqual(obj.requiredPropertyV2.wrapped?.timeIntervalSince1970.rounded(), now.timeIntervalSince1970.rounded())
+                        XCTAssertEqual(
+                            obj.requiredPropertyV2.wrapped?.timeIntervalSince1970.rounded(),
+                            try! representer.encode(now).map({ try! representer.decode(ValueNode(node: .root, value: $0)) })?
+                                .timeIntervalSince1970.rounded()
+                        )
                         exp.fulfill()
                     }
                 } catch let e {
@@ -1677,6 +1734,47 @@ extension RealtimeTests {
             err.map({ XCTFail($0.describingErrorDescription) })
 
             XCTAssertNotNil(versionableObj._version)
+        }
+    }
+
+    func testVersionableValue3() {
+        let exp = expectation(description: "")
+        let representer = Representer.dateV2()
+        let now = Date()
+        let transaction = Transaction(database: CacheNode.root)
+        let objNode = Node(key: "obj", parent: .root)
+        do {
+            var versioner = Versioner()
+            versioner.enqueue(Version(2, 0))
+            transaction.addValue(versioner.finalize(), by: objNode.child(with: InternalKeys.modelVersion.rawValue))
+            transaction.addValue(try representer.encode(now) as Any, by: Node(key: "requiredPropertyV2", parent: objNode))
+            transaction.commit { (state, errs) in
+                errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                do {
+                    let versionableValue = try VersionableValue(data: CacheNode.root.child(by: objNode)!)
+                    switch versionableValue {
+                    case .v1: XCTFail("Unexpected version")
+                    case .v2(let obj):
+                        XCTAssertNotNil(obj._version)
+                        XCTAssertEqual(
+                            obj.requiredPropertyV2.wrapped?.timeIntervalSince1970.rounded(),
+                            try! representer.encode(now).map({ try! representer.decode(ValueNode(node: .root, value: $0)) })?
+                                .timeIntervalSince1970.rounded()
+                        )
+                        exp.fulfill()
+                    }
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+            }
+        } catch let e {
+            transaction.cancel()
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
         }
     }
 }
