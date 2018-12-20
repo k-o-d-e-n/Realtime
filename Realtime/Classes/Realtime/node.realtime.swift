@@ -240,6 +240,25 @@ public class Node: Hashable {
         return false
     }
 
+    func nearestCommonPrefix(for node: Node) -> Node? {
+        guard self !== node else { return self }
+
+        let otherNodes = node.reversed()
+        let thisNodes = self.reversed()
+        guard otherNodes.first == thisNodes.first else { return nil }
+
+        var prefixNode: Node?
+        for i in (1 ..< Swift.min(otherNodes.count, thisNodes.count)) {
+            let next = thisNodes[i]
+            if otherNodes[i].key != next.key {
+                return prefixNode
+            } else {
+                prefixNode = next
+            }
+        }
+        return prefixNode
+    }
+
     internal func movedToNode(keyedBy key: String) -> Node {
         let parent = Node(key: key)
         self.parent = parent
@@ -250,10 +269,21 @@ public class Node: Hashable {
         guard lhs !== rhs else { return true }
         guard lhs.key == rhs.key else { return false }
 
-        return lhs.rootPath == rhs.rootPath
+        var lhsAncestor = lhs
+        var rhsAncestor = rhs
+        while let left = lhsAncestor.parent, let right = rhsAncestor.parent {
+            if left.key == right.key {
+                lhsAncestor = left
+                rhsAncestor = right
+            } else {
+                return false
+            }
+        }
+
+        return lhsAncestor.key == rhsAncestor.key
     }
 
-    public var description: String { return rootPath }
+    public var description: String { return absolutePath }
     public var debugDescription: String { return description }
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}

@@ -121,45 +121,8 @@ extension Transaction {
     }
 
     /// registers new single value for specified reference
-    func _addValue(_ valueType: ValueNode.Type = ValueNode.self, _ value: Any?/*RealtimeDataValue?*/, by node: Realtime.Node) { // TODO: Write different methods only for available values
-        let nodes = node.reversed().dropFirst()
-        guard nodes.count > 0 else {
-            fatalError("Tries set value to root node")
-        }
-
-        var current = updateNode
-        var iterator = nodes.makeIterator()
-        while let n = iterator.next() {
-            if let update = current.childs.first(where: { $0.location == n }) {
-                if case let u as ObjectNode = update {
-                    if n === node {
-                        fatalError("Tries insert value higher than earlier writed values")
-                    } else {
-                        current = u
-                    }
-                } else if case let u as FileNode = update, n === node {
-                    u.value = value
-                    debugLog("Replaced file by node: \(node) with value: \(value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
-                } else if case let u as ValueNode = update, n === node {
-                    if ValueNode.self == valueType {
-                        debugLog("Replaced value by node: \(node) with value: \(value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
-                        u.value = value
-                    } else {
-                        fatalError("Tries to insert database value to storage node")
-                    }
-                } else {
-                    fatalError("Tries insert value lower than earlier writed single value")
-                }
-            } else {
-                if node === n {
-                    current.childs.append(valueType.init(node: node, value: value))
-                } else {
-                    let child = ObjectNode(node: n)
-                    current.childs.append(child)
-                    current = child
-                }
-            }
-        }
+    func _addValue(_ cacheValue: CacheNode) { // TODO: Write different methods only for available values
+        updateNode._addValueAsInSingleTransaction(cacheValue)
     }
 
     func performUpdate(_ completion: @escaping (Error?, DatabaseNode) -> Void) {
@@ -271,7 +234,7 @@ public extension Transaction {
                 return
             }
             do {
-                try self.scheduledMerges?.forEach { try self.merge($0) }
+                try self.scheduledMerges?.forEach { try self.merge($0, conflictResolver: { _, new in new }) }
                 self.state = .performing
 
                 guard self.updateNode.childs.count > 0 else {
@@ -356,7 +319,7 @@ public extension Transaction {
     public func addFile(_ value: Data, by node: Realtime.Node) {
         guard node.isRooted else { fatalError("Node should be rooted") }
 
-        _addValue(FileNode.self, value, by: node)
+        _addValue(.file(FileNode(node: node, value: value)))
     }
 
     public func addFile<T>(_ file: File<T>, by node: Realtime.Node? = nil) throws {
@@ -369,10 +332,10 @@ public extension Transaction {
     ///
     /// - Parameters:
     ///   - node: Target node
-    public func removeFile(by node: Realtime.Node) {
+    public func removeFile(by node: Realtime.Node) throws {
         guard node.isRooted else { fatalError("Node should be rooted") }
 
-        _addValue(FileNode.self, nil, by: node)
+        _addValue(.file(FileNode(node: node, value: nil)))
     }
 
     /// Adds Realtime database value
@@ -383,7 +346,7 @@ public extension Transaction {
     public func addValue(_ value: Any, by node: Realtime.Node) {
         guard node.isRooted else { fatalError("Node should be rooted") }
 
-        _addValue(ValueNode.self, value, by: node)
+        _addValue(.value(ValueNode(node: node, value: value)))
     }
 
     /// Removes Realtime data by specified node
@@ -393,7 +356,7 @@ public extension Transaction {
     public func removeValue(by node: Realtime.Node) {
         guard node.isRooted else { fatalError("Node should be rooted") }
 
-        _addValue(ValueNode.self, nil, by: node)
+        _addValue(.value(ValueNode(node: node, value: nil)))
     }
 
     /// adds operation of save RealtimeValue as single value
@@ -435,7 +398,7 @@ public extension Transaction {
     }
 
     /// method to merge actions of other transaction
-    public func merge(_ other: Transaction, conflictResolver: (UpdateNode, UpdateNode) -> Any? = { f, s in f.value }) throws {
+    public func merge(_ other: Transaction, conflictResolver: @escaping (UpdateNode, UpdateNode) -> UpdateNode = { _, new in new }) throws {
         guard other !== self else { fatalError("Attemption merge the same transaction") }
         guard other.preconditions.isEmpty else {
             other.preconditions.forEach(addPrecondition)
@@ -443,7 +406,14 @@ public extension Transaction {
             scheduledMerges = scheduledMerges.map { $0 + [other] } ?? [other]
             return
         }
-        try updateNode.merge(with: other.updateNode, conflictResolver: conflictResolver, didAppend: nil)
+        try updateNode._mergeWithObject(
+            withTheSameReference: other.updateNode,
+            conflictResolver: { old, new in
+                let resolved = conflictResolver(old.asUpdateNode(), new.asUpdateNode())
+                return new//resolved === old.asUpdateNode() ? old : new
+            },
+            didAppend: nil
+        )
         other.completions.forEach(addCompletion)
         addReversion(other.currentReversion())
         other.state = .merged

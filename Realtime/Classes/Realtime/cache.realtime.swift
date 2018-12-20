@@ -23,10 +23,62 @@ public protocol UpdateNode: RealtimeDataProtocol, DatabaseNode {
 }
 extension UpdateNode {
     public var cachedData: RealtimeDataProtocol? { return self }
-    public var database: RealtimeDatabase? { return CacheNode.root }
-    public var storage: RealtimeStorage? { return CacheNode.root }
+    public var database: RealtimeDatabase? { return Cache.root }
+    public var storage: RealtimeStorage? { return Cache.root }
     public var node: Node? { return location }
 }
+extension UpdateNode where Self: RealtimeDataProtocol {
+    public var priority: Any? { return nil }
+    public var key: String? { return location.key }
+}
+
+enum CacheNode {
+    case value(ValueNode)
+    case file(FileNode)
+    case object(ObjectNode)
+
+    func asUpdateNode() -> UpdateNode {
+        switch self {
+        case .value(let v): return v
+        case .file(let f): return f
+        case .object(let o): return o
+        }
+    }
+
+    var isEmpty: Bool {
+        switch self {
+        case .value(let v): return v.value == nil
+        case .file(let f): return f.value == nil
+        case .object(let o): return o.childs.isEmpty
+        }
+    }
+
+//    func fill(from ancestor: Node, into container: inout [String : Any]) {
+//        switch self {
+//        case .value(let v): v.fill(from: ancestor, into: &container)
+//        case .file(let f): f.fill(from: ancestor, into: &container)
+//        case .object(let o): o.fill(from: ancestor, into: &container)
+//        }
+//    }
+//
+//    var value: Any? {
+//        switch self {
+//        case .value(let v): return v.value
+//        case .file(let f): return f.value
+//        case .object(let o): return o.value
+//        }
+//    }
+//
+    var location: Node {
+        switch self {
+        case .value(let v): return v.location
+        case .file(let f): return f.location
+        case .object(let o): return o.location
+        }
+    }
+}
+
+// MARK: ValueNode
 
 class ValueNode: UpdateNode {
     let location: Node
@@ -45,351 +97,6 @@ class ValueNode: UpdateNode {
         fatalError("Database value node cannot updated with multikeyed object")
     }
 }
-
-class FileNode: ValueNode, StorageNode {
-    var metadata: [String: Any] = [:]
-    func delete(completion: ((Error?) -> Void)?) {
-        self.value = nil
-        self.metadata.removeAll()
-    }
-
-    func put(_ data: Data, metadata: [String : Any]?, completion: @escaping ([String : Any]?, Error?) -> Void) {
-        self.value = data
-        if let md = metadata {
-            self.metadata = md
-        }
-        completion(metadata, nil)
-    }
-
-    override func fill(from ancestor: Node, into container: inout [String: Any]) {}
-    var database: RealtimeDatabase? { return nil }
-}
-
-class CacheNode: ObjectNode, RealtimeDatabase, RealtimeStorage {
-    var isConnectionActive: AnyListenable<Bool> { return AnyListenable(Constant(true)) }
-
-    static let root: CacheNode = CacheNode(node: .root)
-    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
-
-    func clear() {
-        childs.removeAll()
-    }
-
-    var cachePolicy: CachePolicy {
-        set {
-            switch newValue {
-            case .persistance: break
-            /// makes persistance configuration
-            default: break
-            }
-        }
-        get { return .inMemory }
-    }
-
-    func generateAutoID() -> String {
-        return Database.database().generateAutoID() // need avoid using Firebase database
-    }
-
-    func node(with referenceNode: Node) -> DatabaseNode {
-        if referenceNode.isRoot {
-            return self
-        } else {
-            return child(by: referenceNode) ?? ValueNode(node: referenceNode, value: nil)
-        }
-    }
-
-    func commit(transaction: Transaction, completion: ((Error?, DatabaseNode) -> Void)?) {
-        do {
-            var notifications: [Node: (RealtimeDataProtocol, DatabaseDataEvent)] = [:]
-            try merge(
-                with: transaction.updateNode,
-                conflictResolver: { old, new in
-                    if observers.count > 0 {
-                        notifications[new.location] = (new, .value)
-                        new.location.parent.map({ notifications[$0] = (new, .child(new.value == nil ? .removed : .changed)) })
-                    }
-                    return new.value
-                },
-                didAppend: observers.isEmpty ? nil : { parent, child in
-                    notifications[child.location] = (child, .value)
-                    notifications[parent.location] = (child, .child(child.value == nil ? .removed : .added))
-                }
-            )
-            completion?(nil, self)
-            notifications.forEach { (args) in
-                observers[args.key]?.send(.value(args.value))
-            }
-        } catch let e {
-            completion?(e, self)
-        }
-    }
-
-    func removeAllObservers(for node: Node) {
-        observers.removeValue(forKey: node)
-    }
-
-    func removeObserver(for node: Node, with token: UInt) {
-        observers[node]?.remove(token)
-    }
-
-    func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
-        if node == location {
-            completion(self)
-        } else {
-            completion(child(by: node) ?? ValueNode(node: node, value: nil))
-        }
-    }
-
-    private func repeater(for node: Node) -> Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> {
-        guard let rep = observers[node] else {
-            let rep = Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>(dispatcher: .default)
-            observers[node] = rep
-            return rep
-        }
-        return rep
-    }
-
-    func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
-        let repeater: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
-        
-        return repeater.add(Closure.just { e in
-            switch e {
-            case .value(let val): onUpdate(val.0)
-            case .error(let err): onCancel?(err)
-            }
-        }.filter({ (e) -> Bool in
-            switch (e, event) {
-            case (.error, _): return true
-            case (.value(_, .value), .value): return true
-            case (.value(_, .child(let received)), .child(let defined)):
-                return received == defined
-            default: return false
-            }
-        }))
-    }
-
-    // storage
-
-    func node(with referenceNode: Node) -> StorageNode {
-        if referenceNode.isRoot {
-            fatalError("File cannot be put in root")
-        } else {
-            if case let file as FileNode = child(by: referenceNode) {
-                return file
-            } else {
-                return FileNode(node: referenceNode, value: nil)
-            }
-        }
-    }
-
-    func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
-        let results = transaction.updateNode.files.map { (file) -> Transaction.FileCompletion in
-            do {
-                let nearest = self.nearestChild(by: Array(file.location.map({ $0.key }).reversed().dropFirst()))
-                if nearest.leftPath.isEmpty {
-                    try update(dbNode: nearest.node, with: file.value as Any)
-                } else {
-                    var nearestNode: ObjectNode
-                    if case _ as ValueNode = nearest.node {
-                        nearestNode = ObjectNode(node: nearest.node.location)
-                        try replaceNode(with: nearestNode)
-                    } else if case let objNode as ObjectNode = nearest.node {
-                        nearestNode = objNode
-                    } else {
-                        throw RealtimeError(source: .transaction([]), description: "Internal error")
-                    }
-                    for (i, part) in nearest.leftPath.enumerated() {
-                        let node = Node(key: part, parent: nearestNode.location)
-                        if i == nearest.leftPath.count - 1 {
-                            nearestNode.childs.append(FileNode(node: node, value: file.value))
-                        } else {
-                            let next = ObjectNode(node: node)
-                            nearestNode.childs.append(next)
-                            nearestNode = next
-                        }
-                    }
-                }
-                return .meta(file.metadata)
-            } catch let e {
-                return .error(file.location, e)
-            }
-        }
-        completion(results)
-    }
-}
-
-class ObjectNode: UpdateNode, CustomStringConvertible {
-    let location: Node
-    var childs: [UpdateNode] = []
-    var isCompound: Bool { return true }
-    var value: Any? {
-        return updateValue
-    }
-    var updateValue: [String: Any] {
-        var val: [String: Any] = [:]
-        fill(from: location, into: &val)
-        return val
-    }
-    var files: [FileNode] {
-        return childs.reduce(into: [], { (res, node) in
-            if case let objNode as ObjectNode = node {
-                res.append(contentsOf: objNode.files)
-            } else if case let fileNode as FileNode = node {
-                res.append(fileNode)
-            }
-        })
-    }
-    var description: String {
-        return """
-        values: \(updateValue),
-        files: \(files)
-        """
-    }
-
-    init(node: Node) {
-        debugFatalError(
-            condition: RealtimeApp._isInitialized && node.underestimatedCount >= RealtimeApp.app.maxNodeDepth - 1,
-            "Maximum depth limit of child nodes exceeded"
-        )
-        self.location = node
-    }
-
-    func fill(from ancestor: Node, into container: inout [String: Any]) {
-        childs.forEach { $0.fill(from: ancestor, into: &container) }
-    }
-
-    func update(use keyValuePairs: [String : Any], completion: ((Error?, DatabaseNode) -> Void)?) {
-        do {
-            try keyValuePairs.forEach { (key, value) in
-                let path = key.split(separator: "/").map(String.init)
-                let nearest = nearestChild(by: path)
-                if nearest.leftPath.isEmpty {
-                    try update(dbNode: nearest.node, with: value)
-                } else {
-                    var nearestNode: ObjectNode
-                    if case _ as ValueNode = nearest.node {
-                        nearestNode = ObjectNode(node: nearest.node.location)
-                        try replaceNode(with: nearestNode)
-                    } else if case let objNode as ObjectNode = nearest.node {
-                        nearestNode = objNode
-                    } else {
-                        throw RealtimeError(source: .transaction([]), description: "Internal error")
-                    }
-                    for (i, part) in nearest.leftPath.enumerated() {
-                        let node = Node(key: part, parent: nearestNode.location)
-                        if i == nearest.leftPath.count - 1 {
-                            nearestNode.childs.append(ValueNode(node: node, value: value))
-                        } else {
-                            let next = ObjectNode(node: node)
-                            nearestNode.childs.append(next)
-                            nearestNode = next
-                        }
-                    }
-                }
-            }
-            completion?(nil, self)
-        } catch let e {
-            completion?(e, self)
-        }
-    }
-
-    fileprivate func update(dbNode: UpdateNode, with value: Any) throws {
-        if case let valNode as ValueNode = dbNode {
-            valNode.value = value
-        } else if case _ as ObjectNode = dbNode {
-            try replaceNode(with: ValueNode(node: dbNode.location, value: value))
-        } else {
-            throw RealtimeError(source: .transaction([]), description: "Internal error")
-        }
-    }
-
-    fileprivate func replaceNode(with dbNode: UpdateNode) throws {
-        if case let parent as ObjectNode = child(by: dbNode.location.parent!) {
-            parent.childs.remove(at: parent.childs.index(where: { $0.node === dbNode.node })!)
-            parent.childs.append(dbNode)
-        } else {
-            throw RealtimeError(source: .transaction([]), description: "Internal error")
-        }
-    }
-}
-
-extension ObjectNode {
-    func child(by path: [String]) -> UpdateNode? {
-        guard !path.isEmpty else { return self }
-
-        var path = path
-        let first = path.remove(at: 0)
-        guard let f = childs.first(where: { $0.location.key == first }) else {
-            return nil
-        }
-
-        if case let o as ObjectNode = f {
-            return o.child(by: path)
-        } else {
-            return path.isEmpty ? f : nil
-        }
-    }
-    func child(by node: Node) -> UpdateNode? {
-        var after = node.after(ancestor: location)
-
-        var current = self
-        while let first = after.first, let f = current.childs.first(where: { $0.location == first }) {
-            if f.location == node {
-                return f
-            } else {
-                if case let o as ObjectNode = f {
-                    after.remove(at: 0)
-                    current = o
-                } else {
-                    return nil
-                }
-            }
-        }
-        return nil
-    }
-    func nearestChild(by path: [String]) -> (node: UpdateNode, leftPath: [String]) {
-        guard !path.isEmpty else { return (self, path) }
-
-        var path = path
-        let first = path.remove(at: 0)
-        guard let f = childs.first(where: { $0.location.key == first }) else {
-            path.insert(first, at: 0)
-            return (self, path)
-        }
-
-        if case let o as ObjectNode = f {
-            return o.nearestChild(by: path)
-        } else {
-            return (f, path)
-        }
-    }
-    func merge(with other: ObjectNode, conflictResolver: (UpdateNode, UpdateNode) -> Any?, didAppend: ((UpdateNode, UpdateNode) -> Void)?) throws {
-        try other.childs.forEach { (child) in
-            if let currentChild = childs.first(where: { $0.location == child.location }) {
-                if let objectChild = currentChild as? ObjectNode {
-                    try objectChild.merge(with: child as! ObjectNode, conflictResolver: conflictResolver, didAppend: didAppend)
-                } else if case let c as ValueNode = currentChild {
-                    if type(of: c) == type(of: child) {
-                        c.value = conflictResolver(currentChild, child)
-                    } else {
-                        throw RealtimeError(source: .cache, description: "Database value and storage value located in the same node.")
-                    }
-                } else {
-                    throw RealtimeError(source: .cache, description: "Database value and storage value located in the same node.")
-                }
-            } else {
-                childs.append(child)
-                didAppend?(self, child)
-            }
-        }
-    }
-}
-
-extension UpdateNode where Self: RealtimeDataProtocol {
-    public var priority: Any? { return nil }
-    public var key: String? { return location.key }
-}
-
 extension ValueNode: RealtimeDataProtocol, Sequence {
     var priority: Any? { return nil }
     var childrenCount: UInt {
@@ -405,7 +112,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
         return AnyIterator(
             dict.lazy.map { (keyValue) in
                 ValueNode(node: Node(key: keyValue.key, parent: self.location), value: keyValue.value)
-            }.makeIterator()
+                }.makeIterator()
         )
     }
     func exists() -> Bool { return value != nil }
@@ -452,13 +159,328 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
     var description: String { return debugDescription }
 }
 
+class FileNode: ValueNode, StorageNode {
+    var metadata: [String: Any] = [:]
+    func delete(completion: ((Error?) -> Void)?) {
+        self.value = nil
+        self.metadata.removeAll()
+    }
+
+    func put(_ data: Data, metadata: [String : Any]?, completion: @escaping ([String : Any]?, Error?) -> Void) {
+        self.value = data
+        if let md = metadata {
+            self.metadata = md
+        }
+        completion(metadata, nil)
+    }
+
+    override func fill(from ancestor: Node, into container: inout [String: Any]) {}
+    var database: RealtimeDatabase? { return nil }
+}
+
+// MARK: ObjectNode
+
+class ObjectNode: UpdateNode, CustomStringConvertible {
+    let location: Node
+    var childs: [CacheNode] = []
+    var isCompound: Bool { return true }
+    var value: Any? {
+        return updateValue
+    }
+    var updateValue: [String: Any] {
+        var val: [String: Any] = [:]
+        fill(from: location, into: &val)
+        return val
+    }
+    var files: [FileNode] {
+        return childs.reduce(into: [], { (res, node) in
+            switch node {
+            case .file(let f): res.append(f)
+            case .object(let o): res.append(contentsOf: o.files)
+            case .value: break
+            }
+        })
+    }
+    var description: String {
+        return """
+        values: \(updateValue),
+        files: \(files)
+        """
+    }
+
+    init(node: Node, childs: [CacheNode] = []) {
+        debugFatalError(
+            condition: RealtimeApp._isInitialized && node.underestimatedCount >= RealtimeApp.app.maxNodeDepth - 1,
+            "Maximum depth limit of child nodes exceeded"
+        )
+        self.location = node
+        self.childs = childs
+    }
+
+    func fill(from ancestor: Node, into container: inout [String: Any]) {
+        childs.forEach { (node) in
+            switch node {
+            case .value(let v): v.fill(from: ancestor, into: &container)
+            case .object(let o): o.fill(from: ancestor, into: &container)
+            case .file: break
+            }
+        }
+    }
+
+    func update(use keyValuePairs: [String : Any], completion: ((Error?, DatabaseNode) -> Void)?) {
+        do {
+            try keyValuePairs.forEach { (key, value) in
+                let path = key.split(separator: "/").map(String.init)
+                let nearest = nearestChild(by: path)
+                if nearest.leftPath.isEmpty {
+                    try update(dbNode: nearest.node, with: value)
+                } else {
+                    var nearestNode: ObjectNode
+                    switch nearest.node {
+                    case .value(let v), .file(let v as ValueNode):
+                        nearestNode = ObjectNode(node: v.location)
+                        try replaceNode(with: .object(nearestNode))
+                    case .object(let o):
+                        nearestNode = o
+                    }
+                    for (i, part) in nearest.leftPath.enumerated() {
+                        let node = Node(key: part, parent: nearestNode.location)
+                        if i == nearest.leftPath.count - 1 {
+                            nearestNode.childs.append(.value(ValueNode(node: node, value: value)))
+                        } else {
+                            let next = ObjectNode(node: node)
+                            nearestNode.childs.append(.object(next))
+                            nearestNode = next
+                        }
+                    }
+                }
+            }
+            completion?(nil, self)
+        } catch let e {
+            completion?(e, self)
+        }
+    }
+
+    fileprivate func update(dbNode: CacheNode, with value: Any) throws {
+        switch dbNode {
+        case .value(let v): v.value = value
+        case .file(let f): f.value = value
+        case .object(let o):
+            try replaceNode(with: .value(ValueNode(node: o.location, value: value)))
+        }
+    }
+
+    fileprivate func replaceNode(with dbNode: CacheNode) throws {
+        if case .some(.object(let parent)) = child(by: dbNode.location.parent!) {
+            parent.childs.remove(at: parent.childs.index(where: { $0.asUpdateNode().location === dbNode.location })!)
+            parent.childs.append(dbNode)
+        } else {
+            throw RealtimeError(source: .transaction([]), description: "Internal error")
+        }
+    }
+}
+
+extension ObjectNode {
+    func child(by path: [String]) -> UpdateNode? {
+        guard !path.isEmpty else { return self }
+
+        var path = path
+        let first = path.remove(at: 0)
+        guard let f = childs.first(where: { $0.location.key == first }) else {
+            return nil
+        }
+
+        switch f {
+        case .object(let o): return o.child(by: path)
+        case .value(let v), .file(let v as ValueNode):
+            return path.isEmpty ? v : nil
+        }
+    }
+    func child(by node: Node) -> CacheNode? {
+        var after = node.after(ancestor: location)
+
+        var current = self
+        while let first = after.first, let f = current.childs.first(where: { $0.location == first }) {
+            if f.location == node {
+                return f
+            } else {
+                switch f {
+                case .object(let o):
+                    after.remove(at: 0)
+                    current = o
+                case .value, .file:
+                    return nil
+                }
+            }
+        }
+        return nil
+    }
+    func nearestChild(by path: [String]) -> (node: CacheNode, leftPath: [String]) {
+        guard !path.isEmpty else { return (.object(self), path) }
+
+        var path = path
+        let first = path.remove(at: 0)
+        guard let f = childs.first(where: { $0.location.key == first }) else {
+            path.insert(first, at: 0)
+            return (.object(self), path)
+        }
+
+        switch f {
+        case .object(let o):
+            return o.nearestChild(by: path)
+        case .value, .file:
+            return (f, path)
+        }
+    }
+    func nearestCommonNode(with node: Node) -> CacheNode {
+        guard self.location !== node else { return .object(self) }
+
+        var after = node.after(ancestor: location)
+        var current = self
+        while let first = after.first, let f = current.childs.first(where: { $0.location == first }) {
+            switch f {
+            case .object(let o):
+                if o.location == node {
+                    return f
+                } else {
+                    after.remove(at: 0)
+                    current = o
+                }
+            case .value, .file: return f
+            }
+        }
+        return .object(self)
+    }
+
+    func _mergeTheSameReference(in node: Node, _ current: CacheNode, _ update: CacheNode,
+                                conflictResolver: (CacheNode, CacheNode) -> CacheNode,
+                                didAppend: ((ObjectNode, CacheNode) -> Void)?) throws {
+        switch (current, update) {
+        case (.object(let l), .object(let r)):
+            try l._mergeWithObject(withTheSameReference: r, conflictResolver: conflictResolver, didAppend: didAppend)
+        case (.object, .value), (.object, .file), (.value, .object):
+            let index = self.childs.index(where: { $0.location == node })!
+            self.childs[index] = conflictResolver(current, update)
+        case (.value(let l), .value(let r)):
+            l.value = r.value
+        case (.file(let l), .file(let r)):
+            l.value = r.value
+        case (.value, .file), (.file, .value), (.file, .object):
+            throw RealtimeError(source: .cache, description: "Undescribed error")
+        }
+    }
+
+    func _mergeWithObject(withTheSameReference object: ObjectNode, conflictResolver: (CacheNode, CacheNode) -> CacheNode, didAppend: ((ObjectNode, CacheNode) -> Void)?) throws {
+        let childs = self.childs
+        try object.childs.forEach { (child) in
+            let childNode = child.location
+            if let update = childs.first(where: { $0.location == childNode }) {
+                try _mergeTheSameReference(in: childNode, update, child, conflictResolver: conflictResolver, didAppend: didAppend)
+            } else {
+                self.childs.append(child)
+                didAppend?(self, child)
+            }
+        }
+    }
+
+    func _addValueAsInSingleTransaction(_ cacheNode: CacheNode) {
+        switch cacheNode {
+        case .object:
+            fatalError("ObjectNode cannot be added to transaction")
+        case .value(let v), .file(let v as ValueNode):
+            let node = v.location
+            var current = self
+            let nodes = node.after(ancestor: location)
+            var iterator = nodes.makeIterator()
+            while let n = iterator.next() {
+                if let update = current.childs.first(where: { $0.location == n }) {
+                    switch update {
+                    case .object(let o):
+                        if n === node {
+                            fatalError("Tries insert value higher than earlier writed values")
+                        } else {
+                            current = o
+                        }
+                    case .value(let old), .file(let old as ValueNode):
+                        if n === node {
+                            debugFatalError(condition: type(of: old) != type(of: v), "Tries to insert database value to storage node or conversely")
+                            old.value = v.value
+                            debugLog("Replaced value by node: \(node) with value: \(v.value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
+                        } else {
+                            fatalError("Tries insert value lower than earlier writed single value")
+                        }
+                    }
+                } else {
+                    if node === n {
+                        current.childs.append(cacheNode)
+                    } else {
+                        let child = ObjectNode(node: n)
+                        current.childs.append(.object(child))
+                        current = child
+                    }
+                }
+            }
+        }
+    }
+
+    func merge(with other: CacheNode, conflictResolver: (CacheNode, CacheNode) -> CacheNode, didAppend: ((ObjectNode, CacheNode) -> Void)?) throws {
+        let node = other.location
+        if node == location {
+            switch other {
+            case .object(let o):
+                try _mergeWithObject(withTheSameReference: o, conflictResolver: conflictResolver, didAppend: didAppend)
+            case .value, .file:
+                throw RealtimeError(source: .cache, description: "Merge operation requires full replace operation")
+            }
+        } else if node.hasAncestor(node: location) {
+            var current = self
+            let nodes = node.after(ancestor: location)
+            var iterator = nodes.makeIterator()
+            while let n = iterator.next() {
+                if let update = current.childs.first(where: { $0.location == n }) {
+                    if node === n {
+                        try current._mergeTheSameReference(in: node, update, other, conflictResolver: conflictResolver, didAppend: didAppend)
+                    } else {
+                        switch update {
+                        case .object(let o):
+                            current = o
+                        case .value, .file:
+                            let index = current.childs.index(where: { $0.location == n })!
+                            let leftNodes = node.after(ancestor: n)
+                            current.childs[index] = .object(leftNodes.reversed().dropLast().reduce(ObjectNode(node: node, childs: [other]), { objNode, ref in
+                                let child = CacheNode.object(objNode)
+                                let next = ObjectNode(node: ref, childs: [child])
+                                didAppend?(next, child)
+                                return next
+                            }))
+//                            debugLog("Replaced value by node: \(node) with value: \(value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
+                        }
+                    }
+                } else {
+                    if node === n {
+                        current.childs.append(other)
+                        didAppend?(current, other)
+                    } else {
+                        let child = ObjectNode(node: n)
+                        current.childs.append(.object(child))
+                        didAppend?(current, .object(child))
+                        current = child
+                    }
+                }
+            }
+        } else {
+            fatalError("Cannot be merged, because value referenced to unrelated location")
+        }
+    }
+}
+
 extension ObjectNode: RealtimeDataProtocol, Sequence {
     public var childrenCount: UInt {
         return UInt(childs.count)
     }
 
     public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        return AnyIterator(childs.lazy.map { $0 as RealtimeDataProtocol }.makeIterator())
+        return AnyIterator(childs.lazy.map { $0.asUpdateNode() }.makeIterator())
     }
 
     public func exists() -> Bool {
@@ -477,20 +499,174 @@ extension ObjectNode: RealtimeDataProtocol, Sequence {
         return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: location), value: nil)
     }
     public func child(forNode node: Node) -> RealtimeDataProtocol {
-        return child(by: node) ?? ValueNode(node: node, value: nil)
+        return child(by: node)?.asUpdateNode() ?? ValueNode(node: node, value: nil)
     }
 
     public func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
-        return try childs.map(transform)
+        return try childs.map({ try transform($0.asUpdateNode()) })
     }
 
     public func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
-        return try childs.compactMap(transform)
+        return try childs.compactMap({ try transform($0.asUpdateNode()) })
     }
 
     public func forEach(_ body: (RealtimeDataProtocol) throws -> Void) rethrows {
-        return try childs.forEach(body)
+        return try childs.forEach({ try body($0.asUpdateNode()) })
     }
 
     public var debugDescription: String { return description }
+}
+
+// MARK: Cache
+
+class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
+    var isConnectionActive: AnyListenable<Bool> { return AnyListenable(Constant(true)) }
+
+    static let root: Cache = Cache(node: .root)
+    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
+
+    func clear() {
+        childs.removeAll()
+    }
+
+    var cachePolicy: CachePolicy {
+        set {
+            switch newValue {
+            case .persistance: break
+            /// makes persistance configuration
+            default: break
+            }
+        }
+        get { return .inMemory }
+    }
+
+    func generateAutoID() -> String {
+        return Database.database().generateAutoID() // need avoid using Firebase database
+    }
+
+    func node(with referenceNode: Node) -> DatabaseNode {
+        if referenceNode.isRoot {
+            return self
+        } else {
+            return child(by: referenceNode)?.asUpdateNode() ?? ValueNode(node: referenceNode, value: nil)
+        }
+    }
+
+    func commit(transaction: Transaction, completion: ((Error?, DatabaseNode) -> Void)?) {
+        do {
+            var notifications: [Node: (RealtimeDataProtocol, DatabaseDataEvent)] = [:]
+            try _mergeWithObject(
+                withTheSameReference: transaction.updateNode,
+                conflictResolver: { old, new in
+                    if observers.count > 0 {
+                        notifications[new.location] = (new.asUpdateNode(), .value)
+                        new.location.parent.map({ notifications[$0] = (new.asUpdateNode(), .child(new.isEmpty ? .removed : .changed)) })
+                    }
+                    return new
+                },
+                didAppend: observers.isEmpty ? nil : { parent, child in
+                    notifications[child.location] = (child.asUpdateNode(), .value)
+                    notifications[parent.location] = (child.asUpdateNode(), .child(child.isEmpty ? .removed : .added))
+                }
+            )
+            completion?(nil, self)
+            notifications.forEach { (args) in
+                observers[args.key]?.send(.value(args.value))
+            }
+        } catch let e {
+            completion?(e, self)
+        }
+    }
+
+    func removeAllObservers(for node: Node) {
+        observers.removeValue(forKey: node)
+    }
+
+    func removeObserver(for node: Node, with token: UInt) {
+        observers[node]?.remove(token)
+    }
+
+    func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
+        if node == location {
+            completion(self)
+        } else {
+            completion(child(by: node)?.asUpdateNode() ?? ValueNode(node: node, value: nil))
+        }
+    }
+
+    private func repeater(for node: Node) -> Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> {
+        guard let rep = observers[node] else {
+            let rep = Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>(dispatcher: .default)
+            observers[node] = rep
+            return rep
+        }
+        return rep
+    }
+
+    func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
+        let repeater: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
+
+        return repeater.add(Closure.just { e in
+            switch e {
+            case .value(let val): onUpdate(val.0)
+            case .error(let err): onCancel?(err)
+            }
+            }.filter({ (e) -> Bool in
+                switch (e, event) {
+                case (.error, _): return true
+                case (.value(_, .value), .value): return true
+                case (.value(_, .child(let received)), .child(let defined)):
+                    return received == defined
+                default: return false
+                }
+            }))
+    }
+
+    // storage
+
+    func node(with referenceNode: Node) -> StorageNode {
+        if referenceNode.isRoot {
+            fatalError("File cannot be put in root")
+        } else {
+            if case let .some(.file(file)) = child(by: referenceNode) {
+                return file
+            } else {
+                return FileNode(node: referenceNode, value: nil)
+            }
+        }
+    }
+
+    func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
+        let results = transaction.updateNode.files.map { (file) -> Transaction.FileCompletion in
+            do {
+                let nearest = self.nearestChild(by: Array(file.location.map({ $0.key }).reversed().dropFirst()))
+                if nearest.leftPath.isEmpty {
+                    try update(dbNode: nearest.node, with: file.value as Any)
+                } else {
+                    var nearestNode: ObjectNode
+                    switch nearest.node {
+                    case .value(let v), .file(let v as ValueNode):
+                        nearestNode = ObjectNode(node: v.location)
+                        try replaceNode(with: .object(nearestNode))
+                    case .object(let o):
+                        nearestNode = o
+                    }
+                    for (i, part) in nearest.leftPath.enumerated() {
+                        let node = Node(key: part, parent: nearestNode.location)
+                        if i == nearest.leftPath.count - 1 {
+                            nearestNode.childs.append(.file(FileNode(node: node, value: file.value)))
+                        } else {
+                            let next = ObjectNode(node: node)
+                            nearestNode.childs.append(.object(next))
+                            nearestNode = next
+                        }
+                    }
+                }
+                return .meta(file.metadata)
+            } catch let e {
+                return .error(file.location, e)
+            }
+        }
+        completion(results)
+    }
 }

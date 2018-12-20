@@ -98,8 +98,6 @@ extension ValueOption {
 
 /// Defines readonly property for files storage
 public final class ReadonlyFile<T>: ReadonlyProperty<T> {
-    override var updateType: ValueNode.Type { return FileNode.self }
-
     public override func runObserving() -> Bool {
         // currently it disabled
         return false
@@ -115,7 +113,7 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
 
     public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         // currently, file can be filled by data from cache only
-        if data.database === CacheNode.root {
+        if data.database === Cache.root {
             try super.apply(data, exactly: exactly)
         }
     }
@@ -123,7 +121,9 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
 
 /// Defines read/write property for files storage
 public final class File<T>: Property<T> {
-    override var updateType: ValueNode.Type { return FileNode.self }
+    override func cacheValue(_ node: Node, value: Any?) -> CacheNode {
+        return .file(FileNode(node: node, value: value))
+    }
 
     public override func runObserving() -> Bool {
         // currently it disabled
@@ -140,7 +140,7 @@ public final class File<T>: Property<T> {
 
     public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         // currently, file can be filled by data from cache only
-        if data.database === CacheNode.root {
+        if data.database === Cache.root {
             try super.apply(data, exactly: exactly)
         }
     }

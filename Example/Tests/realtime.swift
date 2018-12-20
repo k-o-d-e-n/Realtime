@@ -202,7 +202,7 @@ extension RealtimeTests {
         checkWillSave(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
         checkWillSave(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
         do {
-            let save = try obj.save(by: .root, in: Transaction(database: CacheNode.root, storage: CacheNode.root))
+            let save = try obj.save(by: .root, in: Transaction(database: Cache.root, storage: Cache.root))
             save.commit(with: { _, errs in
                 errs.map { _ in XCTFail() }
 
@@ -229,7 +229,7 @@ extension RealtimeTests {
                                         options: [:])
 
         XCTAssertFalse(property.hasChanges)
-        let transaction = Transaction(database: CacheNode.root)
+        let transaction = Transaction(database: Cache.root)
         do {
             try property.setValue("Some string", in: transaction)
             XCTAssertTrue(property.hasChanges)
@@ -252,7 +252,7 @@ extension RealtimeTests {
         obj.nestedObject.usualProperty <== "usual"
         obj.nestedObject.lazyProperty <== "lazy"
 
-        obj.didSave(in: CacheNode.root, in: .root, by: "obj")
+        obj.didSave(in: Cache.root, in: .root, by: "obj")
 
         XCTAssertFalse(obj.hasChanges)
         checkWillRemove(obj)
@@ -267,7 +267,7 @@ extension RealtimeTests {
         checkWillRemove(obj.nestedObject.usualProperty, nested: true)
         checkWillRemove(obj.nestedObject.lazyProperty, nested: true)
         do {
-            let save = try obj.delete(in: Transaction(database: CacheNode.root, storage: CacheNode.root))
+            let save = try obj.delete(in: Transaction(database: Cache.root, storage: Cache.root))
             save.commit(with: { _, errs in
                 errs.map { _ in XCTFail() }
 
@@ -444,7 +444,7 @@ extension RealtimeTests {
         user.ownedGroup <== group
 
         do {
-            let cache = Transaction(database: CacheNode.root, storage: CacheNode.root)
+            let cache = Transaction(database: Cache.root, storage: Cache.root)
             let transaction = try user.save(in: .root, in: cache)
             transaction.commit(with: { (_, errors) in
                 errors.map { _ in XCTFail() }
@@ -453,7 +453,7 @@ extension RealtimeTests {
 
                 user.photo <== #imageLiteral(resourceName: "pw")
                 do {
-                    let update = try user.update(in: Transaction(database: CacheNode.root, storage: CacheNode.root))
+                    let update = try user.update(in: Transaction(database: Cache.root, storage: Cache.root))
                     XCTAssertTrue(update.updateNode.updateValue.isEmpty)
                     update.commit(with: { _, errors in
                         errors.map { _ in XCTFail() }
@@ -495,7 +495,7 @@ extension RealtimeTests {
     }
 
     func testRelationOneToMany() {
-        let transaction = Transaction(database: CacheNode.root)
+        let transaction = Transaction(database: Cache.root)
 
         do {
             let user = User(in: Node(key: "user", parent: .root))
@@ -522,21 +522,21 @@ extension RealtimeTests {
 
     func testRelationManyToOne() {
         let exp = expectation(description: "")
-        let transaction = Transaction(database: CacheNode.root)
+        let transaction = Transaction(database: Cache.root)
 
         do {
-            let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
-            let group = Group(in: Node(key: "group", parent: .root), options: [.database: CacheNode.root])
+            let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
+            let group = Group(in: Node(key: "group", parent: .root), options: [.database: Cache.root])
 
             try user.ownedGroups.write(group, in: transaction)
             transaction.commit(with: { (_, errors) in
                 errors?.first.map({ XCTFail($0.describingErrorDescription) })
 
                 do {
-                    let userCopy = try User(data: CacheNode.root.child(forNode: user.node!), exactly: false)
+                    let userCopy = try User(data: Cache.root.child(forNode: user.node!), exactly: false)
 
                     let manager = group._manager
-                    let managerData = CacheNode.root.child(forNode: manager.node!)
+                    let managerData = Cache.root.child(forNode: manager.node!)
                     try manager.apply(managerData, exactly: true)
 
                     XCTAssertTrue(manager.unwrapped?.dbKey == user.dbKey)
@@ -699,7 +699,7 @@ extension RealtimeTests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
 
         let node = Node(key: "testObjects", parent: .root)
-        testObject.didSave(in: CacheNode.root, in: node)
+        testObject.didSave(in: Cache.root, in: node)
 
         XCTAssertTrue(testObject.isInserted)
         XCTAssertTrue(testObject.property.isInserted)
@@ -856,7 +856,7 @@ extension RealtimeTests {
 
     func testInitializeWithPayload4() {
         let exp = expectation(description: "")
-        let user = User2(in: nil, options: [.database: CacheNode.root, .systemPayload: SystemPayload(2, 5)])
+        let user = User2(in: nil, options: [.database: Cache.root, .systemPayload: SystemPayload(2, 5)])
         XCTAssertEqual(user.version, 2)
         XCTAssertEqual(user.raw as? Int, 5)
 
@@ -869,7 +869,7 @@ extension RealtimeTests {
                 errs?.first.map({ XCTFail($0.describingErrorDescription) })
 
                 do {
-                    let copyUser = try User2(data: CacheNode.root, exactly: true)
+                    let copyUser = try User2(data: Cache.root, exactly: true)
                     XCTAssertEqual(copyUser.version, 2)
                     XCTAssertEqual(copyUser.raw as? Int, 5)
                 } catch let e {
@@ -893,7 +893,7 @@ extension RealtimeTests {
     }
 
     func testLocalDatabase() {
-        let transaction = Transaction(database: CacheNode.root)
+        let transaction = Transaction(database: Cache.root)
         let testObject = TestObject(in: .root)
 
         testObject.property <== "string"
@@ -907,7 +907,7 @@ extension RealtimeTests {
                     XCTFail(e.localizedDescription)
                 } else {
                     do {
-                        let restoredObj = try TestObject(data: CacheNode.root, exactly: false)
+                        let restoredObj = try TestObject(data: Cache.root, exactly: false)
 
                         XCTAssertEqual(testObject.property, restoredObj.property)
                         XCTAssertEqual(testObject.nestedObject.lazyProperty,
@@ -923,7 +923,7 @@ extension RealtimeTests {
     }
 
     func testCacheObject() {
-        let transaction = Transaction(database: CacheNode.root, storage: CacheNode.root)
+        let transaction = Transaction(database: Cache.root, storage: Cache.root)
         let testObject = TestObject(in: .root)
 
         testObject.property <== "string"
@@ -940,7 +940,7 @@ extension RealtimeTests {
                 if let e = errs?.first {
                     XCTFail(e.localizedDescription)
                 } else {
-                    let restoredObj = TestObject(in: .root, options: [.database: CacheNode.root])
+                    let restoredObj = TestObject(in: .root, options: [.database: Cache.root])
                     restoredObj.load(completion: .just { e in
                         e.map { XCTFail($0.localizedDescription) }
 
@@ -1084,10 +1084,10 @@ extension RealtimeTests {
         transaction.revert()
     }
 
-/* Observing in CacheNode is not implemented.
+/* Observing in Cache is not implemented.
     func testListeningCollectionChangesOnInsert() {
         let exp = expectation(description: "")
-        let array = Values<User>(in: .root, options: [.database: CacheNode.root])
+        let array = Values<User>(in: .root, options: [.database: Cache.root])
 
         array.changes.listening(onValue: { (event) in
             switch value {
@@ -1108,7 +1108,7 @@ extension RealtimeTests {
         element.photo <== #imageLiteral(resourceName: "pw")
 
         do {
-            let transaction = Transaction(database: CacheNode.root)
+            let transaction = Transaction(database: Cache.root)
             let elementNode = array.storage.sourceNode.childByAutoId()
             let itemNode = array.storage.sourceNode.child(with: InternalKeys.items).linksNode.child(with: elementNode.key)
             let link = elementNode.generate(linkTo: itemNode)
@@ -1122,7 +1122,7 @@ extension RealtimeTests {
             transaction.commit { (state, errors) in
                 errors.map { e in XCTFail(e.reduce("") { $0 + $1.describingErrorDescription }) }
                 array._view.isSynced = true
-                array._view.source.dataObserver.send(.value((CacheNode.root.child(forPath: itemNode.rootPath), .child(.added))))
+                array._view.source.dataObserver.send(.value((Cache.root.child(forPath: itemNode.rootPath), .child(.added))))
             }
         } catch let e {
             XCTFail(e.describingErrorDescription)
@@ -1136,8 +1136,8 @@ extension RealtimeTests {
 
     func testReadonlyRelation() {
         let exp = expectation(description: "")
-        let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
-        let group = Group(in: Node(key: "group", parent: .root), options: [.database: CacheNode.root])
+        let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
+        let group = Group(in: Node(key: "group", parent: .root), options: [.database: Cache.root])
         user.ownedGroup <== group
 
         do {
@@ -1147,7 +1147,7 @@ extension RealtimeTests {
 
                 let ownedGroup = Relation<Group?>.readonly(in: user.ownedGroup.node, config: user.ownedGroup.options)
                 do {
-                    try ownedGroup.apply(CacheNode.root.child(forNode: user.ownedGroup.node!), exactly: true)
+                    try ownedGroup.apply(Cache.root.child(forNode: user.ownedGroup.node!), exactly: true)
                     XCTAssertEqual(ownedGroup.wrapped, user.ownedGroup.wrapped)
                     exp.fulfill()
                 } catch let e {
@@ -1164,10 +1164,10 @@ extension RealtimeTests {
     }
 
     func testReadonlyReference() {
-        CacheNode.root.clear()
+        Cache.root.clear()
         let exp = expectation(description: "")
-        let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
-        let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: [.database: CacheNode.root])
+        let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
+        let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: [.database: Cache.root])
         conversation.chairman <== user
 
         do {
@@ -1177,10 +1177,10 @@ extension RealtimeTests {
 
                 let chairman = Reference<User>.readonly(
                     in: conversation.chairman.node,
-                    mode: Reference<User>.Mode.required(.fullPath, options: [.database: CacheNode.root])
+                    mode: Reference<User>.Mode.required(.fullPath, options: [.database: Cache.root])
                 )
                 do {
-                    try chairman.apply(CacheNode.root.child(forNode: conversation.chairman.node!), exactly: true)
+                    try chairman.apply(Cache.root.child(forNode: conversation.chairman.node!), exactly: true)
                     XCTAssertEqual(chairman.wrapped, conversation.chairman.wrapped)
                     exp.fulfill()
                 } catch let e {
@@ -1197,9 +1197,9 @@ extension RealtimeTests {
     }
 
     func testDatabaseBinding() {
-        let testObject = TestObject(in: .root, options: [.database: CacheNode.root])
+        let testObject = TestObject(in: .root, options: [.database: Cache.root])
         testObject.forceEnumerateAllChilds { (_, value: _RealtimeValue) in
-            if value.database === CacheNode.root {
+            if value.database === Cache.root {
                 XCTAssertTrue(true)
             } else {
                 XCTFail("value: \(value), database: \(value.database as Any)")
@@ -1209,18 +1209,18 @@ extension RealtimeTests {
 
     func testAssociatedValuesWithVersionAndRawValues() {
         let exp = expectation(description: "")
-        let assocValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.database: CacheNode.root, .keysNode: Node.root("keys")])
-        let key = Object(in: Node.root("keys").child(with: "key"), options: [.database: CacheNode.root, .systemPayload: (version: 3, raw: 2)])
-        let value = Object(in: nil, options: [.database: CacheNode.root, .systemPayload: (version: 1, raw: 5)])
+        let assocValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.database: Cache.root, .keysNode: Node.root("keys")])
+        let key = Object(in: Node.root("keys").child(with: "key"), options: [.database: Cache.root, .systemPayload: (version: 3, raw: 2)])
+        let value = Object(in: nil, options: [.database: Cache.root, .systemPayload: (version: 1, raw: 5)])
         do {
-            let trans = Transaction(database: CacheNode.root)
+            let trans = Transaction(database: Cache.root)
             try assocValues.write(element: value, for: key, in: trans)
             trans.commit { (_, errors) in
                 _ = errors?.compactMap({ XCTFail($0.describingErrorDescription) })
 
                 /// we can use Values for readonly access to values, AssociatedValues and Values must be compatible
                 let copyAssocitedValues = AssociatedValues<Object, Object>(in: Node.root("values"),
-                                                                           options: [.keysNode: Node.root("keys"), .database: CacheNode.root])
+                                                                           options: [.keysNode: Node.root("keys"), .database: Cache.root])
                 let copyValues = copyAssocitedValues.values()
                 /// we can use References for readonly access to keys
                 let copyKeys = copyAssocitedValues.keys()
