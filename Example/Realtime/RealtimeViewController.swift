@@ -381,14 +381,14 @@ class RealtimeViewController: UIViewController {
 }
 
 extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
         picker.dismiss(animated: true, completion: nil)
         guard let u = user ?? Global.rtUsers.first else {
             setError("Cannot retrieve user")
             return
         }
 
-        guard let originalImage = info[UIImagePickerControllerOriginalImage] as? UIImage else {
+        guard case let originalImage as UIImage = info[.originalImage] else {
             setError("Image picking is failed")
             return
         }

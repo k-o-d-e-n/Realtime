@@ -10,7 +10,7 @@ import UIKit
 import Realtime
 
 class TableCell: UITableViewCell {
-    lazy var indicator: UIActivityIndicatorView = UIActivityIndicatorView(activityIndicatorStyle: .gray).add(to: self.contentView) {
+    lazy var indicator: UIActivityIndicatorView = UIActivityIndicatorView(style: .gray).add(to: self.contentView) {
         $0.center = self.contentView.center
     }
     lazy var label: UILabel = UILabel().add(to: self.contentView) {
@@ -36,7 +36,7 @@ class TableCell: UITableViewCell {
 
 class RealtimeTableController: UIViewController {
     var store = ListeningDisposeStore()
-    var tableView: UITableView! { return view as! UITableView }
+    var tableView: UITableView { return view as! UITableView }
     var delegate: SingleSectionTableViewDelegate<User>!
     weak var activityView: UIActivityIndicatorView!
 
@@ -50,7 +50,7 @@ class RealtimeTableController: UIViewController {
         navigationItem.rightBarButtonItems = [UIBarButtonItem(barButtonSystemItem: .edit, target: self, action: #selector(edit)),
                                               UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(addUser))]
 
-        let iView = UIActivityIndicatorView(activityIndicatorStyle: .gray)
+        let iView = UIActivityIndicatorView(style: .gray)
         navigationItem.titleView = iView
         self.activityView = iView
 
@@ -183,11 +183,11 @@ extension RealtimeTableController: UITableViewDelegate, RealtimeEditingTableData
         print("Did select row at \(indexPath)")
     }
 
-    func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+    func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
         return .delete
     }
 
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         switch editingStyle {
         case .delete:
             guard Global.rtUsers.isSynced else {

@@ -170,7 +170,7 @@ class ReuseController<View: AnyObject, Key: Hashable> {
 public protocol RealtimeEditingTableDataSource: class {
     func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool
     func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath)
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath)
     func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath)
     func tableView(
         _ tableView: UITableView,
@@ -295,13 +295,13 @@ extension SingleSectionTableViewDelegate {
 
         override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
             return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ??
-                (tableView.rowHeight != UITableViewAutomaticDimension ? tableView.rowHeight : 44.0)
+                (tableView.rowHeight != UITableView.automaticDimension ? tableView.rowHeight : 44.0)
         }
 
         override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
             return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ??
                 delegate.headerView?.frame.height ??
-                (tableView.sectionHeaderHeight != UITableViewAutomaticDimension ? tableView.sectionHeaderHeight : 0.0)
+                (tableView.sectionHeaderHeight != UITableView.automaticDimension ? tableView.sectionHeaderHeight : 0.0)
         }
 
         /// events
@@ -327,11 +327,11 @@ extension SingleSectionTableViewDelegate {
             delegate.tableDelegate?.tableView?(tableView, didSelectRowAt: indexPath)
         }
 
-        override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+        override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
             return delegate.tableDelegate?.tableView?(tableView, editingStyleForRowAt: indexPath) ?? .delete
         }
 
-        override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
             delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
         }
 
@@ -547,12 +547,12 @@ extension SectionedTableViewDelegate {
 
         override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
             return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ??
-                (tableView.sectionHeaderHeight != UITableViewAutomaticDimension ? tableView.sectionHeaderHeight : 35.0)
+                (tableView.sectionHeaderHeight != UITableView.automaticDimension ? tableView.sectionHeaderHeight : 35.0)
         }
 
         override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
             return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ??
-                (tableView.rowHeight != UITableViewAutomaticDimension ? tableView.rowHeight : 44.0)
+                (tableView.rowHeight != UITableView.automaticDimension ? tableView.rowHeight : 44.0)
         }
 
         override func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
@@ -638,11 +638,11 @@ extension SectionedTableViewDelegate {
             sectionItem.free()
         }
 
-        override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+        override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
             return delegate.tableDelegate?.tableView?(tableView, editingStyleForRowAt: indexPath) ?? .delete
         }
 
-        override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
             delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
         }
 

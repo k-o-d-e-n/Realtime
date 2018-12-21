@@ -379,13 +379,13 @@ open class Form<Model: AnyObject> {
     }
 
     open func insertRow<Cell: UITableViewCell>(
-        _ row: Row<Cell, Model>, at indexPath: IndexPath, with animation: UITableViewRowAnimation = .automatic
+        _ row: Row<Cell, Model>, at indexPath: IndexPath, with animation: UITableView.RowAnimation = .automatic
         ) {
         sections[indexPath.section].insertRow(row, at: indexPath.row)
         tableView?.insertRows(at: [indexPath], with: animation)
     }
 
-    open func deleteRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation = .automatic) {
+    open func deleteRows(at indexPaths: [IndexPath], with animation: UITableView.RowAnimation = .automatic) {
         indexPaths.sorted(by: >).forEach { sections[$0.section].deleteRow(at: $0.row) }
         tableView?.deleteRows(at: indexPaths, with: animation)
     }
@@ -400,25 +400,25 @@ open class Form<Model: AnyObject> {
         tableView?.moveRow(at: indexPath, to: newIndexPath)
     }
 
-    open func addSection(_ section: Section<Model>, with animation: UITableViewRowAnimation = .automatic) {
+    open func addSection(_ section: Section<Model>, with animation: UITableView.RowAnimation = .automatic) {
         insertSection(section, at: sections.count)
     }
 
-    open func insertSection(_ section: Section<Model>, at index: Int, with animation: UITableViewRowAnimation = .automatic) {
+    open func insertSection(_ section: Section<Model>, at index: Int, with animation: UITableView.RowAnimation = .automatic) {
         sections.insert(section, at: index)
         tableView?.insertSections([index], with: animation)
     }
 
-    open func deleteSections(at indexes: IndexSet, with animation: UITableViewRowAnimation) {
+    open func deleteSections(at indexes: IndexSet, with animation: UITableView.RowAnimation) {
         indexes.reversed().forEach { removedSections[$0] = sections.remove(at: $0) }
         tableView?.deleteSections(indexes, with: animation)
     }
 
-    open func reloadRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation) {
+    open func reloadRows(at indexPaths: [IndexPath], with animation: UITableView.RowAnimation) {
         tableView?.reloadRows(at: indexPaths, with: animation)
     }
 
-    open func reloadSections(_ sections: IndexSet, with animation: UITableViewRowAnimation) {
+    open func reloadSections(_ sections: IndexSet, with animation: UITableView.RowAnimation) {
         tableView?.reloadSections(sections, with: animation)
     }
 
@@ -520,11 +520,11 @@ extension Form {
             return form.tableDelegate.flatMap { $0.tableView?(tableView, shouldIndentWhileEditingRowAt: indexPath) } ?? true
         }
 
-        func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+        func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
             return form.tableDelegate.flatMap { $0.tableView?(tableView, editingStyleForRowAt: indexPath) } ?? .none
         }
 
-        func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
             form.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
         }
 

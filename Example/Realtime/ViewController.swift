@@ -16,7 +16,7 @@ class ViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let iView = UIActivityIndicatorView(activityIndicatorStyle: .gray)
+        let iView = UIActivityIndicatorView(style: .gray)
         navigationItem.titleView = iView
         self.activityView = iView
 

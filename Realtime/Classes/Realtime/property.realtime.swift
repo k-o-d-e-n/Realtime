@@ -610,9 +610,9 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         self.init(in: node, options: options.merging([.representer: representer.optionalProperty()], uniquingKeysWith: { _, new in new }))
     }
 
-    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) where ImplicitlyUnwrappedOptional<U> == T {
-        self.init(in: node, options: options.merging([.representer: representer.writeRequiredProperty()], uniquingKeysWith: { _, new in new }))
-    }
+//    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) where ImplicitlyUnwrappedOptional<U> == T {
+//        self.init(in: node, options: options.merging([.representer: representer.writeRequiredProperty()], uniquingKeysWith: { _, new in new }))
+//    }
     
     /// Designed initializer
     ///

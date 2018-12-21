@@ -58,7 +58,7 @@ class TextCell: UITableViewCell {
 }
 
 class SubtitleCell: UITableViewCell {
-    override init(style: UITableViewCellStyle = .value1, reuseIdentifier: String?) {
+    override init(style: UITableViewCell.CellStyle = .value1, reuseIdentifier: String?) {
         super.init(style: .value1, reuseIdentifier: reuseIdentifier)
     }
 
@@ -74,7 +74,7 @@ let valueCellIdentifier = "value"
 class FormViewController: UIViewController {
     var store = ListeningDisposeStore()
     var delegate: SingleSectionTableViewDelegate<User>!
-    var tableView: UITableView! { return view as! UITableView }
+    var tableView: UITableView { return view as! UITableView }
 
     var form: Form<User>!
     var validator: Accumulator<(String?, Int?)>!
@@ -135,8 +135,8 @@ class FormViewController: UIViewController {
             cell.imageView?.image = args.1.photo.unwrapped
             row.onSelect({ (ip, row) in
                 let picker = UIImagePickerController()
-                picker.realtime.image.listeningItem(onValue: { [unowned row] (args) in
-                    guard case let originalImage as UIImage = args.1[UIImagePickerControllerOriginalImage] else {
+                picker.realtime.image.listening(onValue: { [unowned row] (args) in
+                    guard case let originalImage as UIImage = args.1[.originalImage] else {
                         fatalError()
                     }
                     user.photo <== originalImage

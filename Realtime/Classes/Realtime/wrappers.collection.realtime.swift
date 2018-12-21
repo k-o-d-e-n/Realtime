@@ -125,7 +125,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
 
     public var startIndex: Int { return base.startIndex }
     public var endIndex: Int { return base.endIndex }
-    public func index(after i: Index) -> Int { return base.index(after: i) }
+    public func index(after i: Int) -> Int { return base.index(after: i) }
     public func index(before i: Int) -> Int { return base.index(before: i) }
     public subscript(position: Int) -> Element { return base[position] }
 

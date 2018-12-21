@@ -411,7 +411,7 @@ extension RealtimeTests {
             element.array._view.isSynced = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
-            let imgData = UIImagePNGRepresentation(#imageLiteral(resourceName: "pw"))!
+            let imgData = #imageLiteral(resourceName: "pw").pngData()!
             transaction.addFile(imgData, by: element.readonlyFile.node!)
             element.file <== #imageLiteral(resourceName: "pw")
 
@@ -422,7 +422,7 @@ extension RealtimeTests {
             XCTAssertNotNil(object.file.unwrapped)
 //            XCTAssertEqual(object.file.unwrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
             XCTAssertNotNil(object.readonlyFile.unwrapped)
-            XCTAssertEqual(object.readonlyFile.unwrapped.flatMap(UIImagePNGRepresentation), imgData)
+            XCTAssertEqual(object.readonlyFile.unwrapped.flatMap { $0.pngData() }, imgData)
             XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
@@ -894,7 +894,7 @@ extension RealtimeTests {
         do {
             try testObject.update(in: transaction)
 
-            let imgData = UIImagePNGRepresentation(#imageLiteral(resourceName: "pw"))!
+            let imgData = #imageLiteral(resourceName: "pw").pngData()!
             transaction.addFile(imgData, by: testObject.readonlyFile.node!)
 
             transaction.commit(with: { (state, errs) in
