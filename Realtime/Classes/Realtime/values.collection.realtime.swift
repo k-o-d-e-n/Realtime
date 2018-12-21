@@ -394,7 +394,7 @@ extension Values {
 }
 
 public final class ExplicitValues<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Element: RCExplicitElementProtocol {
+where Element: WritableRealtimeValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
 
     public override var raw: RealtimeDataValue? { return nil }

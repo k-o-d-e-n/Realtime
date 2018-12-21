@@ -42,7 +42,7 @@ public extension ValueOption {
 }
 
 /// A Realtime database collection that stores elements in own database node as references.
-public class __RepresentableCollection<Element, Ref: RCExplicitElementProtocol>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
+public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
     internal var storage: RCKeyValueStorage<Element>
 
     public override var raw: RealtimeDataValue? { return nil }

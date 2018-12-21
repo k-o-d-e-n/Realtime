@@ -458,7 +458,7 @@ extension AssociatedValues {
 }
 
 public final class ExplicitAssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Value: RCExplicitElementProtocol, Key: HashableValue {
+where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
     override var _hasChanges: Bool { return view._hasChanges }
     internal(set) var storage: RCDictionaryStorage<Key, Value>
     internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
