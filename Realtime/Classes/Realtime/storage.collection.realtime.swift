@@ -63,7 +63,7 @@ extension RealtimeValueBuilder {
     func buildKey(with item: RDItem) -> Value {
         return impl(spaceNode.child(with: item.dbKey), item.defaultOptions)
     }
-    func build<T>(with item: T) -> Value where T: RCExplicitElementProtocol {
+    func build<T>(with item: T) -> Value where T: RealtimeValue {
         return impl(spaceNode.child(with: item.dbKey), item.defaultOptions)
     }
 }

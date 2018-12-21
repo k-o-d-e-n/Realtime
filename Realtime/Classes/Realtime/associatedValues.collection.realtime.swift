@@ -426,7 +426,7 @@ extension AssociatedValues {
             item.linkID = valueLink.link.id
             transaction.addValue(try valueLink.link.defaultRepresentation(), by: valueLink.node) /// add link to value object
         }
-        transaction.addValue(try item.defaultRepresentation(), by: itemNode) /// add item of element
+        try item.write(to: transaction, by: itemNode) /// add item of element
         try transaction.set(element, by: elementNode) /// add element
     }
 

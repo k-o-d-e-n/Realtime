@@ -357,7 +357,7 @@ extension Values {
             self?.storage.removeValue(forKey: item.dbKey)
         })
         storage.set(value: element, for: item.dbKey)
-        transaction.addValue(try item.defaultRepresentation(), by: itemNode) /// add item element
+        try item.write(to: transaction, by: itemNode) /// add item element
         transaction.addValue(try link.link.defaultRepresentation(), by: link.node) /// add link
         try transaction.set(element, by: elementNode) /// add element
     }

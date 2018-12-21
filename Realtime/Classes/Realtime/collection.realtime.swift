@@ -21,8 +21,6 @@ public enum RCEvent {
 
 /// -----------------------------------------
 
-public protocol RCExplicitElementProtocol: RealtimeValue, RealtimeDataValueRepresented, Comparable {}
-
 /// A type that makes possible to do someone actions related with collection
 public protocol RealtimeCollectionActions {
     /// Single loading of value. Returns error if object hasn't rooted node.

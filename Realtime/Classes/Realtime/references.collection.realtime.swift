@@ -356,7 +356,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
             item.linkID = link.link.id
             transaction.addValue(try link.link.defaultRepresentation(), by: link.node) // add link
         }
-        transaction.addValue(try item.defaultRepresentation(), by: itemNode) // add item element
+        try item.write(to: transaction, by: itemNode) // add item element
     }
 
     private func _remove(_ element: Element, in transaction: Transaction) {
@@ -382,7 +382,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
 
 // MARK: Relations
 
-public struct RelationsItem: RCExplicitElementProtocol, Comparable {
+public struct RelationsItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDataValue?
     public var payload: [String : RealtimeDataValue]?
     public var node: Node?
@@ -406,6 +406,10 @@ public struct RelationsItem: RCExplicitElementProtocol, Comparable {
     public init(data: RealtimeDataProtocol, exactly: Bool) throws {
         self.dbKey = data.key
         self.relation = try RelationRepresentation(data: data, exactly: exactly)
+    }
+
+    public func write(to transaction: Transaction, by node: Node) throws {
+        transaction.addValue(try defaultRepresentation(), by: node)
     }
 
     public func defaultRepresentation() throws -> Any {

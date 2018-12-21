@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct RCItem: RCExplicitElementProtocol {
+public struct RCItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDataValue?
     public var payload: [String : RealtimeDataValue]?
     public var node: Node?
@@ -41,7 +41,11 @@ public struct RCItem: RCExplicitElementProtocol {
         self.payload = try InternalKeys.payload.map(from: valueData)
     }
 
-    public func defaultRepresentation() throws -> Any {
+    public func write(to transaction: Transaction, by node: Node) throws {
+        transaction.addValue(try defaultRepresentation(), by: node)
+    }
+
+    private func defaultRepresentation() throws -> Any {
         var representation: [String: RealtimeDataValue] = [:]
         representation[InternalKeys.link.rawValue] = linkID
         representation[InternalKeys.index.rawValue] = priority
@@ -72,7 +76,7 @@ public struct RCItem: RCExplicitElementProtocol {
     }
 }
 
-public struct RDItem: RCExplicitElementProtocol {
+public struct RDItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDataValue?
     public var payload: [String : RealtimeDataValue]?
     public var node: Node? { return rcItem.node }
@@ -105,7 +109,11 @@ public struct RDItem: RCExplicitElementProtocol {
         self.payload = try InternalKeys.payload.map(from: keyData)
     }
 
-    public func defaultRepresentation() throws -> Any {
+    public func write(to transaction: Transaction, by node: Node) throws {
+        transaction.addValue(try defaultRepresentation(), by: node)
+    }
+
+    private func defaultRepresentation() throws -> Any {
         var representation: [String: RealtimeDataValue] = [:]
         representation[InternalKeys.link.rawValue] = rcItem.linkID
         representation[InternalKeys.index.rawValue] = rcItem.priority
@@ -183,7 +191,13 @@ public struct AnyRealtimeCollectionView: RealtimeCollectionView {
     public subscript(position: AnyIndex) -> String { return _view[position] }
 }
 
-public final class SortedCollectionView<Element: RCExplicitElementProtocol>: _RealtimeValue, RealtimeCollectionView {
+extension SortedArray: RealtimeDataRepresented where Element: RealtimeDataRepresented & Comparable {
+    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        self.init(try data.map(Element.init))
+    }
+}
+
+public final class SortedCollectionView<Element: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollectionView {
     typealias Source = SortedArray<Element>
     private var _elements: Source = Source()
     internal(set) var isSynced: Bool = false
@@ -293,15 +307,15 @@ public final class SortedCollectionView<Element: RCExplicitElementProtocol>: _Re
         _elements.removeAll()
         for item in view {
             let itemNode = node.child(with: item.dbKey)
-            transaction.addValue(try item.defaultRepresentation(), by: itemNode)
+            try item.write(to: transaction, by: itemNode)
         }
     }
 
     public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         /// partial data processing see in `changes`
         guard exactly else { return }
-        let representer = Representer<SortedArray<Element>>(collection: Representer.realtimeData).defaultOnEmpty()
-        self._elements = try representer.decode(data)
+
+        self._elements = try SortedArray(data: data, exactly: exactly)
     }
 
     public func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void) {
