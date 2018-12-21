@@ -57,29 +57,14 @@ struct RealtimeValueBuilder<Value>: RealtimeValueBuilderProtocol {
     }
 }
 extension RealtimeValueBuilder {
-    func build(with item: RCItem) -> Value {
-        return impl(spaceNode.child(with: item.dbKey), [
-            .rawValue: item.valuePayload.system,
-            .userPayload: item.valuePayload.user as Any
-        ])
-    }
     func buildValue(with item: RDItem) -> Value {
-        return impl(spaceNode.child(with: item.dbKey), [
-            .rawValue: item.rcItem.valuePayload.system,
-            .userPayload: item.rcItem.valuePayload.user as Any
-        ])
+        return impl(spaceNode.child(with: item.dbKey), item.rcItem.defaultOptions)
     }
     func buildKey(with item: RDItem) -> Value {
-        return impl(spaceNode.child(with: item.dbKey), [
-            .rawValue: item.valuePayload.system,
-            .userPayload: item.valuePayload.user as Any
-        ])
+        return impl(spaceNode.child(with: item.dbKey), item.defaultOptions)
     }
-    func build<T>(with item: T) -> Value where T: RCViewItem {
-        return impl(spaceNode.child(with: item.dbKey), [
-            .rawValue: item.valuePayload.system,
-            .userPayload: item.valuePayload.user as Any
-        ])
+    func build<T>(with item: T) -> Value where T: RCExplicitElementProtocol {
+        return impl(spaceNode.child(with: item.dbKey), item.defaultOptions)
     }
 }
 

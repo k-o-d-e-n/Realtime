@@ -214,7 +214,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     override public var debugDescription: String {
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
-            ref: \(node?.rootPath ?? "not referred"),
+            ref: \(node?.absolutePath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
             elements: \(view.map { (key: $0.dbKey, index: $0.priority) })
         }
@@ -304,7 +304,9 @@ extension AssociatedValues {
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
-        _ = view.insert(RDItem(value: element, key: key, priority: view.count, linkID: nil))
+        var item = RDItem(key: key, value: element)
+        item.priority = view.count
+        _ = view.insert(item)
         storage.set(value: element, for: key)
     }
 
@@ -404,7 +406,8 @@ extension AssociatedValues {
                 by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
         let itemNode = location.itms.child(with: key.dbKey)
         let elementNode = location.storage.child(with: key.dbKey)
-        var item = RDItem(value: element, key: key, priority: count, linkID: nil)
+        var item = RDItem(key: key, value: element)
+        item.priority = count
 
         transaction.addReversion({ [weak self] in
             self?.storage.remove(for: key)
@@ -454,7 +457,7 @@ extension AssociatedValues {
 }
 
 public final class ExplicitAssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Value: RCViewItem & Comparable, Key: HashableValue {
+where Value: RCExplicitElementProtocol, Key: HashableValue {
     override var _hasChanges: Bool { return view._hasChanges }
     internal(set) var storage: RCDictionaryStorage<Key, Value>
     internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
@@ -535,9 +538,10 @@ where Value: RCViewItem & Comparable, Key: HashableValue {
     public subscript(position: Int) -> Element {
         let value = view[position]
         guard let element = storage.element(for: value.dbKey) else {
+            let keyPayload = value.payload?[InternalKeys.key.rawValue] as? [String: RealtimeDataValue]
             let key = keyBuilder.build(with: value.dbKey, options: [
-                .rawValue: value.valuePayload.system,
-                .userPayload: value.valuePayload.user as Any
+                .rawValue: keyPayload?[InternalKeys.raw.rawValue] as Any,
+                .userPayload: keyPayload?[InternalKeys.payload.rawValue] as Any
             ])
             storage.set(value: value, for: key)
             return (key, value)

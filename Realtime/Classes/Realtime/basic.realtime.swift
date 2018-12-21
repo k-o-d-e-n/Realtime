@@ -145,10 +145,16 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented
     /// - Parameter options: Dictionary of options
     init(in node: Node?, options: [ValueOption: Any])
 }
-public typealias SystemPayload = RealtimeDataValue?
 extension RealtimeValue {
-    internal var systemPayload: SystemPayload {
-        return raw
+    var defaultOptions: [ValueOption: Any] {
+        var options: [ValueOption: Any] = [:]
+        if let r = self.raw {
+            options[.rawValue] = r
+        }
+        if let upl = self.payload {
+            options[.userPayload] = upl
+        }
+        return options
     }
 }
 

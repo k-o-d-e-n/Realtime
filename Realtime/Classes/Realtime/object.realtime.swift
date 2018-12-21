@@ -146,7 +146,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         if case let pl as [String: RealtimeDataValue] = options[.userPayload] {
             self.payload = pl
         }
-        if case let ipl as SystemPayload = options[.rawValue] {
+        if case let ipl as RealtimeDataValue = options[.rawValue] {
             self.raw = ipl
         }
     }

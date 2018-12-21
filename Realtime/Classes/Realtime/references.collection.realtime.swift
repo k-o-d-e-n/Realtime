@@ -42,7 +42,7 @@ public extension ValueOption {
 }
 
 /// A Realtime database collection that stores elements in own database node as references.
-public class __RepresentableCollection<Element, Ref: RCViewItem>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
+public class __RepresentableCollection<Element, Ref: RCExplicitElementProtocol>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
     internal var storage: RCKeyValueStorage<Element>
 
     public override var raw: RealtimeDataValue? { return nil }
@@ -127,7 +127,7 @@ public class __RepresentableCollection<Element, Ref: RCViewItem>: _RealtimeValue
     override public var debugDescription: String {
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
-            ref: \(node?.rootPath ?? "not referred"),
+            ref: \(node?.absolutePath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
             elements: \(view.map { $0.dbKey })
         }
@@ -260,7 +260,8 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
         }
 
         let index = priority ?? view.count
-        let item = RCItem(element: element, priority: index, linkID: nil)
+        var item = RCItem(key: nil, value: element)
+        item.priority = index
         storage.set(value: element, for: item.dbKey)
         view.insert(item)
     }
@@ -336,14 +337,15 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
         in database: RealtimeDatabase, in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, with: priority ?? view.last.map { $0.priority + 1 } ?? 0, by: node!, in: transaction)
+        try _write(element, with: priority ?? view.last.flatMap { $0.priority.map { $0 + 1 } } ?? 0, by: node!, in: transaction)
         return transaction
     }
 
     internal func _write(_ element: Element, with priority: Int,
                          by location: Node, in transaction: Transaction) throws {
         let itemNode = location.child(with: element.dbKey)
-        var item = RCItem(element: element, priority: priority, linkID: nil)
+        var item = RCItem(key: itemNode.key, value: element)
+        item.priority = priority
 
         transaction.addReversion({ [weak self] in
             self?.storage.remove(for: item.dbKey)
@@ -380,16 +382,25 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
 
 // MARK: Relations
 
-public struct RelationsItem: RCViewItem, Comparable {
+public struct RelationsItem: RCExplicitElementProtocol, Comparable {
+    public var raw: RealtimeDataValue?
+    public var payload: [String : RealtimeDataValue]?
+    public var node: Node?
+
     public let dbKey: String!
-    let relation: RelationRepresentation!
-    public var valuePayload: RealtimeValuePayload {
-        return RealtimeValuePayload(system: nil, user: nil)
+    var relation: RelationRepresentation!
+
+    init(value: RealtimeValue) {
+        self.dbKey = value.dbKey
+        self.raw = value.raw
+        self.payload = value.payload
     }
 
-    public init(_ element: (key: String, relation: RelationRepresentation?)) {
-        self.relation = element.relation
-        self.dbKey = element.key
+    public init(in node: Node?, options: [ValueOption : Any]) {
+        self.node = node
+        self.dbKey = node?.key
+        self.raw = options[.rawValue] as? RealtimeDataValue
+        self.payload = options[.userPayload] as? [String: RealtimeDataValue]
     }
 
     public init(data: RealtimeDataProtocol, exactly: Bool) throws {
@@ -556,7 +567,9 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
                 let ownerRelation = RelationRepresentation(path: ownerNode.path(from: anchorNode), property: node.child(with: keyValue.key).path(from: ownerNode))
                 transaction.addValue(try ownerRelation.defaultRepresentation(), by: elementNode.child(with: options.property.propertyPath))
             }
-            return RelationsItem((keyValue.key, relation))
+            var item = RelationsItem(value: keyValue.value)
+            item.relation = relation
+            return item
         }
         self.view.elements = SortedArray(view)
         try self.view._write(to: transaction, by: node)
@@ -675,7 +688,7 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
         guard !contains else {
             fatalError("Element with such key already exists")
         }
-        let item = RelationsItem((element.dbKey, nil))
+        let item = RelationsItem(value: element)
         storage.set(value: element, for: item.dbKey)
         view.insert(item)
     }
@@ -764,7 +777,8 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
             path: options.elementPath(with: elementNode, anchorNode: anchorNode.element),
             property: options.property.path(for: owner)
         )
-        let item = RelationsItem((elementNode.key, elementRelation))
+        var item = RelationsItem(value: element)
+        item.relation = elementRelation
 
         transaction.addReversion({ [weak self] in
             self?.storage.remove(for: item.dbKey)

@@ -40,29 +40,6 @@ class OtherTests: XCTestCase {
 // MARK: Other
 
 extension OtherTests {
-    func testAnyOf() {
-        XCTAssertTrue(2 ∈ [1,2,3]) // true
-        XCTAssertTrue("Two" ∈ ["One", "Two", "Three"])
-
-        XCTAssertTrue(any(of: 1,2,3)(2)) // true
-        XCTAssertTrue(any(of: "One", "Two", "Three")("Two"))
-    }
-    func testAnyCollection() {
-        var calculator: Int = 0
-        let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        var source = [0]
-        let one = SharedCollection(source)
-
-        let lazyOne = one.lazy.map(mapValue)
-        _ = lazyOne.first
-        XCTAssertTrue(calculator == 1)
-        let anyLazyOne = AnySharedCollection(lazyOne)
-        XCTAssertTrue(calculator == 1)
-        source.append(1)
-        XCTAssertTrue(one.count == 2)
-        XCTAssertTrue(lazyOne.count == 2)
-        XCTAssertTrue(anyLazyOne.count == 2)
-    }
     func testMirror() {
         let object = Object(in: .root)
         let mirror = Mirror(reflecting: object)
@@ -219,51 +196,6 @@ extension OtherTests {
 
         XCTAssertEqual(levels, versions)
     }
-}
-
-final class SharedCollection<Base: MutableCollection>: MutableCollection {
-    func index(after i: Base.Index) -> Base.Index {
-        return base.index(after: i)
-    }
-
-    subscript(position: Base.Index) -> Base.Iterator.Element {
-        get {
-            return base[position]
-        }
-        set(newValue) {
-            base[position] = newValue
-        }
-    }
-
-    var endIndex: Base.Index { return base.endIndex }
-    var startIndex: Base.Index { return base.startIndex }
-
-    typealias Index = Base.Index
-
-    /// Returns an iterator over the elements of this sequence.
-    func makeIterator() -> Base.Iterator {
-        return base.makeIterator()
-    }
-
-    var base: Base
-
-    init(_ base: Base) {
-        self.base = base
-    }
-}
-extension SharedCollection where Base == Array<Int> {
-    func append(_ elem: Int) {
-        base.append(elem)
-    }
-}
-
-infix operator ∈
-func ∈ <T: Equatable>(lhs: T, rhs: [T]) -> Bool {
-    return rhs.contains(lhs)
-}
-
-func any<T: Equatable>(of values: T...) -> (T) -> Bool {
-    return { values.contains($0) }
 }
 
 internal func _makeCollectionDescription<C: Collection>(_ collection: C,

@@ -19,9 +19,9 @@ public enum ReferenceMode {
 /// Link value describing reference to some location of database.
 struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented {
     let ref: String
-    let payload: (system: SystemPayload, user: [String: RealtimeDataValue]?)
+    let payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)
 
-    init(ref: String, payload: (system: SystemPayload, user: [String: RealtimeDataValue]?)) {
+    init(ref: String, payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)) {
         self.ref = ref
         self.payload = payload
     }
@@ -32,7 +32,7 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
 
     func defaultRepresentation() throws -> Any {
         var v: [String: RealtimeDataValue] = [CodingKeys.ref.stringValue: ref]
-        if let rw = payload.system {
+        if let rw = payload.raw {
             v[InternalKeys.raw.rawValue] = rw
         }
         if let pl = payload.user {
@@ -50,19 +50,11 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
 extension ReferenceRepresentation {
     func make<V: RealtimeValue>(in node: Node = .root, options: [ValueOption: Any]) -> V {
         var options = options
-        options[.rawValue] = payload.system
+        options[.rawValue] = payload.raw
         if let pl = payload.user {
             options[.userPayload] = pl
         }
         return V(in: node.child(with: ref), options: options)
-    }
-}
-extension RealtimeValue {
-    func reference(from node: Node = .root) -> ReferenceRepresentation? {
-        return self.node.map { ReferenceRepresentation(ref: $0.path(from: node), payload: (systemPayload, payload)) }
-    }
-    func relation(use property: String) -> RelationRepresentation? {
-        return node.map { RelationRepresentation(path: $0.rootPath, property: property) }
     }
 }
 

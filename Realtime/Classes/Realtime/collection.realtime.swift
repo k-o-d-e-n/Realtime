@@ -21,25 +21,7 @@ public enum RCEvent {
 
 /// -----------------------------------------
 
-public typealias RealtimeValuePayload = (system: SystemPayload, user: [String: RealtimeDataValue]?)
-internal func databaseValue(of payload: RealtimeValuePayload) -> [String: RealtimeDataValue] {
-    var val: [String: RealtimeDataValue] = [:]
-    if let raw = payload.system {
-        val[InternalKeys.raw.rawValue] = raw
-    }
-    if let p = payload.user {
-        val[InternalKeys.payload.rawValue] = p
-    }
-    return val
-}
-
-public protocol RCViewElementProtocol: DatabaseKeyRepresentable, RealtimeDataRepresented, RealtimeDataValueRepresented {}
-
-public protocol RCViewItem: Hashable, Comparable, RCViewElementProtocol {
-    var valuePayload: RealtimeValuePayload { get }
-    associatedtype Element
-    init(_ element: Element)
-}
+public protocol RCExplicitElementProtocol: RealtimeValue, RealtimeDataValueRepresented, Comparable {}
 
 /// A type that makes possible to do someone actions related with collection
 public protocol RealtimeCollectionActions {

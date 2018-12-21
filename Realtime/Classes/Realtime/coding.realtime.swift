@@ -448,20 +448,18 @@ public extension Representer where V: RealtimeValue {
     static func reference(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
-                switch mode {
-                case .fullPath:
-                    if let ref = v.reference() {
-                        return try ref.defaultRepresentation()
-                    } else {
-                        throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
-                    }
-                case .path(from: let n):
-                    if let ref = v.reference(from: n) {
-                        return try ref.defaultRepresentation()
-                    } else {
-                        throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
-                    }
+                guard let node = v.node else {
+                    throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
                 }
+                let ref: String
+                switch mode {
+                case .fullPath: ref = node.absolutePath
+                case .path(from: let n): ref = node.path(from: n)
+                }
+                return try ReferenceRepresentation(
+                    ref: ref,
+                    payload: (raw: v.raw, user: v.payload)
+                ).defaultRepresentation()
             },
             decoding: { (data) in
                 let reference = try ReferenceRepresentation(data: data)

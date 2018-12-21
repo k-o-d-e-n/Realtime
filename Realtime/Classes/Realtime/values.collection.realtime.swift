@@ -152,7 +152,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         self.view.removeAll()
         for item in view {
             try _write(elems[item.dbKey]!,
-                       with: item.priority,
+                       with: item.priority ?? 0,
                        by: (storage: node,
                             itms: Node(key: InternalKeys.items, parent: node.linksNode)),
                        in: transaction)
@@ -184,7 +184,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     override public var debugDescription: String {
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
-            ref: \(node?.rootPath ?? "not referred"),
+            ref: \(node?.absolutePath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
             elements: \(view.map { (key: $0.dbKey, index: $0.priority) })
         }
@@ -263,7 +263,9 @@ extension Values {
         let index = priority ?? view.count
         let key = element.node.map { $0.key } ?? String(index)
         storage[key] = element
-        _ = view.insert(RCItem(element: element, key: key, priority: index, linkID: nil))
+        var item = RCItem(key: key, value: element)
+        item.priority = index
+        _ = view.insert(item)
     }
 
     @discardableResult
@@ -336,7 +338,8 @@ extension Values {
         in database: RealtimeDatabase, in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, with: priority ?? view.last.map { $0.priority + 1 } ?? 0, by: (storage: node!, itms: view.node!), in: transaction)
+        try _write(element, with: priority ?? view.last.flatMap { $0.priority.map { $0 + 1 } } ?? 0,
+                   by: (storage: node!, itms: view.node!), in: transaction)
         return transaction
     }
 
@@ -345,7 +348,9 @@ extension Values {
         let elementNode = element.node.map { $0.moveTo(location.storage); return $0 } ?? location.storage.childByAutoId()
         let itemNode = location.itms.child(with: elementNode.key)
         let link = elementNode.generate(linkTo: itemNode)
-        let item = RCItem(element: element, key: elementNode.key, priority: priority, linkID: link.link.id)
+        var item = RCItem(key: elementNode.key, value: element)
+        item.priority = priority
+        item.linkID = link.link.id
 
         transaction.addReversion({ [weak self] in
             self?.storage.removeValue(forKey: item.dbKey)
@@ -388,7 +393,7 @@ extension Values {
 }
 
 public final class ExplicitValues<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Element: RealtimeValue & RCViewItem & Comparable {
+where Element: RealtimeValue & RCExplicitElementProtocol {
     override var _hasChanges: Bool { return view._hasChanges }
 
     public override var raw: RealtimeDataValue? { return nil }
@@ -475,7 +480,7 @@ where Element: RealtimeValue & RCViewItem & Comparable {
     override public var debugDescription: String {
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
-        ref: \(node?.rootPath ?? "not referred"),
+        ref: \(node?.absolutePath ?? "not referred"),
         synced: \(isSynced), keep: \(keepSynced),
         elements: \(view.map { $0.dbKey })
         }
