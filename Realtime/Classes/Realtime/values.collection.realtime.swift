@@ -171,7 +171,8 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
         if ancestor == node?.parent {
-            transaction.removeValue(by: node!.linksNode)
+            /// remove view if remove action is applying on collection
+            transaction.delete(view)
         }
         storage.values.forEach { $0.willRemove(in: transaction, from: ancestor) }
     }
@@ -393,7 +394,7 @@ extension Values {
 }
 
 public final class ExplicitValues<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Element: RealtimeValue & RCExplicitElementProtocol {
+where Element: RCExplicitElementProtocol {
     override var _hasChanges: Bool { return view._hasChanges }
 
     public override var raw: RealtimeDataValue? { return nil }
@@ -456,25 +457,20 @@ where Element: RealtimeValue & RCExplicitElementProtocol {
         /// readonly
     }
 
+    // TODO: Events are not call for elements
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
             view.didSave(in: database, in: node)
         }
-//        storage.forEach { $0.value.didSave(in: database, in: builder.spaceNode, by: $0.key) }
     }
-
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
-        if ancestor == node?.parent {
-            transaction.removeValue(by: node!)
-        }
-//        storage.values.forEach { $0.willRemove(in: transaction, from: ancestor) }
+        view.willRemove(in: transaction, from: ancestor)
     }
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
         view.didRemove()
-//        storage.values.forEach { $0.didRemove(from: builder.spaceNode) }
     }
 
     override public var debugDescription: String {

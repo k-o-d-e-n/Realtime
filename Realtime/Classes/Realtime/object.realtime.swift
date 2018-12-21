@@ -419,8 +419,11 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     /// Parent object
     open weak var parent: Object? {
         didSet {
-            if let node = self.node {
-                node.parent = parent.node
+            if let node = self.node, let p = parent {
+                /// node.parent annulled in didRemove
+                debugFatalError(condition: node.parent.map({ $0 != parent.node }) ?? false,
+                                "Parent object was changed, but his node doesn`t equal parent node in current object")
+                node.parent = p.node
             }
         }
     }
@@ -494,12 +497,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
-        guard let node = self.node else {
-            return debugFatalError("Couldn`t get reference")
-        }
-        let needRemoveLinks = node.parent == ancestor
+        let linksWillNotBeRemovedInAncestor = node?.parent == ancestor
         let links: Links = Links(
-            in: Node(key: InternalKeys.linkItems, parent: node.linksNode),
+            in: self.node.map { Node(key: InternalKeys.linkItems, parent: $0.linksNode) },
             options: [.database: database as Any, .representer: Representer<[SourceLink]>.links.requiredProperty()]
         ).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
@@ -510,14 +510,10 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
                             transaction.removeValue(by: n)
                         }
                     }
-                    do {
-                        if needRemoveLinks {
-                            try transaction.delete(links)
-                        }
-                        promise.fulfill()
-                    } catch let e {
-                        promise.reject(e)
+                    if linksWillNotBeRemovedInAncestor {
+                        transaction.delete(links)
                     }
+                    promise.fulfill()
                 }),
                 fail: .just(promise.reject)
             )
@@ -885,20 +881,15 @@ public extension Object {
 
     /// writes empty value by Object node in transaction
     @discardableResult
-    public func delete(in transaction: Transaction) throws -> Transaction {
-        try transaction.delete(self)
+    public func delete(in transaction: Transaction) -> Transaction {
+        transaction.delete(self)
         return transaction
     }
 
-    public func delete() throws -> Transaction {
+    public func delete() -> Transaction {
         guard let db = self.database else { fatalError("Object has not database reference, because was not saved") }
 
         let transaction = Transaction(database: db)
-        do {
-            return try delete(in: transaction)
-        } catch let e {
-            transaction.revert()
-            throw e
-        }
+        return delete(in: transaction)
     }
 }

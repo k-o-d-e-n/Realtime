@@ -346,7 +346,7 @@ class RealtimeViewController: UIViewController {
             guard let conv = self.conversationUser else { return self.setError("Couldn`t retrieve conversation") }
             do {
                 self.freeze()
-                try conv.delete().commit(with: { _, errs in
+                conv.delete().commit(with: { _, errs in
                     self.unfreeze()
                     if let errors = errs {
                         print(errors)

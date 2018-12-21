@@ -275,7 +275,7 @@ public protocol RealtimeValueEvents {
 extension RealtimeValueEvents where Self: RealtimeValue {
     func willSave(in transaction: Transaction, in parent: Node) {
         guard let node = self.node else {
-            return debugFatalError("Unkeyed value will be saved to undefined location in parent node: \(parent.rootPath)")
+            return debugFatalError("Unkeyed value will be saved to undefined location in parent node: \(parent.absolutePath)")
         }
         willSave(in: transaction, in: parent, by: node.key)
     }
@@ -283,7 +283,7 @@ extension RealtimeValueEvents where Self: RealtimeValue {
         if let node = self.node {
             didSave(in: database, in: parent, by: node.key)
         } else {
-            debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.rootPath)")
+            debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.absolutePath)")
         }
     }
     func didSave(in database: RealtimeDatabase) {

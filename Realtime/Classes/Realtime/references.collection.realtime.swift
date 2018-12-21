@@ -446,9 +446,6 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         if let error = relation.validate() {
             fatalError("Options invalid. Reason: \(error)")
         }
-//        guard let n = node, n.ancestor(onLevelUp: relation.ownerLevelsUp) != nil else {
-//            fatalError("Collection node is not have ancestor on \(relation.ownerLevelsUp) level up")
-//        }
 
         self.options = relation
         super.init(view: SortedCollectionView(in: node, options: options),
@@ -497,14 +494,6 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
             case .root: return .root
             case .branch(let coll, _): return node.branch == coll ? coll : nil
             case .levelsUp(let up): return node.ancestor(onLevelUp: ownerLevelsUp)?.ancestor(onLevelUp: up)
-            }
-        }
-
-        fileprivate func anchorNode(forElement node: Node) -> Node? {
-            switch anchor {
-            case .root: return .root
-            case .branch(_, let elem): return node.branch == elem ? elem : nil
-            case .levelsUp(let up): return node.ancestor(onLevelUp: up)
             }
         }
 
@@ -598,6 +587,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
                 self.view.forEach({ (item) in
                     self._removeBackward(for: item, element: nil, in: transaction)
                 })
+                promise.fulfill()
             })
         }
     }

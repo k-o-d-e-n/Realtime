@@ -111,7 +111,7 @@ extension Transaction {
             error: { e in
                 addError(e)
                 group.leave()
-        }
+            }
         )
         currentPreconditions.forEach { $0(failPromise) }
 
@@ -184,7 +184,7 @@ extension Transaction {
     }
 
     /// adds operation of delete RealtimeValue
-    internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) throws {
+    internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         guard let node = value.node, node.isRooted else { fatalError("Value must be rooted") }
 
         value.willRemove(in: self)
@@ -451,11 +451,11 @@ public extension Transaction {
     }
 
     /// adds operation of delete RealtimeValue
-    func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) throws {
+    func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         if let merged = mergedToTransaction {
-            try merged.delete(value)
+            merged.delete(value)
         } else {
-            try _delete(value)
+            _delete(value)
             addCompletion { (result) in
                 if result {
                     value.didRemove()

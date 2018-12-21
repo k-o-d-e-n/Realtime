@@ -201,7 +201,8 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
         if ancestor == node?.parent {
-            transaction.removeValue(by: node!.linksNode)
+            /// remove view if remove action is applying on collection
+            transaction.delete(view)
         }
         storage.forEach { $1.willRemove(in: transaction, from: ancestor) }
     }
@@ -583,14 +584,12 @@ where Value: RCExplicitElementProtocol, Key: HashableValue {
         /// skip the call of super (_RealtimeValue)
         try view._write(to: transaction, by: node)
     }
-
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
             view.didSave(in: database, in: node.linksNode)
         }
     }
-
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
         view.didRemove()
