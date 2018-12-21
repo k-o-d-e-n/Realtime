@@ -726,6 +726,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     private func reflect(to type: Any.Type = Object.self, _ block: (Mirror) throws -> Void) rethrows {
         var mirror = Mirror(reflecting: self)
         try block(mirror)
+        guard type != mirror.subjectType else { return }
         while let _mirror = mirror.superclassMirror, _mirror.subjectType != type {
             try block(_mirror)
             mirror = _mirror
