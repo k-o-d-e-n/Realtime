@@ -176,6 +176,19 @@ func checkWillRemove(_ v: RealtimeValue, nested: Bool = false, _ line: Int = #li
 }
 
 extension RealtimeTests {
+    func testReflector() {
+        let object = TestObject()
+        let reflector = Reflector(reflecting: object, to: Object.self)
+
+        var calculator = 0
+        reflector.forEach { (mirror) in
+            XCTAssertTrue(mirror.subjectType == TestObject.self)
+            calculator += 1
+        }
+
+        XCTAssertEqual(calculator, 1)
+    }
+
     func testObjectSave() {
         let obj = TestObject()
 

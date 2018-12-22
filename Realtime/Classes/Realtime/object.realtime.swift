@@ -9,6 +9,35 @@
 import Foundation
 import FirebaseDatabase
 
+struct Reflector: Sequence {
+    let startMirror: Mirror
+    let toClass: Any.Type?
+
+    init(reflecting: Any, to toClass: Any.Type?) {
+        self.startMirror = Mirror(reflecting: reflecting)
+        self.toClass = toClass
+    }
+
+    struct Iterator: IteratorProtocol {
+        var currentMirror: Mirror?
+        let stopper: Any.Type?
+        mutating func next() -> Mirror? {
+            defer {
+                if let next = currentMirror?.superclassMirror {
+                    currentMirror = stopper.flatMap { next.subjectType == $0 ? nil : next }
+                } else {
+                    currentMirror = nil
+                }
+            }
+            return currentMirror
+        }
+    }
+
+    func makeIterator() -> Reflector.Iterator {
+        return Iterator(currentMirror: startMirror, stopper: toClass)
+    }
+}
+
 /// Base class for any database value
 open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugStringConvertible {
     /// Database that associated with this value
@@ -374,7 +403,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     
     override open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
         try super.apply(data, exactly: exactly)
-        try reflect { (mirror) in
+        try Reflector(reflecting: self, to: Object.self).forEach { mirror in
             try apply(data, exactly: exactly, to: mirror)
         }
     }
@@ -412,7 +441,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
 
     override func _write(to transaction: Transaction, by node: Node) throws {
         try super._write(to: transaction, by: node)
-        try reflect { (mirror) in
+        try Reflector(reflecting: self, to: Object.self).forEach { mirror in
             try mirror.children.forEach({ (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
 
@@ -432,8 +461,8 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
 
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
 //        super._writeChanges(to: transaction, by: node)
-        try reflect { (mirror) in
-            try mirror.children.forEach({ (child) in
+        try Reflector(reflecting: self, to: Object.self).lazy.flatMap({ $0.children })
+            .forEach { (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
 
                 if let value: _RealtimeValue = realtimeValue(from: child.value) {
@@ -443,7 +472,6 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
                         fatalError("There is not specified child node in \(self)")
                     }
                 }
-            })
         }
     }
 
@@ -475,7 +503,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         return value
     }
     func forceEnumerateAllChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
-        reflect(to: type) { (mirror) in
+        Reflector(reflecting: self, to: type).forEach { mirror in
             mirror.children.forEach({ (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
                 guard let value: As = forceValue(from: child, mirror: mirror) else { return }
@@ -485,34 +513,21 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         }
     }
     fileprivate func enumerateLoadedChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
-        reflect(to: type) { (mirror) in
-            mirror.children.forEach({ (child) in
+        Reflector(reflecting: self, to: type).lazy.flatMap({ $0.children })
+            .forEach { (child) in
                 guard isNotIgnoredLabel(child.label) else { return }
                 guard case let value as As = child.value else { return }
 
                 block(child.label, value)
-            })
         }
     }
     private func containsInLoadedChild<As>(from type: Any.Type = Object.self, where block: (String?, As) -> Bool) -> Bool {
-        var contains = false
-        reflect(to: type) { (mirror) in
-            guard !contains else { return }
-            contains = mirror.children.contains(where: { (child) -> Bool in
+        return Reflector(reflecting: self, to: type).lazy.flatMap({ $0.children })
+            .contains { (child) -> Bool in
                 guard isNotIgnoredLabel(child.label) else { return false }
                 guard case let value as As = child.value else { return false }
 
                 return block(child.label, value)
-            })
-        }
-        return contains
-    }
-    private func reflect(to type: Any.Type = Object.self, _ block: (Mirror) throws -> Void) rethrows {
-        var mirror = Mirror(reflecting: self)
-        try block(mirror)
-        while let _mirror = mirror.superclassMirror, _mirror.subjectType != type {
-            try block(_mirror)
-            mirror = _mirror
         }
     }
     private func isNotIgnoredLabel(_ label: String?) -> Bool {
