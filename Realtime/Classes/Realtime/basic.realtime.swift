@@ -189,7 +189,7 @@ public extension RealtimeValue {
 }
 
 public extension Hashable where Self: RealtimeValue {
-    var hashValue: Int { return dbKey.hashValue }
+    func hash(into hasher: inout Hasher) { hasher.combine(dbKey) }
     static func ==(lhs: Self, rhs: Self) -> Bool {
         return lhs.node == rhs.node
     }

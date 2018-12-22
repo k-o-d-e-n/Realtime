@@ -73,7 +73,7 @@ struct RDItem: Hashable, Comparable, DatabaseKeyRepresentable, RealtimeDataRepre
         return value
     }
 
-    var hashValue: Int { return dbKey.hashValue }
+    func hash(into hasher: inout Hasher) { hasher.combine(dbKey) }
 
     static func ==(lhs: RDItem, rhs: RDItem) -> Bool {
         return lhs.dbKey == rhs.dbKey

@@ -139,10 +139,8 @@ extension UIControl {
             onStop()
         }
 
-        var hashValue: Int { return Int(events.rawValue) }
-        static func ==(lhs: Listening, rhs: Listening) -> Bool {
-            return lhs === rhs
-        }
+        public func hash(into hasher: inout Hasher) { hasher.combine(events.rawValue) }
+        static func ==(lhs: Listening, rhs: Listening) -> Bool { return lhs === rhs }
     }
 }
 public extension RTime where Base: UIControl {

@@ -11,7 +11,7 @@ import Foundation
 
 struct AnyCollectionKey: Hashable, DatabaseKeyRepresentable {
     let dbKey: String!
-    var hashValue: Int { return dbKey.hashValue }
+    func hash(into hasher: inout Hasher) { hasher.combine(dbKey) }
 
     init<Base: DatabaseKeyRepresentable>(_ key: Base) {
         self.dbKey = key.dbKey
