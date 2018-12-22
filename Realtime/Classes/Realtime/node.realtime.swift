@@ -31,6 +31,8 @@ enum InternalKeys: String, CodingKey {
     case link = "__lnk"
     /// Indicates raw value of enum, or subclass
     case raw = "__raw"
+    /// key of reference to source location
+    case source = "__src"
 }
 
 /// Represents branch of database tree

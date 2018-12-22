@@ -18,20 +18,16 @@ public enum ReferenceMode {
 
 /// Link value describing reference to some location of database.
 struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented {
-    let ref: String
-    let payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)
+    let source: String
+    let payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?) // TODO: ReferenceRepresentation is not responds to payload
 
     init(ref: String, payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)) {
-        self.ref = ref
+        self.source = ref
         self.payload = payload
     }
 
-    enum CodingKeys: String, CodingKey {
-        case ref = "ref"
-    }
-
     func defaultRepresentation() throws -> Any {
-        var v: [String: RealtimeDataValue] = [CodingKeys.ref.stringValue: ref]
+        var v: [String: RealtimeDataValue] = [InternalKeys.source.stringValue: source]
         if let rw = payload.raw {
             v[InternalKeys.raw.rawValue] = rw
         }
@@ -42,8 +38,11 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
     }
 
     init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        guard let ref: String = try CodingKeys.ref.stringValue.map(from: data) else { throw RealtimeError(initialization: ReferenceRepresentation.self, data) }
-        self.ref = ref
+        guard
+            let ref: String = try InternalKeys.source.stringValue.map(from: data)
+        else
+            { throw RealtimeError(initialization: ReferenceRepresentation.self, data) }
+        self.source = ref
         self.payload = (try data.rawValue(), try InternalKeys.payload.map(from: data))
     }
 }
@@ -54,7 +53,7 @@ extension ReferenceRepresentation {
         if let pl = payload.user {
             options[.userPayload] = pl
         }
-        return V(in: node.child(with: ref), options: options)
+        return V(in: node.child(with: source), options: options)
     }
 }
 

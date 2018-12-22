@@ -380,6 +380,83 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     }
 }
 
+// MARK: DistributedReferences
+
+public struct RCRef: WritableRealtimeValue, Comparable {
+    public var raw: RealtimeDataValue? { return reference?.payload.raw }
+    public var payload: [String : RealtimeDataValue]? { return reference?.payload.user }
+    public var node: Node?
+    public let dbKey: String!
+    var reference: ReferenceRepresentation!
+
+    init(mode: ReferenceMode, value: RealtimeValue) {
+        self.dbKey = value.dbKey
+        let raw = value.raw
+        let payload = value.payload
+        let ref: String
+        switch mode {
+        case .fullPath: ref = value.node!.absolutePath
+        case .path(from: let n): ref = value.node!.path(from: n)
+        }
+        self.reference = ReferenceRepresentation(
+            ref: ref,
+            payload: (raw, payload)
+        )
+    }
+
+    public init(in node: Node?, options: [ValueOption : Any]) {
+        self.node = node
+        self.dbKey = node?.key
+    }
+
+    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        guard let key = data.key else { throw RealtimeError(initialization: RCRef.self, data) }
+
+        self.dbKey = key
+        self.reference = try ReferenceRepresentation(data: data, exactly: exactly)
+    }
+
+    public func write(to transaction: Transaction, by node: Node) throws { transaction.addValue(try defaultRepresentation(), by: node) }
+    private func defaultRepresentation() throws -> Any { return try reference.defaultRepresentation() }
+    public var hashValue: Int { return dbKey.hashValue }
+    public static func ==(lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey == rhs.dbKey }
+    public static func < (lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey < rhs.dbKey }
+}
+
+public class DistributedReferences<Element: RealtimeValue>: __RepresentableCollection<Element, RCRef> {
+    internal let builder: RealtimeValueBuilder<Element>
+
+    /// Creates new instance associated with database node
+    ///
+    /// Available options:
+    /// - reference(**required**): `ReferenceMode` value. (default: `case .fullPath`)
+    /// - database: Database reference
+    /// - elementBuilder: Closure that calls to build elements lazily.
+    ///
+    /// - Parameter node: Node location for value
+    /// - Parameter options: Dictionary of options
+    public required init(in node: Node?, options: [ValueOption : Any]) {
+        let mode = (options[.reference] as? ReferenceMode) ?? .fullPath
+        let anchorNode: Node
+        switch mode {
+        case .fullPath: anchorNode = .root
+        case .path(from: let n): anchorNode = n
+        }
+        let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
+        self.builder = RealtimeValueBuilder(spaceNode: anchorNode, impl: builder)
+        super.init(view: SortedCollectionView(in: node, options: options),
+                   options: options)
+    }
+
+    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        try super.init(data: data, exactly: exactly)
+    }
+
+    override func buildElement(with item: RCRef) -> Element {
+        return builder.build(with: item)
+    }
+}
+
 // MARK: Relations
 
 public struct RelationsItem: WritableRealtimeValue, Comparable {
