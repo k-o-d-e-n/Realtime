@@ -299,7 +299,7 @@ extension RealtimeTests {
 
         do {
             let trans = try testObject.save(in: .root)
-            let value = trans.updateNode.updateValue
+            let value = trans.updateNode.values
             let expectedValue = ["t_obj/prop":"string", "t_obj/nestedObject/lazyprop":"nested_string"] as [String: Any?]
 
             XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
@@ -324,7 +324,7 @@ extension RealtimeTests {
             let objectTransaction = try testObject.update()
             try elementTransaction.merge(objectTransaction)
 
-            let value = elementTransaction.updateNode.updateValue
+            let value = elementTransaction.updateNode.values
             let expectedValue = ["prop":"string", "nestedObject/lazyprop":"nested_string",
                                  "element_1/prop":"element #1", "element_1/nestedObject/lazyprop":"value"] as [String: Any?]
 
@@ -357,7 +357,7 @@ extension RealtimeTests {
         testObject.dictionary.view.isSynced = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
 
-        let value = transaction.updateNode.updateValue
+        let value = transaction.updateNode.values
 
         let linkedItem = value["linked_array/linked"] as? [String: Any]
         XCTAssertTrue(linkedItem != nil)
@@ -386,7 +386,7 @@ extension RealtimeTests {
 
         do {
             let transaction = try testObject.save(in: .root)
-            let value = transaction.updateNode.updateValue
+            let value = transaction.updateNode.values
 
             let linkedItem = value["test_obj/linked_array/linked"] as? [String: Any]
             XCTAssertTrue(linkedItem != nil)
@@ -454,7 +454,7 @@ extension RealtimeTests {
                 user.photo <== #imageLiteral(resourceName: "pw")
                 do {
                     let update = try user.update(in: Transaction(database: Cache.root, storage: Cache.root))
-                    XCTAssertTrue(update.updateNode.updateValue.isEmpty)
+                    XCTAssertTrue(update.updateNode.values.isEmpty)
                     update.commit(with: { _, errors in
                         errors.map { _ in XCTFail() }
 

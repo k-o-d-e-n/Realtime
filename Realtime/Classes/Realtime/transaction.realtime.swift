@@ -35,7 +35,7 @@ public class Transaction {
     fileprivate var completions: [(Bool) -> Void] = []
     fileprivate var cancelations: [() -> Void] = []
     fileprivate var fileCancelations: [Node: () -> Void] = [:]
-    fileprivate var scheduledMerges: [Transaction]?
+    fileprivate var scheduledMerges: [(Transaction, MergeStrategy)]?
     fileprivate var state: State = .waiting
     fileprivate var substate: Substate = .none
 
@@ -125,7 +125,7 @@ extension Transaction {
         updateNode._addValueAsInSingleTransaction(cacheValue)
     }
 
-    func performUpdate(_ completion: @escaping (Error?, DatabaseNode) -> Void) {
+    func performUpdate(_ completion: @escaping (Error?) -> Void) {
         database.commit(transaction: self, completion: completion)
     }
 
@@ -234,7 +234,7 @@ public extension Transaction {
                 return
             }
             do {
-                try self.scheduledMerges?.forEach { try self.merge($0, conflictResolver: { _, new in new }) }
+                try self.scheduledMerges?.forEach(self.merge)
                 self.state = .performing
 
                 guard self.updateNode.childs.count > 0 else {
@@ -244,7 +244,7 @@ public extension Transaction {
                 var error: Error?
                 let group = DispatchGroup()
                 group.enter(); group.enter()
-                self.performUpdate({ (err, _) in
+                self.performUpdate({ (err) in
                     error = err
                     group.leave()
                 })
@@ -397,20 +397,27 @@ public extension Transaction {
         addReversion(cancelable.currentReversion())
     }
 
+    enum MergeStrategy {
+        case old
+        case new
+    }
+
     /// method to merge actions of other transaction
-    public func merge(_ other: Transaction, conflictResolver: @escaping (UpdateNode, UpdateNode) -> UpdateNode = { _, new in new }) throws {
+    public func merge(_ other: Transaction, strategy: MergeStrategy = .new) throws {
         guard other !== self else { fatalError("Attemption merge the same transaction") }
         guard other.preconditions.isEmpty else {
             other.preconditions.forEach(addPrecondition)
             other.preconditions.removeAll()
-            scheduledMerges = scheduledMerges.map { $0 + [other] } ?? [other]
+            scheduledMerges = scheduledMerges.map { $0 + [(other, strategy)] } ?? [(other, strategy)]
             return
         }
         try updateNode._mergeWithObject(
-            withTheSameReference: other.updateNode,
+            theSameReference: other.updateNode,
             conflictResolver: { old, new in
-                let resolved = conflictResolver(old.asUpdateNode(), new.asUpdateNode())
-                return new//resolved === old.asUpdateNode() ? old : new
+                switch strategy {
+                case .new: return new
+                case .old: return old
+                }
             },
             didAppend: nil
         )
