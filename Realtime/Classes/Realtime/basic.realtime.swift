@@ -149,6 +149,17 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented
     init(in node: Node?, options: [ValueOption: Any])
 }
 extension RealtimeValue {
+    /// Use current initializer if `RealtimeValue` has required user-defined options
+    ///
+    /// - Parameters:
+    ///   - data: `RealtimeDataProtocol` object
+    ///   - event: Event associated with data
+    ///   - options: User-defined options
+    /// - Throws: If data cannot be applied
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent, options: [ValueOption: Any]) throws {
+        self.init(in: data.node, options: options.merging([.database: data.database], uniquingKeysWith: { _, new in new }))
+        try apply(data, event: event)
+    }
     var defaultOptions: [ValueOption: Any] {
         var options: [ValueOption: Any] = [:]
         if let r = self.raw {
