@@ -13,10 +13,13 @@ extension ValueOption {
     static let keyBuilder = ValueOption("realtime.collection.keyBuilder")
 }
 
-public typealias Changes = (deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)])
+/// Post processing data event for any `RealtimeCollection`.
+///
+/// - initial: Event for start data
+/// - updated: Any update event
 public enum RCEvent {
     case initial
-    case updated(Changes)
+    case updated(deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)])
 }
 
 /// -----------------------------------------
@@ -50,6 +53,11 @@ public protocol RealtimeCollectionView: BidirectionalCollection, RealtimeCollect
     func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void)
 }
 
+public enum RCDataExplorer {
+    case view
+    case viewPage(size: UInt)
+}
+
 /// A type that represents Realtime database collection
 public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RealtimeCollectionActions {
     associatedtype View: RealtimeCollectionView
@@ -59,6 +67,7 @@ public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, Real
     var changes: AnyListenable<RCEvent> { get }
     /// Indicates that collection has actual collection view data
     var isSynced: Bool { get }
+    var dataExplorer: RCDataExplorer { get set }
 }
 extension RealtimeCollection {
     public var isObserved: Bool { return view.isObserved }

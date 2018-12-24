@@ -197,9 +197,19 @@ extension SortedArray: RealtimeDataRepresented where Element: RealtimeDataRepres
     }
 }
 
+enum ViewDataExplorer {
+    case value
+    case page(PagingController)
+}
+
 public final class SortedCollectionView<Element: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollectionView {
     typealias Source = SortedArray<Element>
     private var _elements: Source = Source()
+    private var dataExplorer: ViewDataExplorer = .value {
+        didSet {
+            // change observing behavior
+        }
+    }
     internal(set) var isSynced: Bool = false
 
     override var _hasChanges: Bool { return isStandalone && _elements.count > 0 }
@@ -221,11 +231,11 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
                 case .child(.added):
                     let item = try Element(data: value.0)
                     let index: Int = self._elements.insert(item)
-                    return .updated((deleted: [], inserted: [index], modified: [], moved: []))
+                    return .updated(deleted: [], inserted: [index], modified: [], moved: [])
                 case .child(.removed):
                     let item = try Element(data: value.0)
                     if let index = self._elements.remove(item)?.index {
-                        return .updated((deleted: [index], inserted: [], modified: [], moved: []))
+                        return .updated(deleted: [index], inserted: [], modified: [], moved: [])
                     } else {
                         throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
                     }
@@ -233,9 +243,9 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
                     let item = try Element(data: value.0)
                     if let indexes = self._elements.move(item) {
                         if indexes.from != indexes.to {
-                            return .updated((deleted: [], inserted: [], modified: [], moved: [indexes]))
+                            return .updated(deleted: [], inserted: [], modified: [], moved: [indexes])
                         } else {
-                            return .updated((deleted: [], inserted: [], modified: [indexes.to], moved: []))
+                            return .updated(deleted: [], inserted: [], modified: [indexes.to], moved: [])
                         }
                     } else {
                         throw RealtimeError(source: .collection, description: "Cannot move items")
@@ -266,22 +276,27 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
 
     @discardableResult
     public func runObserving() -> Bool {
-        let isNeedLoadFull = !isObserved
-        let added = _runObserving(.child(.added))
-        let removed = _runObserving(.child(.removed))
-        let changed = _runObserving(.child(.changed))
-        if isNeedLoadFull {
-            if isRooted {
-                load(completion: .just { [weak self] e in
-                    self.map { this in
-                        this.isSynced = this.isObserved && e == nil
-                    }
-                })
-            } else {
-                isSynced = true
+        switch dataExplorer {
+        case .value:
+            let isNeedLoadFull = !isObserved
+            let added = _runObserving(.child(.added))
+            let removed = _runObserving(.child(.removed))
+            let changed = _runObserving(.child(.changed))
+            if isNeedLoadFull {
+                if isRooted {
+                    load(completion: .just { [weak self] e in
+                        self.map { this in
+                            this.isSynced = this.isObserved && e == nil
+                        }
+                    })
+                } else {
+                    isSynced = true
+                }
             }
+            return added && removed && changed
+        case .page:
+            return true
         }
-        return added && removed && changed
     }
 
     public func stopObserving() {

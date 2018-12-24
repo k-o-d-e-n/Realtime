@@ -138,6 +138,11 @@ public protocol RealtimeDatabase: class {
         onUpdate: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> UInt
+    func observe(
+        node: Node, limit: UInt, before: String?, after: String?,
+        completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
+        onCancel: ((Error) -> Void)?
+    ) -> Disposable
     /// Removes all of existing observers on passed database reference.
     ///
     /// - Parameter node: Database reference
@@ -254,6 +259,61 @@ extension Database: RealtimeDatabase {
     public func removeObserver(for node: Node, with token: UInt) {
         node.reference(for: self).removeObserver(withHandle: token)
     }
+
+    public func observe(
+        node: Node, limit: UInt, before: String?, after: String?,
+        completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
+        onCancel: ((Error) -> Void)?
+    ) -> Disposable {
+        var query: DatabaseQuery = reference(withPath: node.absolutePath).queryOrderedByKey()
+        var needExcludeKey = false
+        if let before = before {
+            query = query.queryEnding(atValue: before)
+            needExcludeKey = true
+        }
+        if let after = after {
+            query = query.queryStarting(atValue: after)
+            needExcludeKey = true
+        }
+        query = query.queryLimited(toLast: limit + (needExcludeKey ? 1 : 0))
+
+        let cancelHandler: ((Error) -> Void)? = onCancel.map { closure in
+            return { (error) in
+                closure(RealtimeError(external: error, in: .database))
+            }
+        }
+
+        let added = query.observe(
+            .childAdded,
+            with: { (data) in
+                completion(data, .child(.added))
+            },
+            withCancel: cancelHandler
+        )
+        let removed = query.observe(
+            .childRemoved,
+            with: { (data) in
+                completion(data, .child(.removed))
+            },
+            withCancel: cancelHandler
+        )
+        let changed = query.observe(
+            .childChanged,
+            with: { (data) in
+                completion(data, .child(.changed))
+            },
+            withCancel: cancelHandler
+        )
+        query.observeSingleEvent(of: .value, with: { (data) in
+            completion(data, .value)
+        })
+
+        return ListeningDispose({
+            query.removeObserver(withHandle: added)
+            query.removeObserver(withHandle: removed)
+            query.removeObserver(withHandle: changed)
+        })
+    }
 }
 
 /// Storage
@@ -322,5 +382,138 @@ extension Storage: RealtimeStorage {
         group.notify(queue: .main) {
             completion(completions)
         }
+    }
+}
+
+// Paging
+
+protocol PagingTokenProtocol {
+    func next()
+    func previous()
+}
+
+class PagingController {
+    private let database: RealtimeDatabase
+    private let node: Node
+    private let pageSize: UInt
+    private let ascending: Bool
+    private let dataObserver: (RealtimeDataProtocol, DatabaseDataEvent) -> Void
+    private var startPage: Disposable?
+    private var nextPages: [Disposable] = []
+    var first: String?
+    var last: String?
+
+    public init(database: RealtimeDatabase, node: Node,
+                pageSize: UInt,
+                ascending: Bool,
+                dataObserver: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void) {
+        self.node = node
+        self.database = database
+        self.ascending = ascending
+        self.pageSize = pageSize
+        self.dataObserver = dataObserver
+    }
+
+    func start() {
+        guard startPage == nil else {
+            fatalError("Controller already started")
+        }
+        let disposable = database.observe(
+            node: node,
+            limit: pageSize,
+            before: nil,
+            after: nil,
+            completion: { [weak self] data, event in
+                guard let `self` = self else { return }
+                switch event {
+                case .value:
+                    let iterator = data.makeIterator()
+                    if let first = iterator.next() {
+                        self.first = first.key
+                    }
+                    while let next = iterator.next() {
+                        self.last = next.key
+                    }
+                    self.dataObserver(data, event)
+                default:
+                    self.dataObserver(data, event)
+                }
+            },
+            onCancel: { (error) in
+
+            }
+        )
+        self.startPage = disposable
+    }
+
+    func previous() {
+        guard self.startPage != nil else { fatalError("Firstly need call start") }
+        guard let first = self.first else { return debugLog("No more data") }
+        if ascending {
+            // next page
+            let disposable = database.observe(
+                node: node,
+                limit: pageSize,
+                before: nil,
+                after: first,
+                completion: { [weak self] data, event in
+                    guard let `self` = self else { return }
+                    switch event {
+                    case .value:
+                        let iterator = data.makeIterator()
+                        if let first = iterator.next() {
+                            self.first = first.key
+                        }
+                        self.dataObserver(data, event)
+                    default:
+                        self.dataObserver(data, event)
+                    }
+                },
+                onCancel: { (error) in
+
+            }
+            )
+            nextPages.append(disposable)
+        } else {
+            // start page
+        }
+    }
+
+    func next() {
+        guard self.startPage != nil else { fatalError("Firstly need call start") }
+        guard let last = self.last else { return debugLog("No more data") }
+        if ascending {
+            // start page
+        } else {
+            // next pages
+            let disposable = database.observe(
+                node: node,
+                limit: pageSize,
+                before: last,
+                after: nil,
+                completion: { [weak self] data, event in
+                    guard let `self` = self else { return }
+                    switch event {
+                    case .value:
+                        let iterator = data.makeIterator()
+                        while let next = iterator.next() {
+                            self.last = next.key
+                        }
+                        self.dataObserver(data, event)
+                    default:
+                        self.dataObserver(data, event)
+                    }
+                },
+                onCancel: { (error) in
+
+                }
+            )
+            nextPages.append(disposable)
+        }
+    }
+
+    deinit {
+        startPage?.dispose()
+        nextPages.forEach({ $0.dispose() })
     }
 }
