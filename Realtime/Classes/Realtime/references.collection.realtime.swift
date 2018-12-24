@@ -448,8 +448,13 @@ public class DistributedReferences<Element: RealtimeValue>: __RepresentableColle
                    options: options)
     }
 
+    /// Currently, no available.
     public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        try super.init(data: data, exactly: exactly)
+        #if DEBUG
+        fatalError("References does not supported init(data:exactly:) yet.")
+        #else
+        throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
+        #endif
     }
 
     override func buildElement(with item: RCRef) -> Element {

@@ -32,7 +32,7 @@ func print(from function: String = #function, average time: UInt64) {
 func print(from function: String = #function, total time: TimeInterval) {
     print(String(format: "\(function) = Total time: %.10lf", time))
 }
-
+/*
 extension ConceptTests {
 
     // MARK: GCD
@@ -254,3 +254,4 @@ extension ConceptTests {
         print(total: endDate.timeIntervalSince(startDate))
     }
 }
+*/

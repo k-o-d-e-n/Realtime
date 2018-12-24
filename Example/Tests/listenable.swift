@@ -365,7 +365,7 @@ class ListenableTests: XCTestCase {
     }
 
     func testListeningStore() {
-        var store = ListeningDisposeStore()
+        let store = ListeningDisposeStore()
         let propertyDouble = ValueStorage<Double>.unsafe(strong: .pi)
 
         var doubleValue = 0.0

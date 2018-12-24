@@ -370,7 +370,7 @@ public struct ReadonlyValue<Value>: Listenable {
     private let store: ListeningDisposeStore
 
     public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), calculation: @escaping (L.Out) -> Value) {
-        var store = ListeningDisposeStore()
+        let store = ListeningDisposeStore()
         repeater.depends(on: source.map(calculation)).add(to: store)
         self.repeater = repeater
         self.store = store
@@ -390,7 +390,7 @@ public struct AsyncReadonlyRepeater<Value>: Listenable {
     private let store: ListeningDisposeStore
     
     public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
-        var store = ListeningDisposeStore()
+        let store = ListeningDisposeStore()
         repeater.depends(on: source.onReceiveMap(fetching)).add(to: store)
         self.repeater = repeater
         self.store = store

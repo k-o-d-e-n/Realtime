@@ -198,7 +198,7 @@ class RealtimeViewController: UIViewController {
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
             self.freeze()
-            try! u.delete().commit(with: { _, errs in
+            u.delete().commit(with: { _, errs in
                 self.unfreeze()
                 if let errors = errs {
                     print(errors)
@@ -231,7 +231,7 @@ class RealtimeViewController: UIViewController {
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
             self.freeze()
-            try! grp.delete().commit(with: { _, errs in
+            grp.delete().commit(with: { _, errs in
                 self.unfreeze()
                 if let errors = errs {
                     print(errors)
@@ -344,7 +344,7 @@ class RealtimeViewController: UIViewController {
         })
         controller.addAction(UIAlertAction(title: "Object", style: .default) { (_) in
             guard let conv = self.conversationUser else { return self.setError("Couldn`t retrieve conversation") }
-            do {
+//            do {
                 self.freeze()
                 conv.delete().commit(with: { _, errs in
                     self.unfreeze()
@@ -354,10 +354,10 @@ class RealtimeViewController: UIViewController {
 
                     self.setMessage(with: errs)
                 })
-            } catch let e {
-                self.unfreeze()
-                self.setError(e.localizedDescription)
-            }
+//            } catch let e {
+//                self.unfreeze()
+//                self.setError(e.localizedDescription)
+//            }
         })
         present(controller, animated: true, completion: nil)
     }

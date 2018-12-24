@@ -8,23 +8,11 @@
 import Foundation
 import FirebaseDatabase
 
-/// A type that has access to the data is stored in associated database node
-public protocol DatabaseNode {
-    /// A Realtime data from database cache
-    var cachedData: RealtimeDataProtocol? { get }
-    /// Updates database node is writing a passed dictionary.
-    ///
-    /// - Parameters:
-    ///   - keyValuePairs: Dictionary to write
-    ///   - completion: Closure to receive result of writing
-    func update(use keyValuePairs: [String: Any], completion: ((Error?, DatabaseNode) -> Void)?)
-}
-extension DatabaseReference: DatabaseNode {
-    public var cachedData: RealtimeDataProtocol? { return nil }
-    public func update(use keyValuePairs: [String : Any], completion: ((Error?, DatabaseNode) -> Void)?) {
+extension DatabaseReference {
+    public func update(use keyValuePairs: [String : Any], completion: ((Error?) -> Void)?) {
         if let completion = completion {
             updateChildValues(keyValuePairs, withCompletionBlock: { error, dbNode in
-                completion(error.map({ RealtimeError(external: $0, in: .database) }), dbNode)
+                completion(error.map({ RealtimeError(external: $0, in: .database) }))
             })
         } else {
             updateChildValues(keyValuePairs)
@@ -116,21 +104,14 @@ extension DatabaseDataEvent {
 public protocol RealtimeDatabase: class {
     /// A database cache policy.
     var cachePolicy: CachePolicy { get set }
-
     /// Generates an automatically calculated database key
     func generateAutoID() -> String
-    /// Returns object is associated with database node,
-    /// that makes access to manage data.
-    ///
-    /// - Parameter valueNode:
-    /// - Returns: Object that has access to database data
-    func node(with referenceNode: Node) -> DatabaseNode
     /// Performs the writing of a changes that contains in passed Transaction
     ///
     /// - Parameters:
     ///   - transaction: Write transaction
     ///   - completion: Closure to receive result of operation
-    func commit(transaction: Transaction, completion: ((Error?, DatabaseNode) -> Void)?)
+    func commit(transaction: Transaction, completion: ((Error?) -> Void)?)
     /// Loads data by database reference
     ///
     /// - Parameters:
@@ -167,7 +148,7 @@ public protocol RealtimeDatabase: class {
     ///   - node: Database reference
     ///   - token: An unsigned integer value
     func removeObserver(for node: Node, with token: UInt)
-
+    /// Sends connection state each time when it changed
     var isConnectionActive: AnyListenable<Bool> { get }
 }
 extension Database: RealtimeDatabase {
@@ -202,29 +183,21 @@ extension Database: RealtimeDatabase {
         return reference().childByAutoId().key
     }
 
-    public func node(with valueNode: Node) -> DatabaseNode {
-        if valueNode.isRoot {
-            return reference()
-        } else {
-            return reference(withPath: valueNode.absolutePath)
-        }
-    }
-
-    public func commit(transaction: Transaction, completion: ((Error?, DatabaseNode) -> Void)?) {
+    public func commit(transaction: Transaction, completion: ((Error?) -> Void)?) {
         let updateNode = transaction.updateNode
         guard updateNode.childs.count > 0 else {
             fatalError("Try commit empty transaction")
         }
 
         var nearest = updateNode
-        while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
+        while nearest.childs.count == 1, case .some(.object(let next)) = nearest.childs.first {
             nearest = next
         }
-        let updateValue = nearest.updateValue
+        let updateValue = nearest.values
         if updateValue.count > 0 {
-            node(with: nearest.location).update(use: nearest.updateValue, completion: completion)
+            reference(withPath: nearest.location.absolutePath).update(use: updateValue, completion: completion)
         } else if let compl = completion {
-            compl(nil, node(with: nearest.location))
+            compl(nil)
         }
     }
 
@@ -290,12 +263,7 @@ import FirebaseStorage
 
 public typealias RealtimeMetadata = [String: Any]
 
-public protocol StorageNode {
-    func delete(completion: ((Error?) -> Void)?)
-    func put(_ data: Data, metadata: RealtimeMetadata?, completion: @escaping (RealtimeMetadata?, Error?) -> Void)
-}
-
-extension StorageReference: StorageNode {
+extension StorageReference {
     public func put(_ data: Data, metadata: RealtimeMetadata?, completion: @escaping (RealtimeMetadata?, Error?) -> Void) {
         var smd: StorageMetadata?
         if let md = metadata {
@@ -309,18 +277,13 @@ extension StorageReference: StorageNode {
 }
 
 public protocol RealtimeStorage {
-    func node(with referenceNode: Node) -> StorageNode
     func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void)
 }
 
 extension Storage: RealtimeStorage {
-    public func node(with referenceNode: Node) -> StorageNode {
-        return reference(withPath: referenceNode.rootPath)
-    }
-
     public func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
         var nearest = transaction.updateNode
-        while nearest.childs.count == 1, let next = nearest.childs.first as? ObjectNode {
+        while nearest.childs.count == 1, case .some(.object(let next)) = nearest.childs.first {
             nearest = next
         }
         let files = nearest.files
@@ -348,11 +311,11 @@ extension Storage: RealtimeStorage {
                 guard case let data as Data = value else {
                     fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.location)")
                 }
-                node(with: file.location).put(data, metadata: nil, completion: { (md, err) in
+                reference(withPath: location.absolutePath).put(data, metadata: nil, completion: { (md, err) in
                     addCompletion(location, md, err)
                 })
             } else {
-                node(with: file.location).delete(completion: { (err) in
+                reference(withPath: location.absolutePath).delete(completion: { (err) in
                     addCompletion(location, nil, err.map({ RealtimeError(external: $0, in: .value) }))
                 })
             }

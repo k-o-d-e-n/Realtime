@@ -68,7 +68,7 @@ extension OtherTests {
     }
     func testReflectClass() {
         let mirror = Mirror(reflecting: TestObject.self)
-        print(mirror.children.map({ $0 }), mirror.superclassMirror)
+        print(mirror.children.map({ $0 }), mirror.superclassMirror as Any)
     }
 
     func testCodableEnum() {

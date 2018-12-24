@@ -204,7 +204,7 @@ extension RealtimeTableController: UITableViewDelegate, RealtimeEditingTableData
                     }
             },
                 object: {
-                    try! Global.rtUsers[indexPath.row].delete().commit(with: { (_, err) in
+                    Global.rtUsers[indexPath.row].delete().commit(with: { (_, err) in
                         self.activityView.stopAnimating()
                         if let e = err?.first {
                             print(e.localizedDescription)

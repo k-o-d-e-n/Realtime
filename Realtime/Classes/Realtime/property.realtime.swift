@@ -513,11 +513,15 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
         }
     }
 
+    internal func cacheValue(_ node: Node, value: Any?) -> CacheNode {
+        return .value(ValueNode(node: node, value: value))
+    }
+
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
         if let changed = _changedValue {
             /// skip the call of super (_RealtimeValue)
             _addReversion(to: transaction, by: node)
-            transaction._addValue(updateType, try representer.encode(changed), by: node)
+            try transaction._addValue(cacheValue(node, value: representer.encode(changed)))
         }
     }
 
@@ -538,7 +542,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
             }
         case .some(.local(let v)):
             _addReversion(to: transaction, by: node)
-            transaction._addValue(updateType, try representer.encode(v), by: node)
+            try transaction._addValue(cacheValue(node, value: representer.encode(v)))
         default:
             debugFatalError("Unexpected behavior")
             throw RealtimeError(encoding: T.self, reason: "Unexpected state for current operation")
@@ -678,8 +682,6 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             }
         })
     }
-
-    internal var updateType: ValueNode.Type { return ValueNode.self }
 
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
         /// readonly property cannot have changes
