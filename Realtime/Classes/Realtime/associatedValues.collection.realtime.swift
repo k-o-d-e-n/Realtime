@@ -91,17 +91,17 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     }
 
     /// Currently no available
-    public required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("AssociatedValues does not supported init(data:exactly:) yet.")
+        fatalError("AssociatedValues does not supported init(data:event:) yet.")
         #else
-        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:exactly:) yet.")
+        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:event:) yet.")
         #endif
     }
 
-    public convenience init(data: RealtimeDataProtocol, exactly: Bool, keysNode: Node) throws {
+    public convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, keysNode: Node) throws {
         self.init(in: data.node, options: [.keysNode: keysNode, .database: data.database as Any])
-        try apply(data, exactly: exactly)
+        try apply(data, event: event)
     }
 
     // MARK: Implementation
@@ -147,25 +147,25 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         }
     }
 
-    var _snapshot: (RealtimeDataProtocol, Bool)?
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+    var _snapshot: (RealtimeDataProtocol, DatabaseDataEvent)?
+    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard view.isSynced else {
-            _snapshot = (data, exactly)
+            _snapshot = (data, event)
             return
         }
         _snapshot = nil
         try view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if exactly, let contained = storage.first(where: { $0.0.dbKey == key.dbKey }) { storage.remove(for: contained.key) }
+                if event == .value, let contained = storage.first(where: { $0.0.dbKey == key.dbKey }) { storage.remove(for: contained.key) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
             if var element = storage.first(where: { $0.0.dbKey == key.dbKey })?.value {
-                try element.apply(childData, exactly: exactly)
+                try element.apply(childData, event: event)
             } else {
                 let keyEntity = keyBuilder.buildKey(with: key)
                 var value = valueBuilder.buildValue(with: key)
-                try value.apply(childData, exactly: exactly)
+                try value.apply(childData, event: event)
                 storage.set(value: value, for: keyEntity)
             }
         }
@@ -238,11 +238,11 @@ extension AssociatedValues {
         }
 
         /// Currently, no available.
-        public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             #if DEBUG
-            fatalError("References does not supported init(data:exactly:) yet.")
+            fatalError("References does not supported init(data:event:) yet.")
             #else
-            throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
+            throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
             #endif
         }
 
@@ -516,17 +516,17 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
     }
 
     /// Currently no available
-    public required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("AssociatedValues does not supported init(data:exactly:) yet.")
+        fatalError("AssociatedValues does not supported init(data:event:) yet.")
         #else
-        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:exactly:) yet.")
+        throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:event:) yet.")
         #endif
     }
 
-    public convenience init(data: RealtimeDataProtocol, exactly: Bool, keysNode: Node) throws {
+    public convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, keysNode: Node) throws {
         self.init(in: data.node, options: [.keysNode: keysNode, .database: data.database as Any])
-        try apply(data, exactly: exactly)
+        try apply(data, event: event)
     }
 
     // MARK: Implementation
@@ -573,9 +573,9 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
         }
     }
 
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try super.apply(data, exactly: exactly)
-        try view.apply(data, exactly: exactly)
+    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.apply(data, event: event)
+        try view.apply(data, event: event)
     }
 
     /// Collection does not respond for versions and raw value, and also payload.

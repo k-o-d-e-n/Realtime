@@ -168,8 +168,8 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtili
     public init(in node: Node?, options: [ValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))
     }
-    public mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try self?.apply(data, exactly: exactly)
+    public mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try self?.apply(data, event: event)
     }
 
     public static func _isValid(asReference value: Optional<Wrapped>) -> Bool {
@@ -180,9 +180,9 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtili
     }
 }
 extension Optional: RealtimeDataRepresented where Wrapped: RealtimeDataRepresented {
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         if data.exists() {
-            self = .some(try Wrapped(data: data, exactly: exactly))
+            self = .some(try Wrapped(data: data, event: event))
         } else {
             self = .none
         }
@@ -201,12 +201,12 @@ public extension RealtimeValue {
     /// Indicates that value has rooted node
     var isRooted: Bool { return node?.isRooted ?? false }
 
-    internal mutating func apply(parentDataIfNeeded parent: RealtimeDataProtocol, exactly: Bool) throws {
-        guard exactly || dbKey.has(in: parent) else { return }
+    internal mutating func apply(parentDataIfNeeded parent: RealtimeDataProtocol, parentEvent: DatabaseDataEvent) throws {
+        guard parentEvent == .value || dbKey.has(in: parent) else { return }
 
         /// if data has the data associated with current value,
         /// then data is full and we must pass `true` to `exactly` parameter.
-        try apply(dbKey.child(from: parent), exactly: true)
+        try apply(dbKey.child(from: parent), event: .value)
     }
 }
 

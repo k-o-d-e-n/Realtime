@@ -28,7 +28,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
 
-    func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
+    func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
     func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { fatalError() }
@@ -54,8 +54,8 @@ where C.Index == Int, C.View.Element: DatabaseKeyRepresentable {
         self.base = base
     }
 
-    required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        let base = try C(data: data, exactly: exactly)
+    required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        let base = try C(data: data, event: event)
         self.init(base: base)
     }
 
@@ -72,7 +72,7 @@ where C.Index == Int, C.View.Element: DatabaseKeyRepresentable {
 
     override func runObserving() -> Bool { return base.runObserving() }
     override func stopObserving() { base.stopObserving() }
-    override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
+    override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { try base.apply(data, event: event) }
     override func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
 }
 
@@ -103,7 +103,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
         fatalError("Cannot use this initializer")
     }
 
-    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
+    public convenience required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { fatalError() }
 
     public var startIndex: Int { return base.startIndex }
     public var endIndex: Int { return base.endIndex }
@@ -115,7 +115,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     @discardableResult
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
-    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
+    public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { try base.apply(data, event: event) }
 }
 
 struct AnySharedCollection<Element>: Collection {
@@ -187,7 +187,7 @@ where Base.Index == Int, Base.View.Element: DatabaseKeyRepresentable {
         fatalError()
     }
 
-    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public convenience required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         fatalError("Cannot use this initializer")
     }
 
@@ -200,7 +200,7 @@ where Base.Index == Int, Base.View.Element: DatabaseKeyRepresentable {
     public func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
     @discardableResult public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
-    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try base.apply(data, exactly: exactly)
+    public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try base.apply(data, event: event)
     }
 }

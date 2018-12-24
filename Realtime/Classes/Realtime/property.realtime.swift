@@ -155,8 +155,8 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
         super.init(in: node, options: options.merging([.representer: o.representer], uniquingKeysWith: { _, new in new }))
     }
 
-    required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:exactly:) instead")
+    required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
     }
 
     @discardableResult
@@ -166,9 +166,9 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
         return try super.setValue(value, in: transaction)
     }
 
-    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try _apply_RealtimeValue(data, exactly: exactly)
-        try super.apply(data, exactly: exactly)
+    public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try _apply_RealtimeValue(data)
+        try super.apply(data, event: event)
     }
 
     override func _write(to transaction: Transaction, by node: Node) throws {
@@ -211,8 +211,8 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         super.init(in: node, options: options.merging([.representer: relation.representer], uniquingKeysWith: { _, new in new }))
     }
 
-    required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:exactly:) instead")
+    required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
     }
 
     @discardableResult
@@ -258,9 +258,9 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         }
     }
 
-    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try _apply_RealtimeValue(data, exactly: exactly)
-        try super.apply(data, exactly: exactly)
+    public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try _apply_RealtimeValue(data)
+        try super.apply(data, event: event)
     }
 
     private func removeOldValueIfExists(in transaction: Transaction, by node: Node) {
@@ -638,7 +638,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         super.init(in: node, options: options)
     }
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
         fatalError("init(data:exactly:) cannot be called. Use combination init(in:options:) and apply(_:exactly:) instead")
         #else
@@ -722,9 +722,9 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     
     // MARK: Changeable
 
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         /// skip the call of super
-        guard exactly else {
+        guard event == .value else {
             /// skip partial data, because it is not his responsibility and representer can throw error
             return
         }
@@ -936,13 +936,13 @@ public final class SharedProperty<T>: _RealtimeValue where T: RealtimeDataValue 
 
     // MARK: Changeable
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self._value = T()
-        try super.init(data: data, exactly: exactly)
+        try super.init(data: data, event: event)
     }
 
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try super.apply(data, exactly: exactly)
+    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.apply(data, event: event)
         setValue(try representer.decode(data))
     }
 

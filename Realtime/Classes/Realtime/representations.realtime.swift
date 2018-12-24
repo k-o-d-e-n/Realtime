@@ -39,7 +39,7 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
         return v
     }
 
-    init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard
             let ref: String = try InternalKeys.source.stringValue.map(from: data)
         else
@@ -120,7 +120,7 @@ public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValue
         return v
     }
 
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard
             let path: String = try CodingKeys.targetPath.map(from: data),
             let property: String = try CodingKeys.relatedProperty.map(from: data)
@@ -156,7 +156,7 @@ struct SourceLink: RealtimeDataRepresented, RealtimeDataValueRepresented, Codabl
         return links
     }
 
-    init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard
             let id = data.key
         else { throw RealtimeError(initialization: SourceLink.self, data) }

@@ -146,7 +146,7 @@ extension RealtimeCollection where Self: AnyObject, Element: RealtimeValue {
         var collection = self
         query(ref).observeSingleEvent(of: .value, with: { (data) in
             do {
-                try collection.apply(data, exactly: false)
+                try collection.apply(data, event: .child(.added))
                 completion(collection.filter { data.hasChild($0.dbKey) }, nil)
             } catch let e {
                 completion(collection.filter { data.hasChild($0.dbKey) }, e)

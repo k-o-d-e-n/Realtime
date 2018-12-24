@@ -111,10 +111,10 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
         loadFile(timeout: timeout, completion: completion)
     }
 
-    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+    public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         // currently, file can be filled by data from cache only
         if data.database === Cache.root {
-            try super.apply(data, exactly: exactly)
+            try super.apply(data, event: event)
         }
     }
 }
@@ -138,10 +138,10 @@ public final class File<T>: Property<T> {
         loadFile(timeout: timeout, completion: completion)
     }
 
-    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+    public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         // currently, file can be filled by data from cache only
         if data.database === Cache.root {
-            try super.apply(data, exactly: exactly)
+            try super.apply(data, event: event)
         }
     }
 

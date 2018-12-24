@@ -74,16 +74,16 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         super.init(in: view.node, options: options)
     }
 
-    public convenience init(data: RealtimeDataProtocol, exactly: Bool, elementsNode: Node) throws {
+    public convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, elementsNode: Node) throws {
         self.init(in: data.node, options: [.elementsNode: elementsNode,
                                                .database: data.database as Any])
-        try apply(data, exactly: exactly)
+        try apply(data, event: event)
     }
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.storage = RCKeyValueStorage()
         self.view = SortedCollectionView(in: data.node, options: [.database: data.database as Any])
-        try super.init(data: data, exactly: exactly)
+        try super.init(data: data, event: event)
     }
 
     // Implementation
@@ -98,9 +98,9 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         return element
     }
 
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try super.apply(data, exactly: exactly)
-        try view.apply(data, exactly: exactly)
+    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.apply(data, event: event)
+        try view.apply(data, event: event)
     }
 
     /// Collection does not respond for versions and raw value, and also payload.
@@ -164,11 +164,11 @@ public class References<Element: RealtimeValue>: __RepresentableCollection<Eleme
     }
 
     /// Currently, no available.
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("References does not supported init(data:exactly:) yet.")
+        fatalError("References does not supported init(data:event:) yet.")
         #else
-        throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
+        throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
         #endif
     }
 }
@@ -409,11 +409,11 @@ public struct RCRef: WritableRealtimeValue, Comparable {
         self.dbKey = node?.key
     }
 
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard let key = data.key else { throw RealtimeError(initialization: RCRef.self, data) }
 
         self.dbKey = key
-        self.reference = try ReferenceRepresentation(data: data, exactly: exactly)
+        self.reference = try ReferenceRepresentation(data: data, event: event)
     }
 
     public func write(to transaction: Transaction, by node: Node) throws { transaction.addValue(try defaultRepresentation(), by: node) }
@@ -449,11 +449,11 @@ public class DistributedReferences<Element: RealtimeValue>: __RepresentableColle
     }
 
     /// Currently, no available.
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("References does not supported init(data:exactly:) yet.")
+        fatalError("References does not supported init(data:event:) yet.")
         #else
-        throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
+        throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
         #endif
     }
 
@@ -485,9 +485,9 @@ public struct RelationsItem: WritableRealtimeValue, Comparable {
         self.payload = options[.userPayload] as? [String: RealtimeDataValue]
     }
 
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.dbKey = data.key
-        self.relation = try RelationRepresentation(data: data, exactly: exactly)
+        self.relation = try RelationRepresentation(data: data, event: event)
     }
 
     public func write(to transaction: Transaction, by node: Node) throws {
@@ -538,11 +538,11 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
                    options: options)
     }
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("References does not supported init(data:exactly:) yet.")
+        fatalError("References does not supported init(data:event:) yet.")
         #else
-        throw RealtimeError(source: .collection, description: "References does not supported init(data:exactly:) yet.")
+        throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
         #endif
     }
 

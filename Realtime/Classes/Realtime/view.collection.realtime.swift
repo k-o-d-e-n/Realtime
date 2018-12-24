@@ -28,7 +28,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         self.payload = options[.userPayload] as? [String: RealtimeDataValue]
     }
 
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard let key = data.key else {
             throw RealtimeError(initialization: RCItem.self, data)
         }
@@ -102,8 +102,8 @@ public struct RDItem: WritableRealtimeValue, Comparable {
         self.rcItem = RCItem(in: node, options: options)
     }
 
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        self.rcItem = try RCItem(data: data, exactly: exactly)
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        self.rcItem = try RCItem(data: data, event: event)
         let keyData = InternalKeys.key.child(from: data)
         self.raw = try keyData.rawValue()
         self.payload = try InternalKeys.payload.map(from: keyData)
@@ -192,7 +192,7 @@ public struct AnyRealtimeCollectionView: RealtimeCollectionView {
 }
 
 extension SortedArray: RealtimeDataRepresented where Element: RealtimeDataRepresented & Comparable {
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.init(try data.map(Element.init))
     }
 }
@@ -259,9 +259,9 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         super.init(in: node, options: options)
     }
 
-    public required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.init(in: data.node, options: [.database: data.database as Any, .storage: data.storage as Any])
-        try apply(data, exactly: exactly)
+        try apply(data, event: event)
     }
 
     @discardableResult
@@ -311,11 +311,11 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         }
     }
 
-    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+    public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         /// partial data processing see in `changes`
-        guard exactly else { return }
+        guard event == .value else { return }
 
-        self._elements = try SortedArray(data: data, exactly: exactly)
+        self._elements = try SortedArray(data: data, event: event)
     }
 
     public func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void) {

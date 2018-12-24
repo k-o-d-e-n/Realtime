@@ -86,14 +86,14 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         self.init(in: node, options: options, view: view)
     }
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         let node = data.node
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         let viewNode = Node(key: InternalKeys.items, parent: viewParentNode)
         self.builder = RealtimeValueBuilder(spaceNode: node, impl: Element.init)
         self.storage = RCKeyValueStorage()
         self.view = SortedCollectionView(in: viewNode, options: [.database: data.database as Any])
-        try super.init(data: data, exactly: exactly)
+        try super.init(data: data, event: event)
     }
 
     init(in node: Node?, options: [ValueOption: Any], view: SortedCollectionView<RCItem>) {
@@ -116,24 +116,24 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         return element
     }
 
-    var _snapshot: (RealtimeDataProtocol, Bool)?
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+    var _snapshot: (RealtimeDataProtocol, DatabaseDataEvent)?
+    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard view.isSynced else {
-            _snapshot = (data, exactly)
+            _snapshot = (data, event)
             return
         }
         _snapshot = nil
         try view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if exactly { storage.remove(for: key.dbKey) }
+                if event == .value { storage.remove(for: key.dbKey) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
             if var element = storage[key.dbKey] {
-                try element.apply(childData, exactly: exactly)
+                try element.apply(childData, event: event)
             } else {
                 var value = builder.build(with: key)
-                try value.apply(childData, exactly: exactly)
+                try value.apply(childData, event: event)
                 storage[key.dbKey] = value
             }
         }
@@ -430,10 +430,10 @@ where Element: WritableRealtimeValue & Comparable {
         self.init(in: node, options: options, view: view)
     }
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         let node = data.node
         self.view = SortedCollectionView(in: node, options: [.database: data.database as Any])
-        try super.init(data: data, exactly: exactly)
+        try super.init(data: data, event: event)
     }
 
     init(in node: Node?, options: [ValueOption: Any], view: SortedCollectionView<Element>) {
@@ -447,8 +447,8 @@ where Element: WritableRealtimeValue & Comparable {
         return view[position]
     }
 
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try view.apply(data, exactly: exactly)
+    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try view.apply(data, event: event)
     }
 
     /// Collection does not respond for versions and raw value, and also payload.

@@ -104,15 +104,15 @@ class TestObject: Object {
             super.init(in: node, options: options)
         }
 
-        required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             self.usualProperty = Property(in: Node(key: "usualprop", parent: data.node),
                                           representer: .any,
                                           options: [.database: data.database as Any])
-            try super.init(data: data, exactly: exactly)
+            try super.init(data: data, event: event)
         }
 
-        override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-            try super.apply(data, exactly: exactly)
+        override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+            try super.apply(data, event: event)
         }
 
         override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
@@ -423,7 +423,7 @@ extension RealtimeTests {
 
             let data = try element.update(in: transaction).updateNode
 
-            let object = try TestObject(data: data.child(forNode: element.node!), exactly: false)
+            let object = try TestObject(data: data.child(forNode: element.node!), event: .child(.added))
             
             XCTAssertNotNil(object.file.unwrapped)
 //            XCTAssertEqual(object.file.unwrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
@@ -486,9 +486,9 @@ extension RealtimeTests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try User(data: data.child(forNode: user.node!), exactly: false)
+            let userCopy = try User(data: data.child(forNode: user.node!), event: .child(.added))
 
-            try group.apply(data.child(forNode: group.node!), exactly: false)
+            try group.apply(data.child(forNode: group.node!), event: .child(.added))
 
             XCTAssertTrue(group.manager.unwrapped.dbKey == user.dbKey)
             XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == group.dbKey)
@@ -510,11 +510,11 @@ extension RealtimeTests {
 
             let data = try group.update(in: transaction).updateNode
 
-            let groupCopy = try Group(data: data.child(forNode: group.node!), exactly: false)
+            let groupCopy = try Group(data: data.child(forNode: group.node!), event: .child(.added))
 
             let ownedGroups = user.ownedGroups
             let groupsData = data.child(forNode: ownedGroups.node!)
-            try ownedGroups.apply(groupsData, exactly: true)
+            try ownedGroups.apply(groupsData, event: .value)
 
             XCTAssertTrue(ownedGroups.first?.dbKey == group.dbKey)
             XCTAssertTrue(group._manager.wrapped?.dbKey == user.dbKey)
@@ -539,11 +539,11 @@ extension RealtimeTests {
                 errors?.first.map({ XCTFail($0.describingErrorDescription) })
 
                 do {
-                    let userCopy = try User(data: Cache.root.child(forNode: user.node!), exactly: false)
+                    let userCopy = try User(data: Cache.root.child(forNode: user.node!), event: .child(.added))
 
                     let manager = group._manager
                     let managerData = Cache.root.child(forNode: manager.node!)
-                    try manager.apply(managerData, exactly: true)
+                    try manager.apply(managerData, event: .value)
 
                     XCTAssertTrue(manager.unwrapped?.dbKey == user.dbKey)
                     // cache while is not observed
@@ -573,7 +573,7 @@ extension RealtimeTests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try User(data: data.child(forNode: user.node!), exactly: false)
+            let userCopy = try User(data: data.child(forNode: user.node!), event: .child(.added))
 
             if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -601,7 +601,7 @@ extension RealtimeTests {
 
                 let copyRelation: Relation<Object> = "relation".relation(in: Object(in: .root), RelationMode.oneToOne("obj"))
                 do {
-                    try copyRelation.apply(Cache.root.child(by: copyRelation.node!)!.asUpdateNode(), exactly: true)
+                    try copyRelation.apply(Cache.root.child(by: copyRelation.node!)!.asUpdateNode(), event: .value)
 
                     XCTAssertEqual(copyRelation.wrapped, relation.wrapped)
                     XCTAssertEqual(copyRelation.wrapped.raw as? Int, relation.wrapped.raw as? Int)
@@ -630,7 +630,7 @@ extension RealtimeTests {
 
             let data = try conversation.update(in: transaction).updateNode
 
-            let conversationCopy = try Conversation(data: data.child(forNode: conversation.node!), exactly: false)
+            let conversationCopy = try Conversation(data: data.child(forNode: conversation.node!), event: .child(.added))
 
             if case .error(let e, _)? = conversation.chairman.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -670,7 +670,7 @@ extension RealtimeTests {
 
         do {
             let data = ValueNode(node: Node(key: "prop"), value: nil)
-            try property.apply(data, exactly: true)
+            try property.apply(data, event: .value)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -805,17 +805,17 @@ extension RealtimeTests {
             }
         }
 
-        init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             let raw: CShort = try data.rawValue() as? CShort ?? 0
 
             switch raw {
-            case 1: self = .two(try TestObject(data: data, exactly: exactly))
-            default: self = .one(try TestObject(data: data, exactly: exactly))
+            case 1: self = .two(try TestObject(data: data, event: event))
+            default: self = .one(try TestObject(data: data, event: event))
             }
         }
 
-        mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-            try value.apply(data, exactly: exactly)
+        mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+            try value.apply(data, event: event)
             let r = try data.rawValue() as? Int ?? 0
             if raw as? Int != r {
                 switch r {
@@ -915,7 +915,7 @@ extension RealtimeTests {
                 errs?.first.map({ XCTFail($0.describingErrorDescription) })
 
                 do {
-                    let copyUser = try User2(data: Cache.root, exactly: true)
+                    let copyUser = try User2(data: Cache.root, event: .value)
                     XCTAssertEqual(copyUser.raw as? Int, 5)
                 } catch let e {
                     XCTFail(e.describingErrorDescription)
@@ -953,7 +953,7 @@ extension RealtimeTests {
                     XCTFail(e.localizedDescription)
                 } else {
                     do {
-                        let restoredObj = try TestObject(data: Cache.root, exactly: false)
+                        let restoredObj = try TestObject(data: Cache.root, event: .child(.added))
 
                         XCTAssertEqual(testObject.property, restoredObj.property)
                         XCTAssertEqual(testObject.nestedObject.lazyProperty,
@@ -1183,7 +1183,7 @@ extension RealtimeTests {
 
                 let ownedGroup = Relation<Group?>.readonly(in: user.ownedGroup.node, config: user.ownedGroup.options)
                 do {
-                    try ownedGroup.apply(Cache.root.child(forNode: user.ownedGroup.node!), exactly: true)
+                    try ownedGroup.apply(Cache.root.child(forNode: user.ownedGroup.node!), event: .value)
                     XCTAssertEqual(ownedGroup.wrapped, user.ownedGroup.wrapped)
                     exp.fulfill()
                 } catch let e {
@@ -1216,7 +1216,7 @@ extension RealtimeTests {
                     mode: Reference<User>.Mode.required(.fullPath, options: [.database: Cache.root])
                 )
                 do {
-                    try chairman.apply(Cache.root.child(forNode: conversation.chairman.node!), exactly: true)
+                    try chairman.apply(Cache.root.child(forNode: conversation.chairman.node!), event: .value)
                     XCTAssertEqual(chairman.wrapped, conversation.chairman.wrapped)
                     exp.fulfill()
                 } catch let e {
@@ -1585,9 +1585,9 @@ enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeV
         self = .v2(VersionableObjectV2(in: node, options: options))
     }
 
-    init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard var versioner = try data.versioner() else {
-            self = .v1(try VersionableObject(data: data, exactly: exactly))
+            self = .v1(try VersionableObject(data: data, event: event))
             return
         }
         var version: Version?
@@ -1596,13 +1596,13 @@ enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeV
         }
 
         switch version?.major {
-        case 2: self = .v2(try VersionableObjectV2(data: data, exactly: exactly))
-        default: self = .v1(try VersionableObject(data: data, exactly: exactly))
+        case 2: self = .v2(try VersionableObjectV2(data: data, event: event))
+        default: self = .v1(try VersionableObject(data: data, event: event))
         }
     }
 
-    mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try value.apply(data, exactly: exactly)
+    mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try value.apply(data, event: event)
     }
     func load(timeout: DispatchTimeInterval, completion: Closure<Error?, Void>?) { value.load(timeout: timeout, completion: completion) }
     func runObserving() -> Bool { return value.runObserving() }

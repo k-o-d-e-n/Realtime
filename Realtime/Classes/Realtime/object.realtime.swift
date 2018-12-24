@@ -165,7 +165,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
 
         database.load(for: node, timeout: timeout, completion: { d in
             do {
-                try self.apply(d, exactly: true)
+                try self.apply(d, event: .value)
                 completion?.assign(nil)
                 self.dataObserver.send(.value((d, .value)))
             } catch let e {
@@ -225,7 +225,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         }
         return database.observe(event, on: node, onUpdate: { d in
             do {
-                try self.apply(d, exactly: event == .value)
+                try self.apply(d, event: event)
                 self.dataObserver.send(.value((d, event)))
             } catch let e {
                 self.dataObserver.send(.error(e))
@@ -336,20 +336,20 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
 
     // MARK: Realtime Value
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.database = data.database ?? RealtimeApp.app.database
         self.node = data.node
-        try apply(data, exactly: exactly)
+        try apply(data, event: event)
     }
 
-    func _apply_RealtimeValue(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+    func _apply_RealtimeValue(_ data: RealtimeDataProtocol) throws {
         self._version = try data.version()
         self.raw = try data.rawValue()
-        self.payload = try InternalKeys.payload.map(from: data)
+        self.payload = try data.payload()
     }
-    open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+    open func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         debugFatalError(condition: data.node.map { $0 != node } ?? false, "Tries apply data with incorrect reference")
-        try _apply_RealtimeValue(data, exactly: exactly)
+        try _apply_RealtimeValue(data)
     }
 
     /// support Versionable
@@ -530,18 +530,18 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         super.didRemove(from: ancestor)
     }
     
-    override open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try super.apply(data, exactly: exactly)
+    override open func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.apply(data, event: event)
         try reflect { (mirror) in
-            try apply(data, exactly: exactly, to: mirror)
+            try apply(data, event: event, to: mirror)
         }
     }
-    private func apply(_ data: RealtimeDataProtocol, exactly: Bool, to mirror: Mirror) throws {
+    private func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent, to mirror: Mirror) throws {
         try mirror.children.forEach { (child) in
             guard isNotIgnoredLabel(child.label) else { return }
 
             if var value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
-                try value.apply(parentDataIfNeeded: data, exactly: exactly)
+                try value.apply(parentDataIfNeeded: data, parentEvent: event)
             }
         }
     }

@@ -84,7 +84,7 @@ public protocol RealtimeDataRepresented {
     /// - Parameters:
     ///   - data: Realtime database data
     ///   - exactly: Indicates that data should be applied as is (for example, empty values will be set to `nil`).
-    init(data: RealtimeDataProtocol, exactly: Bool) throws
+    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws
 
     /// Applies value of data snapshot
     ///
@@ -92,17 +92,17 @@ public protocol RealtimeDataRepresented {
     ///   - data: Realtime database data
     ///   - exactly: Indicates that data should be applied as is (for example, empty values will be set to `nil`).
     ///               Pass `false` if data represents part of data (for example filtered list).
-    mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws
+    mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws
 }
 extension RealtimeDataRepresented {
     init(data: RealtimeDataProtocol) throws {
-        try self.init(data: data, exactly: true)
+        try self.init(data: data, event: .value)
     }
-    mutating public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        self = try Self.init(data: data)
+    mutating public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        self = try Self.init(data: data, event: event)
     }
     mutating func apply(_ data: RealtimeDataProtocol) throws {
-        try apply(data, exactly: true)
+        try apply(data, event: .value)
     }
 }
 
@@ -144,7 +144,7 @@ extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatabl
 /// You shouldn't apply for some custom values.
 public protocol RealtimeDataValue: RealtimeDataRepresented {}
 extension RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard let v = data.value as? Self else {
             throw RealtimeError(initialization: Self.self, data.value as Any)
         }
@@ -163,7 +163,7 @@ extension RealtimeDataValue {
 //    }
 //}
 extension Array: RealtimeDataValue, RealtimeDataRepresented where Element: RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard let v = data.value as? Array<Element> else {
             throw RealtimeError(initialization: Array<Element>.self, data.value as Any)
         }
@@ -183,7 +183,7 @@ extension Array: RealtimeDataValue, RealtimeDataRepresented where Element: Realt
 //    }
 //}
 extension Dictionary: RealtimeDataValue, RealtimeDataRepresented where Key: RealtimeDataValue, Value == RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard let v = data.value as? [Key: Value] else {
             throw RealtimeError(initialization: [Key: Value].self, data.value as Any)
         }
