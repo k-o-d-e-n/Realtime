@@ -423,7 +423,11 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
 
-                return try RelationRepresentation(path: node.path(from: anchorNode ?? .root), property: mode.path(for: owner)).defaultRepresentation()
+                return try RelationRepresentation(
+                    path: node.path(from: anchorNode ?? .root),
+                    property: mode.path(for: owner),
+                    payload: (v.raw, v.payload)
+                ).defaultRepresentation()
             },
             decoding: { d in
                 guard let owner = ownerNode.value
@@ -436,7 +440,7 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
                 let relation = try RelationRepresentation(data: d)
-                return V(in: (anchorNode ?? .root).child(with: relation.targetPath), options: [:])
+                return relation.make(fromAnchor: anchorNode ?? .root, options: [:])
             }
         )
     }
@@ -465,7 +469,7 @@ public extension Representer where V: RealtimeValue {
                 let reference = try ReferenceRepresentation(data: data)
                 switch mode {
                 case .fullPath: return reference.make(options: options)
-                case .path(from: let n): return reference.make(in: n, options: options)
+                case .path(from: let n): return reference.make(fromAnchor: n, options: options)
                 }
             }
         )

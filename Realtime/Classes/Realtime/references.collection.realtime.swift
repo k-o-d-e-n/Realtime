@@ -636,10 +636,18 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         }
         let view = try storage.map { (keyValue) -> RelationsItem in
             let elementNode = keyValue.value.node!
-            let relation = RelationRepresentation(path: elementNode.path(from: anchorNode), property: options.property.path(for: ownerNode))
+            let relation = RelationRepresentation(
+                path: elementNode.path(from: anchorNode),
+                property: options.property.path(for: ownerNode),
+                payload: (keyValue.value.raw, keyValue.value.payload)
+            )
             /// a backward write
             if shouldWriteBackward {
-                let ownerRelation = RelationRepresentation(path: ownerNode.path(from: anchorNode), property: node.child(with: keyValue.key).path(from: ownerNode))
+                let ownerRelation = RelationRepresentation(
+                    path: ownerNode.path(from: anchorNode),
+                    property: node.child(with: keyValue.key).path(from: ownerNode),
+                    payload: (nil, nil) // fixme: stub
+                )
                 transaction.addValue(try ownerRelation.defaultRepresentation(), by: elementNode.child(with: options.property.propertyPath))
             }
             var item = RelationsItem(value: keyValue.value)
@@ -851,7 +859,8 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
         let elementNode = element.node!
         let elementRelation = RelationRepresentation(
             path: options.elementPath(with: elementNode, anchorNode: anchorNode.element),
-            property: options.property.path(for: owner)
+            property: options.property.path(for: owner),
+            payload: (element.raw, element.payload)
         )
         var item = RelationsItem(value: element)
         item.relation = elementRelation
@@ -869,7 +878,11 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
             case .oneToMany, .manyToMany: node = node.child(with: owner.key)
             case .oneToOne: break
             }
-            let ownerRelation = RelationRepresentation(path: owner.path(from: anchorNode.owner), property: itemNode.path(from: owner))
+            let ownerRelation = RelationRepresentation(
+                path: owner.path(from: anchorNode.owner),
+                property: itemNode.path(from: owner),
+                payload: (nil, nil) // fixme: stub
+            )
             transaction.addValue(try ownerRelation.defaultRepresentation(), by: node)
         }
     }

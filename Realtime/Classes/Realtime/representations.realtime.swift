@@ -19,7 +19,7 @@ public enum ReferenceMode {
 /// Link value describing reference to some location of database.
 struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented {
     let source: String
-    let payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?) // TODO: ReferenceRepresentation is not responds to payload
+    let payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?) // TODO: ReferenceRepresentation is not responds to payload (may be)
 
     init(ref: String, payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)) {
         self.source = ref
@@ -28,12 +28,14 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
 
     func defaultRepresentation() throws -> Any {
         var v: [String: RealtimeDataValue] = [InternalKeys.source.stringValue: source]
+        var valuePayload: [String: RealtimeDataValue] = [:]
         if let rw = payload.raw {
-            v[InternalKeys.raw.rawValue] = rw
+            valuePayload[InternalKeys.raw.rawValue] = rw
         }
         if let pl = payload.user {
-            v[InternalKeys.payload.rawValue] = pl
+            valuePayload[InternalKeys.payload.rawValue] = pl
         }
+        v[InternalKeys.value.rawValue] = valuePayload
         return v
     }
 
@@ -42,12 +44,13 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
             let ref: String = try InternalKeys.source.stringValue.map(from: data)
         else
             { throw RealtimeError(initialization: ReferenceRepresentation.self, data) }
+        let valueData = InternalKeys.value.child(from: data)
         self.source = ref
-        self.payload = (try data.rawValue(), try InternalKeys.payload.map(from: data))
+        self.payload = (try valueData.rawValue(), try valueData.payload())
     }
 }
 extension ReferenceRepresentation {
-    func make<V: RealtimeValue>(in node: Node = .root, options: [ValueOption: Any]) -> V {
+    func make<V: RealtimeValue>(fromAnchor node: Node = .root, options: [ValueOption: Any]) -> V {
         var options = options
         options[.rawValue] = payload.raw
         if let pl = payload.user {
@@ -85,15 +88,17 @@ public enum RelationMode {
     }
 }
 
-public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented, Codable {
+public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented {
     /// Path to related object
     let targetPath: String
     /// Property of related object that represented this relation
     let relatedProperty: String
+    let payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)
 
-    init(path: String, property: String) {
+    init(path: String, property: String, payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)) {
         self.targetPath = path
         self.relatedProperty = property
+        self.payload = payload
     }
 
     enum CodingKeys: String, CodingKey {
@@ -102,8 +107,16 @@ public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValue
     }
 
     public func defaultRepresentation() throws -> Any {
-        let v: [String: RealtimeDataValue] = [CodingKeys.targetPath.rawValue: targetPath,
+        var v: [String: RealtimeDataValue] = [CodingKeys.targetPath.rawValue: targetPath,
                                               CodingKeys.relatedProperty.rawValue: relatedProperty]
+        var valuePayload: [String: RealtimeDataValue] = [:]
+        if let rw = payload.raw {
+            valuePayload[InternalKeys.raw.rawValue] = rw
+        }
+        if let pl = payload.user {
+            valuePayload[InternalKeys.payload.rawValue] = pl
+        }
+        v[InternalKeys.value.rawValue] = valuePayload
         return v
     }
 
@@ -113,8 +126,20 @@ public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValue
             let property: String = try CodingKeys.relatedProperty.map(from: data)
         else { throw RealtimeError(initialization: RelationRepresentation.self, data) }
 
+        let valueData = InternalKeys.value.child(from: data)
         self.targetPath = path
         self.relatedProperty = property
+        self.payload = (try valueData.rawValue(), try valueData.payload())
+    }
+}
+extension RelationRepresentation {
+    func make<V: RealtimeValue>(fromAnchor node: Node, options: [ValueOption: Any]) -> V {
+        var options = options
+        options[.rawValue] = payload.raw
+        if let pl = payload.user {
+            options[.userPayload] = pl
+        }
+        return V(in: node.child(with: targetPath), options: options)
     }
 }
 

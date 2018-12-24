@@ -267,8 +267,8 @@ extension RealtimeTests {
         checkWillRemove(obj.nestedObject, nested: true)
         checkWillRemove(obj.nestedObject.usualProperty, nested: true)
         checkWillRemove(obj.nestedObject.lazyProperty, nested: true)
-        do {
-            let save = try obj.delete(in: Transaction(database: Cache.root, storage: Cache.root))
+        
+            let save = obj.delete(in: Transaction(database: Cache.root, storage: Cache.root))
             save.commit(with: { _, errs in
                 errs.map { _ in XCTFail() }
 
@@ -285,9 +285,6 @@ extension RealtimeTests {
                 checkDidRemove(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
                 checkDidRemove(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
             })
-        } catch let e {
-            XCTFail(e.localizedDescription)
-        }
     }
 }
 
@@ -590,6 +587,40 @@ extension RealtimeTests {
         transaction.revert()
     }
 
+    func testRelationPayload() {
+        let exp = expectation(description: "")
+        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: 2, .userPayload: ["key": "value"]])
+        let relation: Relation<Object> = "relation".relation(in: Object(in: .root), RelationMode.oneToOne("obj"))
+        relation <== obj
+
+        let transaction = Transaction(database: Cache.root)
+        do {
+            try transaction.set(relation, by: relation.node!)
+            transaction.commit { (_, errors) in
+                _ = errors?.map({ XCTFail($0.describingErrorDescription) })
+
+                let copyRelation: Relation<Object> = "relation".relation(in: Object(in: .root), RelationMode.oneToOne("obj"))
+                do {
+                    try copyRelation.apply(Cache.root.child(by: copyRelation.node!)!.asUpdateNode(), exactly: true)
+
+                    XCTAssertEqual(copyRelation.wrapped, relation.wrapped)
+                    XCTAssertEqual(copyRelation.wrapped.raw as? Int, relation.wrapped.raw as? Int)
+                    XCTAssertEqual(copyRelation.wrapped.payload.map { $0 as NSDictionary },
+                                   relation.wrapped.payload.map { $0 as NSDictionary })
+                    exp.fulfill()
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+            }
+        } catch let e {
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 4) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+
     func testOptionalReference() {
         let transaction = Transaction()
 
@@ -662,9 +693,13 @@ extension RealtimeTests {
         do {
             let result = try representer.encode(value)
 
-            XCTAssertEqual(result as? NSDictionary, [InternalKeys.source.rawValue: "path/subpath",
-                                                     InternalKeys.raw.rawValue: 1,
-                                                     InternalKeys.payload.rawValue: ["foo": "bar"]])
+            XCTAssertEqual(result as? NSDictionary, [
+                InternalKeys.source.rawValue: "path/subpath",
+                InternalKeys.value.rawValue: [
+                    InternalKeys.raw.rawValue: 1,
+                    InternalKeys.payload.rawValue: ["foo": "bar"]
+                ]
+            ])
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -899,7 +934,8 @@ extension RealtimeTests {
     func testReferenceFireValue() {
         let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").absolutePath, payload: (nil, nil))
         let fireValue = try? ref.defaultRepresentation()
-        XCTAssertTrue((fireValue as? NSDictionary) == [InternalKeys.source.rawValue: "first/two"])
+        XCTAssertTrue((fireValue as? NSDictionary) == [InternalKeys.source.rawValue: "first/two",
+                                                       InternalKeys.value.rawValue: [:]])
     }
 
     func testLocalDatabase() {

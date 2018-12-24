@@ -113,6 +113,9 @@ public extension RealtimeDataProtocol {
     func rawValue() throws -> RealtimeDataValue? {
         return try InternalKeys.raw.map(from: self)
     }
+    func payload() throws -> [String: RealtimeDataValue]? {
+        return try InternalKeys.payload.map(from: self)
+    }
 }
 
 /// Internal protocol

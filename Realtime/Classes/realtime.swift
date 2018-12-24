@@ -102,6 +102,6 @@ extension RealtimeApp {
         }
         return app
     }
-
-    var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
+    public static var cache: RealtimeDatabase { return Cache.root }
+    public var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
 }
