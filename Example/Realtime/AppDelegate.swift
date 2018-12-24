@@ -29,7 +29,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         FirebaseApp.configure()
-        RealtimeApp.initialize(with: currentDatabase(), linksNode: BranchNode(key: "___tests/__links"))
+        let configuration = RealtimeApp.Configuration(linksNode: BranchNode(key: "___tests/__links"))
+        RealtimeApp.initialize(with: currentDatabase(), configuration: configuration)
         return true
     }
 

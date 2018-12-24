@@ -166,7 +166,6 @@ extension Database: RealtimeDatabase {
             case .persistance:
                 isPersistenceEnabled = true
             default:
-                RealtimeApp.app.cachePolicy = newValue
                 isPersistenceEnabled = false
             }
         }
@@ -174,7 +173,7 @@ extension Database: RealtimeDatabase {
             if isPersistenceEnabled {
                 return .persistance
             } else {
-                return RealtimeApp.app.cachePolicy
+                return RealtimeApp.app.configuration.cachePolicy
             }
         }
     }

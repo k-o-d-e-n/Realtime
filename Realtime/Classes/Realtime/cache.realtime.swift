@@ -71,7 +71,7 @@ class ValueNode: UpdateNode {
 
     required init(node: Node, value: Any?) {
         debugFatalError(
-            condition: RealtimeApp._isInitialized && node.underestimatedCount >= RealtimeApp.app.maxNodeDepth - 1,
+            condition: RealtimeApp._isInitialized && node.underestimatedCount >= RealtimeApp.app.configuration.maxNodeDepth - 1,
             "Maximum depth limit of child nodes exceeded"
         )
         self.location = node
@@ -189,7 +189,7 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
 
     init(node: Node, childs: [CacheNode] = []) {
         debugFatalError(
-            condition: RealtimeApp._isInitialized && node.underestimatedCount >= RealtimeApp.app.maxNodeDepth - 1,
+            condition: RealtimeApp._isInitialized && node.underestimatedCount >= RealtimeApp.app.configuration.maxNodeDepth - 1,
             "Maximum depth limit of child nodes exceeded"
         )
         self.location = node

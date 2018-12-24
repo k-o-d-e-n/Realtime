@@ -99,7 +99,7 @@ public class Node: Hashable {
 
     public init(key: String, parent: Node?) {
         debugFatalError(
-            condition: RealtimeApp._isInitialized && (parent?.underestimatedCount ?? 0) >= RealtimeApp.app.maxNodeDepth - 1,
+            condition: RealtimeApp._isInitialized && (parent?.underestimatedCount ?? 0) >= RealtimeApp.app.configuration.maxNodeDepth - 1,
             "Maximum depth limit of child nodes exceeded"
         )
         self.key = key
@@ -388,7 +388,7 @@ public extension Node {
     }
 }
 public extension Node {
-    internal static var linksNode: Node { return RealtimeApp.app.linksNode }
+    internal static var linksNode: Node { return RealtimeApp.app.configuration.linksNode }
     internal var linksNode: Node {
         guard isRooted else { fatalError("Try get links node from not rooted node: \(self)") }
         return copy(to: Node.linksNode)

@@ -730,7 +730,7 @@ extension RealtimeTests {
     func testLinksNode() {
         let fourth = Node.root.child(with: "first/second/third/fourth")
         let linksNode = fourth.linksNode
-        XCTAssertEqual(linksNode.absolutePath, RealtimeApp.app.linksNode.child(with: "first/second/third/fourth").absolutePath)
+        XCTAssertEqual(linksNode.absolutePath, RealtimeApp.app.configuration.linksNode.child(with: "first/second/third/fourth").absolutePath)
     }
 
     func testConnectNode() {
