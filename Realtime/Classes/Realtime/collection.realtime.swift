@@ -55,7 +55,7 @@ public protocol RealtimeCollectionView: BidirectionalCollection, RealtimeCollect
 
 public enum RCDataExplorer {
     case view
-    case viewPage(size: UInt)
+    case viewPage(control: PagingControl, size: UInt, ascending: Bool)
 }
 
 /// A type that represents Realtime database collection

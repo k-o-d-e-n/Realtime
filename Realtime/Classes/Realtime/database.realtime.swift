@@ -58,7 +58,7 @@ public extension DatabaseDataChanges {
 ///
 /// - value: Any data changes at a location or, recursively, at any child node.
 /// - child: Any data change is related some child node.
-public enum DatabaseObservingEvent: Hashable {
+public enum DatabaseObservingEvent: Hashable, CustomDebugStringConvertible {
     case value
     case child(DatabaseDataChanges)
 
@@ -66,6 +66,17 @@ public enum DatabaseObservingEvent: Hashable {
         switch self {
         case .value: return 0
         case .child(let c): return c.rawValue.hashValue
+        }
+    }
+
+    public var debugDescription: String {
+        switch self {
+        case .value: return "value"
+        case .child(.added): return "child(added)"
+        case .child(.removed): return "child(removed)"
+        case .child(.changed): return "child(changed)"
+        case .child(.moved): return "child(moved)"
+        default: return "undefined"
         }
     }
 }
@@ -139,7 +150,7 @@ public protocol RealtimeDatabase: class {
         onCancel: ((Error) -> Void)?
     ) -> UInt
     func observe(
-        node: Node, limit: UInt, before: String?, after: String?,
+        node: Node, limit: UInt, before: String?, after: String?, ascending: Bool,
         completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> Disposable
@@ -199,7 +210,8 @@ extension Database: RealtimeDatabase {
         }
         let updateValue = nearest.values
         if updateValue.count > 0 {
-            reference(withPath: nearest.location.absolutePath).update(use: updateValue, completion: completion)
+            let ref = nearest.location.isRoot ? reference() : reference(withPath: nearest.location.absolutePath)
+            ref.update(use: updateValue, completion: completion)
         } else if let compl = completion {
             compl(nil)
         }
@@ -261,7 +273,7 @@ extension Database: RealtimeDatabase {
     }
 
     public func observe(
-        node: Node, limit: UInt, before: String?, after: String?,
+        node: Node, limit: UInt, before: String?, after: String?, ascending: Bool,
         completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> Disposable {
@@ -275,7 +287,8 @@ extension Database: RealtimeDatabase {
             query = query.queryStarting(atValue: after)
             needExcludeKey = true
         }
-        query = query.queryLimited(toLast: limit + (needExcludeKey ? 1 : 0))
+        let resultLimit = limit + (needExcludeKey ? 1 : 0)
+        query = ascending ? query.queryLimited(toFirst: resultLimit) : query.queryLimited(toLast: resultLimit)
 
         let cancelHandler: ((Error) -> Void)? = onCancel.map { closure in
             return { (error) in
@@ -283,29 +296,37 @@ extension Database: RealtimeDatabase {
             }
         }
 
+        var singleLoaded = false
         let added = query.observe(
             .childAdded,
             with: { (data) in
-                completion(data, .child(.added))
+                if singleLoaded {
+                    completion(data, .child(.added))
+                }
             },
             withCancel: cancelHandler
         )
         let removed = query.observe(
             .childRemoved,
             with: { (data) in
-                completion(data, .child(.removed))
+                if singleLoaded {
+                    completion(data, .child(.removed))
+                }
             },
             withCancel: cancelHandler
         )
         let changed = query.observe(
             .childChanged,
             with: { (data) in
-                completion(data, .child(.changed))
+                if singleLoaded {
+                    completion(data, .child(.changed))
+                }
             },
             withCancel: cancelHandler
         )
         query.observeSingleEvent(of: .value, with: { (data) in
             completion(data, .value)
+            singleLoaded = true
         })
 
         return ListeningDispose({
@@ -387,133 +408,164 @@ extension Storage: RealtimeStorage {
 
 // Paging
 
-protocol PagingTokenProtocol {
-    func next()
-    func previous()
+public class PagingControl {
+    weak var controller: PagingController?
+    public var isAttached: Bool { return controller != nil }
+    public var canMakeStep: Bool { return controller.map({ $0.isStarted }) ?? false }
+
+    public init() {}
+
+    public func next() {
+        controller?.next()
+    }
+    public func previous() {
+        controller?.previous()
+    }
+}
+
+protocol PagingControllerDelegate: class {
+    func firstKey() -> String?
+    func lastKey() -> String?
+    func pagingControllerDidReceive(data: RealtimeDataProtocol, with event: DatabaseDataEvent)
+    func pagingControllerDidCancel(with error: Error)
 }
 
 class PagingController {
     private let database: RealtimeDatabase
     private let node: Node
-    private let pageSize: UInt
-    private let ascending: Bool
-    private let dataObserver: (RealtimeDataProtocol, DatabaseDataEvent) -> Void
+    let pageSize: UInt
+    let ascending: Bool
+    private weak var delegate: PagingControllerDelegate?
     private var startPage: Disposable?
-    private var nextPages: [Disposable] = []
-    var first: String?
-    var last: String?
+    private var pages: [String: Disposable] = [:]
+    private var endPage: Disposable?
+    private var firstKey: String?
+    private var lastKey: String?
+    var isStarted: Bool { return startPage != nil }
 
-    public init(database: RealtimeDatabase, node: Node,
-                pageSize: UInt,
-                ascending: Bool,
-                dataObserver: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void) {
+    init(database: RealtimeDatabase, node: Node,
+         pageSize: UInt,
+         ascending: Bool,
+         delegate: PagingControllerDelegate) {
         self.node = node
         self.database = database
         self.ascending = ascending
         self.pageSize = pageSize
-        self.dataObserver = dataObserver
+        self.delegate = delegate
     }
 
     func start() {
         guard startPage == nil else {
             fatalError("Controller already started")
         }
-        let disposable = database.observe(
+        var disposable: Disposable?
+        disposable = database.observe(
             node: node,
             limit: pageSize,
             before: nil,
             after: nil,
+            ascending: ascending,
             completion: { [weak self] data, event in
                 guard let `self` = self else { return }
+                self.endPage = data.childrenCount == self.pageSize ? nil : disposable
+                self.startPage = disposable
+                self.delegate?.pagingControllerDidReceive(data: data, with: event)
+            },
+            onCancel: { [weak self] (error) in
+                self?.delegate?.pagingControllerDidCancel(with: error)
+            }
+        )
+    }
+
+    func stop() {
+        startPage?.dispose()
+        pages.forEach({ $0.value.dispose() })
+        startPage = nil
+    }
+
+    func previous() {
+        // replace start page
+        guard self.startPage != nil else { fatalError("Firstly need call start") }
+        guard let first = delegate?.firstKey(), first != firstKey else { return debugLog("No more data") }
+        if let old = self.firstKey, let startPage = self.startPage {
+            pages[old] = startPage
+        }
+        self.firstKey = first
+        let disposable = database.observe(
+            node: node,
+            limit: pageSize,
+            before: ascending ? first : nil,
+            after: ascending ? nil : first,
+            ascending: ascending,
+            completion: { [weak self] data, event in
+                guard let delegate = self?.delegate else { return }
                 switch event {
                 case .value:
-                    let iterator = data.makeIterator()
-                    if let first = iterator.next() {
-                        self.first = first.key
+                    data.forEach({ (child) in
+                        if child.key != first {
+                            delegate.pagingControllerDidReceive(data: child, with: .child(.added))
+                        }
+                    })
+                case .child(.added):
+                    if data.key != first {
+                        delegate.pagingControllerDidReceive(data: data, with: event)
                     }
-                    while let next = iterator.next() {
-                        self.last = next.key
-                    }
-                    self.dataObserver(data, event)
                 default:
-                    self.dataObserver(data, event)
+                    delegate.pagingControllerDidReceive(data: data, with: event)
                 }
             },
-            onCancel: { (error) in
-
+            onCancel: { [weak self] (error) in
+                self?.delegate?.pagingControllerDidCancel(with: error)
             }
         )
         self.startPage = disposable
     }
 
-    func previous() {
-        guard self.startPage != nil else { fatalError("Firstly need call start") }
-        guard let first = self.first else { return debugLog("No more data") }
-        if ascending {
-            // next page
-            let disposable = database.observe(
-                node: node,
-                limit: pageSize,
-                before: nil,
-                after: first,
-                completion: { [weak self] data, event in
-                    guard let `self` = self else { return }
-                    switch event {
-                    case .value:
-                        let iterator = data.makeIterator()
-                        if let first = iterator.next() {
-                            self.first = first.key
-                        }
-                        self.dataObserver(data, event)
-                    default:
-                        self.dataObserver(data, event)
-                    }
-                },
-                onCancel: { (error) in
-
-            }
-            )
-            nextPages.append(disposable)
-        } else {
-            // start page
-        }
-    }
-
     func next() {
+        // replace end page
         guard self.startPage != nil else { fatalError("Firstly need call start") }
-        guard let last = self.last else { return debugLog("No more data") }
-        if ascending {
-            // start page
-        } else {
-            // next pages
-            let disposable = database.observe(
-                node: node,
-                limit: pageSize,
-                before: last,
-                after: nil,
-                completion: { [weak self] data, event in
-                    guard let `self` = self else { return }
-                    switch event {
-                    case .value:
-                        let iterator = data.makeIterator()
-                        while let next = iterator.next() {
-                            self.last = next.key
-                        }
-                        self.dataObserver(data, event)
-                    default:
-                        self.dataObserver(data, event)
-                    }
-                },
-                onCancel: { (error) in
+        guard let last = self.delegate?.lastKey(), last != lastKey else { return debugLog("No more data") }
 
+        var disposable: Disposable?
+        disposable = database.observe(
+            node: node,
+            limit: pageSize,
+            before: ascending ? nil : last,
+            after: ascending ? last : nil,
+            ascending: ascending,
+            completion: { [weak self] data, event in
+                guard let `self` = self, let delegate = self.delegate else { return }
+                switch event {
+                case .value:
+                    if data.childrenCount == self.pageSize + 1 {
+                        if let oldLast = self.lastKey, let endPage = self.endPage {
+                            self.pages[oldLast] = endPage
+                        }
+                        self.endPage = disposable
+                        self.lastKey = last
+                    }
+                    data.forEach({ (child) in
+                        if child.key != last {
+                            delegate.pagingControllerDidReceive(data: child, with: .child(.added))
+                        }
+                    })
+                case .child(.added):
+                    if data.key != last {
+                        delegate.pagingControllerDidReceive(data: data, with: event)
+                    }
+                default:
+                    delegate.pagingControllerDidReceive(data: data, with: event)
                 }
-            )
-            nextPages.append(disposable)
-        }
+            },
+            onCancel: { [weak self] (error) in
+                self?.delegate?.pagingControllerDidCancel(with: error)
+            }
+        )
     }
 
     deinit {
         startPage?.dispose()
-        nextPages.forEach({ $0.dispose() })
+        pages.forEach({ $0.value.dispose() })
+        endPage?.dispose()
     }
 }

@@ -65,6 +65,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         get { return view.keepSynced }
     }
     public var changes: AnyListenable<RCEvent> { return view.changes }
+    public var dataExplorer: RCDataExplorer = .view {
+        didSet { view.didChange(dataExplorer: dataExplorer) }
+    }
 
     /// Creates new instance associated with database node
     ///
@@ -493,6 +496,9 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
                 }
             })
             .asAny()
+    }
+    public var dataExplorer: RCDataExplorer = .view {
+        didSet { view.didChange(dataExplorer: dataExplorer) }
     }
 
     /// Creates new instance associated with database node

@@ -195,6 +195,9 @@ extension SortedArray: RealtimeDataRepresented where Element: RealtimeDataRepres
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.init(try data.map(Element.init))
     }
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent, sorting: @escaping SortedArray<Element>.Comparator<Element>) throws {
+        self.init(unsorted: try data.map(Element.init), areInIncreasingOrder: sorting)
+    }
 }
 
 enum ViewDataExplorer {
@@ -211,8 +214,13 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         }
     }
     internal(set) var isSynced: Bool = false
-
     override var _hasChanges: Bool { return isStandalone && _elements.count > 0 }
+    public override var isObserved: Bool {
+        switch dataExplorer {
+        case .value: return super.isObserved
+        case .page(let controller): return controller.isStarted
+        }
+    }
 
     var elements: Source {
         set { _elements = newValue }
@@ -294,22 +302,33 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
                 }
             }
             return added && removed && changed
-        case .page:
-            return true
+        case .page(let controller):
+            if !controller.isStarted {
+                controller.start()
+            }
+            return controller.isStarted
         }
     }
 
     public func stopObserving() {
-        // checks 'added' only, can lead to error
-        guard !keepSynced || (observing[.child(.added)].map({ $0.counter > 1 }) ?? true) else {
-            return
-        }
+        switch dataExplorer {
+        case .value:
+            // checks 'added' only, can lead to error
+            guard !keepSynced || (observing[.child(.added)].map({ $0.counter > 1 }) ?? true) else {
+                return
+            }
 
-        _stopObserving(.child(.added))
-        _stopObserving(.child(.removed))
-        _stopObserving(.child(.changed))
-        if !isObserved {
-            isSynced = false
+            _stopObserving(.child(.added))
+            _stopObserving(.child(.removed))
+            _stopObserving(.child(.changed))
+            if !isObserved {
+                isSynced = false
+            }
+        case .page(let controller):
+            if controller.isStarted {
+                controller.stop()
+                isSynced = false
+            }
         }
     }
 
@@ -330,7 +349,12 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         /// partial data processing see in `changes`
         guard event == .value else { return }
 
-        self._elements = try SortedArray(data: data, event: event)
+        switch dataExplorer {
+        case .value:
+            self._elements = try SortedArray(data: data, event: event)
+        case .page(let c):
+            self._elements = try SortedArray(data: data, event: event, sorting: c.ascending ? (<) : (>))
+        }
     }
 
     public func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void) {
@@ -342,6 +366,23 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     public func index(after i: Int) -> Int { return _elements.index(after: i) }
     public func index(before i: Int) -> Int { return _elements.index(before: i) }
     public subscript(position: Int) -> Element { return _elements[position] }
+
+    func didChange(dataExplorer: RCDataExplorer) {
+        guard let database = self.database, let node = self.node else { return }
+        switch dataExplorer {
+        case .view: self.dataExplorer = .value
+        case .viewPage(let control, let size, let ascending):
+            let controller = PagingController(
+                database: database,
+                node: node,
+                pageSize: size,
+                ascending: ascending,
+                delegate: self
+            )
+            control.controller = controller
+            self.dataExplorer = .page(controller)
+        }
+    }
 
     @discardableResult
     func insert(_ element: Element) -> Int {
@@ -397,5 +438,33 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         },
             onCancel: { completion(nil, $0) }
         )
+    }
+}
+extension SortedCollectionView: PagingControllerDelegate {
+    func firstKey() -> String? {
+        return first?.dbKey
+    }
+
+    func lastKey() -> String? {
+        return last?.dbKey
+    }
+
+    func pagingControllerDidReceive(data: RealtimeDataProtocol, with event: DatabaseDataEvent) {
+        do {
+            print(data, event)
+            if event == .value {
+                try self.apply(data, event: event)
+                self.isSynced = true
+            }
+            if self.isSynced {
+                self.dataObserver.send(.value((data, event)))
+            }
+        } catch let e {
+            self.dataObserver.send(.error(e))
+        }
+    }
+
+    func pagingControllerDidCancel(with error: Error) {
+        self.dataObserver.send(.error(error))
     }
 }

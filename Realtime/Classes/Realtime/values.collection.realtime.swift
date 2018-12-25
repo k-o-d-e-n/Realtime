@@ -64,6 +64,9 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         get { return view.keepSynced }
     }
     public var changes: AnyListenable<RCEvent> { return view.changes }
+    public var dataExplorer: RCDataExplorer = .view {
+        didSet { view.didChange(dataExplorer: dataExplorer) }
+    }
 
     /// Create new instance with default element builder
     ///
@@ -409,6 +412,9 @@ where Element: WritableRealtimeValue & Comparable {
     }
     public var changes: AnyListenable<RCEvent> {
         return view.changes
+    }
+    public var dataExplorer: RCDataExplorer = .view {
+        didSet { view.didChange(dataExplorer: dataExplorer) }
     }
 
     /// Create new instance with default element builder

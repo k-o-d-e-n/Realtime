@@ -564,7 +564,7 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             }))
     }
 
-    func observe(node: Node, limit: UInt, before: String?, after: String?,
+    func observe(node: Node, limit: UInt, before: String?, after: String?, ascending: Bool,
                  completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
                  onCancel: ((Error) -> Void)?) -> Disposable {
         fatalError("Not implemented")
