@@ -111,6 +111,12 @@ extension DatabaseDataEvent {
     }
 }
 
+public enum RealtimeDataOrdering {
+    case key
+    case value
+    case child(String)
+}
+
 /// A database that can used in `Realtime` framework.
 public protocol RealtimeDatabase: class {
     /// A database cache policy.
@@ -150,7 +156,9 @@ public protocol RealtimeDatabase: class {
         onCancel: ((Error) -> Void)?
     ) -> UInt
     func observe(
-        node: Node, limit: UInt, before: String?, after: String?, ascending: Bool,
+        node: Node, limit: UInt,
+        before: Any?, after: Any?,
+        ascending: Bool, ordering: RealtimeDataOrdering,
         completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> Disposable
@@ -273,11 +281,18 @@ extension Database: RealtimeDatabase {
     }
 
     public func observe(
-        node: Node, limit: UInt, before: String?, after: String?, ascending: Bool,
+        node: Node, limit: UInt,
+        before: Any?, after: Any?,
+        ascending: Bool, ordering: RealtimeDataOrdering,
         completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> Disposable {
-        var query: DatabaseQuery = reference(withPath: node.absolutePath).queryOrderedByKey()
+        var query: DatabaseQuery = reference(withPath: node.absolutePath)
+        switch ordering {
+        case .key: query = query.queryOrderedByKey()
+        case .value: query = query.queryOrderedByValue()
+        case .child(let key): query = query.queryOrdered(byChild: key)
+        }
         var needExcludeKey = false
         if let before = before {
             query = query.queryEnding(atValue: before)
@@ -296,44 +311,49 @@ extension Database: RealtimeDatabase {
             }
         }
 
-        var singleLoaded = false
-        let added = query.observe(
-            .childAdded,
+//        var singleLoaded = false
+//        let added = query.observe(
+//            .childAdded,
+//            with: { (data) in
+//                if singleLoaded {
+//                    completion(data, .child(.added))
+//                }
+//            },
+//            withCancel: cancelHandler
+//        )
+//        let removed = query.observe(
+//            .childRemoved,
+//            with: { (data) in
+//                if singleLoaded {
+//                    completion(data, .child(.removed))
+//                }
+//            },
+//            withCancel: cancelHandler
+//        )
+//        let changed = query.observe(
+//            .childChanged,
+//            with: { (data) in
+//                if singleLoaded {
+//                    completion(data, .child(.changed))
+//                }
+//            },
+//            withCancel: cancelHandler
+//        )
+        query.observeSingleEvent(
+            of: .value,
             with: { (data) in
-                if singleLoaded {
-                    completion(data, .child(.added))
-                }
+                completion(data, .value)
+//                singleLoaded = true
             },
             withCancel: cancelHandler
         )
-        let removed = query.observe(
-            .childRemoved,
-            with: { (data) in
-                if singleLoaded {
-                    completion(data, .child(.removed))
-                }
-            },
-            withCancel: cancelHandler
-        )
-        let changed = query.observe(
-            .childChanged,
-            with: { (data) in
-                if singleLoaded {
-                    completion(data, .child(.changed))
-                }
-            },
-            withCancel: cancelHandler
-        )
-        query.observeSingleEvent(of: .value, with: { (data) in
-            completion(data, .value)
-            singleLoaded = true
-        })
 
-        return ListeningDispose({
-            query.removeObserver(withHandle: added)
-            query.removeObserver(withHandle: removed)
-            query.removeObserver(withHandle: changed)
-        })
+        return EmptyDispose()
+//        return ListeningDispose({
+//            query.removeObserver(withHandle: added)
+//            query.removeObserver(withHandle: removed)
+//            query.removeObserver(withHandle: changed)
+//        })
     }
 }
 
@@ -433,7 +453,7 @@ protocol PagingControllerDelegate: class {
 class PagingController {
     private let database: RealtimeDatabase
     private let node: Node
-    let pageSize: UInt
+    var pageSize: UInt
     let ascending: Bool
     private weak var delegate: PagingControllerDelegate?
     private var startPage: Disposable?
@@ -465,6 +485,7 @@ class PagingController {
             before: nil,
             after: nil,
             ascending: ascending,
+            ordering: .key,
             completion: { [weak self] data, event in
                 guard let `self` = self else { return }
                 self.endPage = data.childrenCount == self.pageSize ? nil : disposable
@@ -487,25 +508,30 @@ class PagingController {
         // replace start page
         guard self.startPage != nil else { fatalError("Firstly need call start") }
         guard let first = delegate?.firstKey(), first != firstKey else { return debugLog("No more data") }
-        if let old = self.firstKey, let startPage = self.startPage {
-            pages[old] = startPage
-        }
-        self.firstKey = first
-        let disposable = database.observe(
+
+        var disposable: Disposable?
+        disposable = database.observe(
             node: node,
             limit: pageSize,
             before: ascending ? first : nil,
             after: ascending ? nil : first,
             ascending: ascending,
+            ordering: .key,
             completion: { [weak self] data, event in
-                guard let delegate = self?.delegate else { return }
+                guard let `self` = self, let delegate = self.delegate else { return }
                 switch event {
                 case .value:
-                    data.forEach({ (child) in
-                        if child.key != first {
-                            delegate.pagingControllerDidReceive(data: child, with: .child(.added))
+                    if data.childrenCount == self.pageSize + 1 {
+                        if let old = self.firstKey, let startPage = self.startPage {
+                            self.pages[old] = startPage
                         }
-                    })
+                        self.startPage = disposable
+                        self.firstKey = first
+                    }
+                    if data.hasChildren() {
+                        delegate.pagingControllerDidReceive(data: RealtimeData(base: data, excludedKeys: [first]),
+                                                            with: .child(.added))
+                    }
                 case .child(.added):
                     if data.key != first {
                         delegate.pagingControllerDidReceive(data: data, with: event)
@@ -518,7 +544,6 @@ class PagingController {
                 self?.delegate?.pagingControllerDidCancel(with: error)
             }
         )
-        self.startPage = disposable
     }
 
     func next() {
@@ -533,6 +558,7 @@ class PagingController {
             before: ascending ? nil : last,
             after: ascending ? last : nil,
             ascending: ascending,
+            ordering: .key,
             completion: { [weak self] data, event in
                 guard let `self` = self, let delegate = self.delegate else { return }
                 switch event {
@@ -544,11 +570,10 @@ class PagingController {
                         self.endPage = disposable
                         self.lastKey = last
                     }
-                    data.forEach({ (child) in
-                        if child.key != last {
-                            delegate.pagingControllerDidReceive(data: child, with: .child(.added))
-                        }
-                    })
+                    if data.hasChildren() {
+                        delegate.pagingControllerDidReceive(data: RealtimeData(base: data, excludedKeys: [last]),
+                                                            with: .child(.added))
+                    }
                 case .child(.added):
                     if data.key != last {
                         delegate.pagingControllerDidReceive(data: data, with: event)
@@ -568,4 +593,52 @@ class PagingController {
         pages.forEach({ $0.value.dispose() })
         endPage?.dispose()
     }
+}
+
+struct RealtimeData: RealtimeDataProtocol {
+    let base: RealtimeDataProtocol
+    let excludedKeys: [String]
+
+    var database: RealtimeDatabase? { return base.database }
+    var storage: RealtimeStorage? { return base.storage }
+    var node: Node? { return base.node }
+    var key: String? { return base.key }
+    var value: Any? { return base.value }
+    var priority: Any? { return base.priority }
+    var childrenCount: UInt {
+        return excludedKeys.reduce(into: base.childrenCount) { (res, key) -> Void in
+            if hasChild(key) {
+                res -= 1
+            }
+        }
+    }
+    func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
+        let baseIterator = base.makeIterator()
+        let excludes = excludedKeys
+        return AnyIterator({ () -> RealtimeDataProtocol? in
+            var data: RealtimeDataProtocol?
+            while data == nil, let d = baseIterator.next() {
+                data = d.key.flatMap({ excludes.contains($0) ? nil : d })
+            }
+            return data
+        })
+    }
+    func exists() -> Bool { return base.exists() }
+    func hasChildren() -> Bool { return base.hasChildren() }
+    func hasChild(_ childPathString: String) -> Bool {
+        if excludedKeys.contains(where: childPathString.hasPrefix) {
+            return false
+        } else {
+            return base.hasChild(childPathString)
+        }
+    }
+    func child(forPath path: String) -> RealtimeDataProtocol {
+        if excludedKeys.contains(where: path.hasPrefix) {
+            return ValueNode(node: Node(key: path, parent: node), value: nil)
+        } else {
+            return base.child(forPath: path)
+        }
+    }
+    var debugDescription: String { return base.debugDescription + "\nexcludes: \(excludedKeys)" }
+    var description: String { return base.description + "\nexcludes: \(excludedKeys)" }
 }

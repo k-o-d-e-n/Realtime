@@ -56,7 +56,7 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         get { return view.keepSynced }
     }
     public var changes: AnyListenable<RCEvent> { return view.changes }
-    public var dataExplorer: RCDataExplorer = .view {
+    public var dataExplorer: RCDataExplorer = .view(ascending: false) {
         didSet { view.didChange(dataExplorer: dataExplorer) }
     }
 

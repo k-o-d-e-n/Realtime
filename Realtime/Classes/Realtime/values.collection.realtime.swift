@@ -64,7 +64,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         get { return view.keepSynced }
     }
     public var changes: AnyListenable<RCEvent> { return view.changes }
-    public var dataExplorer: RCDataExplorer = .view {
+    public var dataExplorer: RCDataExplorer = .view(ascending: false) {
         didSet { view.didChange(dataExplorer: dataExplorer) }
     }
 
@@ -342,7 +342,7 @@ extension Values {
         in database: RealtimeDatabase, in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, with: priority ?? view.last.flatMap { $0.priority.map { $0 + 1 } } ?? 0,
+        try _write(element, with: priority ?? (isAscending ? view.last : view.first).flatMap { $0.priority.map { $0 + 1 } } ?? 0,
                    by: (storage: node!, itms: view.node!), in: transaction)
         return transaction
     }
@@ -413,7 +413,7 @@ where Element: WritableRealtimeValue & Comparable {
     public var changes: AnyListenable<RCEvent> {
         return view.changes
     }
-    public var dataExplorer: RCDataExplorer = .view {
+    public var dataExplorer: RCDataExplorer = .view(ascending: false) {
         didSet { view.didChange(dataExplorer: dataExplorer) }
     }
 

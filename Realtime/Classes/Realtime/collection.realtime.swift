@@ -53,9 +53,14 @@ public protocol RealtimeCollectionView: BidirectionalCollection, RealtimeCollect
     func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void)
 }
 
+/// Defines way to explore data in collection
+///
+/// - view: Gets data through loading collection's view as single value
+/// - viewByPages: Gets data through loading collection's view by pages.
+/// **Warning**: Currently this option is not support live synchronization
 public enum RCDataExplorer {
-    case view
-    case viewPage(control: PagingControl, size: UInt, ascending: Bool)
+    case view(ascending: Bool)
+    case viewByPages(control: PagingControl, size: UInt, ascending: Bool)
 }
 
 /// A type that represents Realtime database collection
@@ -67,11 +72,19 @@ public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, Real
     var changes: AnyListenable<RCEvent> { get }
     /// Indicates that collection has actual collection view data
     var isSynced: Bool { get }
+    /// Defines way to explore data of collection.
+    ///
+    /// **Warning**: Almost each change this property will be reset current view elements
     var dataExplorer: RCDataExplorer { get set }
 }
 extension RealtimeCollection {
     public var isObserved: Bool { return view.isObserved }
     public var canObserve: Bool { return view.canObserve }
+    public var isAscending: Bool {
+        switch dataExplorer {
+        case .view(let ascending), .viewByPages(_, _, let ascending): return ascending
+        }
+    }
 
     @discardableResult
     public func runObserving() -> Bool { return view.runObserving() }

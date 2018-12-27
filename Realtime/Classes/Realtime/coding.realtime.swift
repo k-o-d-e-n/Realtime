@@ -24,9 +24,23 @@ public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, Cus
     func hasChildren() -> Bool
     func hasChild(_ childPathString: String) -> Bool
     func child(forPath path: String) -> RealtimeDataProtocol
-    func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T]
-    func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult]
-    func forEach(_ body: (RealtimeDataProtocol) throws -> Swift.Void) rethrows
+}
+extension RealtimeDataProtocol {
+    public func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
+        return try makeIterator().map(transform)
+    }
+    public func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
+        return try makeIterator().compactMap(transform)
+    }
+    public func forEach(_ body: (RealtimeDataProtocol) throws -> Swift.Void) rethrows {
+        return try makeIterator().forEach(body)
+    }
+    public func reduce<Result>(_ initialResult: Result, nextPartialResult: (Result, RealtimeDataProtocol) throws -> Result) rethrows -> Result {
+        return try makeIterator().reduce(initialResult, nextPartialResult)
+    }
+    public func reduce<Result>(into result: inout Result, updateAccumulatingResult: (inout Result, RealtimeDataProtocol) throws -> Void) rethrows -> Result {
+        return try makeIterator().reduce(into: result, updateAccumulatingResult)
+    }
 }
 
 extension DataSnapshot: RealtimeDataProtocol, Sequence {

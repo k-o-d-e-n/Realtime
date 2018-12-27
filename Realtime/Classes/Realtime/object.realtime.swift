@@ -211,10 +211,20 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         }
     }
 
+    func _invalidateObserving() {
+        let observingValues = self.observing
+        observingValues.forEach { (args) in
+            endObserve(for: args.value.token)
+        }
+        self.observing = [:]
+    }
+
+    // not used
     internal func _isObserved(_ event: DatabaseDataEvent) -> Bool {
         return observing[event].map { $0.counter > 0 } ?? false
     }
 
+    // not used
     internal func _numberOfObservers(for event: DatabaseDataEvent) -> Int {
         return observing[event]?.counter ?? 0
     }

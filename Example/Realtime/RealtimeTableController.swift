@@ -123,11 +123,11 @@ class RealtimeTableController: UITableViewController {
             ).add(to: store)
     }
 
-    let ascending: Bool = true
+    let ascending: Bool = false
     let pagingControl: PagingControl = PagingControl()
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        Global.rtUsers.dataExplorer = .viewPage(control: pagingControl, size: 2, ascending: ascending)
+        Global.rtUsers.dataExplorer = .viewByPages(control: pagingControl, size: 2, ascending: ascending)
         store.resume()
         Global.rtUsers.runObserving()
     }
@@ -136,11 +136,15 @@ class RealtimeTableController: UITableViewController {
         super.viewWillDisappear(animated)
         Global.rtUsers.stopObserving()
         store.pause()
-        Global.rtUsers.dataExplorer = .view
+        Global.rtUsers.dataExplorer = .view(ascending: ascending)
     }
 
     @objc func refreshData(_ control: UIRefreshControl) {
-        pagingControl.previous()
+        if ascending {
+            pagingControl.next()
+        } else {
+            pagingControl.previous()
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3)) {
             if control.isRefreshing {
                 control.endRefreshing()

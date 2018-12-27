@@ -201,18 +201,14 @@ extension SortedArray: RealtimeDataRepresented where Element: RealtimeDataRepres
 }
 
 enum ViewDataExplorer {
-    case value
+    case value(ascending: Bool)
     case page(PagingController)
 }
 
 public final class SortedCollectionView<Element: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollectionView {
     typealias Source = SortedArray<Element>
     private var _elements: Source = Source()
-    private var dataExplorer: ViewDataExplorer = .value {
-        didSet {
-            // change observing behavior
-        }
-    }
+    private var dataExplorer: ViewDataExplorer = .value(ascending: false)
     internal(set) var isSynced: Bool = false
     override var _hasChanges: Bool { return isStandalone && _elements.count > 0 }
     public override var isObserved: Bool {
@@ -230,20 +226,40 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     var changes: AnyListenable<RCEvent> {
         return dataObserver
             .filter({ [unowned self] e in
-                self.isSynced || e.1 == .value                
+                if e.1 != .value {
+                    switch self.dataExplorer {
+                    case .value: return self.isSynced
+                    case .page(let controller): return controller.isStarted
+                    }
+                } else {
+                    return true
+                }
             })
             .map { [unowned self] (value) -> RCEvent in
                 switch value.1 {
                 case .value:
                     return .initial
                 case .child(.added):
-                    let item = try Element(data: value.0)
-                    let index: Int = self._elements.insert(item)
-                    return .updated(deleted: [], inserted: [index], modified: [], moved: [])
+                    let indexes: [Int]
+                    if value.0.key == self.node?.key {
+                        let elements = try value.0.map(Element.init)
+                        self._elements.insert(contentsOf: elements)
+                        indexes = elements.compactMap(self._elements.index(of:))
+                    } else {
+                        let item = try Element(data: value.0)
+                        indexes = [self._elements.insert(item)]
+                    }
+                    return .updated(deleted: [], inserted: indexes, modified: [], moved: [])
                 case .child(.removed):
-                    let item = try Element(data: value.0)
-                    if let index = self._elements.remove(item)?.index {
-                        return .updated(deleted: [index], inserted: [], modified: [], moved: [])
+                    let indexes: [Int]
+                    if value.0.key == self.node?.key {
+                        indexes = try value.0.map(Element.init).compactMap({ self._elements.remove($0)?.index })
+                    } else {
+                        let item = try Element(data: value.0)
+                        indexes = self._elements.remove(item).map({ [$0.index] }) ?? []
+                    }
+                    if indexes.count == value.0.childrenCount {
+                        return .updated(deleted: indexes, inserted: [], modified: [], moved: [])
                     } else {
                         throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
                     }
@@ -350,8 +366,8 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         guard event == .value else { return }
 
         switch dataExplorer {
-        case .value:
-            self._elements = try SortedArray(data: data, event: event)
+        case .value(let ascending):
+            self._elements = try SortedArray(data: data, event: event, sorting: ascending ? (<) : (>))
         case .page(let c):
             self._elements = try SortedArray(data: data, event: event, sorting: c.ascending ? (<) : (>))
         }
@@ -368,19 +384,45 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     public subscript(position: Int) -> Element { return _elements[position] }
 
     func didChange(dataExplorer: RCDataExplorer) {
+        switch (dataExplorer, self.dataExplorer) {
+        case (.view(let ascending), .page(let controller)):
+            self.dataExplorer = .value(ascending: ascending)
+            if controller.isStarted {
+                controller.stop()
+                runObserving()
+            }
+        case (.viewByPages(let control, let size, let ascending), .value):
+            _setPageController(with: control, pageSize: size, ascending: ascending)
+        case (.viewByPages(let control, let size, let ascending), .page(let oldController)):
+            guard oldController.isStarted else {
+                return _setPageController(with: control, pageSize: size, ascending: ascending)
+            }
+            guard control === oldController, ascending == oldController.ascending else {
+                fatalError("In observing state available to change page size only")
+            }
+            oldController.pageSize = size
+        case (.view(let collectionAscending), .value(let viewAscending)):
+            if collectionAscending != viewAscending {
+                self.dataExplorer = .value(ascending: collectionAscending)
+                self._elements = SortedArray.init(unsorted: _elements, areInIncreasingOrder: collectionAscending ? (<) : (>))
+            }
+        }
+    }
+
+    private func _setPageController(with control: PagingControl, pageSize: UInt, ascending: Bool) {
         guard let database = self.database, let node = self.node else { return }
-        switch dataExplorer {
-        case .view: self.dataExplorer = .value
-        case .viewPage(let control, let size, let ascending):
-            let controller = PagingController(
-                database: database,
-                node: node,
-                pageSize: size,
-                ascending: ascending,
-                delegate: self
-            )
-            control.controller = controller
-            self.dataExplorer = .page(controller)
+        let controller = PagingController(
+            database: database,
+            node: node,
+            pageSize: pageSize,
+            ascending: ascending,
+            delegate: self
+        )
+        control.controller = controller
+        self.dataExplorer = .page(controller)
+        if super.isObserved {
+            _invalidateObserving()
+            controller.start()
         }
     }
 
@@ -451,14 +493,10 @@ extension SortedCollectionView: PagingControllerDelegate {
 
     func pagingControllerDidReceive(data: RealtimeDataProtocol, with event: DatabaseDataEvent) {
         do {
-            print(data, event)
             if event == .value {
                 try self.apply(data, event: event)
-                self.isSynced = true
             }
-            if self.isSynced {
-                self.dataObserver.send(.value((data, event)))
-            }
+            self.dataObserver.send(.value((data, event)))
         } catch let e {
             self.dataObserver.send(.error(e))
         }
