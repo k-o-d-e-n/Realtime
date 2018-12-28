@@ -194,7 +194,8 @@ extension Database: RealtimeDatabase {
         }
         let updateValue = nearest.values
         if updateValue.count > 0 {
-            reference(withPath: nearest.location.absolutePath).update(use: updateValue, completion: completion)
+            let ref = nearest.location.isRoot ? reference() : reference(withPath: nearest.location.absolutePath)
+            ref.update(use: updateValue, completion: completion)
         } else if let compl = completion {
             compl(nil)
         }
