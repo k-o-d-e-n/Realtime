@@ -235,16 +235,6 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
             options.ownerNode.value = ownerNode
             try super._write(to: transaction, by: node)
-            if let backwardValueNode = wrapped?.node {
-                let backwardPropertyNode = backwardValueNode.child(with: options.property.path(for: ownerNode))
-                let thisProperty = node.path(from: ownerNode)
-                let backwardRelation = RelationRepresentation(
-                    path: options.rootLevelsUp.map(ownerNode.path) ?? ownerNode.absolutePath,
-                    property: thisProperty,
-                    payload: (nil, nil) // fixme: stub
-                )
-                transaction.addValue(try backwardRelation.defaultRepresentation(), by: backwardPropertyNode)
-            }
         } else {
             throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
         }

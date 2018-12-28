@@ -291,7 +291,9 @@ extension ObjectNode {
     fileprivate func replaceNode(with dbNode: CacheNode) throws {
         if case .some(.object(let parent)) = child(by: dbNode.location.parent!) {
             parent.childs.remove(at: parent.childs.index(where: { $0.asUpdateNode().location === dbNode.location })!)
-            parent.childs.append(dbNode)
+            if !dbNode.isEmpty {
+                parent.childs.append(dbNode)
+            }
         } else {
             throw RealtimeError(source: .cache, description: "Internal error")
         }
@@ -305,7 +307,12 @@ extension ObjectNode {
             try l._mergeWithObject(theSameReference: r, conflictResolver: conflictResolver, didAppend: didAppend)
         default:
             let index = self.childs.index(where: { $0.location == node })!
-            self.childs[index] = conflictResolver(current, update)
+            let resolved = conflictResolver(current, update)
+            if resolved.isEmpty {
+                self.childs.remove(at: index)
+            } else {
+                self.childs[index] = resolved
+            }
         }
     }
 

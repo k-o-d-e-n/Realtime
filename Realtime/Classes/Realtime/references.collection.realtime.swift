@@ -634,22 +634,13 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         guard let anchorNode = options.anchorNode(forOwner: ownerNode) else {
             throw RealtimeError(source: .collection, description: "Couldn`t get anchor node for node \(ownerNode)")
         }
-        let view = try storage.map { (keyValue) -> RelationsItem in
+        let view = storage.map { (keyValue) -> RelationsItem in
             let elementNode = keyValue.value.node!
             let relation = RelationRepresentation(
                 path: elementNode.path(from: anchorNode),
                 property: options.property.path(for: ownerNode),
                 payload: (keyValue.value.raw, keyValue.value.payload)
             )
-            /// a backward write
-            if shouldWriteBackward {
-                let ownerRelation = RelationRepresentation(
-                    path: ownerNode.path(from: anchorNode),
-                    property: node.child(with: keyValue.key).path(from: ownerNode),
-                    payload: (nil, nil) // fixme: stub
-                )
-                transaction.addValue(try ownerRelation.defaultRepresentation(), by: elementNode.child(with: options.property.propertyPath))
-            }
             var item = RelationsItem(value: keyValue.value)
             item.relation = relation
             return item
@@ -673,7 +664,6 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         super.didSave(in: database, in: parent, by: key)
     }
 
-    // TODO: Reconsider after remove backward writing
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)
         transaction.addPrecondition { [unowned transaction] (promise) in
@@ -684,12 +674,6 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
                 promise.fulfill()
             })
         }
-    }
-
-    fileprivate var shouldWriteBackward: Bool = true
-    public func unWrittenBackward() -> Relations<Element> {
-        self.shouldWriteBackward = false
-        return self
     }
 }
 
@@ -798,7 +782,7 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
     ///   - transaction: Write transaction or `nil`
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    public func remove(element: Element, in transaction: Transaction? = nil) -> Transaction? {
+    public func remove(element: Element, in transaction: Transaction? = nil) -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
 
         let transaction = transaction ?? Transaction(database: database)
@@ -870,21 +854,6 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
         })
         storage.set(value: element, for: item.dbKey)
         transaction.addValue(try item.defaultRepresentation(), by: itemNode) /// add item element
-
-        /// a backward write
-        if shouldWriteBackward {
-            var node = elementNode.copy(to: anchorNode.element).child(with: options.property.propertyPath)
-            switch options.property {
-            case .oneToMany, .manyToMany: node = node.child(with: owner.key)
-            case .oneToOne: break
-            }
-            let ownerRelation = RelationRepresentation(
-                path: owner.path(from: anchorNode.owner),
-                property: itemNode.path(from: owner),
-                payload: (nil, nil) // fixme: stub
-            )
-            transaction.addValue(try ownerRelation.defaultRepresentation(), by: node)
-        }
     }
 
     private func _remove(_ element: Element, in transaction: Transaction) {
@@ -902,9 +871,7 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
         }
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item
         /// a backward remove
-        if shouldWriteBackward {
-            _removeBackward(for: item, element: element, in: transaction)
-        }
+        _removeBackward(for: item, element: element, in: transaction)
     }
 
     private func _removeBackward(for item: RelationsItem, element: Element?, in transaction: Transaction) {
