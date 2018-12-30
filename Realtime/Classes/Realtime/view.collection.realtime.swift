@@ -209,7 +209,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         get { return _elements }
     }
 
-    var changes: AnyListenable<RCEvent> {
+    lazy var changes: AnyListenable<RCEvent> = {
         return dataObserver
             .filter({ [unowned self] e in
                 self.isSynced || e.1 == .value                
@@ -244,8 +244,9 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
                     throw RealtimeError(source: .collection, description: "Unexpected data event: \(value)")
                 }
             }
+            .shared(connectionLive: .continuous)
             .asAny()
-    }
+    }()
 
     public var keepSynced: Bool = false {
         didSet {

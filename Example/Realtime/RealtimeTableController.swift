@@ -117,6 +117,17 @@ class RealtimeTableController: UIViewController {
                     print("Changes error:", err.localizedDescription)
                 }
             ).add(to: store)
+
+        /// second subscription to tests.
+        users.changes
+            .listening(
+                onValue: { (e) in
+                    print(e)
+                },
+                onError: { (err) in
+                    print(err)
+                }
+        ).add(to: store)
     }
 
     override func viewWillAppear(_ animated: Bool) {
