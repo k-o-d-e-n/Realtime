@@ -751,25 +751,39 @@ public extension Listenable {
 
 /// Creates retained listening point
 public struct Share<T>: Listenable {
-    let store: ListeningDisposeStore = ListeningDisposeStore()
     let repeater: Repeater<T>
+    let source: AnyListenable<T>
+    let sourceDispose: ValueStorage<ListeningDispose?> = ValueStorage.unsafe(weak: nil)
 
     init<L: Listenable>(_ source: L, repeater: Repeater<T>) where L.Out == T {
-        source.bind(to: repeater).add(to: store)
+        self.source = source.asAny()
         self.repeater = repeater
     }
 
+    private func currentDispose() -> ListeningDispose {
+        let dispose: ListeningDispose
+        if let disp = sourceDispose.value {
+            dispose = disp
+        } else {
+            dispose = ListeningDispose(source.bind(to: repeater).dispose)
+            sourceDispose.value = dispose
+        }
+        return dispose
+    }
+
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        let connection = currentDispose()
         let disposable = repeater.listening(assign)
-        let unmanaged = Unmanaged.passRetained(store).retain()
+        let unmanaged = Unmanaged.passRetained(connection).retain()
         return ListeningDispose({
             disposable.dispose()
             unmanaged.release()
         })
     }
     public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        let connection = currentDispose()
         let item = repeater.listeningItem(assign)
-        let unmanaged = Unmanaged.passRetained(store).retain()
+        let unmanaged = Unmanaged.passRetained(connection).retain()
         return ListeningItem(
             resume: item.resume,
             pause: item.pause,
