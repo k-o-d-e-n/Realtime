@@ -727,25 +727,83 @@ public extension Listenable {
 /// Creates unretained listening point
 public struct Shared<T>: Listenable {
     let repeater: Repeater<T>
-    private let baseDisposable: Disposable
+    let liveStrategy: InternalLiveStrategy
 
-    init<L: Listenable>(_ source: L, repeater: Repeater<T>) where L.Out == T {
-        self.baseDisposable = source.bind(to: repeater)
+    public enum ConnectionLiveStrategy {
+        case continuous
+        case repeatable
+    }
+
+    enum InternalLiveStrategy {
+        case continuous(Disposable)
+        case repeatable(AnyListenable<T>, ValueStorage<(UInt, ListeningDispose?)>, ListeningDispose)
+    }
+
+    init<L: Listenable>(_ source: L, liveStrategy: ConnectionLiveStrategy, repeater: Repeater<T>) where L.Out == T {
         self.repeater = repeater
+        switch liveStrategy {
+        case .repeatable:
+            let connectionStorage = ValueStorage<(UInt, ListeningDispose?)>.unsafe(strong: (0, nil))
+            self.liveStrategy = .repeatable(source.asAny(), connectionStorage, ListeningDispose({
+                connectionStorage.value = (connectionStorage.value.0, nil) // disposes when shared deinitialized
+            }))
+        case .continuous:
+            self.liveStrategy = .continuous(source.bind(to: repeater))
+        }
+    }
+
+    private func increment(_ storage: ValueStorage<(UInt, ListeningDispose?)>, source: AnyListenable<T>) {
+        if storage.value.1 == nil {
+            storage.value = (1, ListeningDispose(source.bind(to: repeater)))
+        } else {
+            storage.value.0 += 1
+        }
+    }
+
+    private static func decrement(_ storage: ValueStorage<(UInt, ListeningDispose?)>) {
+        let current = storage.value
+        if current.0 == 1 {
+            storage.value = (0, nil)
+        } else {
+            storage.value = (current.0 - 1, current.1)
+        }
     }
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        return repeater.listening(assign)
+        switch self.liveStrategy {
+        case .continuous: return repeater.listening(assign)
+        case .repeatable(let source, let disposeStorage, _):
+            increment(disposeStorage, source: source)
+            let dispose = repeater.listening(assign)
+            return ListeningDispose({
+                dispose.dispose()
+                Shared.decrement(disposeStorage)
+            })
+        }
     }
     public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return repeater.listeningItem(assign)
+        switch self.liveStrategy {
+        case .continuous: return repeater.listeningItem(assign)
+        case .repeatable(let source, let disposeStorage, _):
+            increment(disposeStorage, source: source)
+            let item = repeater.listeningItem(assign)
+            return ListeningItem(
+                resume: item.resume,
+                pause: item.pause,
+                dispose: {
+                    item.dispose()
+                    Shared.decrement(disposeStorage)
+                },
+                token: ()
+            )
+        }
     }
 }
 public extension Listenable {
     /// Creates unretained listening point
     /// Connection with source keeps while current point retained
-    func shared(_ repeater: Repeater<Out> = .unsafe()) -> Shared<Out> {
-        return Shared(self, repeater: repeater)
+    func shared(connectionLive strategy: Shared<Out>.ConnectionLiveStrategy, _ repeater: Repeater<Out> = .unsafe()) -> Shared<Out> {
+        return Shared(self, liveStrategy: strategy, repeater: repeater)
     }
 }
 
@@ -754,6 +812,11 @@ public struct Share<T>: Listenable {
     let repeater: Repeater<T>
     let liveStrategy: InternalLiveStrategy
 
+    /// Defines behavior to support connection with source
+    ///
+    /// - continuous: Connection creates once and lives continuously
+    /// - repeatable: Connection recreates when listeners more than 0.
+    /// This retains source, therefore be careful to avoid retain cycle.
     public enum ConnectionLiveStrategy {
         case continuous
         case repeatable
@@ -770,7 +833,7 @@ public struct Share<T>: Listenable {
         case .repeatable:
             self.liveStrategy = .repeatable(source.asAny(), ValueStorage.unsafe(weak: nil))
         case .continuous:
-            self.liveStrategy = .continuous(ListeningDispose(source.bind(to: repeater).dispose))
+            self.liveStrategy = .continuous(ListeningDispose(source.bind(to: repeater)))
         }
     }
 
@@ -782,7 +845,7 @@ public struct Share<T>: Listenable {
             if let disp = disposeStorage.value {
                 dispose = disp
             } else {
-                dispose = ListeningDispose(source.bind(to: repeater).dispose)
+                dispose = ListeningDispose(source.bind(to: repeater))
                 disposeStorage.value = dispose
             }
         }

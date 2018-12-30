@@ -41,6 +41,11 @@ public class ListeningDispose: Disposable {
         dispose()
     }
 }
+extension ListeningDispose {
+    convenience init(_ base: Disposable) {
+        self.init(base.dispose)
+    }
+}
 
 /// Listening with possibility to control connection state
 public class ListeningItem {

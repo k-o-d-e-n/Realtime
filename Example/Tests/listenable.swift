@@ -1019,7 +1019,7 @@ extension ListenableTests {
         }
     }
 
-    func testShared() {
+    func testSharedContinuous() {
         let source = Repeater<Int>.unsafe()
 
         var value_counter = 0
@@ -1032,7 +1032,7 @@ extension ListenableTests {
             .map(UInt32.init)
             .map(arc4random_uniform)
             .do(onValue: { print($0) })
-            .shared()
+            .shared(connectionLive: .continuous)
         let disposable1 = sharedSource!.listening(onValue: { value in
             value_counter += 1
         })
@@ -1049,11 +1049,63 @@ extension ListenableTests {
         source.send(.value(0))
         XCTAssertEqual(value_counter, 3)
 
+        switch sharedSource!.liveStrategy {
+        case .continuous(let dispose): XCTAssertFalse((dispose as? ListeningDispose)?.isDisposed ?? true)
+        case .repeatable: XCTFail("Unexpected strategy")
+        }
+
         let disposable3 = sharedSource!.listening(onValue: { value in
             value_counter += 1
         })
         sharedSource = nil // connection must dispose
         source.send(.value(1000))
+        XCTAssertEqual(value_counter, 3)
+        disposable3.dispose()
+    }
+
+    func testSharedRepeatable() {
+        let source = Repeater<Int>.unsafe()
+
+        var value_counter = 0
+        var shareSource: Shared<UInt32>? = source
+            .do(onValue: {
+                if $0 == 0 {
+                    XCTFail("Must not call")
+                }
+            })
+            .map(UInt32.init)
+            .map(arc4random_uniform)
+            .do(onValue: { print($0) })
+            .shared(connectionLive: .repeatable)
+        let disposable1 = shareSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+        let disposable2 = shareSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+
+        source.send(.value(10))
+        XCTAssertEqual(value_counter, 2)
+        disposable1.dispose()
+        source.send(.value(100))
+        XCTAssertEqual(value_counter, 3)
+        disposable2.dispose()
+        source.send(.value(1000))
+        XCTAssertEqual(value_counter, 3)
+        source.send(.value(0))
+        XCTAssertEqual(value_counter, 3)
+
+        switch shareSource!.liveStrategy {
+        case .continuous: XCTFail("Unexpected strategy")
+        case .repeatable(_, let disposeStorage, _):
+            XCTAssertNil(disposeStorage.value.1, "\(disposeStorage.value as Any)")
+        }
+
+        let disposable3 = shareSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+        shareSource = nil // connection must dispose
+        source.send(.value(10000))
         XCTAssertEqual(value_counter, 3)
         disposable3.dispose()
     }
@@ -1065,6 +1117,9 @@ extension ListenableTests {
         var shareSource: Share<UInt32>? = source
             .do(onValue: {
                 if $0 == 0 {
+                    XCTFail("Must not call")
+                }
+                if value_counter == 4 {
                     XCTFail("Must not call")
                 }
             })
@@ -1089,6 +1144,7 @@ extension ListenableTests {
         XCTAssertEqual(value_counter, 3)
         source.send(.value(0))
         XCTAssertEqual(value_counter, 3)
+
         switch shareSource!.liveStrategy {
         case .continuous: XCTFail("Unexpected strategy")
         case .repeatable(_, let disposeStorage):
@@ -1114,6 +1170,9 @@ extension ListenableTests {
                 if value_counter == 3 {
                     XCTAssertTrue($0 == 1000 || $0 == 0 || $0 == 10000)
                 }
+                if value_counter == 4 {
+                    XCTFail("Must not call")
+                }
             })
             .map(UInt32.init)
             .map(arc4random_uniform)
@@ -1136,6 +1195,7 @@ extension ListenableTests {
         XCTAssertEqual(value_counter, 3)
         source.send(.value(0))
         XCTAssertEqual(value_counter, 3)
+
         switch shareSource!.liveStrategy {
         case .continuous(let dispose): XCTAssertFalse(dispose.isDisposed)
         case .repeatable: XCTFail("Unexpected strategy")
