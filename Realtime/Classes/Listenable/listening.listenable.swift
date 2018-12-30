@@ -27,14 +27,18 @@ public class SingleRetainDispose: Disposable {
 
 public class ListeningDispose: Disposable {
     let _dispose: () -> Void
+    var invalidated: Int32 = 0
+    public var isDisposed: Bool { return invalidated == 1 }
     public init(_ dispose: @escaping () -> Void) {
         self._dispose = dispose
     }
     public func dispose() {
-        _dispose()
+        if OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated) {
+            _dispose()
+        }
     }
     deinit {
-        _dispose()
+        dispose()
     }
 }
 

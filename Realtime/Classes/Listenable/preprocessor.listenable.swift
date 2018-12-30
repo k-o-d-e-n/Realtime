@@ -537,7 +537,7 @@ public struct Combine<T>: Listenable {
 
     public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
         let disposer = accumulator.listening(assign)
-        let unmanaged = Unmanaged.passRetained(accumulator.store).retain()
+        let unmanaged = Unmanaged.passUnretained(accumulator.store).retain()
         return ListeningDispose.init({
             unmanaged.release()
             disposer.dispose()
@@ -546,7 +546,7 @@ public struct Combine<T>: Listenable {
 
     public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
         let item = accumulator.listeningItem(assign)
-        let unmanaged = Unmanaged.passRetained(accumulator.store).retain()
+        let unmanaged = Unmanaged.passUnretained(accumulator.store).retain()
         return ListeningItem(
             resume: item.resume,
             pause: item.pause,
@@ -752,21 +752,39 @@ public extension Listenable {
 /// Creates retained listening point
 public struct Share<T>: Listenable {
     let repeater: Repeater<T>
-    let source: AnyListenable<T>
-    let sourceDispose: ValueStorage<ListeningDispose?> = ValueStorage.unsafe(weak: nil)
+    let liveStrategy: InternalLiveStrategy
 
-    init<L: Listenable>(_ source: L, repeater: Repeater<T>) where L.Out == T {
-        self.source = source.asAny()
+    public enum ConnectionLiveStrategy {
+        case continuous
+        case repeatable
+    }
+
+    enum InternalLiveStrategy {
+        case continuous(ListeningDispose)
+        case repeatable(AnyListenable<T>, ValueStorage<ListeningDispose?>)
+    }
+
+    init<L: Listenable>(_ source: L, liveStrategy: ConnectionLiveStrategy, repeater: Repeater<T>) where L.Out == T {
         self.repeater = repeater
+        switch liveStrategy {
+        case .repeatable:
+            self.liveStrategy = .repeatable(source.asAny(), ValueStorage.unsafe(weak: nil))
+        case .continuous:
+            self.liveStrategy = .continuous(ListeningDispose(source.bind(to: repeater).dispose))
+        }
     }
 
     private func currentDispose() -> ListeningDispose {
         let dispose: ListeningDispose
-        if let disp = sourceDispose.value {
-            dispose = disp
-        } else {
-            dispose = ListeningDispose(source.bind(to: repeater).dispose)
-            sourceDispose.value = dispose
+        switch self.liveStrategy {
+        case .continuous(let d): dispose = d
+        case .repeatable(let source, let disposeStorage):
+            if let disp = disposeStorage.value {
+                dispose = disp
+            } else {
+                dispose = ListeningDispose(source.bind(to: repeater).dispose)
+                disposeStorage.value = dispose
+            }
         }
         return dispose
     }
@@ -774,7 +792,7 @@ public struct Share<T>: Listenable {
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         let connection = currentDispose()
         let disposable = repeater.listening(assign)
-        let unmanaged = Unmanaged.passRetained(connection).retain()
+        let unmanaged = Unmanaged.passUnretained(connection).retain()
         return ListeningDispose({
             disposable.dispose()
             unmanaged.release()
@@ -783,7 +801,7 @@ public struct Share<T>: Listenable {
     public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
         let connection = currentDispose()
         let item = repeater.listeningItem(assign)
-        let unmanaged = Unmanaged.passRetained(connection).retain()
+        let unmanaged = Unmanaged.passUnretained(connection).retain()
         return ListeningItem(
             resume: item.resume,
             pause: item.pause,
@@ -795,7 +813,7 @@ public struct Share<T>: Listenable {
 public extension Listenable {
     /// Creates retained listening point.
     /// Connection with source keeps while current point exists listeners.
-    func share(_ repeater: Repeater<Out> = .unsafe()) -> Share<Out> {
-        return Share(self, repeater: repeater)
+    func share(connectionLive strategy: Share<Out>.ConnectionLiveStrategy, _ repeater: Repeater<Out> = .unsafe()) -> Share<Out> {
+        return Share(self, liveStrategy: strategy, repeater: repeater)
     }
 }

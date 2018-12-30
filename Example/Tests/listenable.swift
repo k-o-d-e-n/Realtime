@@ -12,6 +12,11 @@ import XCTest
 class ListenableTests: XCTestCase {
     var store: ListeningDisposeStore = ListeningDisposeStore()
 
+    override func tearDown() {
+        super.tearDown()
+        store.dispose()
+    }
+
     func testClosure() {
         var string = "Some string"
         let getString = { return string }
@@ -1011,7 +1016,138 @@ extension ListenableTests {
 
         waitForExpectations(timeout: 5) { (err) in
             err.map({ XCTFail($0.localizedDescription) })
-            self.store.dispose()
         }
+    }
+
+    func testShared() {
+        let source = Repeater<Int>.unsafe()
+
+        var value_counter = 0
+        var sharedSource: Shared<UInt32>? = source
+            .do(onValue: {
+                if value_counter == 3 {
+                    XCTAssertTrue($0 == 0 || $0 == 1000)
+                }
+            })
+            .map(UInt32.init)
+            .map(arc4random_uniform)
+            .do(onValue: { print($0) })
+            .shared()
+        let disposable1 = sharedSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+        let disposable2 = sharedSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+
+        source.send(.value(10))
+        XCTAssertEqual(value_counter, 2)
+        disposable1.dispose()
+        source.send(.value(100))
+        XCTAssertEqual(value_counter, 3)
+        disposable2.dispose()
+        source.send(.value(0))
+        XCTAssertEqual(value_counter, 3)
+
+        let disposable3 = sharedSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+        sharedSource = nil // connection must dispose
+        source.send(.value(1000))
+        XCTAssertEqual(value_counter, 3)
+        disposable3.dispose()
+    }
+
+    func testShareRepeatable() {
+        let source = Repeater<Int>.unsafe()
+
+        var value_counter = 0
+        var shareSource: Share<UInt32>? = source
+            .do(onValue: {
+                if $0 == 0 {
+                    XCTFail("Must not call")
+                }
+            })
+            .map(UInt32.init)
+            .map(arc4random_uniform)
+            .do(onValue: { print($0) })
+            .share(connectionLive: .repeatable)
+        let disposable1 = shareSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+        let disposable2 = shareSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+
+        source.send(.value(10))
+        XCTAssertEqual(value_counter, 2)
+        disposable1.dispose()
+        source.send(.value(100))
+        XCTAssertEqual(value_counter, 3)
+        disposable2.dispose()
+        source.send(.value(1000))
+        XCTAssertEqual(value_counter, 3)
+        source.send(.value(0))
+        XCTAssertEqual(value_counter, 3)
+        switch shareSource!.liveStrategy {
+        case .continuous: XCTFail("Unexpected strategy")
+        case .repeatable(_, let disposeStorage):
+            XCTAssertNil(disposeStorage.value, "\(disposeStorage.value as Any)")
+        }
+
+        let disposable3 = shareSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+        shareSource = nil // connection must keep
+        source.send(.value(10000))
+        XCTAssertEqual(value_counter, 4)
+        disposable3.dispose()
+        source.send(.value(0))
+    }
+
+    func testShareContinuous() {
+        let source = Repeater<Int>.unsafe()
+
+        var value_counter = 0
+        var shareSource: Share<UInt32>? = source
+            .do(onValue: {
+                if value_counter == 3 {
+                    XCTAssertTrue($0 == 1000 || $0 == 0 || $0 == 10000)
+                }
+            })
+            .map(UInt32.init)
+            .map(arc4random_uniform)
+            .do(onValue: { print($0) })
+            .share(connectionLive: .continuous)
+        let disposable1 = shareSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+        let disposable2 = shareSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+
+        source.send(.value(10))
+        XCTAssertEqual(value_counter, 2)
+        disposable1.dispose()
+        source.send(.value(100))
+        XCTAssertEqual(value_counter, 3)
+        disposable2.dispose()
+        source.send(.value(1000))
+        XCTAssertEqual(value_counter, 3)
+        source.send(.value(0))
+        XCTAssertEqual(value_counter, 3)
+        switch shareSource!.liveStrategy {
+        case .continuous(let dispose): XCTAssertFalse(dispose.isDisposed)
+        case .repeatable: XCTFail("Unexpected strategy")
+        }
+
+        let disposable3 = shareSource!.listening(onValue: { value in
+            value_counter += 1
+        })
+        shareSource = nil // connection must keep
+        source.send(.value(10000))
+        XCTAssertEqual(value_counter, 4)
+        disposable3.dispose()
+        source.send(.value(0))
     }
 }
