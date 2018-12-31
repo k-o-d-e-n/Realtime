@@ -64,7 +64,20 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         set { view.keepSynced = newValue }
         get { return view.keepSynced }
     }
-    public var changes: AnyListenable<RCEvent> { return view.changes }
+    public lazy var changes: AnyListenable<RCEvent> = self.view.changes
+        .do(onValue: { [unowned self] (e) in
+            switch e {
+            case .initial: break
+            case .updated(let deleted, _, _, _):
+                deleted.forEach({ i in
+                    _ = self.storage
+                        .element(for: self.view[i].dbKey)
+                        .map({ self.storage.remove(for: $0.key) })
+                })
+            }
+        })
+        .shared(connectionLive: .continuous)
+        .asAny()
 
     /// Creates new instance associated with database node
     ///
@@ -473,27 +486,26 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
         set { view.keepSynced = newValue }
         get { return view.keepSynced }
     }
-    public var changes: AnyListenable<RCEvent> {
-        return view.changes
-            .do(onValue: { [unowned self] (e) in
-                switch e {
-                case .initial: break
-                case .updated(let deleted, _, let modified, _):
-                    deleted.forEach({ i in
-                        _ = self.storage
-                            .element(for: self.view[i].dbKey)
-                            .map({ self.storage.remove(for: $0.key) })
-                    })
-                    modified.forEach({ (i) in
-                        let value = self.view[i]
-                        self.storage
-                            .element(for: value.dbKey)
-                            .map({ self.storage.set(value: value, for: $0.key) })
-                    })
-                }
-            })
-            .asAny()
-    }
+    public lazy var changes: AnyListenable<RCEvent> = self.view.changes
+        .do(onValue: { [unowned self] (e) in
+            switch e {
+            case .initial: break
+            case .updated(let deleted, _, let modified, _):
+                deleted.forEach({ i in
+                    _ = self.storage
+                        .element(for: self.view[i].dbKey)
+                        .map({ self.storage.remove(for: $0.key) })
+                })
+                modified.forEach({ (i) in
+                    let value = self.view[i]
+                    self.storage
+                        .element(for: value.dbKey)
+                        .map({ self.storage.set(value: value, for: $0.key) })
+                })
+            }
+        })
+        .shared(connectionLive: .continuous)
+        .asAny()
 
     /// Creates new instance associated with database node
     ///

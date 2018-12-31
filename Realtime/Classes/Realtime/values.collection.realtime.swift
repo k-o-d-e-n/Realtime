@@ -63,7 +63,18 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         set { view.keepSynced = newValue }
         get { return view.keepSynced }
     }
-    public var changes: AnyListenable<RCEvent> { return view.changes }
+    public lazy var changes: AnyListenable<RCEvent> = self.view.changes
+        .do(onValue: { [unowned self] (e) in
+            switch e {
+            case .initial: break
+            case .updated(let deleted, _, _, _):
+                deleted.forEach({ i in
+                    self.storage.remove(for: self.view[i].dbKey)
+                })
+            }
+        })
+        .shared(connectionLive: .continuous)
+        .asAny()
 
     /// Create new instance with default element builder
     ///
@@ -407,9 +418,9 @@ where Element: WritableRealtimeValue & Comparable {
         set { view.keepSynced = newValue }
         get { return view.keepSynced }
     }
-    public var changes: AnyListenable<RCEvent> {
-        return view.changes
-    }
+    public lazy var changes: AnyListenable<RCEvent> = self.view.changes
+        .shared(connectionLive: .continuous)
+        .asAny()
 
     /// Create new instance with default element builder
     ///
