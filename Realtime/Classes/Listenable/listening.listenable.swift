@@ -19,13 +19,13 @@ public struct EmptyDispose: Disposable {
     public func dispose() {}
 }
 
-public class SingleRetainDispose: Disposable {
+public final class SingleRetainDispose: Disposable {
     var retained: AnyObject?
     public init(_ value: AnyObject) { self.retained = value }
     public func dispose() { self.retained = nil }
 }
 
-public class ListeningDispose: Disposable {
+public final class ListeningDispose: Disposable {
     let _dispose: () -> Void
     var invalidated: Int32 = 0
     public var isDisposed: Bool { return invalidated == 1 }
@@ -48,7 +48,7 @@ extension ListeningDispose {
 }
 
 /// Listening with possibility to control connection state
-public class ListeningItem {
+public final class ListeningItem {
     let _resume: () -> Void
     let _pause: () -> Void
     let _dispose: () -> Void
@@ -95,7 +95,9 @@ public class ListeningItem {
 }
 extension ListeningItem: Disposable {
     public func dispose() {
-        _pause()
+        if isListen {
+            _pause()
+        }
         _dispose()
     }
 }
@@ -113,7 +115,7 @@ public extension Disposable {
 }
 
 /// Stores connections
-public class ListeningDisposeStore {
+public final class ListeningDisposeStore {
     private var disposes = [Disposable]()
     private var listeningItems = [ListeningItem]()
 

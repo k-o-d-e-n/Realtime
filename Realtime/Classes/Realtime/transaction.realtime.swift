@@ -27,7 +27,7 @@ extension Reverting where Self: ChangeableRealtimeValue {
 
 /// Helps to make complex write transactions.
 /// Provides addition of operations with completion handler, cancelation, and async preconditions.
-public class Transaction {
+public final class Transaction {
     let database: RealtimeDatabase
     let storage: RealtimeStorage
     internal var updateNode: ObjectNode = ObjectNode(node: .root)

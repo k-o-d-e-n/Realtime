@@ -287,7 +287,7 @@ public extension RTime where Base: URLSession {
         }
     }
 
-    public class RepeatedDataTask: Listenable {
+    public final class RepeatedDataTask: Listenable {
         var session: URLSession
         let request: URLRequest
         var task: URLSessionDataTask

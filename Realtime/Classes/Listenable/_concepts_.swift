@@ -39,7 +39,7 @@ struct Trivial<T>: Listenable, ValueWrapper {
 }
 
 /// Stores value and sends event on his change
-public class _Promise<T>: Listenable {
+public final class _Promise<T>: Listenable {
     public typealias Dispatcher = Repeater<T>.Dispatcher
 
     var disposes: ListeningDisposeStore = ListeningDisposeStore()
