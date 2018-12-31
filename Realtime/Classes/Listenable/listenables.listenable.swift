@@ -133,8 +133,13 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
 
     let get: () -> T
     let set: (T) -> Void
-    let listen: (Assign<ListenEvent<T>>) -> Disposable
+    let attachBehavior: AttachBehavior
     let repeater: Repeater<T>
+
+    enum AttachBehavior {
+        case unsafe
+        case locked(NSLocking)
+    }
 
     /// Stored value
     public var value: T {
@@ -144,10 +149,10 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
 
     init(repeater: Repeater<T>,
          get: @escaping () -> T, set: @escaping (T) -> Void,
-         listen: @escaping (Assign<ListenEvent<T>>) -> Disposable) {
+         attachBehavior: AttachBehavior) {
         self.get = get
         self.set = set
-        self.listen = listen
+        self.attachBehavior = attachBehavior
         self.repeater = repeater
     }
 
@@ -167,7 +172,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         self.init(
             repeater: repeater,
             get: { val }, set: { val = $0 },
-            listen: repeater.listening
+            attachBehavior: .unsafe
         )
     }
 
@@ -186,20 +191,18 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
             }
         }
 
-        let safeGet: () -> T = {
-            lock.lock(); defer { lock.unlock() }
-            return val
-        }
-
         self.init(
             repeater: repeater,
-            get: safeGet,
+            get: {
+                lock.lock(); defer { lock.unlock() }
+                return val
+            },
             set: {
                 lock.lock()
                 val = $0
                 lock.unlock()
-        },
-            listen: ValueStorage.disposed(lock, repeater: repeater)
+            },
+            attachBehavior: .locked(lock)
         )
     }
 
@@ -219,7 +222,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         self.init(
             repeater: repeater,
             get: { val }, set: { val = $0 },
-            listen: repeater.listening
+            attachBehavior: .unsafe
         )
     }
 
@@ -238,20 +241,18 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
             }
         }
 
-        let safeGet: () -> T = {
-            lock.lock(); defer { lock.unlock() }
-            return val
-        }
-
         self.init(
             repeater: repeater,
-            get: safeGet,
+            get: {
+                lock.lock(); defer { lock.unlock() }
+                return val
+            },
             set: {
                 lock.lock()
                 val = $0
                 lock.unlock()
-        },
-            listen: ValueStorage.disposed(lock, repeater: repeater)
+            },
+            attachBehavior: .locked(lock)
         )
     }
 
@@ -317,15 +318,9 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     }
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        return listen(assign)
-    }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return ListeningItem(resume: { self.listen(assign) }, pause: { $0.dispose() }, token: listen(assign))
-    }
-
-    private static func disposed(_ lock: NSLocking, repeater: Repeater<T>) -> (Assign<ListenEvent<T>>) -> Disposable {
-        return { assign in
+        switch attachBehavior {
+        case .unsafe: return repeater.listening(assign)
+        case .locked(let lock):
             lock.lock(); defer { lock.unlock() }
 
             let d = repeater.listening(assign)
@@ -335,6 +330,10 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
                 lock.unlock()
             }
         }
+    }
+
+    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+        return ListeningItem(resume: { self.listening(assign) }, pause: { $0.dispose() }, token: listening(assign))
     }
 }
 extension ValueStorage where T: AnyObject {
@@ -354,7 +353,7 @@ extension ValueStorage where T: AnyObject {
         self.init(
             repeater: repeater,
             get: { val }, set: { val = $0 },
-            listen: repeater.listening
+            attachBehavior: .unsafe
         )
     }
 
@@ -373,20 +372,18 @@ extension ValueStorage where T: AnyObject {
             }
         }
 
-        let safeGet: () -> T = {
-            lock.lock(); defer { lock.unlock() }
-            return val
-        }
-
         self.init(
             repeater: repeater,
-            get: safeGet,
+            get: {
+                lock.lock(); defer { lock.unlock() }
+                return val
+            },
             set: {
                 lock.lock()
                 val = $0
                 lock.unlock()
-        },
-            listen: ValueStorage.disposed(lock, repeater: repeater)
+            },
+            attachBehavior: .locked(lock)
         )
     }
 
