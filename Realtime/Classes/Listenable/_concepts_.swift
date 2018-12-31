@@ -33,26 +33,26 @@ struct Trivial<T>: Listenable, ValueWrapper {
         return repeater.listening(assign)
     }
 
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+    func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
         return repeater.listeningItem(assign)
     }
 }
 
-/// Stores value and sends event on his change
 public final class _Promise<T>: Listenable {
     public typealias Dispatcher = Repeater<T>.Dispatcher
 
-    var disposes: ListeningDisposeStore = ListeningDisposeStore()
-    let _get: () -> ListenEvent<T>?
-    let _fulfill: (ListenEvent<T>) -> Void
-    let _listen: (Assign<ListenEvent<T>>) -> Disposable
+    var disposes: [Disposable] = []
+    var _result: ListenEvent<T>? = .none
+    var _dispatcher: _Dispatcher
 
-    init(get: @escaping () -> ListenEvent<T>?,
-         set: @escaping (ListenEvent<T>) -> Void,
-         listen: @escaping (Assign<ListenEvent<T>>) -> Disposable) {
-        self._get = get
-        self._fulfill = set
-        self._listen = listen
+    init(result: ListenEvent<T>? = .none, dispatcher: _Dispatcher) {
+        self._result = result
+        self._dispatcher = dispatcher
+    }
+
+    enum _Dispatcher {
+        case direct
+        case repeater(NSLocking, Repeater<T>)
     }
 
     public convenience init() {
@@ -60,11 +60,11 @@ public final class _Promise<T>: Listenable {
     }
 
     public convenience init(_ value: T) {
-        self.init(unsafe: .value(value), dispatcher: .default)
+        self.init(unsafe: .value(value))
     }
 
     public convenience init(_ error: Error) {
-        self.init(unsafe: .error(error), dispatcher: .default)
+        self.init(unsafe: .error(error))
     }
 
     /// Creates new instance with `strong` reference that has no thread-safe working context
@@ -72,18 +72,8 @@ public final class _Promise<T>: Listenable {
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public convenience init(unsafe value: ListenEvent<T>?, dispatcher: Dispatcher) {
-        let repeater = Repeater(dispatcher: dispatcher)
-        var val: ListenEvent<T>! = value {
-            didSet {
-                repeater.send(val)
-            }
-        }
-
-        self.init(
-            get: { val }, set: { val = $0 },
-            listen: repeater.listening
-        )
+    public convenience init(unsafe value: ListenEvent<T>) {
+        self.init(result: value, dispatcher: .direct)
     }
 
     /// Creates new instance with `strong` reference that has thread-safe implementation
@@ -95,38 +85,7 @@ public final class _Promise<T>: Listenable {
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public convenience init(lock: NSLocking = NSRecursiveLock(), dispatcher: Dispatcher) {
         let repeater = Repeater(dispatcher: dispatcher)
-        var val: ListenEvent<T>! = nil {
-            didSet {
-                repeater.send(val)
-            }
-        }
-
-        let safeGet: () -> ListenEvent<T>? = {
-            lock.lock(); defer { lock.unlock() }
-            return val
-        }
-
-        self.init(
-            get: safeGet,
-            set: {
-                lock.lock()
-                val = $0
-                lock.unlock()
-            },
-            listen: _Promise.disposed(lock, repeater: repeater)
-        )
-    }
-
-    /// Returns storage with `strong` reference that has no thread-safe working context
-    ///
-    /// - Parameters:
-    ///   - value: Initial value.
-    ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public static func unsafe(
-        strong value: T?,
-        dispatcher: Dispatcher
-        ) -> _Promise {
-        return _Promise(unsafe: value.map { .value($0) }, dispatcher: dispatcher)
+        self.init(dispatcher: .repeater(lock, repeater))
     }
 
     /// Returns storage with `strong` reference that has thread-safe implementation
@@ -144,87 +103,86 @@ public final class _Promise<T>: Listenable {
     }
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        switch _get() {
-        case .none:
-            return _listen(assign)
-        case .some(let v):
-            assign.call(v)
-            return EmptyDispose()
-        }
-    }
+        switch _dispatcher {
+        case .repeater(let lock, let repeater):
+            lock.lock()
 
-    private static func disposed(_ lock: NSLocking, repeater: Repeater<T>) -> (Assign<ListenEvent<T>>) -> Disposable {
-        return { assign in
-            lock.lock(); defer { lock.unlock() }
-
-            let d = repeater.listening(assign)
-            return ListeningDispose {
-                lock.lock()
-                d.dispose()
+            switch _result {
+            case .none:
+                let d = repeater.listening(assign)
                 lock.unlock()
+                return ListeningDispose {
+                    lock.lock()
+                    d.dispose()
+                    lock.unlock()
+                }
+            case .some(let v):
+                lock.unlock()
+                assign.call(v)
+                return EmptyDispose()
             }
+        case .direct:
+            assign.call(_result!)
+            return EmptyDispose()
         }
     }
 }
 public extension _Promise {
     func fulfill(_ value: T) {
-        switch _get() {
-        case .some: break
-        case .none:
-            unsafeFulfill(value)
-        }
+        _resolve(.value(value))
     }
     func reject(_ error: Error) {
-        switch _get() {
-        case .some: break
-        case .none:
-            unsafeReject(error)
-        }
+        _resolve(.error(error))
     }
 
-    fileprivate func unsafeFulfill(_ value: T) {
-        disposes.dispose()
-        _fulfill(.value(value))
-    }
-    fileprivate func unsafeReject(_ error: Error) {
-        disposes.dispose()
-        _fulfill(.error(error))
+    func _resolve(_ result: ListenEvent<T>) {
+        disposes.forEach { $0.dispose() }
+        disposes.removeAll()
+        switch _dispatcher {
+        case .direct: break
+        case .repeater(let lock, let repeater):
+            lock.lock()
+            self._result = .some(result)
+            self._dispatcher = .direct
+            lock.unlock()
+            repeater.send(result)
+        }
     }
 
     typealias Then<Result> = (T) throws -> Result
 
     @discardableResult
     func then(on queue: DispatchQueue = .main, make it: @escaping Then<Void>) -> _Promise {
-        let promise = _Promise(lock: NSRecursiveLock(), dispatcher: .default)
+        let promise = _Promise(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
-            case .error(let e): promise.unsafeReject(e)
+            case .error(let e): promise.reject(e)
             case .value(let v):
                 do {
                     try it(v)
-                    promise.unsafeFulfill(v)
+                    promise.fulfill(v)
                 } catch let e {
-                    promise.unsafeReject(e)
+                    promise.reject(e)
                 }
             }
-        }).add(to: promise.disposes)
+        }).add(to: &promise.disposes)
         return promise
     }
 
     @discardableResult
     public func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<Result>) -> _Promise<Result> {
-        let promise = _Promise<Result>(lock: NSRecursiveLock(), dispatcher: .default)
+        let promise = _Promise<Result>(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
-            case .error(let e): promise.unsafeReject(e)
+            case .error(let e): promise.reject(e)
             case .value(let v):
                 do {
-                    promise.unsafeFulfill(try it(v))
+                    promise.fulfill(try it(v))
                 } catch let e {
-                    promise.unsafeReject(e)
+                    promise.reject(e)
                 }
             }
-        }).add(to: promise.disposes)
+        }).add(to: &promise.disposes)
         return promise
     }
 
@@ -239,28 +197,28 @@ public extension _Promise {
                     let p = try it(v)
                     p.listening({ (event) in
                         switch event {
-                        case .error(let e): promise.unsafeReject(e)
-                        case .value(let v): promise.unsafeFulfill(v)
+                        case .error(let e): promise.reject(e)
+                        case .value(let v): promise.fulfill(v)
                         }
-                    }).add(to: promise.disposes)
+                    }).add(to: &promise.disposes)
                 } catch let e {
-                    promise.unsafeReject(e)
+                    promise.reject(e)
                 }
             }
-        }).add(to: promise.disposes)
+        }).add(to: &promise.disposes)
         return promise
     }
 
     func `catch`(on queue: DispatchQueue = .main, make it: @escaping (Error) -> Void) -> _Promise {
-        let promise = _Promise.locked(dispatcher: .default)
+        let promise = _Promise(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
             case .error(let e):
                 it(e)
-                promise.unsafeReject(e)
-            case .value(let v): promise.unsafeFulfill(v)
+                promise.reject(e)
+            case .value(let v): promise.fulfill(v)
             }
-        }).add(to: promise.disposes)
+        }).add(to: &promise.disposes)
         return promise
     }
 }

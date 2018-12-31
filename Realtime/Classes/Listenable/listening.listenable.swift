@@ -112,6 +112,9 @@ public extension Disposable {
     func add(to store: ListeningDisposeStore) {
         store.add(self)
     }
+    func add(to disposes: inout [Disposable]) {
+        disposes.append(self)
+    }
 }
 
 /// Stores connections
