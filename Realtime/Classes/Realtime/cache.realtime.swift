@@ -17,7 +17,7 @@ public protocol UpdateNode: RealtimeDataProtocol {
     /// - Parameters:
     ///   - ancestor: An ancestor database reference
     ///   - container: `inout` dictionary container.
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any])
+    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?])
 }
 extension UpdateNode {
     public var database: RealtimeDatabase? { return Cache.root }
@@ -65,8 +65,8 @@ class ValueNode: UpdateNode {
     let location: Node
     var value: Any?
 
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any]) {
-        container[location.path(from: ancestor)] = value as Any
+    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
+        container[location.path(from: ancestor)] = value
     }
 
     required init(node: Node, value: Any?) {
@@ -155,7 +155,7 @@ class FileNode: ValueNode {
         completion(metadata, nil)
     }
 
-    override func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any]) {}
+    override func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {}
     var database: RealtimeDatabase? { return nil }
 }
 
@@ -166,8 +166,8 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     var childs: [CacheNode] = []
     var isCompound: Bool { return true }
     var value: Any? { return values }
-    var values: [String: Any] {
-        var val: [String: Any] = [:]
+    var values: [String: Any?] {
+        var val: [String: Any?] = [:]
         fillValues(referencedFrom: location, into: &val)
         return val
     }
@@ -196,7 +196,7 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
         self.childs = childs
     }
 
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any]) {
+    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
         childs.forEach { (node) in
             switch node {
             case .value(let v): v.fillValues(referencedFrom: ancestor, into: &container)
@@ -279,7 +279,7 @@ extension ObjectNode {
         return .object(self)
     }
 
-    fileprivate func update(dbNode: CacheNode, with value: Any) throws {
+    fileprivate func update(dbNode: CacheNode, with value: Any?) throws {
         switch dbNode {
         case .value(let v): v.value = value
         case .file(let f): f.value = value
@@ -571,7 +571,7 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             do {
                 let nearest = self.nearestChild(by: Array(file.location.map({ $0.key }).reversed().dropFirst()))
                 if nearest.leftPath.isEmpty {
-                    try update(dbNode: nearest.node, with: file.value as Any)
+                    try update(dbNode: nearest.node, with: file.value)
                 } else {
                     var nearestNode: ObjectNode
                     switch nearest.node {

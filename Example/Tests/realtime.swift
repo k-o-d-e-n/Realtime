@@ -439,6 +439,39 @@ extension RealtimeTests {
         transaction.revert()
     }
 
+    func testRemoveFile() {
+        let exp = expectation(description: "")
+        let file: File<UIImage?> = "file.png".file(in: Object(in: .root), representer: .png)
+
+        let writeTrans = Transaction(storage: Cache.root)
+        do {
+            try file.setValue(#imageLiteral(resourceName: "pw"), in: writeTrans).commit { (_, errs) in
+                errs?.forEach({ XCTFail($0.describingErrorDescription) })
+
+                XCTAssertTrue(Cache.root.child(forNode: file.node!).exists())
+                let deleteTrans = Transaction(storage: Cache.root)
+                do {
+                    try file.setValue(nil, in: deleteTrans).commit(with: { (state, errors) in
+                        errors?.forEach({ XCTFail($0.describingErrorDescription) })
+
+                        XCTAssertFalse(Cache.root.child(forNode: file.node!).exists())
+                        exp.fulfill()
+                    })
+                } catch let e {
+                    deleteTrans.cancel()
+                    XCTFail(e.describingErrorDescription)
+                }
+            }
+        } catch let e {
+            writeTrans.cancel()
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 4) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+
     func testUpdateFileAfterSave() {
         let group = Group(in: Node(key: "group", parent: Global.rtGroups.node))
         let user = User(in: Node(key: "user"))
