@@ -102,6 +102,9 @@ public extension Dictionary where Key == ValueOption {
     var rawValue: RealtimeDataValue? {
         return self[.rawValue] as? RealtimeDataValue
     }
+    var userPayload: [String: RealtimeDataValue]? {
+        return self[.userPayload] as? [String: RealtimeDataValue]
+    }
 }
 public extension RealtimeDataProtocol {
     internal func version() throws -> String? {
@@ -157,7 +160,7 @@ extension RealtimeValue {
     ///   - options: User-defined options
     /// - Throws: If data cannot be applied
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent, options: [ValueOption: Any]) throws {
-        self.init(in: data.node, options: options.merging([.database: data.database], uniquingKeysWith: { _, new in new }))
+        self.init(in: data.node, options: options.merging([.database: data.database as Any], uniquingKeysWith: { _, new in new }))
         try apply(data, event: event)
     }
     var defaultOptions: [ValueOption: Any] {
@@ -225,6 +228,14 @@ public extension Hashable where Self: RealtimeValue {
     var hashValue: Int { return dbKey.hashValue }
     static func ==(lhs: Self, rhs: Self) -> Bool {
         return lhs.node == rhs.node
+    }
+}
+public extension Comparable where Self: RealtimeValue {
+    static func < (lhs: Self, rhs: Self) -> Bool {
+        switch (lhs.node, rhs.node) {
+        case (.some(let l), .some(let r)): return l.key < r.key
+        default: return false
+        }
     }
 }
 

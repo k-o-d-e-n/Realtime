@@ -55,7 +55,18 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         set { view.keepSynced = newValue }
         get { return view.keepSynced }
     }
-    public var changes: AnyListenable<RCEvent> { return view.changes }
+    public lazy var changes: AnyListenable<RCEvent> = self.view.changes
+        .do(onValue: { [unowned self] event in
+            switch event {
+            case .initial: return
+            case .updated(let deleted, _, _, _):
+                deleted.forEach({ i in
+                    self.storage.remove(for: self.view[i].dbKey)
+                })
+            }
+        })
+        .shared(connectionLive: .continuous)
+        .asAny()
     public var dataExplorer: RCDataExplorer = .view(ascending: false) {
         didSet { view.didChange(dataExplorer: dataExplorer) }
     }
@@ -371,10 +382,6 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     }
 
     private func _remove(for item: RCItem, in transaction: Transaction) {
-        let element = storage.remove(for: item.dbKey)
-        transaction.addReversion { [weak self] in
-            self?.storage[item.dbKey] = element
-        }
         if let linkID = item.linkID {
             let elementLinksNode = builder.spaceNode.child(with: item.dbKey).linksItemsNode.child(with: linkID)
             transaction.removeValue(by: elementLinksNode) /// remove link from element

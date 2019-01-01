@@ -24,6 +24,7 @@ func currentDatabase() -> RealtimeDatabase {
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
+    let store: ListeningDisposeStore = ListeningDisposeStore()
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
@@ -31,6 +32,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         FirebaseApp.configure()
         let configuration = RealtimeApp.Configuration(linksNode: BranchNode(key: "___tests/__links"))
         RealtimeApp.initialize(with: currentDatabase(), configuration: configuration)
+        RealtimeApp.app.connectionObserver.listening(
+            onValue: { (connected) in
+                print("Connection did change to \(connected)")
+            },
+            onError: { e in
+                debugPrint(e)
+            }
+        ).add(to: store)
         return true
     }
 

@@ -27,7 +27,7 @@ extension Reverting where Self: ChangeableRealtimeValue {
 
 /// Helps to make complex write transactions.
 /// Provides addition of operations with completion handler, cancelation, and async preconditions.
-public class Transaction {
+public final class Transaction {
     let database: RealtimeDatabase
     let storage: RealtimeStorage
     internal var updateNode: ObjectNode = ObjectNode(node: .root)
@@ -123,7 +123,11 @@ extension Transaction {
     }
 
     /// registers new single value for specified reference
-    func _addValue(_ cacheValue: CacheNode) { // TODO: Write different methods only for available values
+    func _addValue(_ cacheValue: CacheNode) {
+        debugFatalError(
+            condition: cacheValue.location._hasMultipleLevelNode,
+            "Multi level node can use only for readonly operations."
+        )
         updateNode._addValueAsInSingleTransaction(cacheValue)
     }
 

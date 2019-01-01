@@ -47,7 +47,7 @@ extension ObjectIdentifier {
     }
 }
 
-public class RealtimeApp {
+public final class RealtimeApp {
     /// Default database instance
     public let database: RealtimeDatabase
     public let storage: RealtimeStorage

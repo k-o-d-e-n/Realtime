@@ -121,6 +121,17 @@ class RealtimeTableController: UITableViewController {
                     print("Changes error:", err.localizedDescription)
                 }
             ).add(to: store)
+
+        /// second subscription to tests.
+        users.changes
+            .listening(
+                onValue: { (e) in
+                    print(e)
+                },
+                onError: { (err) in
+                    print(err)
+                }
+        ).add(to: store)
     }
 
     let ascending: Bool = false

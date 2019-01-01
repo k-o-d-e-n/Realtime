@@ -199,7 +199,7 @@ class FormViewController: UIViewController {
                 let (cell, user) = args
             }
             row.onSelect({ (ip, row) in
-                row.view.map { c in
+                if let c = row.view {
                     guard let user = row.model else { return }
 
                     let isAdded = c.accessoryType == .none
@@ -211,6 +211,8 @@ class FormViewController: UIViewController {
                     } else if contains {
                         user.followers.delete(element: follower)
                     }
+                } else {
+                    fatalError("View must be not nil")
                 }
             })
             return row
