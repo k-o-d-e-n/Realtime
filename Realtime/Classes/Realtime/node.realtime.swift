@@ -418,7 +418,6 @@ extension Node: Sequence {
     }
 }
 
-
 public extension RawRepresentable where Self.RawValue == String {
     /// checks availability child in snapshot with node name   
     func has(in snapshot: RealtimeDataProtocol) -> Bool {
@@ -463,3 +462,8 @@ extension String: RawRepresentable {
     }
 }
 
+extension Node {
+    var _hasMultipleLevelNode: Bool {
+        return contains(where: { $0.key.split(separator: "/").count > 1 && type(of: $0) != BranchNode.self })
+    }
+}

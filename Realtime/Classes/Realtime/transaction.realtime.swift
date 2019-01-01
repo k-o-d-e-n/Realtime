@@ -123,7 +123,11 @@ extension Transaction {
     }
 
     /// registers new single value for specified reference
-    func _addValue(_ cacheValue: CacheNode) { // TODO: Write different methods only for available values
+    func _addValue(_ cacheValue: CacheNode) {
+        debugFatalError(
+            condition: cacheValue.location._hasMultipleLevelNode,
+            "Multi level node can use only for readonly operations."
+        )
         updateNode._addValueAsInSingleTransaction(cacheValue)
     }
 

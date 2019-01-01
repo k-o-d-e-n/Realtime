@@ -196,6 +196,14 @@ extension OtherTests {
 
         XCTAssertEqual(levels, versions)
     }
+
+    func testMultilevelNodeEvidence() {
+        let node1 = Node(key: "cjnk/xocm", parent: .root)
+        let node2 = Node(key: "mkjmld", parent: .root)
+
+        XCTAssertTrue(node1._hasMultipleLevelNode)
+        XCTAssertFalse(node2._hasMultipleLevelNode)
+    }
 }
 
 internal func _makeCollectionDescription<C: Collection>(_ collection: C,
