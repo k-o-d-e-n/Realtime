@@ -154,7 +154,7 @@ public protocol RealtimeDatabase: class {
 extension Database: RealtimeDatabase {
     public var isConnectionActive: AnyListenable<Bool> {
         return AnyListenable(
-            data(.value, node: Node(key: ".info/connected", parent: .root))
+            data(.value, node: ServiceNode(key: ".info/connected"))
                 .map({ $0.value as? Bool })
                 .compactMap()
         )

@@ -189,9 +189,6 @@ public class References<Element: RealtimeValue>: __RepresentableCollection<Eleme
 public final class MutableReferences<Element: RealtimeValue>: References<Element>, MutableRealtimeCollection {
     override var _hasChanges: Bool { return view._hasChanges }
 
-    private var shouldLinking = true // TODO: Fix it
-    public func unlinked() -> MutableReferences<Element> { shouldLinking = false; return self }
-
     public func write(_ element: Element, in transaction: Transaction) throws {
         try write(element: element, with: count, in: transaction)
     }
@@ -362,11 +359,6 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
             self?.storage.remove(for: item.dbKey)
         })
         storage.set(value: element, for: item.dbKey)
-        if shouldLinking {
-            let link = element.node!.generate(linkTo: itemNode)
-            item.linkID = link.link.id
-            transaction.addValue(try link.link.defaultRepresentation(), by: link.node) // add link
-        }
         try item.write(to: transaction, by: itemNode) // add item element
     }
 

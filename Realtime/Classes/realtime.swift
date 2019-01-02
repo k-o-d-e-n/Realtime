@@ -98,6 +98,12 @@ public final class RealtimeApp {
             self.maxNodeDepth = maxNodeDepth
             self.unavailableSymbols = unavailableSymbols
             self.cachePolicy = cachePolicy
+
+            debugFatalError(
+                condition: self.linksNode.key.split(separator: "/")
+                    .contains(where: { $0.rangeOfCharacter(from: self.unavailableSymbols) != nil }),
+                "Key has unavailable symbols"
+            )
         }
     }
 }
@@ -107,7 +113,7 @@ extension RealtimeApp {
     /// Instance that contained Realtime database configuration
     public static var app: RealtimeApp {
         guard let app = _app else {
-            fatalError("Realtime is not initialized. Call please RealtimeApp.initialize(...) in application(_:didFinishLaunchingWithOptions:)")
+            fatalError("Realtime is not initialized. You must call RealtimeApp.initialize(...) in application(_:didFinishLaunchingWithOptions:)")
         }
         return app
     }

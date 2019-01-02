@@ -51,7 +51,33 @@ public final class BranchNode: Node {
     override var first: Node? { return nil }
     override func path(from node: Node) -> String { return key }
     override func hasAncestor(node: Node) -> Bool { return node == .root }
+    override func _validate() {
+        debugFatalError(
+            condition: RealtimeApp._isInitialized && key.split(separator: "/")
+                .contains(where: { $0.rangeOfCharacter(from: RealtimeApp.app.configuration.unavailableSymbols) != nil }),
+            "Key has unavailable symbols"
+        )
+    }
     override public var description: String { return "branch: \(key)" }
+}
+/// Node for internal database services
+final class ServiceNode: Node {
+    public init(key: String) {
+        super.init(key: key, parent: .root)
+    }
+    public init<T: RawRepresentable>(key: T) where T.RawValue == String {
+        super.init(key: key.rawValue, parent: .root)
+    }
+    override public var parent: Node? { set {} get { return .root } }
+    override var isRoot: Bool { return false }
+    override var isAnchor: Bool { return true }
+    override var isRooted: Bool { return true }
+    override var root: Node? { return .root }
+    override var first: Node? { return nil }
+    override func path(from node: Node) -> String { return key }
+    override func hasAncestor(node: Node) -> Bool { return node == .root }
+    override func _validate() {}
+    override public var description: String { return "service: \(key)" }
 }
 
 /// Represents reference to database tree node
@@ -69,6 +95,7 @@ public class Node: Hashable {
         override var rootPath: String { return "" }
         override func path(from node: Node) -> String { fatalError("Root node cannot have parent nodes") }
         override func hasAncestor(node: Node) -> Bool { return false }
+        override func _validate() {}
         override var description: String { return "root" }
     }
 
@@ -98,12 +125,10 @@ public class Node: Hashable {
     }
 
     public init(key: String, parent: Node?) {
-        debugFatalError(
-            condition: RealtimeApp._isInitialized && (parent?.underestimatedCount ?? 0) >= RealtimeApp.app.configuration.maxNodeDepth - 1,
-            "Maximum depth limit of child nodes exceeded"
-        )
         self.key = key
         self.parent = parent
+
+        _validate()
     }
 
     /// True if node is instance stored in Node.root
@@ -259,6 +284,22 @@ public class Node: Hashable {
             }
         }
         return prefixNode
+    }
+
+    internal func _validate() {
+        debugFatalError(
+            condition: !RealtimeApp._isInitialized,
+            "You must initialize Realtime"
+        )
+        debugFatalError(
+            condition: (parent?.underestimatedCount ?? 0) >= RealtimeApp.app.configuration.maxNodeDepth - 1,
+            "Maximum depth limit of child nodes exceeded"
+        )
+        debugFatalError(
+            condition: key.split(separator: "/")
+                .contains(where: { $0.rangeOfCharacter(from: RealtimeApp.app.configuration.unavailableSymbols) != nil }),
+            "Key has unavailable symbols"
+        )
     }
 
     internal func movedToNode(keyedBy key: String) -> Node {
