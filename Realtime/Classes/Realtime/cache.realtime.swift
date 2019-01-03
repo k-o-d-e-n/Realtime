@@ -571,6 +571,12 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             }))
     }
 
+    func observe(node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
+                 completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
+                 onCancel: ((Error) -> Void)?) -> Disposable {
+        fatalError("Not implemented")
+    }
+
     // storage
 
     func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {

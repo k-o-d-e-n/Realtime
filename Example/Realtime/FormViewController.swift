@@ -20,15 +20,7 @@ class Label: UILabel {
 
 class TextCell: UITableViewCell {
     var listenings: [Disposable] = []
-    lazy var titleLabel: UILabel = self.textLabel!.add(to: self.contentView) { label in
-        label.addObserver(self, forKeyPath: "text", options: [], context: nil)// TODO: strong reference cycle
-//        listenings.append(
-//            label.didSet
-//                .distinctUntilChanged()
-//                .listening(onValue: Closure.guarded(self, assign: { _, this in this.setNeedsLayout() }))
-//
-//        )
-    }
+    lazy var titleLabel: UILabel = self.textLabel!.add(to: self.contentView)
     lazy var textField: UITextField = UITextField().add(to: self.contentView) { textField in
         textField.autocorrectionType = .default
         textField.autocapitalizationType = .sentences
@@ -40,6 +32,15 @@ class TextCell: UITableViewCell {
             if isSelected {
                 textField.becomeFirstResponder()
             }
+        }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window == nil {
+            titleLabel.removeObserver(self, forKeyPath: "text")
+        } else {
+            titleLabel.addObserver(self, forKeyPath: "text", options: [], context: nil)
         }
     }
 

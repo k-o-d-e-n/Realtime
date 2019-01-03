@@ -78,6 +78,9 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         })
         .shared(connectionLive: .continuous)
         .asAny()
+    public var dataExplorer: RCDataExplorer = .view(ascending: false) {
+        didSet { view.didChange(dataExplorer: dataExplorer) }
+    }
 
     /// Creates new instance associated with database node
     ///
@@ -506,6 +509,9 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
         })
         .shared(connectionLive: .continuous)
         .asAny()
+    public var dataExplorer: RCDataExplorer = .view(ascending: false) {
+        didSet { view.didChange(dataExplorer: dataExplorer) }
+    }
 
     /// Creates new instance associated with database node
     ///

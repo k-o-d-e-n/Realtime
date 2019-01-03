@@ -67,6 +67,9 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         })
         .shared(connectionLive: .continuous)
         .asAny()
+    public var dataExplorer: RCDataExplorer = .view(ascending: false) {
+        didSet { view.didChange(dataExplorer: dataExplorer) }
+    }
 
     /// Creates new instance associated with database node
     ///

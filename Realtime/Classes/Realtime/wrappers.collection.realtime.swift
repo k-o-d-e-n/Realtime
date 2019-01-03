@@ -17,6 +17,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var isSynced: Bool { fatalError() }
     var isObserved: Bool { fatalError() }
     var keepSynced: Bool { set { fatalError() } get { fatalError() } }
+    var dataExplorer: RCDataExplorer { set { fatalError() } get { fatalError() } }
     var changes: AnyListenable<RCEvent> { fatalError() }
     var canObserve: Bool { fatalError() }
     var debugDescription: String { return "" }
@@ -48,6 +49,10 @@ where C.Index == Int, C.View.Element: DatabaseKeyRepresentable {
     override var keepSynced: Bool {
         get { return base.keepSynced }
         set { base.keepSynced = newValue }
+    }
+    override var dataExplorer: RCDataExplorer {
+        set { base.dataExplorer = newValue }
+        get { return base.dataExplorer }
     }
 
     required init(base: C) {
@@ -93,6 +98,10 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
         set { base.keepSynced = newValue }
     }
     public var changes: AnyListenable<RCEvent> { return base.changes }
+    public var dataExplorer: RCDataExplorer {
+        set { base.dataExplorer = newValue }
+        get { return base.dataExplorer }
+    }
 
     public init<C: RealtimeCollection>(_ base: C) where C.Iterator.Element == Element, C.Index == Int, C.View.Element: DatabaseKeyRepresentable {
         self.base = _AnyRealtimeCollection<C>(base: base)
@@ -175,6 +184,10 @@ where Base.Index == Int, Base.View.Element: DatabaseKeyRepresentable {
     public var keepSynced: Bool {
         set { base.keepSynced = newValue }
         get { return base.keepSynced }
+    }
+    public var dataExplorer: RCDataExplorer {
+        set { base.dataExplorer = newValue }
+        get { return base.dataExplorer }
     }
 
     public required init(base: Base, transform: @escaping (Base.Element) -> Element) {
