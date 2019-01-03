@@ -40,29 +40,6 @@ class OtherTests: XCTestCase {
 // MARK: Other
 
 extension OtherTests {
-    func testAnyOf() {
-        XCTAssertTrue(2 ∈ [1,2,3]) // true
-        XCTAssertTrue("Two" ∈ ["One", "Two", "Three"])
-
-        XCTAssertTrue(any(of: 1,2,3)(2)) // true
-        XCTAssertTrue(any(of: "One", "Two", "Three")("Two"))
-    }
-    func testAnyCollection() {
-        var calculator: Int = 0
-        let mapValue: (Int) -> Int = { _ in calculator += 1; return calculator }
-        let source = Property<[Int]>(in: .root, options: [.representer: Representer<[Int]>.any.requiredProperty(), .initialValue: [0]])
-        let one = AnyRealtimeCollectionView<[Int], Values<Object>>(source)//SharedCollection([1])
-
-        let lazyOne = one.lazy.map(mapValue)
-        _ = lazyOne.first
-        XCTAssertTrue(calculator == 1)
-        let anyLazyOne = AnySharedCollection(lazyOne)
-        XCTAssertTrue(calculator == 1)
-        source._setLocalValue([0, 0])
-        XCTAssertTrue(one.count == 2)
-        XCTAssertTrue(lazyOne.count == 2)
-        XCTAssertTrue(anyLazyOne.count == 2)
-    }
     func testMirror() {
         let object = Object(in: .root)
         let mirror = Mirror(reflecting: object)
@@ -88,6 +65,10 @@ extension OtherTests {
         let testMirror = Mirror(reflecting: Test.self)
 
         print(oneMirror, testMirror)
+    }
+    func testReflectClass() {
+        let mirror = Mirror(reflecting: TestObject.self)
+        print(mirror.children.map({ $0 }), mirror.superclassMirror as Any)
     }
 
     func testCodableEnum() {
@@ -154,49 +135,96 @@ extension OtherTests {
 //        let node = Node.root.child(with: (0..<32).lazy.map(String.init).joined(separator: "/"))
 //        XCTFail("\(node.underestimatedCount) levels")
 //    }
-}
 
-final class SharedCollection<Base: MutableCollection>: MutableCollection {
-    func index(after i: Base.Index) -> Base.Index {
-        return base.index(after: i)
-    }
-
-    subscript(position: Base.Index) -> Base.Iterator.Element {
-        get {
-            return base[position]
-        }
-        set(newValue) {
-            base[position] = newValue
+    func testVersionerFunc() {
+        var old: Versioner = Versioner(version: "")
+        for i in stride(from: 1 as UInt32, to: 1000, by: 1) {
+            for y in stride(from: 1 as UInt32, to: 1000, by: 1) {
+                var versioner = Versioner()
+                versioner.enqueue(Version(i, y))
+                XCTAssertTrue(old < versioner, "\(old) !< \(versioner)")
+                old = versioner
+            }
         }
     }
 
-    var endIndex: Base.Index { return base.endIndex }
-    var startIndex: Base.Index { return base.startIndex }
+    func testNewVersionerFunc() {
+        let vers1 = Version(46, 23)
+        let vers2 = Version(24, 43)
 
-    typealias Index = Base.Index
+        struct Part {
+            let level: UInt8
+            let version: Version
 
-    /// Returns an iterator over the elements of this sequence.
-    func makeIterator() -> Base.Iterator {
-        return base.makeIterator()
+            var data: Data {
+                mutating get {
+                    return Data(bytes: &self, count: MemoryLayout<Part>.size)
+                }
+            }
+        }
+
+        var part1 = Part(level: 0, version: vers1)
+        var part2 = Part(level: 0, version: vers2)
+
+        let data1 = part1.data
+        let data2 = part2.data
+
+        let copyPart1: Part = data1.withUnsafeBytes({ $0.pointee })
+        let copyPart2: Part = data2.withUnsafeBytes({ $0.pointee })
+
+        XCTAssertEqual(copyPart1.level, part1.level)
+        XCTAssertEqual(copyPart1.version, part1.version)
+        XCTAssertEqual(copyPart2.level, part2.level)
+        XCTAssertEqual(copyPart2.version, part2.version)
     }
 
-    var base: Base
+    func testNewVersionerFunc2() {
+        let vers1 = Version(46, 23)
+        let vers2 = Version(24, 43)
+        let versions = [vers1, vers2]
 
-    init(_ base: Base) {
-        self.base = base
+        var levels = versions
+        let base64String = Data(bytes: &levels, count: MemoryLayout<Version>.size * levels.count).base64EncodedString()
+
+        levels = Data(base64Encoded: base64String).map({ d in
+            let size = d.count / MemoryLayout<Version>.size
+            return (0 ..< size).reduce(into: [], { (res, i) in
+                let offset = i * MemoryLayout<Version>.size
+                res.append(d.subdata(in: (offset..<offset + MemoryLayout<Version>.size)).withUnsafeBytes({ $0.pointee }))
+            })
+        }) ?? []
+
+        XCTAssertEqual(levels, versions)
+    }
+
+    func testMultilevelNodeEvidence() {
+        let node1 = Node(key: "cjnk/xocm", parent: .root)
+        let node2 = Node(key: "mkjmld", parent: .root)
+
+        XCTAssertTrue(node1._hasMultipleLevelNode)
+        XCTAssertFalse(node2._hasMultipleLevelNode)
     }
 }
-extension SharedCollection where Base == Array<Int> {
-    func append(_ elem: Int) {
-        base.append(elem)
+
+internal func _makeCollectionDescription<C: Collection>(_ collection: C,
+    withTypeName type: String? = nil
+    ) -> String {
+    var result = ""
+    if let type = type {
+        result += "\(type)(["
+    } else {
+        result += "["
     }
-}
 
-infix operator ∈
-func ∈ <T: Equatable>(lhs: T, rhs: [T]) -> Bool {
-    return rhs.contains(lhs)
-}
-
-func any<T: Equatable>(of values: T...) -> (T) -> Bool {
-    return { values.contains($0) }
+    var first = true
+    for item in collection {
+        if first {
+            first = false
+        } else {
+            result += ", "
+        }
+        debugPrint(item, terminator: "", to: &result)
+    }
+    result += type != nil ? "])" : "]"
+    return result
 }

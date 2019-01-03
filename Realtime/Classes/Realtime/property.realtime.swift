@@ -103,7 +103,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func relation<V: Object>(in object: Object, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> Relation<V> {
+    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationMode) -> Relation<V> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -116,7 +116,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func relation<V: Object>(in object: Object, rootLevelsUp: Int? = nil, ownerLevelsUp: Int = 1, _ property: RelationMode) -> Relation<V?> {
+    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationMode) -> Relation<V?> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -147,7 +147,6 @@ public extension ValueOption {
 
 /// Defines read/write property where value is Realtime database reference
 public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities>: Property<Referenced> {
-    public override var version: Int? { return super._version }
     public override var raw: RealtimeDataValue? { return super._raw }
     public override var payload: [String : RealtimeDataValue]? { return super._payload }
 
@@ -156,16 +155,8 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
         super.init(in: node, options: options.merging([.representer: o.representer], uniquingKeysWith: { _, new in new }))
     }
 
-    public init(data: RealtimeDataProtocol, exactly: Bool, mode: Mode) throws {
-        try super.init(data: data, exactly: exactly, representer: mode.representer)
-    }
-
-    required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:options) instead")
-    }
-
-    required public init(data: RealtimeDataProtocol, exactly: Bool, representer: Representer<Referenced?>) throws {
-        fatalError("init(data:strongly:representer:) cannot be called. Use init(data:exactly:options) instead")
+    required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
     }
 
     @discardableResult
@@ -175,9 +166,9 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
         return try super.setValue(value, in: transaction)
     }
 
-    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try _apply_RealtimeValue(data, exactly: exactly)
-        try super.apply(data, exactly: exactly)
+    public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try _apply_RealtimeValue(data)
+        try super.apply(data, event: event)
     }
 
     override func _write(to transaction: Transaction, by node: Node) throws {
@@ -205,7 +196,6 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
 /// Defines read/write property where value is Realtime database relation
 public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: Property<Related> {
     var options: Options
-    public override var version: Int? { return super._version }
     public override var raw: RealtimeDataValue? { return super._raw }
     public override var payload: [String : RealtimeDataValue]? { return super._payload }
 
@@ -213,20 +203,16 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         guard case let relation as Relation<Related>.Options = options[.relation] else { fatalError("Skipped required options") }
 
         self.options = relation
+
+        if let ownerNode = node?.ancestor(onLevelUp: self.options.ownerLevelsUp) {
+            self.options.ownerNode.value = ownerNode
+        }
+
         super.init(in: node, options: options.merging([.representer: relation.representer], uniquingKeysWith: { _, new in new }))
     }
 
-    public init(data: RealtimeDataProtocol, exactly: Bool, options: Options) throws {
-        self.options = options
-        try super.init(data: data, exactly: exactly, representer: options.representer)
-    }
-
-    required public init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        fatalError("init(data:strongly:) cannot be called. Use init(data:exactly:options) instead")
-    }
-
-    required public init(data: RealtimeDataProtocol, exactly: Bool, representer: Representer<Related?>) throws {
-        fatalError("init(data:strongly:representer:) cannot be called. Use init(data:exactly:options) instead")
+    required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
     }
 
     @discardableResult
@@ -249,12 +235,6 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
             options.ownerNode.value = ownerNode
             try super._write(to: transaction, by: node)
-            if let backwardValueNode = wrapped?.node {
-                let backwardPropertyNode = backwardValueNode.child(with: options.property.path(for: ownerNode))
-                let thisProperty = node.path(from: ownerNode)
-                let backwardRelation = RelationRepresentation(path: options.rootLevelsUp.map(ownerNode.path) ?? ownerNode.rootPath, property: thisProperty)
-                transaction.addValue(backwardRelation.rdbValue, by: backwardPropertyNode)
-            }
         } else {
             throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
         }
@@ -268,12 +248,13 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         }
     }
 
-    public override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try _apply_RealtimeValue(data, exactly: exactly)
-        try super.apply(data, exactly: exactly)
+    public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try _apply_RealtimeValue(data)
+        try super.apply(data, event: event)
     }
 
     private func removeOldValueIfExists(in transaction: Transaction, by node: Node) {
+        let options = self.options
         transaction.addPrecondition { [unowned transaction] (promise) in
             transaction.database.load(
                 for: node,
@@ -281,30 +262,37 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                 completion: { data in
                     guard data.exists() else { return promise.fulfill() }
                     do {
-                        let relation = try RelationRepresentation(data: data)
-                        transaction.removeValue(by: Node.root.child(with: relation.targetPath).child(with: relation.relatedProperty))
-                        promise.fulfill()
+                        if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
+                            let anchorNode = options.rootLevelsUp.flatMap(ownerNode.ancestor) ?? .root
+                            let relation = try RelationRepresentation(data: data)
+                            transaction.removeValue(by: anchorNode.child(with: relation.targetPath).child(with: relation.relatedProperty))
+                            promise.fulfill()
+                        } else {
+                            throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
+                        }
                     } catch let e {
                         promise.reject(e)
                     }
                 },
-                onCancel: promise.reject
+                onCancel: { e in
+                    promise.reject(RealtimeError(external: e, in: .value))
+                }
             )
         }
     }
 
     public struct Options {
         /// Levels up by hierarchy to relation owner of this property
-        let ownerLevelsUp: Int
+        let ownerLevelsUp: UInt
         /// String path from related object to his relation property
         let property: RelationMode
         /// Levels up by hierarchy to the same node for both related values. Default nil, that means root node
-        let rootLevelsUp: Int?
+        let rootLevelsUp: UInt?
 
         let ownerNode: ValueStorage<Node?>
         let representer: Representer<Related?>
 
-        public static func required(rootLevelsUp: Int?, ownerLevelsUp: Int, property: RelationMode) -> Options {
+        public static func required(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 ownerLevelsUp: ownerLevelsUp,
@@ -315,7 +303,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
             )
         }
 
-        public static func optional<U>(rootLevelsUp: Int?, ownerLevelsUp: Int, property: RelationMode) -> Options where Related == Optional<U> {
+        public static func optional<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 ownerLevelsUp: ownerLevelsUp,
@@ -519,11 +507,15 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
         }
     }
 
+    internal func cacheValue(_ node: Node, value: Any?) -> CacheNode {
+        return .value(ValueNode(node: node, value: value))
+    }
+
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
         if let changed = _changedValue {
             /// skip the call of super (_RealtimeValue)
             _addReversion(to: transaction, by: node)
-            transaction._addValue(updateType, try representer.encode(changed), by: node)
+            try transaction._addValue(cacheValue(node, value: representer.encode(changed)))
         }
     }
 
@@ -544,7 +536,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
             }
         case .some(.local(let v)):
             _addReversion(to: transaction, by: node)
-            transaction._addValue(updateType, try representer.encode(v), by: node)
+            try transaction._addValue(cacheValue(node, value: representer.encode(v)))
         default:
             debugFatalError("Unexpected behavior")
             throw RealtimeError(encoding: T.self, reason: "Unexpected state for current operation")
@@ -584,11 +576,9 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T?>
 
-    internal var _version: Int? { return super.version }
     internal var _raw: RealtimeDataValue? { return super.raw }
     internal var _payload: [String : RealtimeDataValue]? { return super.payload }
 
-    public override var version: Int? { return nil }
     public override var raw: RealtimeDataValue? { return nil }
     public override var payload: [String : RealtimeDataValue]? { return nil }
 
@@ -638,14 +628,9 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         super.init(in: node, options: options)
     }
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool, representer: Representer<T?>) throws {
-        self.representer = representer
-        try super.init(data: data, exactly: exactly)
-    }
-
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("init(data:exactly:) cannot be called. Use init(data:exactly:representer:)")
+        fatalError("init(data:exactly:) cannot be called. Use combination init(in:options:) and apply(_:exactly:) instead")
         #else
         throw RealtimeError(decoding: type(of: self).self, data, reason: "Unavailable initializer")
         #endif
@@ -677,8 +662,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         }
     }
 
-    @discardableResult
-    public func loadValue(completion: Assign<T>, fail: Assign<Error>) -> Self {
+    public func loadValue(completion: Assign<T>, fail: Assign<Error>) {
         load(completion: .just { err in
             if let v = self._value {
                 switch v {
@@ -691,11 +675,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
                 fail.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
             }
         })
-
-        return self
     }
-
-    internal var updateType: ValueNode.Type { return ValueNode.self }
 
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
         /// readonly property cannot have changes
@@ -732,9 +712,9 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     
     // MARK: Changeable
 
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
+    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         /// skip the call of super
-        guard exactly else {
+        guard event == .value else {
             /// skip partial data, because it is not his responsibility and representer can throw error
             return
         }
@@ -756,7 +736,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
 
     func _setRemoved(isLocal: Bool) {
-        _value = nil
+        _value = .removed(local: isLocal)
         repeater.send(.value(.removed(local: isLocal)))
     }
 
@@ -946,13 +926,13 @@ public final class SharedProperty<T>: _RealtimeValue where T: RealtimeDataValue 
 
     // MARK: Changeable
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self._value = T()
-        try super.init(data: data, exactly: exactly)
+        try super.init(data: data, event: event)
     }
 
-    override public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try super.apply(data, exactly: exactly)
+    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.apply(data, event: event)
         setValue(try representer.decode(data))
     }
 
@@ -1016,15 +996,15 @@ public final class MutationPoint<T> {
     }
 }
 public extension MutationPoint where T: RealtimeDataRepresented & RealtimeDataValueRepresented {
-    func set(value: T, in transaction: Transaction? = nil) -> Transaction {
+    func set(value: T, in transaction: Transaction? = nil) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(value.rdbValue, by: node)
+        transaction.addValue(try value.defaultRepresentation(), by: node)
 
         return transaction
     }
-    func mutate(by key: String? = nil, use value: T, in transaction: Transaction? = nil) -> Transaction {
+    func mutate(by key: String? = nil, use value: T, in transaction: Transaction? = nil) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(value.rdbValue, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+        transaction.addValue(try value.defaultRepresentation(), by: key.map { node.child(with: $0) } ?? node.childByAutoId())
 
         return transaction
     }

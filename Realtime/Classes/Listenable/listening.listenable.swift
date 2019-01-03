@@ -19,27 +19,36 @@ public struct EmptyDispose: Disposable {
     public func dispose() {}
 }
 
-public class SingleRetainDispose: Disposable {
+public final class SingleRetainDispose: Disposable {
     var retained: AnyObject?
     public init(_ value: AnyObject) { self.retained = value }
     public func dispose() { self.retained = nil }
 }
 
-public class ListeningDispose: Disposable {
+public final class ListeningDispose: Disposable {
     let _dispose: () -> Void
+    var invalidated: Int32 = 0
+    public var isDisposed: Bool { return invalidated == 1 }
     public init(_ dispose: @escaping () -> Void) {
         self._dispose = dispose
     }
     public func dispose() {
-        _dispose()
+        if OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated) {
+            _dispose()
+        }
     }
     deinit {
-        _dispose()
+        dispose()
+    }
+}
+extension ListeningDispose {
+    convenience init(_ base: Disposable) {
+        self.init(base.dispose)
     }
 }
 
 /// Listening with possibility to control connection state
-public class ListeningItem {
+public final class ListeningItem {
     let _resume: () -> Void
     let _pause: () -> Void
     let _dispose: () -> Void
@@ -86,7 +95,9 @@ public class ListeningItem {
 }
 extension ListeningItem: Disposable {
     public func dispose() {
-        _pause()
+        if isListen {
+            _pause()
+        }
         _dispose()
     }
 }
@@ -101,10 +112,13 @@ public extension Disposable {
     func add(to store: ListeningDisposeStore) {
         store.add(self)
     }
+    func add(to disposes: inout [Disposable]) {
+        disposes.append(self)
+    }
 }
 
 /// Stores connections
-public class ListeningDisposeStore {
+public final class ListeningDisposeStore {
     private var disposes = [Disposable]()
     private var listeningItems = [ListeningItem]()
 

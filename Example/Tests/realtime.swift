@@ -59,6 +59,7 @@ class RealtimeTests: XCTestCase {
     override func tearDown() {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
         super.tearDown()
+        Cache.root.clear()
     }
 }
 
@@ -67,7 +68,7 @@ class RealtimeTests: XCTestCase {
 class TestObject: Object {
     lazy var property: Property<String?> = "prop".property(in: self)
     lazy var readonlyProperty: ReadonlyProperty<Int> = "readonlyProp".readonlyProperty(in: self).defaultOnEmpty()
-    lazy var linkedArray: References<Object> = "linked_array".references(in: self, elements: .root)
+    lazy var linkedArray: MutableReferences<Object> = "linked_array".references(in: self, elements: .root)
     lazy var array: Values<TestObject> = "array".values(in: self)
     lazy var dictionary: AssociatedValues<Object, TestObject> = "dict".dictionary(in: self, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
@@ -103,15 +104,15 @@ class TestObject: Object {
             super.init(in: node, options: options)
         }
 
-        required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             self.usualProperty = Property(in: Node(key: "usualprop", parent: data.node),
                                           representer: .any,
                                           options: [.database: data.database as Any])
-            try super.init(data: data, exactly: exactly)
+            try super.init(data: data, event: event)
         }
 
-        override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-            try super.apply(data, exactly: exactly)
+        override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+            try super.apply(data, event: event)
         }
 
         override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
@@ -215,7 +216,7 @@ extension RealtimeTests {
         checkWillSave(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
         checkWillSave(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
         do {
-            let save = try obj.save(by: .root, in: Transaction(database: CacheNode.root, storage: CacheNode.root))
+            let save = try obj.save(by: .root, in: Transaction(database: Cache.root, storage: Cache.root))
             save.commit(with: { _, errs in
                 errs.map { _ in XCTFail() }
 
@@ -242,7 +243,7 @@ extension RealtimeTests {
                                         options: [:])
 
         XCTAssertFalse(property.hasChanges)
-        let transaction = Transaction(database: CacheNode.root)
+        let transaction = Transaction(database: Cache.root)
         do {
             try property.setValue("Some string", in: transaction)
             XCTAssertTrue(property.hasChanges)
@@ -265,7 +266,7 @@ extension RealtimeTests {
         obj.nestedObject.usualProperty <== "usual"
         obj.nestedObject.lazyProperty <== "lazy"
 
-        obj.didSave(in: CacheNode.root, in: .root, by: "obj")
+        obj.didSave(in: Cache.root, in: .root, by: "obj")
 
         XCTAssertFalse(obj.hasChanges)
         checkWillRemove(obj)
@@ -279,8 +280,8 @@ extension RealtimeTests {
         checkWillRemove(obj.nestedObject, nested: true)
         checkWillRemove(obj.nestedObject.usualProperty, nested: true)
         checkWillRemove(obj.nestedObject.lazyProperty, nested: true)
-        do {
-            let save = try obj.delete(in: Transaction(database: CacheNode.root, storage: CacheNode.root))
+        
+            let save = obj.delete(in: Transaction(database: Cache.root, storage: Cache.root))
             save.commit(with: { _, errs in
                 errs.map { _ in XCTFail() }
 
@@ -297,9 +298,6 @@ extension RealtimeTests {
                 checkDidRemove(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
                 checkDidRemove(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
             })
-        } catch let e {
-            XCTFail(e.localizedDescription)
-        }
     }
 }
 
@@ -312,7 +310,7 @@ extension RealtimeTests {
 
         do {
             let trans = try testObject.save(in: .root)
-            let value = trans.updateNode.updateValue
+            let value = trans.updateNode.values
             let expectedValue = ["t_obj/prop":"string", "t_obj/nestedObject/lazyprop":"nested_string"] as [String: Any?]
 
             XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
@@ -323,12 +321,13 @@ extension RealtimeTests {
     }
 
     func testMergeTransactions() {
-        let testObject = TestObject(in: .root)
+        let exp = expectation(description: "")
+        let testObject = TestObject(in: .root, options: [.database: Cache.root])
 
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
 
-        let element = TestObject(in: Node.root.child(with: "element_1"))
+        let element = TestObject(in: Node.root.child(with: "element_1"), options: [.database: Cache.root])
         element.property <== "element #1"
         element.nestedObject.lazyProperty <== "value"
 
@@ -337,14 +336,21 @@ extension RealtimeTests {
             let objectTransaction = try testObject.update()
             try elementTransaction.merge(objectTransaction)
 
-            let value = elementTransaction.updateNode.updateValue
-            let expectedValue = ["prop":"string", "nestedObject/lazyprop":"nested_string",
-                                 "element_1/prop":"element #1", "element_1/nestedObject/lazyprop":"value"] as [String: Any?]
+            elementTransaction.commit { (_, err) in
+                err?.forEach { XCTFail($0.describingErrorDescription) }
+                let value = Cache.root.values
+                let expectedValue = ["prop":"string", "nestedObject/lazyprop":"nested_string",
+                                     "element_1/prop":"element #1", "element_1/nestedObject/lazyprop":"value"] as [String: Any?]
 
-            XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
-            elementTransaction.revert()
+                XCTAssertEqual((value as NSDictionary), (expectedValue as NSDictionary))
+                exp.fulfill()
+            }
         } catch let e {
             XCTFail(e.localizedDescription)
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
         }
     }
 
@@ -355,22 +361,22 @@ extension RealtimeTests {
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
         linkedObject.property <== "#1"
-        testObject.linkedArray._view.isSynced = true
-        XCTAssertNoThrow(try testObject.linkedArray.write(element: linkedObject, in: transaction))
+        testObject.linkedArray.view.isSynced = true
+        XCTAssertNoThrow(try testObject.linkedArray.write(linkedObject, in: transaction))
 
         let object = TestObject(in: Node(key: "elem_1"))
         object.file <== #imageLiteral(resourceName: "pw")
         object.property <== "prop"
-        testObject.array._view.isSynced = true
+        testObject.array.view.isSynced = true
         XCTAssertNoThrow(try testObject.array.write(element: object, in: transaction))
 
         let element = TestObject()
         element.file <== #imageLiteral(resourceName: "pw")
         element.property <== "element #1"
-        testObject.dictionary._view.isSynced = true
+        testObject.dictionary.view.isSynced = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
 
-        let value = transaction.updateNode.updateValue
+        let value = transaction.updateNode.values
 
         let linkedItem = value["linked_array/linked"] as? [String: Any]
         XCTAssertTrue(linkedItem != nil)
@@ -399,7 +405,7 @@ extension RealtimeTests {
 
         do {
             let transaction = try testObject.save(in: .root)
-            let value = transaction.updateNode.updateValue
+            let value = transaction.updateNode.values
 
             let linkedItem = value["test_obj/linked_array/linked"] as? [String: Any]
             XCTAssertTrue(linkedItem != nil)
@@ -421,7 +427,7 @@ extension RealtimeTests {
             let child = TestObject()
             child.property <== "element #1"
             child.file <== #imageLiteral(resourceName: "pw")
-            element.array._view.isSynced = true
+            element.array.view.isSynced = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
             let imgData = #imageLiteral(resourceName: "pw").pngData()!
@@ -430,7 +436,7 @@ extension RealtimeTests {
 
             let data = try element.update(in: transaction).updateNode
 
-            let object = try TestObject(data: data.child(forPath: element.node!.rootPath), exactly: false)
+            let object = try TestObject(data: data.child(forNode: element.node!), event: .child(.added))
             
             XCTAssertNotNil(object.file.unwrapped)
 //            XCTAssertEqual(object.file.unwrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
@@ -446,6 +452,39 @@ extension RealtimeTests {
         transaction.revert()
     }
 
+    func testRemoveFile() {
+        let exp = expectation(description: "")
+        let file: File<UIImage?> = "file.png".file(in: Object(in: .root), representer: .png)
+
+        let writeTrans = Transaction(storage: Cache.root)
+        do {
+            try file.setValue(#imageLiteral(resourceName: "pw"), in: writeTrans).commit { (_, errs) in
+                errs?.forEach({ XCTFail($0.describingErrorDescription) })
+
+                XCTAssertTrue(Cache.root.child(forNode: file.node!).exists())
+                let deleteTrans = Transaction(storage: Cache.root)
+                do {
+                    try file.setValue(nil, in: deleteTrans).commit(with: { (state, errors) in
+                        errors?.forEach({ XCTFail($0.describingErrorDescription) })
+
+                        XCTAssertFalse(Cache.root.child(forNode: file.node!).exists())
+                        exp.fulfill()
+                    })
+                } catch let e {
+                    deleteTrans.cancel()
+                    XCTFail(e.describingErrorDescription)
+                }
+            }
+        } catch let e {
+            writeTrans.cancel()
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 4) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+
     func testUpdateFileAfterSave() {
         let group = Group(in: Node(key: "group", parent: Global.rtGroups.node))
         let user = User(in: Node(key: "user"))
@@ -457,7 +496,7 @@ extension RealtimeTests {
         user.ownedGroup <== group
 
         do {
-            let cache = Transaction(database: CacheNode.root, storage: CacheNode.root)
+            let cache = Transaction(database: Cache.root, storage: Cache.root)
             let transaction = try user.save(in: .root, in: cache)
             transaction.commit(with: { (_, errors) in
                 errors.map { _ in XCTFail() }
@@ -466,8 +505,8 @@ extension RealtimeTests {
 
                 user.photo <== #imageLiteral(resourceName: "pw")
                 do {
-                    let update = try user.update(in: Transaction(database: CacheNode.root, storage: CacheNode.root))
-                    XCTAssertTrue(update.updateNode.updateValue.isEmpty)
+                    let update = try user.update(in: Transaction(database: Cache.root, storage: Cache.root))
+                    XCTAssertTrue(update.updateNode.values.isEmpty)
                     update.commit(with: { _, errors in
                         errors.map { _ in XCTFail() }
 
@@ -490,16 +529,17 @@ extension RealtimeTests {
             let user = User(in: Node(key: "user", parent: .root))
             let group = Group(in: Node(key: "group", parent: .root))
             user.ownedGroup <== group
+            group.manager <== user
 
+            try group.update(in: transaction)
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try User(data: data.child(forPath: user.node!.rootPath), exactly: false)
+            let userCopy = try User(data: data.child(forNode: user.node!), event: .child(.added))
+            let groupCopy = try Group(data: data.child(forNode: group.node!), event: .child(.added))
 
-            try group.apply(data.child(forPath: group.node!.rootPath), exactly: false)
-
-            XCTAssertTrue(group.manager.unwrapped.dbKey == user.dbKey)
-            XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == group.dbKey)
-            XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == group.dbKey)
+            XCTAssertTrue(groupCopy.manager.unwrapped.dbKey == user.dbKey)
+            XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == groupCopy.dbKey)
+            XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == groupCopy.dbKey)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -508,28 +548,109 @@ extension RealtimeTests {
     }
 
     func testRelationOneToMany() {
-        let transaction = Transaction()
+        let exp = expectation(description: "")
+        let transaction = Transaction(database: Cache.root)
 
         do {
             let user = User(in: Node(key: "user", parent: .root))
             let group = Group(in: Node(key: "group", parent: .root))
+
             group._manager <== user
+            try user.ownedGroups.write(group, in: transaction)
 
-            let data = try group.update(in: transaction).updateNode
+            try group.update(in: transaction)
+            transaction.commit(with: { (state, errors) in
+                errors?.forEach({ XCTFail($0.describingErrorDescription) })
 
-            let groupCopy = try Group(data: data.child(forPath: group.node!.rootPath), exactly: false)
+                do {
+                    let groupCopy = try Group(data: Cache.root.child(forNode: group.node!), event: .child(.added))
+                    let userCopy = try User(data: Cache.root.child(forNode: user.node!), event: .child(.added))
 
-            let groupBackwardRelation: Relation<Group> = group._manager.options.property.path(for: group.node!).relation(in: user, rootLevelsUp: nil, .oneToOne("_manager"))
-            try groupBackwardRelation.apply(data.child(forPath: groupBackwardRelation.node!.rootPath), exactly: true)
+                    XCTAssertTrue(userCopy.ownedGroups.first?.dbKey == group.dbKey)
+                    XCTAssertTrue(group._manager.wrapped?.dbKey == userCopy.dbKey)
+                    XCTAssertTrue(groupCopy._manager.wrapped?.dbKey == userCopy.dbKey)
 
-            XCTAssertTrue(groupBackwardRelation.wrapped?.dbKey == group.dbKey)
-            XCTAssertTrue(group._manager.wrapped?.dbKey == user.dbKey)
-            XCTAssertTrue(groupCopy._manager.wrapped?.dbKey == user.dbKey)
+                    // removing must also remove related value
+                    groupCopy._manager <== nil
+                    let removе = try groupCopy.update()
+                    removе.commit(with: { (state, errors) in
+                        errors?.forEach({ XCTFail($0.describingErrorDescription) })
+
+                        do {
+                            try groupCopy._manager.apply(Cache.root.child(forNode: groupCopy._manager.node!), event: .value)
+                            try userCopy.ownedGroups.apply(Cache.root.child(forNode: userCopy.ownedGroups.node!), event: .value)
+
+                            XCTAssertNil(groupCopy._manager.unwrapped)
+                            XCTAssertEqual(userCopy.ownedGroups.count, 0)
+                            exp.fulfill()
+                        } catch let e {
+                            XCTFail(e.describingErrorDescription)
+                        }
+                    })
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+            })
         } catch let e {
+            transaction.cancel()
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 3) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+
+    func testRelationManyToOne() {
+        let exp = expectation(description: "")
+        let transaction = Transaction(database: Cache.root)
+
+        do {
+            let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
+            let group = Group(in: Node(key: "group", parent: .root), options: [.database: Cache.root])
+
+            group._manager <== user
+            try user.ownedGroups.write(group, in: transaction)
+
+            try group.update(in: transaction)
+            transaction.commit(with: { (_, errors) in
+                errors?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                do {
+                    let userCopy = try User(data: Cache.root.child(forNode: user.node!), event: .child(.added))
+                    let groupCopy = try Group(data: Cache.root.child(forNode: group.node!), event: .child(.added))
+
+                    XCTAssertTrue(groupCopy._manager.unwrapped?.dbKey == userCopy.dbKey)
+                    XCTAssertTrue(userCopy.ownedGroups.first?.dbKey == groupCopy.dbKey)
+
+                    // removing must also remove related value
+                    let remove = userCopy.ownedGroups.remove(element: groupCopy)
+                    remove.commit(with: { (state, errors) in
+                        errors?.forEach({ XCTFail($0.describingErrorDescription) })
+
+                        do {
+                            try groupCopy._manager.apply(Cache.root.child(forNode: groupCopy._manager.node!), event: .value)
+                            try userCopy.ownedGroups.apply(Cache.root.child(forNode: userCopy.ownedGroups.node!), event: .value)
+
+                            XCTAssertNil(groupCopy._manager.unwrapped)
+                            XCTAssertEqual(userCopy.ownedGroups.count, 0)
+                            exp.fulfill()
+                        } catch let e {
+                            XCTFail(e.describingErrorDescription)
+                        }
+                    })
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+            })
+        } catch let e {
+            transaction.cancel()
             XCTFail(e.localizedDescription)
         }
 
-        transaction.revert()
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
     }
 
     func testOptionalRelation() {
@@ -541,7 +662,7 @@ extension RealtimeTests {
 
             let data = try user.update(in: transaction).updateNode
 
-            let userCopy = try User(data: data.child(forPath: user.node!.rootPath), exactly: false)
+            let userCopy = try User(data: data.child(forNode: user.node!), event: .child(.added))
 
             if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -555,6 +676,40 @@ extension RealtimeTests {
         transaction.revert()
     }
 
+    func testRelationPayload() {
+        let exp = expectation(description: "")
+        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: 2, .userPayload: ["key": "value"]])
+        let relation: Relation<Object> = "relation".relation(in: Object(in: .root), RelationMode.oneToOne("obj"))
+        relation <== obj
+
+        let transaction = Transaction(database: Cache.root)
+        do {
+            try transaction.set(relation, by: relation.node!)
+            transaction.commit { (_, errors) in
+                _ = errors?.map({ XCTFail($0.describingErrorDescription) })
+
+                let copyRelation: Relation<Object> = "relation".relation(in: Object(in: .root), RelationMode.oneToOne("obj"))
+                do {
+                    try copyRelation.apply(Cache.root.child(by: copyRelation.node!)!.asUpdateNode(), event: .value)
+
+                    XCTAssertEqual(copyRelation.wrapped, relation.wrapped)
+                    XCTAssertEqual(copyRelation.wrapped.raw as? Int, relation.wrapped.raw as? Int)
+                    XCTAssertEqual(copyRelation.wrapped.payload.map { $0 as NSDictionary },
+                                   relation.wrapped.payload.map { $0 as NSDictionary })
+                    exp.fulfill()
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+            }
+        } catch let e {
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 4) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+
     func testOptionalReference() {
         let transaction = Transaction()
 
@@ -564,7 +719,7 @@ extension RealtimeTests {
 
             let data = try conversation.update(in: transaction).updateNode
 
-            let conversationCopy = try Conversation(data: data.child(forPath: conversation.node!.rootPath), exactly: false)
+            let conversationCopy = try Conversation(data: data.child(forNode: conversation.node!), event: .child(.added))
 
             if case .error(let e, _)? = conversation.chairman.lastEvent {
                 XCTFail(e.localizedDescription)
@@ -604,7 +759,7 @@ extension RealtimeTests {
 
         do {
             let data = ValueNode(node: Node(key: "prop"), value: nil)
-            try property.apply(data, exactly: true)
+            try property.apply(data, event: .value)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -627,9 +782,13 @@ extension RealtimeTests {
         do {
             let result = try representer.encode(value)
 
-            XCTAssertEqual(result as? NSDictionary, ["ref": "path/subpath",
-                                                     InternalKeys.raw.rawValue: 1,
-                                                     InternalKeys.payload.rawValue: ["foo": "bar"]])
+            XCTAssertEqual(result as? NSDictionary, [
+                InternalKeys.source.rawValue: "path/subpath",
+                InternalKeys.value.rawValue: [
+                    InternalKeys.raw.rawValue: 1,
+                    InternalKeys.payload.rawValue: ["foo": "bar"]
+                ]
+            ])
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -639,19 +798,19 @@ extension RealtimeTests {
         let first = Node(key: "first", parent: .root)
 
         let second = Node(key: "second", parent: first)
-        XCTAssertEqual(second.rootPath, "first/second")
+        XCTAssertEqual(second.absolutePath, "first/second")
         XCTAssertEqual(second.path(from: first), "second")
         XCTAssertTrue(second.hasAncestor(node: first))
         XCTAssertTrue(second.isRooted)
 
         let third = second.child(with: "third")
-        XCTAssertEqual(third.rootPath, "first/second/third")
+        XCTAssertEqual(third.absolutePath, "first/second/third")
         XCTAssertEqual(third.path(from: first), "second/third")
         XCTAssertTrue(third.hasAncestor(node: first))
         XCTAssertTrue(third.isRooted)
 
         let fourth = third.child(with: "fourth")
-        XCTAssertEqual(fourth.rootPath, "first/second/third/fourth")
+        XCTAssertEqual(fourth.absolutePath, "first/second/third/fourth")
         XCTAssertEqual(fourth.path(from: first), "second/third/fourth")
         XCTAssertTrue(fourth.hasAncestor(node: first))
         XCTAssertTrue(fourth.isRooted)
@@ -660,7 +819,7 @@ extension RealtimeTests {
     func testLinksNode() {
         let fourth = Node.root.child(with: "first/second/third/fourth")
         let linksNode = fourth.linksNode
-        XCTAssertEqual(linksNode.rootPath, RealtimeApp.app.linksNode.child(with: "first/second/third/fourth").rootPath)
+        XCTAssertEqual(linksNode.absolutePath, RealtimeApp.app.configuration.linksNode.child(with: "first/second/third/fourth").absolutePath)
     }
 
     func testConnectNode() {
@@ -673,7 +832,7 @@ extension RealtimeTests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
 
         let node = Node(key: "testObjects", parent: .root)
-        testObject.didSave(in: CacheNode.root, in: node)
+        testObject.didSave(in: Cache.root, in: node)
 
         XCTAssertTrue(testObject.isInserted)
         XCTAssertTrue(testObject.property.isInserted)
@@ -702,7 +861,6 @@ extension RealtimeTests {
     }
 
     enum ValueWithPayload: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
-        var version: Int? { return value.version }
         var raw: RealtimeDataValue? {
             switch self {
             case .two: return 1
@@ -736,17 +894,17 @@ extension RealtimeTests {
             }
         }
 
-        init(data: RealtimeDataProtocol, exactly: Bool) throws {
+        init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             let raw: CShort = try data.rawValue() as? CShort ?? 0
 
             switch raw {
-            case 1: self = .two(try TestObject(data: data, exactly: exactly))
-            default: self = .one(try TestObject(data: data, exactly: exactly))
+            case 1: self = .two(try TestObject(data: data, event: event))
+            default: self = .one(try TestObject(data: data, event: event))
             }
         }
 
-        mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-            try value.apply(data, exactly: exactly)
+        mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+            try value.apply(data, event: event)
             let r = try data.rawValue() as? Int ?? 0
             if raw as? Int != r {
                 switch r {
@@ -774,6 +932,10 @@ extension RealtimeTests {
 
         func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
             value.didSave(in: database, in: parent, by: key)
+        }
+
+        func willUpdate(through ancestor: Node, in transaction: Transaction) {
+            value.willUpdate(through: ancestor, in: transaction)
         }
 
         func didUpdate(through ancestor: Node) {
@@ -830,8 +992,7 @@ extension RealtimeTests {
 
     func testInitializeWithPayload4() {
         let exp = expectation(description: "")
-        let user = User2(in: nil, options: [.database: CacheNode.root, .systemPayload: SystemPayload(2, 5)])
-        XCTAssertEqual(user.version, 2)
+        let user = User2(in: nil, options: [.database: Cache.root, .rawValue: 5])
         XCTAssertEqual(user.raw as? Int, 5)
 
         user.name <== "User name"
@@ -843,8 +1004,7 @@ extension RealtimeTests {
                 errs?.first.map({ XCTFail($0.describingErrorDescription) })
 
                 do {
-                    let copyUser = try User2(data: CacheNode.root, exactly: true)
-                    XCTAssertEqual(copyUser.version, 2)
+                    let copyUser = try User2(data: Cache.root, event: .value)
                     XCTAssertEqual(copyUser.raw as? Int, 5)
                 } catch let e {
                     XCTFail(e.describingErrorDescription)
@@ -861,13 +1021,14 @@ extension RealtimeTests {
     }
 
     func testReferenceFireValue() {
-        let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").rootPath, payload: ((nil, nil), nil))
-        let fireValue = ref.rdbValue
-        XCTAssertTrue((fireValue as? NSDictionary) == ["ref": "first/two"])
+        let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").absolutePath, payload: (nil, nil))
+        let fireValue = try? ref.defaultRepresentation()
+        XCTAssertTrue((fireValue as? NSDictionary) == [InternalKeys.source.rawValue: "first/two",
+                                                       InternalKeys.value.rawValue: [:]])
     }
 
     func testLocalDatabase() {
-        let transaction = Transaction(database: CacheNode.root)
+        let transaction = Transaction(database: Cache.root)
         let testObject = TestObject(in: .root)
 
         testObject.property <== "string"
@@ -881,7 +1042,7 @@ extension RealtimeTests {
                     XCTFail(e.localizedDescription)
                 } else {
                     do {
-                        let restoredObj = try TestObject(data: CacheNode.root, exactly: false)
+                        let restoredObj = try TestObject(data: Cache.root, event: .child(.added))
 
                         XCTAssertEqual(testObject.property, restoredObj.property)
                         XCTAssertEqual(testObject.nestedObject.lazyProperty,
@@ -897,7 +1058,7 @@ extension RealtimeTests {
     }
 
     func testCacheObject() {
-        let transaction = Transaction(database: CacheNode.root, storage: CacheNode.root)
+        let transaction = Transaction(database: Cache.root, storage: Cache.root)
         let testObject = TestObject(in: .root)
 
         testObject.property <== "string"
@@ -914,7 +1075,7 @@ extension RealtimeTests {
                 if let e = errs?.first {
                     XCTFail(e.localizedDescription)
                 } else {
-                    let restoredObj = TestObject(in: .root, options: [.database: CacheNode.root])
+                    let restoredObj = TestObject(in: .root, options: [.database: Cache.root])
                     restoredObj.load(completion: .just { e in
                         e.map { XCTFail($0.localizedDescription) }
 
@@ -935,8 +1096,8 @@ extension RealtimeTests {
 extension References: Reverting {
     public func revert() {
         guard _hasChanges else { return }
-        storage.elements.removeAll()
-        _view.removeAll()
+        storage.removeAll()
+        view.removeAll()
     }
 
     public func currentReversion() -> () -> Void {
@@ -948,8 +1109,8 @@ extension References: Reverting {
 extension Values: Reverting {
     public func revert() {
         guard _hasChanges else { return }
-        storage.elements.removeAll()
-        _view.removeAll()
+        storage.removeAll()
+        view.removeAll()
     }
 
     public func currentReversion() -> () -> Void {
@@ -961,8 +1122,8 @@ extension Values: Reverting {
 extension AssociatedValues: Reverting {
     public func revert() {
         guard _hasChanges else { return }
-        storage.elements.removeAll()
-        _view.removeAll()
+        storage.removeAll()
+        view.removeAll()
     }
 
     public func currentReversion() -> () -> Void {
@@ -974,7 +1135,7 @@ extension AssociatedValues: Reverting {
 
 extension RealtimeTests {
     func testLocalChangesLinkedArray() {
-        let linkedArray: References<TestObject> = References(in: Node(key: "l_array"), options: [.elementsNode: Node.root])
+        let linkedArray: MutableReferences<TestObject> = MutableReferences(in: Node(key: "l_array"), options: [.elementsNode: Node.root])
 
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
@@ -989,8 +1150,8 @@ extension RealtimeTests {
 
         let transaction = Transaction()
         do {
-            try transaction._update(linkedArray, by: .root)
-            XCTAssertEqual(linkedArray.storage.elements.count, 2)
+            try transaction.set(linkedArray, by: .root)
+            XCTAssertEqual(linkedArray.storage.count, 2)
             /// after write to transaction array switches to remote
             XCTAssertEqual(linkedArray.count, 0)
         } catch let e {
@@ -1019,7 +1180,7 @@ extension RealtimeTests {
         let transaction = Transaction()
         do {
             try transaction._update(array, by: .root)
-            XCTAssertEqual(array.storage.elements.count, 2)
+            XCTAssertEqual(array.storage.count, 2)
             /// after write to transaction array switches to remote
             XCTAssertEqual(array.count, 0)
         } catch let e {
@@ -1049,7 +1210,7 @@ extension RealtimeTests {
         let transaction = Transaction()
         do {
             try transaction._update(dict, by: .root)
-            XCTAssertEqual(dict.storage.elements.count, 2)
+            XCTAssertEqual(dict.storage.count, 2)
             /// after write to transaction array switches to remote
             XCTAssertEqual(dict.count, 0)
         } catch let e {
@@ -1058,13 +1219,13 @@ extension RealtimeTests {
         transaction.revert()
     }
 
-/* Observing in CacheNode is not implemented.
     func testListeningCollectionChangesOnInsert() {
         let exp = expectation(description: "")
-        let array = Values<User>(in: .root, options: [.database: CacheNode.root])
+        let array = Values<User>(in: .root, options: [.database: Cache.root])
 
+        array.runObserving()
         array.changes.listening(onValue: { (event) in
-            switch value {
+            switch event {
             case .initial:
                 XCTFail(".initial does not should call")
             case .updated(_, let inserted, _, _):
@@ -1082,36 +1243,26 @@ extension RealtimeTests {
         element.photo <== #imageLiteral(resourceName: "pw")
 
         do {
-            let transaction = Transaction(database: CacheNode.root)
-            let elementNode = array.storage.sourceNode.childByAutoId()
-            let itemNode = array.storage.sourceNode.child(with: InternalKeys.items).linksNode.child(with: elementNode.key)
-            let link = elementNode.generate(linkTo: itemNode)
-            let item = RCItem(element: element, key: elementNode.key, priority: 0, linkID: link.link.id)
-
-            transaction.addValue(item.rdbValue, by: itemNode)
-            transaction.addValue(link.link.rdbValue, by: link.node)
-            try transaction.set(element, by: elementNode)
+            let transaction = Transaction(database: Cache.root)
+            try array.write(element: element, in: transaction)
 
             /// simulate notification
             transaction.commit { (state, errors) in
                 errors.map { e in XCTFail(e.reduce("") { $0 + $1.describingErrorDescription }) }
-                array._view.isSynced = true
-                array._view.source.dataObserver.send(.value((CacheNode.root.child(forPath: itemNode.rootPath), .child(.added))))
             }
         } catch let e {
             XCTFail(e.describingErrorDescription)
         }
 
-        waitForExpectations(timeout: 4) { (error) in
+        waitForExpectations(timeout: 10) { (error) in
             error.map { XCTFail($0.describingErrorDescription) }
         }
     }
- */
 
     func testReadonlyRelation() {
         let exp = expectation(description: "")
-        let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
-        let group = Group(in: Node(key: "group", parent: .root), options: [.database: CacheNode.root])
+        let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
+        let group = Group(in: Node(key: "group", parent: .root), options: [.database: Cache.root])
         user.ownedGroup <== group
 
         do {
@@ -1121,7 +1272,7 @@ extension RealtimeTests {
 
                 let ownedGroup = Relation<Group?>.readonly(in: user.ownedGroup.node, config: user.ownedGroup.options)
                 do {
-                    try ownedGroup.apply(CacheNode.root.child(forPath: user.ownedGroup.node!.rootPath), exactly: true)
+                    try ownedGroup.apply(Cache.root.child(forNode: user.ownedGroup.node!), event: .value)
                     XCTAssertEqual(ownedGroup.wrapped, user.ownedGroup.wrapped)
                     exp.fulfill()
                 } catch let e {
@@ -1138,10 +1289,10 @@ extension RealtimeTests {
     }
 
     func testReadonlyReference() {
-        CacheNode.root.clear()
+        Cache.root.clear()
         let exp = expectation(description: "")
-        let user = User(in: Node(key: "user", parent: .root), options: [.database: CacheNode.root])
-        let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: [.database: CacheNode.root])
+        let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
+        let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: [.database: Cache.root])
         conversation.chairman <== user
 
         do {
@@ -1151,10 +1302,10 @@ extension RealtimeTests {
 
                 let chairman = Reference<User>.readonly(
                     in: conversation.chairman.node,
-                    mode: Reference<User>.Mode.required(.fullPath, options: [.database: CacheNode.root])
+                    mode: Reference<User>.Mode.required(.fullPath, options: [.database: Cache.root])
                 )
                 do {
-                    try chairman.apply(CacheNode.root.child(forPath: conversation.chairman.node!.rootPath), exactly: true)
+                    try chairman.apply(Cache.root.child(forNode: conversation.chairman.node!), event: .value)
                     XCTAssertEqual(chairman.wrapped, conversation.chairman.wrapped)
                     exp.fulfill()
                 } catch let e {
@@ -1171,9 +1322,9 @@ extension RealtimeTests {
     }
 
     func testDatabaseBinding() {
-        let testObject = TestObject(in: .root, options: [.database: CacheNode.root])
+        let testObject = TestObject(in: .root, options: [.database: Cache.root])
         testObject.forceEnumerateAllChilds { (_, value: _RealtimeValue) in
-            if value.database === CacheNode.root {
+            if value.database === Cache.root {
                 XCTAssertTrue(true)
             } else {
                 XCTFail("value: \(value), database: \(value.database as Any)")
@@ -1183,42 +1334,41 @@ extension RealtimeTests {
 
     func testAssociatedValuesWithVersionAndRawValues() {
         let exp = expectation(description: "")
-        let assocValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.keysNode: Node.root("keys")])
-        let key = Object(in: Node.root("keys").child(with: "key"), options: [.systemPayload: (version: 3, raw: 2)])
-        let value = Object(in: nil, options: [.systemPayload: (version: 1, raw: 5)])
+        let assocValues = AssociatedValues<Object, Object>(in: Node.root("values"), options: [.database: Cache.root, .keysNode: Node.root("keys")])
+        let key = Object(in: Node.root("keys").child(with: "key"), options: [.database: Cache.root, .rawValue: 2])
+        let value = Object(in: nil, options: [.database: Cache.root, .rawValue: 5])
         do {
-            let trans = Transaction(database: CacheNode.root)
+            let trans = Transaction(database: Cache.root)
             try assocValues.write(element: value, for: key, in: trans)
             trans.commit { (_, errors) in
                 _ = errors?.compactMap({ XCTFail($0.describingErrorDescription) })
 
                 /// we can use Values for readonly access to values, AssociatedValues and Values must be compatible
                 let copyAssocitedValues = AssociatedValues<Object, Object>(in: Node.root("values"),
-                                                                           options: [.keysNode: Node.root("keys"), .database: CacheNode.root])
+                                                                           options: [.keysNode: Node.root("keys"), .database: Cache.root])
                 let copyValues = copyAssocitedValues.values()
                 /// we can use References for readonly access to keys
-//                let copyKeys = References<Object>(in: Node.root("values").child(with: InternalKeys.items).linksNode,
-//                                                  options: [.elementsNode: Node.root("keys"), .database: CacheNode.root])
-                copyValues._view.load(.just({ (v_err) in
+                let copyKeys = copyAssocitedValues.keys()
+                copyValues.view.load(.just({ (v_err) in
                     v_err.map { XCTFail($0.describingErrorDescription) }
-//                    copyKeys._view.load(.just({ k_err in
-//                        k_err.map { XCTFail($0.describingErrorDescription) }
-                    copyAssocitedValues._view.load(.just({ av_err in
+                    copyKeys.view.load(.just({ k_err in
+                        k_err.map { XCTFail($0.describingErrorDescription) }
+                    copyAssocitedValues.view.load(.just({ av_err in
                         av_err.map { XCTFail($0.describingErrorDescription) }
 
-                        if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first /*let copyKey = copyKeys.first*/ {
+                        if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first, let copyKey = copyKeys.first {
                             XCTAssertEqual(copyAValue.key, key)
-                            XCTAssertEqual(copyAValue.key.version, 3)
                             XCTAssertEqual(copyAValue.key.raw as? Int, 2)
                             XCTAssertEqual(copyValue, value)
-                            XCTAssertEqual(copyValue.version, 1)
                             XCTAssertEqual(copyValue.raw as? Int, 5)
+                            XCTAssertEqual(copyKey, key)
+                            XCTAssertEqual(copyKey.raw as? Int, 2)
                         } else {
                             XCTFail("No element")
                         }
                         exp.fulfill()
                     }))
-//                    }))
+                    }))
                 }))
             }
         } catch let e {
@@ -1341,5 +1491,415 @@ extension RealtimeTests {
         property <== "string"
         XCTAssertFalse(property ==== nil)
         XCTAssertFalse(nil ==== property)
+    }
+}
+
+// MARK: Migration
+
+@available(*, deprecated: 0.8)
+class VersionableObject: Object {
+    // removed
+    @available(*, deprecated: 0.5)
+    lazy var nullVersionVariable: ReadonlyProperty<String?> = "nullVersionVariable".readonlyProperty(in: self)
+
+    // added
+    lazy var firstMinorVersionVariable: WriteRequiredProperty<String> = WriteRequiredProperty(
+        in: Node(key: "firstMinorVersionVariable", parent: self.node),
+        representer: Representer<String>.any,
+        options: [.database: self.database as Any]
+    )
+
+    // renamed
+    @available(*, deprecated: 0.7)
+    lazy var renamedFromVariable: ReadonlyProperty<String?> = "renamedFromVariable".readonlyProperty(in: self)
+    lazy var renamedToVariable: WriteRequiredProperty<String> = WriteRequiredProperty(
+        in: Node(key: "renamedToVariable", parent: self.node),
+        representer: Representer<String>.any,
+        options: [.database: self.database as Any]
+    )
+
+    override var ignoredLabels: [String] {
+        return ["_calledMigration"]
+    }
+
+    override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "nullVersionVariable": return \VersionableObject.nullVersionVariable
+        case "firstMinorVersionVariable": return \VersionableObject.firstMinorVersionVariable
+        case "renamedFromVariable": return \VersionableObject.renamedFromVariable
+        case "renamedToVariable": return \VersionableObject.renamedToVariable
+        default: return nil
+        }
+    }
+
+    override func conditionForWrite(of property: _RealtimeValue) -> Bool {
+//        if property === nullVersionVariable {
+//            return false
+//        }
+        return super.conditionForWrite(of: property)
+    }
+
+    static var modelVersion: Version { return Version(1, 0) }
+    override func putVersion(into versioner: inout Versioner) {
+        super.putVersion(into: &versioner)
+        versioner.enqueue(VersionableObject.modelVersion)
+    }
+
+    var _calledMigration = false
+
+    override func performMigration(from oldVersion: inout Versioner, to newVersion: inout Versioner, in transaction: Transaction) throws {
+        try super.performMigration(from: &oldVersion, to: &newVersion, in: transaction)
+        let old = (try? oldVersion.dequeue()) ?? Version(0, 0)
+        let new = try newVersion.dequeue()
+        guard old < new else { return }
+
+        if old.major == 0 {
+            if !renamedToVariable.hasChanges {
+                if let renamedValue = renamedFromVariable.unwrapped {
+                    // migration called before update operation because value doesn't add explicitly to transaction
+                    renamedToVariable <== renamedValue
+                } else {
+                    transaction.addPrecondition { [unowned self] (promise) in
+                        self.renamedFromVariable.loadValue(
+                            completion: <-{ value in
+                                // updates already added to transaction because add migration changes explicitly
+                                try! self.renamedToVariable.setValue(value, in: transaction)
+                                promise.fulfill()
+                            },
+                            fail: <-promise.reject
+                        )
+                    }
+                }
+                transaction.removeValue(by: renamedFromVariable.node!)
+            }
+        }
+
+        _calledMigration = true
+    }
+}
+
+extension Representer where V == Date {
+    static func dateV2() -> Representer<Date> {
+        let oldBase = Representer.date(.secondsSince1970)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd.MM.yyyy"
+        let newBase = Representer.date(DateCodingStrategy.formatted(formatter))
+        return Representer.init(
+            encoding: newBase.encode,
+            decoding: { (data) -> Date in
+                guard case let value as String = data.value else {
+                    return try oldBase.decode(data)
+                }
+                guard let date = formatter.date(from: value) else {
+                    throw NSError(domain: "tests", code: 0, userInfo: nil)
+                }
+                return date
+            }
+        )
+    }
+}
+
+class VersionableObjectV2: Object {
+    lazy var requiredPropertyV2: Property<Date> = "requiredPropertyV2".property(in: self, representer: .dateV2())
+
+    override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
+        switch label {
+        case "requiredPropertyV2": return \VersionableObjectV2.requiredPropertyV2
+        default: return nil
+        }
+    }
+
+    override func putVersion(into versioner: inout Versioner) {
+        super.putVersion(into: &versioner)
+        versioner.enqueue(Version(2, 1))
+    }
+
+    override func performMigration(from currentVersion: inout Versioner, to newVersion: inout Versioner, in transaction: Transaction) throws {
+        try super.performMigration(from: &currentVersion, to: &newVersion, in: transaction)
+
+        let old = (try? currentVersion.dequeue()) ?? Version(0, 0)
+        let new = try newVersion.dequeue()
+
+        guard old < new else { return }
+
+        if old.major == 2 {
+            if old.minor == 0 {
+                if !requiredPropertyV2.hasChanges {
+                    if let value = requiredPropertyV2.wrapped {
+                        // migration called before update operation because value doesn't add explicitly to transaction
+                        requiredPropertyV2 <== value
+                    } else {
+                        transaction.addPrecondition { [unowned self] (promise) in
+                            self.requiredPropertyV2.loadValue(
+                                completion: <-{ value in
+                                    // updates already added to transaction because add migration changes explicitly
+                                    try! self.requiredPropertyV2.setValue(value, in: transaction)
+                                    promise.fulfill()
+                                },
+                                fail: <-promise.reject
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Version over model
+///
+/// - v1: Model in first major version
+/// - v2: Model in second major version
+enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
+    case v1(VersionableObject)
+    case v2(VersionableObjectV2)
+
+    var raw: RealtimeDataValue? { return value.raw }
+    var node: Node? { return value.node }
+    var payload: [String : RealtimeDataValue]? { return value.payload }
+    var canObserve: Bool { return value.canObserve }
+    var keepSynced: Bool {
+        get { return value.keepSynced }
+        set { value.keepSynced = newValue }
+    }
+
+    var value: Object {
+        switch self {
+        case .v1(let v): return v
+        case .v2(let v): return v
+        }
+    }
+
+    init(in node: Node?, options: [ValueOption : Any]) {
+        self = .v2(VersionableObjectV2(in: node, options: options))
+    }
+
+    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        guard var versioner = try data.versioner() else {
+            self = .v1(try VersionableObject(data: data, event: event))
+            return
+        }
+        var version: Version?
+        while let v = try? versioner.dequeue() {
+            version = v
+        }
+
+        switch version?.major {
+        case 2: self = .v2(try VersionableObjectV2(data: data, event: event))
+        default: self = .v1(try VersionableObject(data: data, event: event))
+        }
+    }
+
+    mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try value.apply(data, event: event)
+    }
+    func load(timeout: DispatchTimeInterval, completion: Closure<Error?, Void>?) { value.load(timeout: timeout, completion: completion) }
+    func runObserving() -> Bool { return value.runObserving() }
+    func stopObserving() { value.stopObserving() }
+    func willSave(in transaction: Transaction, in parent: Node, by key: String) { value.willSave(in: transaction, in: parent, by: key) }
+    func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) { value.didSave(in: database, in: parent, by: key) }
+    func willUpdate(through ancestor: Node, in transaction: Transaction) { value.willUpdate(through: ancestor, in: transaction) }
+    func didUpdate(through ancestor: Node) { value.didUpdate(through: ancestor) }
+    func didRemove(from ancestor: Node) { value.didRemove(from: ancestor) }
+    func willRemove(in transaction: Transaction, from ancestor: Node) { value.willRemove(in: transaction, from: ancestor) }
+    func write(to transaction: Transaction, by node: Node) throws { try value.write(to: transaction, by: node) }
+}
+
+extension RealtimeTests {
+    func testVersioner() {
+        var versioner1 = Versioner()
+        versioner1.enqueue(Version(0, 0))
+        versioner1.enqueue(Version(3, 5))
+        var versioner2 = Versioner()
+        versioner2.enqueue(Version(1, 0))
+
+        XCTAssertTrue(versioner1 < versioner2)
+    }
+
+    func testVersioner2() {
+        var versioner = Versioner()
+        versioner.enqueue(Version(46, 23))
+        versioner.enqueue(Version(24, 43))
+
+        let versionValue = versioner.finalize()
+        let copyVersioner = Versioner(version: versionValue)
+
+        XCTAssertTrue(versioner == copyVersioner)
+    }
+
+    func testObjectVersionerEmpty() {
+        let obj = Object(in: nil)
+
+        XCTAssertTrue(obj.modelVersion.isEmpty)
+    }
+    func testVersionableObject() {
+        let exp = expectation(description: "")
+        let versionableObj = VersionableObject(
+            in: Node(key: "obj", parent: .root),
+            options: [.database: Cache.root]
+        )
+
+        let preconditionTransaction = Transaction(database: Cache.root)
+        preconditionTransaction.addValue("renamed", by: versionableObj.renamedFromVariable.node!)
+        preconditionTransaction.commit { (_, errs) in
+            errs?.first.map({ XCTFail($0.describingErrorDescription) })
+            XCTAssertNotNil(Cache.root.child(by: versionableObj.renamedFromVariable.node!))
+
+            versionableObj.firstMinorVersionVariable <== "null"
+            let transaction = Transaction(database: Cache.root)
+            do {
+                try versionableObj.update(in: transaction)
+                transaction.commit { (state, errs) in
+                    errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                    exp.fulfill()
+                }
+            } catch let e {
+                transaction.cancel()
+                XCTFail(e.describingErrorDescription)
+            }
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+
+            XCTAssertTrue(versionableObj._calledMigration)
+            XCTAssertNotNil(versionableObj._version)
+            XCTAssertTrue(versionableObj.renamedToVariable.wrapped == "renamed")
+        }
+    }
+
+    func testVersionableValue() {
+        let exp = expectation(description: "")
+        let versionableObj = VersionableObject(
+            in: Node(key: "obj", parent: .root),
+            options: [.database: Cache.root]
+        )
+
+        let preconditionTransaction = Transaction(database: Cache.root)
+        preconditionTransaction.addValue("renamed", by: versionableObj.renamedFromVariable.node!)
+        preconditionTransaction.commit { (_, errs) in
+            errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+            versionableObj.firstMinorVersionVariable <== "null"
+            let transaction = Transaction(database: Cache.root)
+            do {
+                try versionableObj.update(in: transaction)
+                transaction.commit { (state, errs) in
+                    errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                    do {
+                        let versionableValue = try VersionableValue(data: Cache.root.child(by: versionableObj.node!)!.asUpdateNode())
+                        switch versionableValue {
+                        case .v1(let obj):
+                            XCTAssertNotNil(obj._version)
+                            XCTAssertTrue(obj.firstMinorVersionVariable.wrapped == "null")
+                            XCTAssertTrue(obj.renamedToVariable.wrapped == "renamed")
+                            exp.fulfill()
+                        case .v2: XCTFail("Unexpected version")
+                        }
+                    } catch let e {
+                        XCTFail(e.describingErrorDescription)
+                    }
+                }
+            } catch let e {
+                transaction.cancel()
+                XCTFail(e.describingErrorDescription)
+            }
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+
+            XCTAssertTrue(versionableObj._calledMigration)
+            XCTAssertNotNil(versionableObj._version)
+            XCTAssertTrue(versionableObj.renamedToVariable.wrapped == "renamed")
+        }
+    }
+
+    func testVersionableValue2() {
+        let exp = expectation(description: "")
+        let versionableObj = VersionableObjectV2(
+            in: Node(key: "obj", parent: nil),
+            options: [.database: Cache.root]
+        )
+
+        let now = Date()
+        versionableObj.requiredPropertyV2 <== now
+        let transaction = Transaction(database: Cache.root)
+        do {
+            try versionableObj.save(in: .root, in: transaction)
+            transaction.commit { (state, errs) in
+                errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                do {
+                    let versionableValue = try VersionableValue(data: Cache.root.child(by: versionableObj.node!)!.asUpdateNode())
+                    switch versionableValue {
+                    case .v1: XCTFail("Unexpected version")
+                    case .v2(let obj):
+                        let representer = Representer.dateV2()
+                        XCTAssertNotNil(obj._version)
+                        XCTAssertEqual(
+                            obj.requiredPropertyV2.wrapped?.timeIntervalSince1970.rounded(),
+                            try! representer.encode(now).map({ try! representer.decode(ValueNode(node: .root, value: $0)) })?
+                                .timeIntervalSince1970.rounded()
+                        )
+                        exp.fulfill()
+                    }
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+            }
+        } catch let e {
+            transaction.cancel()
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+
+            XCTAssertNotNil(versionableObj._version)
+        }
+    }
+
+    func testVersionableValue3() {
+        let exp = expectation(description: "")
+        let representer = Representer.dateV2()
+        let now = Date()
+        let transaction = Transaction(database: Cache.root)
+        let objNode = Node(key: "obj", parent: .root)
+        do {
+            var versioner = Versioner()
+            versioner.enqueue(Version(2, 0))
+            transaction.addValue(versioner.finalize(), by: objNode.child(with: InternalKeys.modelVersion.rawValue))
+            transaction.addValue(try representer.encode(now) as Any, by: Node(key: "requiredPropertyV2", parent: objNode))
+            transaction.commit { (state, errs) in
+                errs?.first.map({ XCTFail($0.describingErrorDescription) })
+
+                do {
+                    let versionableValue = try VersionableValue(data: Cache.root.child(by: objNode)!.asUpdateNode())
+                    switch versionableValue {
+                    case .v1: XCTFail("Unexpected version")
+                    case .v2(let obj):
+                        XCTAssertNotNil(obj._version)
+                        XCTAssertEqual(
+                            obj.requiredPropertyV2.wrapped?.timeIntervalSince1970.rounded(),
+                            try! representer.encode(now).map({ try! representer.decode(ValueNode(node: .root, value: $0)) })?
+                                .timeIntervalSince1970.rounded()
+                        )
+                        exp.fulfill()
+                    }
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+            }
+        } catch let e {
+            transaction.cancel()
+            XCTFail(e.describingErrorDescription)
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
     }
 }

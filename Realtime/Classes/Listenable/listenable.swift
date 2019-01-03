@@ -346,7 +346,7 @@ public struct AnyListenable<Out>: Listenable {
     let _listening: (Assign<ListenEvent<Out>>) -> Disposable
     let _listeningItem: (Assign<ListenEvent<Out>>) -> ListeningItem
 
-    init<L: Listenable>(_ base: L) where L.Out == Out {
+    public init<L: Listenable>(_ base: L) where L.Out == Out {
         self._listening = base.listening
         self._listeningItem = base.listeningItem
     }
