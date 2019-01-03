@@ -516,16 +516,17 @@ extension RealtimeTests {
             let user = User(in: Node(key: "user", parent: .root))
             let group = Group(in: Node(key: "group", parent: .root))
             user.ownedGroup <== group
+            group.manager <== user
 
+            try group.update(in: transaction)
             let data = try user.update(in: transaction).updateNode
 
             let userCopy = try User(data: data.child(forNode: user.node!), event: .child(.added))
+            let groupCopy = try Group(data: data.child(forNode: group.node!), event: .child(.added))
 
-            try group.apply(data.child(forNode: group.node!), event: .child(.added))
-
-            XCTAssertTrue(group.manager.unwrapped.dbKey == user.dbKey)
-            XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == group.dbKey)
-            XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == group.dbKey)
+            XCTAssertTrue(groupCopy.manager.unwrapped.dbKey == user.dbKey)
+            XCTAssertTrue(user.ownedGroup.unwrapped?.dbKey == groupCopy.dbKey)
+            XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == groupCopy.dbKey)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -534,29 +535,57 @@ extension RealtimeTests {
     }
 
     func testRelationOneToMany() {
+        let exp = expectation(description: "")
         let transaction = Transaction(database: Cache.root)
 
         do {
             let user = User(in: Node(key: "user", parent: .root))
             let group = Group(in: Node(key: "group", parent: .root))
+
             group._manager <== user
+            try user.ownedGroups.write(group, in: transaction)
 
-            let data = try group.update(in: transaction).updateNode
+            try group.update(in: transaction)
+            transaction.commit(with: { (state, errors) in
+                errors?.forEach({ XCTFail($0.describingErrorDescription) })
 
-            let groupCopy = try Group(data: data.child(forNode: group.node!), event: .child(.added))
+                do {
+                    let groupCopy = try Group(data: Cache.root.child(forNode: group.node!), event: .child(.added))
+                    let userCopy = try User(data: Cache.root.child(forNode: user.node!), event: .child(.added))
 
-            let ownedGroups = user.ownedGroups
-            let groupsData = data.child(forNode: ownedGroups.node!)
-            try ownedGroups.apply(groupsData, event: .value)
+                    XCTAssertTrue(userCopy.ownedGroups.first?.dbKey == group.dbKey)
+                    XCTAssertTrue(group._manager.wrapped?.dbKey == userCopy.dbKey)
+                    XCTAssertTrue(groupCopy._manager.wrapped?.dbKey == userCopy.dbKey)
 
-            XCTAssertTrue(ownedGroups.first?.dbKey == group.dbKey)
-            XCTAssertTrue(group._manager.wrapped?.dbKey == user.dbKey)
-            XCTAssertTrue(groupCopy._manager.wrapped?.dbKey == user.dbKey)
+                    // removing must also remove related value
+                    groupCopy._manager <== nil
+                    let removе = try groupCopy.update()
+                    removе.commit(with: { (state, errors) in
+                        errors?.forEach({ XCTFail($0.describingErrorDescription) })
+
+                        do {
+                            try groupCopy._manager.apply(Cache.root.child(forNode: groupCopy._manager.node!), event: .value)
+                            try userCopy.ownedGroups.apply(Cache.root.child(forNode: userCopy.ownedGroups.node!), event: .value)
+
+                            XCTAssertNil(groupCopy._manager.unwrapped)
+                            XCTAssertEqual(userCopy.ownedGroups.count, 0)
+                            exp.fulfill()
+                        } catch let e {
+                            XCTFail(e.describingErrorDescription)
+                        }
+                    })
+                } catch let e {
+                    XCTFail(e.describingErrorDescription)
+                }
+            })
         } catch let e {
-            XCTFail(e.localizedDescription)
+            transaction.cancel()
+            XCTFail(e.describingErrorDescription)
         }
 
-        transaction.revert()
+        waitForExpectations(timeout: 3) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
     }
 
     func testRelationManyToOne() {
@@ -567,33 +596,47 @@ extension RealtimeTests {
             let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
             let group = Group(in: Node(key: "group", parent: .root), options: [.database: Cache.root])
 
+            group._manager <== user
             try user.ownedGroups.write(group, in: transaction)
+
+            try group.update(in: transaction)
             transaction.commit(with: { (_, errors) in
                 errors?.first.map({ XCTFail($0.describingErrorDescription) })
 
                 do {
                     let userCopy = try User(data: Cache.root.child(forNode: user.node!), event: .child(.added))
+                    let groupCopy = try Group(data: Cache.root.child(forNode: group.node!), event: .child(.added))
 
-                    let manager = group._manager
-                    let managerData = Cache.root.child(forNode: manager.node!)
-                    try manager.apply(managerData, event: .value)
+                    XCTAssertTrue(groupCopy._manager.unwrapped?.dbKey == userCopy.dbKey)
+                    XCTAssertTrue(userCopy.ownedGroups.first?.dbKey == groupCopy.dbKey)
 
-                    XCTAssertTrue(manager.unwrapped?.dbKey == user.dbKey)
-                    // cache while is not observed
-//                    XCTAssertTrue(user.ownedGroups.first?.dbKey == group.dbKey)
-                    XCTAssertTrue(userCopy.ownedGroups.first?.dbKey == group.dbKey)
+                    // removing must also remove related value
+                    let remove = userCopy.ownedGroups.remove(element: groupCopy)
+                    remove.commit(with: { (state, errors) in
+                        errors?.forEach({ XCTFail($0.describingErrorDescription) })
+
+                        do {
+                            try groupCopy._manager.apply(Cache.root.child(forNode: groupCopy._manager.node!), event: .value)
+                            try userCopy.ownedGroups.apply(Cache.root.child(forNode: userCopy.ownedGroups.node!), event: .value)
+
+                            XCTAssertNil(groupCopy._manager.unwrapped)
+                            XCTAssertEqual(userCopy.ownedGroups.count, 0)
+                            exp.fulfill()
+                        } catch let e {
+                            XCTFail(e.describingErrorDescription)
+                        }
+                    })
                 } catch let e {
                     XCTFail(e.describingErrorDescription)
                 }
-                exp.fulfill()
             })
-
-            waitForExpectations(timeout: 5) { (err) in
-                err.map({ XCTFail($0.describingErrorDescription) })
-            }
         } catch let e {
-            transaction.revert()
+            transaction.cancel()
             XCTFail(e.localizedDescription)
+        }
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
         }
     }
 
