@@ -32,7 +32,7 @@ func print(from function: String = #function, average time: UInt64) {
 func print(from function: String = #function, total time: TimeInterval) {
     print(String(format: "\(function) = Total time: %.10lf", time))
 }
-
+/*
 extension ConceptTests {
 
     // MARK: GCD
@@ -181,13 +181,17 @@ extension ConceptTests {
 
         // Act.
         DispatchQueue.main.async {
+            var fulfilled_counter = 0
+            var expected_counter = 0
             let time = dispatch_benchmark(Constants.iterationCount) {
                 _Promise<Bool>(true)
-                    .then(on: queue) { _ in }
+                    .then(on: queue) { $0 }
                     .then(on: queue) { _ in
+                        fulfilled_counter += 1
                         semaphore.signal()
                         expectation.fulfill()
                 }
+                expected_counter += 1
                 semaphore.wait()
             }
             print(average: time)
@@ -254,3 +258,4 @@ extension ConceptTests {
         print(total: endDate.timeIntervalSince(startDate))
     }
 }
+*/

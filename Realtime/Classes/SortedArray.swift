@@ -241,9 +241,9 @@ extension SortedArray {
     /// instances of `element`, this method only removes the first one.
     ///
     /// - Complexity: O(_n_), where _n_ is the size of the array.
-    public mutating func remove(_ element: Element) {
-        guard let index = index(of: element) else { return }
-        _elements.remove(at: index)
+    public mutating func remove(_ element: Element) -> (index: Int, element: Element)? {
+        guard let index = index(of: element) else { return nil }
+        return (index, _elements.remove(at: index))
     }
 }
 
@@ -455,3 +455,13 @@ extension SortedArray: ExpressibleBySequence where Element: Comparable {
 }
 
 extension SortedArray: HasDefaultLiteral, _ComparableWithDefaultLiteral where Element: Comparable {}
+extension SortedArray where Element: Equatable {
+    public mutating func move(_ element: Element) -> (from: Int, to: Int)? {
+        guard let from = _elements.index(of: element) else {
+            return nil
+        }
+        remove(at: from)
+        let to = insert(element)
+        return (from, to)
+    }
+}

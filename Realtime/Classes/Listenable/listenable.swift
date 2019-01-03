@@ -346,7 +346,7 @@ public struct AnyListenable<Out>: Listenable {
     let _listening: (Assign<ListenEvent<Out>>) -> Disposable
     let _listeningItem: (Assign<ListenEvent<Out>>) -> ListeningItem
 
-    init<L: Listenable>(_ base: L) where L.Out == Out {
+    public init<L: Listenable>(_ base: L) where L.Out == Out {
         self._listening = base.listening
         self._listeningItem = base.listeningItem
     }
@@ -370,7 +370,7 @@ public struct ReadonlyValue<Value>: Listenable {
     private let store: ListeningDisposeStore
 
     public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), calculation: @escaping (L.Out) -> Value) {
-        var store = ListeningDisposeStore()
+        let store = ListeningDisposeStore()
         repeater.depends(on: source.map(calculation)).add(to: store)
         self.repeater = repeater
         self.store = store
@@ -390,7 +390,7 @@ public struct AsyncReadonlyRepeater<Value>: Listenable {
     private let store: ListeningDisposeStore
     
     public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
-        var store = ListeningDisposeStore()
+        let store = ListeningDisposeStore()
         repeater.depends(on: source.onReceiveMap(fetching)).add(to: store)
         self.repeater = repeater
         self.store = store
@@ -410,7 +410,7 @@ public struct AsyncReadonlyValue<Value>: Listenable {
     private let store: ListeningDisposeStore
 
     public init<L: Listenable>(_ source: L, storage: ValueStorage<Value>, fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
-        var store = ListeningDisposeStore()
+        let store = ListeningDisposeStore()
 
         let promise = ResultPromise(receiver: storage.set, error: storage.sendError)
         source.listening({ (e) in

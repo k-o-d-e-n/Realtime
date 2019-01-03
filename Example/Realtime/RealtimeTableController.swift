@@ -34,15 +34,10 @@ class TableCell: UITableViewCell {
     }
 }
 
-class RealtimeTableController: UIViewController {
+class RealtimeTableController: UITableViewController {
     var store = ListeningDisposeStore()
-    var tableView: UITableView! { return view as! UITableView }
     var delegate: SingleSectionTableViewDelegate<User>!
     weak var activityView: UIActivityIndicatorView!
-
-    override func loadView() {
-        view = UITableView()
-    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -54,6 +49,14 @@ class RealtimeTableController: UIViewController {
         navigationItem.titleView = iView
         self.activityView = iView
 
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(refreshData), for: .valueChanged)
+        if #available(iOS 10.0, *) {
+            tableView.refreshControl = refreshControl
+        } else {
+            tableView.addSubview(refreshControl)
+        }
+
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: NSStringFromClass(UITableViewCell.self))
         tableView.register(TableCell.self, forCellReuseIdentifier: NSStringFromClass(TableCell.self))
         let users = Global.rtUsers
@@ -61,18 +64,18 @@ class RealtimeTableController: UIViewController {
             return table.dequeueReusableCell(withIdentifier: NSStringFromClass(TableCell.self), for: ip)
         }
         delegate.register(UITableViewCell.self) { (item, user, ip) in
-            item.bind(user.name) { (cell, val) in
+            item.bind(user.name, { (cell, val) in
                 cell.textLabel!.text =? val
-            }
+            }, nil)
         }
         delegate.register(TableCell.self) { (item, user, ip) in
             item.set(config: { (cell) in
                 cell.startIndicatorIfNeeeded()
             })
-            item.bind(user.name) { (cell, name) in
+            item.bind(user.name, { (cell, name) in
                 cell.label.text =? name
                 cell.indicator.stopAnimating()
-            }
+            }, nil)
         }
         delegate.bind(tableView)
         delegate.tableDelegate = self
@@ -84,6 +87,7 @@ class RealtimeTableController: UIViewController {
 
         users.changes
             .do({ [unowned self] e in
+                refreshControl.endRefreshing()
                 iView.stopAnimating()
                 let titleView: UILabel = (self.navigationItem.titleView as? UILabel) ?? UILabel()
                 switch e {
@@ -117,10 +121,24 @@ class RealtimeTableController: UIViewController {
                     print("Changes error:", err.localizedDescription)
                 }
             ).add(to: store)
+
+        /// second subscription to tests.
+        users.changes
+            .listening(
+                onValue: { (e) in
+                    print(e)
+                },
+                onError: { (err) in
+                    print(err)
+                }
+        ).add(to: store)
     }
 
+    let ascending: Bool = false
+    let pagingControl: PagingControl = PagingControl()
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        Global.rtUsers.dataExplorer = .viewByPages(control: pagingControl, size: 2, ascending: ascending)
         store.resume()
         Global.rtUsers.runObserving()
     }
@@ -129,6 +147,20 @@ class RealtimeTableController: UIViewController {
         super.viewWillDisappear(animated)
         Global.rtUsers.stopObserving()
         store.pause()
+        Global.rtUsers.dataExplorer = .view(ascending: ascending)
+    }
+
+    @objc func refreshData(_ control: UIRefreshControl) {
+        if ascending {
+            pagingControl.next()
+        } else {
+            pagingControl.previous()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3)) {
+            if control.isRefreshing {
+                control.endRefreshing()
+            }
+        }
     }
 
     @objc func addUser() {
@@ -178,16 +210,16 @@ class RealtimeTableController: UIViewController {
     }
 }
 
-extension RealtimeTableController: UITableViewDelegate, RealtimeEditingTableDataSource {
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+extension RealtimeTableController: RealtimeEditingTableDataSource {
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         print("Did select row at \(indexPath)")
     }
 
-    func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+    override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
         return .delete
     }
 
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
         switch editingStyle {
         case .delete:
             guard Global.rtUsers.isSynced else {
@@ -204,7 +236,7 @@ extension RealtimeTableController: UITableViewDelegate, RealtimeEditingTableData
                     }
             },
                 object: {
-                    try! Global.rtUsers[indexPath.row].delete().commit(with: { (_, err) in
+                    Global.rtUsers[indexPath.row].delete().commit(with: { (_, err) in
                         self.activityView.stopAnimating()
                         if let e = err?.first {
                             print(e.localizedDescription)
@@ -215,19 +247,17 @@ extension RealtimeTableController: UITableViewDelegate, RealtimeEditingTableData
         }
     }
 
-    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
-
+    override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
+        if indexPath.row == Global.rtUsers.count - 1, pagingControl.canMakeStep {
+            pagingControl.next()
+        }
     }
-    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
+
+    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
         return false
     }
-
-    func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
+    override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
         return false
-    }
-
-    func tableView(_ tableView: UITableView, targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath, toProposedIndexPath proposedDestinationIndexPath: IndexPath) -> IndexPath {
-        return proposedDestinationIndexPath
     }
 }
 

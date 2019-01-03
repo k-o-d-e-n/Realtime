@@ -20,15 +20,7 @@ class Label: UILabel {
 
 class TextCell: UITableViewCell {
     var listenings: [Disposable] = []
-    lazy var titleLabel: UILabel = self.textLabel!.add(to: self.contentView) { label in
-        label.addObserver(self, forKeyPath: "text", options: [], context: nil)// TODO: strong reference cycle
-//        listenings.append(
-//            label.didSet
-//                .distinctUntilChanged()
-//                .listening(onValue: Closure.guarded(self, assign: { _, this in this.setNeedsLayout() }))
-//
-//        )
-    }
+    lazy var titleLabel: UILabel = self.textLabel!.add(to: self.contentView)
     lazy var textField: UITextField = UITextField().add(to: self.contentView) { textField in
         textField.autocorrectionType = .default
         textField.autocapitalizationType = .sentences
@@ -40,6 +32,15 @@ class TextCell: UITableViewCell {
             if isSelected {
                 textField.becomeFirstResponder()
             }
+        }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window == nil {
+            titleLabel.removeObserver(self, forKeyPath: "text")
+        } else {
+            titleLabel.addObserver(self, forKeyPath: "text", options: [], context: nil)
         }
     }
 
@@ -160,11 +161,12 @@ class FormViewController: UIViewController {
                 delegate.register(UITableViewCell.self, binding: { (item, group, ip) in
                     item.bind(group.name, { (cell, name) in
                         cell.textLabel?.text <== name
-                    })
+                    }, nil)
                 })
                 let groupPicker = PickTableViewController(delegate: delegate)
                 groupPicker.didSelect = { [unowned row] _,_, group in
                     user.ownedGroup <== group
+                    user.ownedGroups.insert(element: group)
                     row.view?.detailTextLabel?.text <== group.name
                     row.view?.setNeedsLayout()
                     Global.rtGroups.stopObserving()
@@ -191,22 +193,26 @@ class FormViewController: UIViewController {
                 row.view?.textLabel?.text <== user.name
                 row.bind(user.name, { (cell, name) in
                     cell.textLabel?.text <== name
-                })
+                }, nil)
             })
             row.onUpdate { (args, row) in
                 let (cell, user) = args
             }
             row.onSelect({ (ip, row) in
-                row.view.map { c in
+                if let c = row.view {
                     guard let user = row.model else { return }
 
                     let isAdded = c.accessoryType == .none
                     c.accessoryType = isAdded ? .checkmark : .none
-                    if isAdded {
-                        user.followers.insert(element: Global.rtUsers[ip.row])
-                    } else {
-                        user.followers.delete(element: Global.rtUsers[ip.row])
+                    let follower = Global.rtUsers[ip.row]
+                    let contains = user.followers.contains(follower)
+                    if isAdded, !contains {
+                        user.followers.insert(element: follower)
+                    } else if contains {
+                        user.followers.delete(element: follower)
                     }
+                } else {
+                    fatalError("View must be not nil")
                 }
             })
             return row
@@ -254,8 +260,9 @@ class FormViewController: UIViewController {
 
     @objc func saveUser() {
         let alert = showWaitingAlert()
+        let transaction = Transaction()
         do {
-            let transaction = try Global.rtUsers.write(element: form.model)
+            try Global.rtUsers.write(element: form.model, in: transaction)
             transaction.commit { [weak self] (state, errors) in
                 if let err = errors?.first {
                     fatalError(err.localizedDescription)
@@ -267,6 +274,7 @@ class FormViewController: UIViewController {
                 })
             }
         } catch let e {
+            transaction.revert()
             fatalError(e.localizedDescription)
         }
     }

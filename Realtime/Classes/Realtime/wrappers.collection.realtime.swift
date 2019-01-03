@@ -9,30 +9,15 @@ import Foundation
 
 // MARK: Type erased realtime collection
 
-struct AnyCollectionKey: Hashable, DatabaseKeyRepresentable {
-    let dbKey: String!
-    var hashValue: Int { return dbKey.hashValue }
-
-    init<Base: DatabaseKeyRepresentable>(_ key: Base) {
-        self.dbKey = key.dbKey
-    }
-    //    init<Base: RealtimeCollectionContainerKey>(_ key: Base) where Base.Key == String {
-    //        self.key = key.key
-    //    }
-    static func ==(lhs: AnyCollectionKey, rhs: AnyCollectionKey) -> Bool {
-        return lhs.dbKey == rhs.dbKey
-    }
-}
-
 internal class _AnyRealtimeCollectionBase<Element>: Collection {
     var node: Node? { fatalError() }
-    var version: Int? { fatalError() }
     var raw: RealtimeDataValue? { fatalError() }
     var payload: [String : RealtimeDataValue]? { fatalError() }
-    var view: RealtimeCollectionView { fatalError() }
+    var view: AnyRealtimeCollectionView { fatalError() }
     var isSynced: Bool { fatalError() }
     var isObserved: Bool { fatalError() }
     var keepSynced: Bool { set { fatalError() } get { fatalError() } }
+    var dataExplorer: RCDataExplorer { set { fatalError() } get { fatalError() } }
     var changes: AnyListenable<RCEvent> { fatalError() }
     var canObserve: Bool { fatalError() }
     var debugDescription: String { return "" }
@@ -44,19 +29,19 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func index(before i: Int) -> Int { fatalError() }
     subscript(position: Int) -> Element { fatalError() }
 
-    func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
+    func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
     func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { fatalError() }
 }
 
 internal final class _AnyRealtimeCollection<C: RealtimeCollection>: _AnyRealtimeCollectionBase<C.Iterator.Element>
-where C.Index == Int {
+where C.Index == Int, C.View.Element: DatabaseKeyRepresentable {
     var base: C
 
     override var node: Node? { return base.node }
     override var payload: [String : RealtimeDataValue]? { return base.payload }
-    override var view: RealtimeCollectionView { return base.view }
+    override var view: AnyRealtimeCollectionView { return AnyRealtimeCollectionView(base.view) }
     override var isSynced: Bool { return base.isSynced }
     override var isObserved: Bool { return base.isObserved }
     override var canObserve: Bool { return base.canObserve }
@@ -65,13 +50,17 @@ where C.Index == Int {
         get { return base.keepSynced }
         set { base.keepSynced = newValue }
     }
+    override var dataExplorer: RCDataExplorer {
+        set { base.dataExplorer = newValue }
+        get { return base.dataExplorer }
+    }
 
     required init(base: C) {
         self.base = base
     }
 
-    required convenience init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        let base = try C(data: data, exactly: exactly)
+    required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        let base = try C(data: data, event: event)
         self.init(base: base)
     }
 
@@ -88,7 +77,7 @@ where C.Index == Int {
 
     override func runObserving() -> Bool { return base.runObserving() }
     override func stopObserving() { base.stopObserving() }
-    override func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
+    override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { try base.apply(data, event: event) }
     override func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
 }
 
@@ -97,11 +86,9 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     private let base: _AnyRealtimeCollectionBase<Element>
 
     public var node: Node? { return base.node }
-    public var version: Int? { return base.version }
     public var raw: RealtimeDataValue? { return base.raw }
     public var payload: [String : RealtimeDataValue]? { return base.payload }
-    public var storage: AnyRCStorage = AnyRCStorage()
-    public var view: RealtimeCollectionView { return base.view }
+    public var view: AnyRealtimeCollectionView { return base.view }
     public var isSynced: Bool { return base.isSynced }
     public var isObserved: Bool { return base.isObserved }
     public var debugDescription: String { return base.debugDescription }
@@ -111,8 +98,12 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
         set { base.keepSynced = newValue }
     }
     public var changes: AnyListenable<RCEvent> { return base.changes }
+    public var dataExplorer: RCDataExplorer {
+        set { base.dataExplorer = newValue }
+        get { return base.dataExplorer }
+    }
 
-    public init<C: RealtimeCollection>(_ base: C) where C.Iterator.Element == Element, C.Index == Int {
+    public init<C: RealtimeCollection>(_ base: C) where C.Iterator.Element == Element, C.Index == Int, C.View.Element: DatabaseKeyRepresentable {
         self.base = _AnyRealtimeCollection<C>(base: base)
     }
 
@@ -121,7 +112,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
         fatalError("Cannot use this initializer")
     }
 
-    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws { fatalError() }
+    public convenience required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { fatalError() }
 
     public var startIndex: Int { return base.startIndex }
     public var endIndex: Int { return base.endIndex }
@@ -133,7 +124,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     @discardableResult
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
-    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws { try base.apply(data, exactly: exactly) }
+    public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { try base.apply(data, event: event) }
 }
 
 struct AnySharedCollection<Element>: Collection {
@@ -175,18 +166,16 @@ public extension RealtimeCollection {
 ///
 /// This is the result of `x.lazyMap(_ transform:)` method, where `x` is any RealtimeCollection.
 public final class MapRealtimeCollection<Element, Base: RealtimeCollection>: RealtimeCollection
-where Base.Index == Int {
+where Base.Index == Int, Base.View.Element: DatabaseKeyRepresentable {
     public typealias Index = Int
 
     private let transform: (Base.Element) -> Element
     private let base: _AnyRealtimeCollectionBase<Base.Element>
 
     public var node: Node? { return base.node }
-    public var version: Int? { return base.version }
     public var raw: RealtimeDataValue? { return base.raw }
     public var payload: [String : RealtimeDataValue]? { return base.payload }
-    public var view: RealtimeCollectionView { return base.view }
-    public var storage: AnyRCStorage
+    public var view: AnyRealtimeCollectionView { return base.view }
     public var isSynced: Bool { return base.isSynced }
     public var isObserved: Bool { return base.isObserved }
     public var changes: AnyListenable<RCEvent> { return base.changes }
@@ -196,11 +185,14 @@ where Base.Index == Int {
         set { base.keepSynced = newValue }
         get { return base.keepSynced }
     }
+    public var dataExplorer: RCDataExplorer {
+        set { base.dataExplorer = newValue }
+        get { return base.dataExplorer }
+    }
 
     public required init(base: Base, transform: @escaping (Base.Element) -> Element) {
         guard base.isRooted else { fatalError("Only rooted collections can use in map collection") }
         self.base = _AnyRealtimeCollection<Base>(base: base)
-        self.storage = AnyRCStorage()
         self.transform = transform
     }
 
@@ -208,7 +200,7 @@ where Base.Index == Int {
         fatalError()
     }
 
-    public convenience required init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public convenience required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         fatalError("Cannot use this initializer")
     }
 
@@ -221,7 +213,7 @@ where Base.Index == Int {
     public func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
     @discardableResult public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
-    public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try base.apply(data, exactly: exactly)
+    public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try base.apply(data, event: event)
     }
 }

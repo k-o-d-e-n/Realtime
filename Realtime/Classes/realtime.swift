@@ -23,11 +23,17 @@ internal func debugLog(_ message: String, _ file: String = #file, _ line: Int = 
     }
 }
 
+internal func debugPrintLog(_ message: String) {
+    debugAction {
+        debugPrint("Realtime log: \(message)")
+    }
+}
+
 internal func debugFatalError(condition: @autoclosure () -> Bool = true,
-                              _ message: String = "", _ file: String = #file, _ line: Int = #line) {
+                              _ message: @autoclosure () -> String = "", _ file: String = #file, _ line: Int = #line) {
     debugAction {
         if condition() {
-            debugLog(message, file, line)
+            debugLog(message(), file, line)
             if ProcessInfo.processInfo.arguments.contains("REALTIME_CRASH_ON_ERROR") {
                 fatalError(message)
             }
@@ -41,19 +47,16 @@ extension ObjectIdentifier {
     }
 }
 
-public class RealtimeApp {
+public final class RealtimeApp {
     /// Default database instance
     public let database: RealtimeDatabase
     public let storage: RealtimeStorage
-    let linksNode: Node
-    let maxNodeDepth: Int
-    var cachePolicy: CachePolicy = .noCache
+    public let configuration: Configuration
 
-    init(db: RealtimeDatabase, storage: RealtimeStorage, linksNode: Node, maxDepth: Int) {
+    init(db: RealtimeDatabase, storage: RealtimeStorage, configuration: Configuration) {
         self.database = db
         self.storage = storage
-        self.linksNode = linksNode
-        self.maxNodeDepth = maxDepth
+        self.configuration = configuration
     }
 
     /// Creates default configuration for Realtime application.
@@ -68,21 +71,40 @@ public class RealtimeApp {
     public static func initialize(
         with database: RealtimeDatabase = Database.database(),
         storage: RealtimeStorage = Storage.storage(),
-        cachePolicy: CachePolicy = .default,
-        linksNode: Node? = nil,
-        maxNodeDepth: Int = 32
-        ) {
+        configuration: Configuration = Configuration()
+    ) {
         guard !_isInitialized else {
             fatalError("Realtime application already initialized. Call it only once.")
         }
 
-        RealtimeApp._app = RealtimeApp(
-            db: database, storage: storage,
-            linksNode: linksNode ?? Node(key: InternalKeys.links, parent: .root),
-            maxDepth: maxNodeDepth
-        )
-        database.cachePolicy = cachePolicy
+        RealtimeApp._app = RealtimeApp(db: database, storage: storage, configuration: configuration)
+        database.cachePolicy = configuration.cachePolicy
         RealtimeApp._isInitialized = true
+    }
+
+    public struct Configuration {
+        public let linksNode: Node
+        public let maxNodeDepth: UInt
+        public let unavailableSymbols: CharacterSet
+        public let cachePolicy: CachePolicy
+
+        /// Default configuration based on Firebase Realtime Database
+        public init(linksNode: BranchNode? = nil,
+                    maxNodeDepth: UInt = 32,
+                    unavailableSymbols: CharacterSet = CharacterSet(charactersIn: ".#$][/"),
+                    cachePolicy: CachePolicy = .noCache
+        ) {
+            self.linksNode = linksNode ?? BranchNode(key: InternalKeys.links)
+            self.maxNodeDepth = maxNodeDepth
+            self.unavailableSymbols = unavailableSymbols
+            self.cachePolicy = cachePolicy
+
+            debugFatalError(
+                condition: self.linksNode.key.split(separator: "/")
+                    .contains(where: { $0.rangeOfCharacter(from: self.unavailableSymbols) != nil }),
+                "Key has unavailable symbols"
+            )
+        }
     }
 }
 extension RealtimeApp {
@@ -91,10 +113,10 @@ extension RealtimeApp {
     /// Instance that contained Realtime database configuration
     public static var app: RealtimeApp {
         guard let app = _app else {
-            fatalError("Realtime is not initialized. Call please RealtimeApp.initialize(...) in application(_:didFinishLaunchingWithOptions:)")
+            fatalError("Realtime is not initialized. You must call RealtimeApp.initialize(...) in application(_:didFinishLaunchingWithOptions:)")
         }
         return app
     }
-
-    var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
+    public static var cache: RealtimeDatabase { return Cache.root }
+    public var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
 }

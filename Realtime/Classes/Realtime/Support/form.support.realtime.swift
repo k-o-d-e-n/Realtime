@@ -79,9 +79,25 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         _didSelect.send(.value(indexPath))
     }
 }
+extension Row where View: UITableViewCell {
+    public convenience init(static view: View) {
+        self.init(cellBuilder: .static(view))
+    }
+}
 public extension Row where View: UIView {
     var isVisible: Bool {
         return state.contains(.displaying) && view.map { !$0.isHidden && $0.window != nil } ?? false
+    }
+}
+extension Row: CustomDebugStringConvertible {
+    public var debugDescription: String {
+        return """
+        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+            view: \(view as Any),
+            model: \(_model.value as Any),
+            state: \(state)
+        }
+        """
     }
 }
 
@@ -299,14 +315,19 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     override func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
         let item = reuseController.dequeueItem(at: indexPath.row, rowBuilder: rowBuilder)
 
-        item._rowModel.send(.value(collection[indexPath.row]))
-        item.view = cell
-        item.model = model
+        if !item.state.contains(.displaying) || item.view !== cell {
+            item._rowModel.send(.value(collection[indexPath.row]))
+            item.view = cell
+            item.model = model
+            item.state.insert(.displaying)
+        }
     }
 
     override func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
         if let row = reuseController.activeItem(at: indexPath.row) {
+            row.state.remove(.displaying)
             row.free()
+            row.state.insert([.pending, .free])
         }
     }
 
@@ -370,11 +391,13 @@ open class Form<Model: AnyObject> {
 
     open func beginUpdates() {
         guard let tv = tableView else { fatalError() }
+        guard tv.window != nil else { return }
         tv.beginUpdates()
     }
 
     open func endUpdates() {
         guard let tv = tableView else { fatalError() }
+        guard tv.window != nil else { return }
         tv.endUpdates()
     }
 
@@ -406,20 +429,28 @@ open class Form<Model: AnyObject> {
 
     open func insertSection(_ section: Section<Model>, at index: Int, with animation: UITableViewRowAnimation = .automatic) {
         sections.insert(section, at: index)
-        tableView?.insertSections([index], with: animation)
+        if let tv = tableView, tv.window != nil {
+            tv.insertSections([index], with: animation)
+        }
     }
 
     open func deleteSections(at indexes: IndexSet, with animation: UITableViewRowAnimation) {
         indexes.reversed().forEach { removedSections[$0] = sections.remove(at: $0) }
-        tableView?.deleteSections(indexes, with: animation)
+        if let tv = tableView, tv.window != nil {
+            tv.deleteSections(indexes, with: animation)
+        }
     }
 
     open func reloadRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation) {
-        tableView?.reloadRows(at: indexPaths, with: animation)
+        if let tv = tableView, tv.window != nil {
+            tv.reloadRows(at: indexPaths, with: animation)
+        }
     }
 
     open func reloadSections(_ sections: IndexSet, with animation: UITableViewRowAnimation) {
-        tableView?.reloadSections(sections, with: animation)
+        if let tv = tableView, tv.window != nil {
+            tv.reloadSections(sections, with: animation)
+        }
     }
 
     open func didSelect(at indexPath: IndexPath) {

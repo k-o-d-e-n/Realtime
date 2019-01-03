@@ -51,12 +51,12 @@ public extension Listenable where Out: RealtimeValueActions {
 // MARK: - UI
 
 public extension Listenable where Self.Out == String? {
-    func bind(to label: UILabel) -> ListeningItem {
-        return listeningItem(onValue: .weak(label) { data, l in l?.text = data })
+    func bind(to label: UILabel, default def: String? = nil) -> ListeningItem {
+        return listeningItem(onValue: .weak(label) { data, l in l?.text = data ?? def })
     }
-    func bind(to label: UILabel, didSet: @escaping (UILabel, Out) -> Void) -> ListeningItem {
+    func bind(to label: UILabel, default def: String? = nil, didSet: @escaping (UILabel, Out) -> Void) -> ListeningItem {
         return listeningItem(onValue: .weak(label) { data, l in
-            l.map { $0.text = data; didSet($0, data) }
+            l.map { $0.text = data ?? def; didSet($0, data) }
         })
     }
     func bindWithUpdateLayout(to label: UILabel) -> ListeningItem {
@@ -69,8 +69,8 @@ public extension Listenable where Self.Out == String {
     }
 }
 public extension Listenable where Self.Out == UIImage? {
-    func bind(to imageView: UIImageView) -> ListeningItem {
-        return listeningItem(onValue: .weak(imageView) { data, iv in iv?.image = data })
+    func bind(to imageView: UIImageView, default def: UIImage? = nil) -> ListeningItem {
+        return listeningItem(onValue: .weak(imageView) { data, iv in iv?.image = data ?? def })
     }
 }
 
@@ -113,7 +113,7 @@ public struct ControlEvent<C: UIControl>: Listenable {
 
 extension UIControl {
     fileprivate class Listening<C: UIControl>: Disposable, Hashable {
-        unowned let control: C
+        weak var control: C?
         let events: UIControlEvents
         let assign: Assign<ListenEvent<(control: C, event: UIEvent)>>
 
@@ -128,11 +128,11 @@ extension UIControl {
         }
 
         func onStart() {
-            control.addTarget(self, action: #selector(onEvent(_:_:)), for: events)
+            control?.addTarget(self, action: #selector(onEvent(_:_:)), for: events)
         }
 
         func onStop() {
-            control.removeTarget(self, action: #selector(onEvent(_:_:)), for: events)
+            control?.removeTarget(self, action: #selector(onEvent(_:_:)), for: events)
         }
 
         func dispose() {
@@ -287,7 +287,7 @@ public extension RTime where Base: URLSession {
         }
     }
 
-    public class RepeatedDataTask: Listenable {
+    public final class RepeatedDataTask: Listenable {
         var session: URLSession
         let request: URLRequest
         var task: URLSessionDataTask

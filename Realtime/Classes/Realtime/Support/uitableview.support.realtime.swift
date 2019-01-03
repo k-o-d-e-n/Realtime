@@ -38,14 +38,10 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     ///   - value: Listenable value
     ///   - source: Source of value
     ///   - assign: Closure that calls on receieve value
-    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void) {
+    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void, _ error: ((Error) -> Void)?) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        value.listening(Closure.guarded(self, assign: { (val, owner) in
-            if let view = owner._view.value, let v = val.value {
-                assign(view, v)
-            }
-        })).add(to: disposeStorage)
+        set(value, assign, error)
 
         guard source.canObserve else { return }
         if source.runObserving() {
@@ -55,14 +51,10 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         }
     }
 
-    public func bind<T: Listenable>(_ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void) {
+    public func bind<T: Listenable>(_ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void, _ error: ((Error) -> Void)?) {
         // current function requires the call on each willDisplay event.
         // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
-        value.listening(Closure.guarded(self, assign: { (val, owner) in
-            if let view = owner._view.value, let v = val.value {
-                assign(view, v)
-            }
-        })).add(to: disposeStorage)
+        set(value, assign, error)
 
         sources.forEach { source in
             guard source.canObserve else { return }
@@ -79,8 +71,8 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     /// - Parameters:
     ///   - value: Listenable value
     ///   - assign: Closure that calls on receieve value
-    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
-        bind(value, value, assign)
+    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((Error) -> Void)?) {
+        bind(value, value, assign, error)
     }
 
     /// Sets value immediatelly when view will be received
@@ -95,12 +87,17 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         _view.compactMap().listening(onValue: { assign($0, value) }).add(to: disposeStorage)
     }
 
-    public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void) {
-        value.listening(Closure.guarded(self, assign: { (val, owner) in
-            if let view = owner._view.value, let v = val.value {
-                assign(view, v)
-            }
-        })).add(to: disposeStorage)
+    public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((Error) -> Void)?) {
+        value
+            .listening(
+                onValue: { [weak self] (val) in
+                    if let view = self?._view.value {
+                        assign(view, val)
+                    }
+                },
+                onError: error ?? { debugLog(String(describing: $0)) }
+            )
+            .add(to: disposeStorage)
     }
 
     /// Adds configuration block that will be called on receive view
@@ -160,10 +157,6 @@ class ReuseController<View: AnyObject, Key: Hashable> {
         activeItems.removeAll()
         freeItems.removeAll()
     }
-
-//    func exchange(indexPath: IndexPath, to ip: IndexPath) {
-//        swap(&items[indexPath], &items[ip])
-//    }
 }
 
 /// A type that responsible for editing of table
@@ -179,17 +172,29 @@ public protocol RealtimeEditingTableDataSource: class {
     ) -> IndexPath
 }
 
-/// A proxy base class that provides tools to manage UITableView reactively.
-open class RealtimeTableViewDelegate<Model, Section> {
-    public typealias BindingCell<Cell: AnyObject> = (ReuseItem<Cell>, Model, IndexPath) -> Void
-    public typealias ConfigureCell = (UITableView, IndexPath, Model) -> UITableViewCell
-    fileprivate let reuseController: ReuseController<UITableViewCell, IndexPath> = ReuseController()
-    fileprivate var registeredCells: [TypeKey: BindingCell<UITableViewCell>] = [:]
-    fileprivate var configureCell: ConfigureCell
+protocol ReuseElement: class {
+    associatedtype BaseView
+}
 
-    open weak var tableDelegate: UITableViewDelegate?
-    open weak var editingDataSource: RealtimeEditingTableDataSource?
-    open weak var prefetchingDataSource: UITableViewDataSourcePrefetching?
+protocol CollectibleViewDelegateProtocol {
+    typealias Binding<RV: ReuseElement> = (ReuseItem<RV>, Model, Index) -> Void
+    associatedtype View: AnyObject
+//    associatedtype BaseReuseElement: ReuseElement where BaseReuseElement.BaseView == View
+    associatedtype Model
+    associatedtype Index
+    func register<RV: ReuseElement>(_ item: RV.Type, binding: @escaping Binding<RV>) where RV.BaseView == View
+    func bind(_ view: View)
+    func model(at index: Index) -> Model
+    func reload()
+}
+
+/// A proxy base class that provides tools to manage UITableView reactively.
+open class CollectibleViewDelegate<View, Cell: AnyObject, Model, Section> {
+    public typealias Binding<Cell: AnyObject> = (ReuseItem<Cell>, Model, IndexPath) -> Void
+    public typealias ConfigureCell = (View, IndexPath, Model) -> Cell
+    fileprivate let reuseController: ReuseController<Cell, IndexPath> = ReuseController()
+    fileprivate var registeredCells: [TypeKey: Binding<Cell>] = [:]
+    fileprivate var configureCell: ConfigureCell
 
     init(cell: @escaping ConfigureCell) {
         self.configureCell = cell
@@ -199,17 +204,12 @@ open class RealtimeTableViewDelegate<Model, Section> {
         reuseController.free()
     }
 
-    /// Registers new type of cell with binding closure
-    ///
-    /// - Parameters:
-    ///   - cell: Cell type inherited from `UITableViewCell`.
-    ///   - binding: Closure to bind model.
-    open func register<Cell: UITableViewCell>(_ cell: Cell.Type, binding: @escaping BindingCell<Cell>) {
-        registeredCells[cell.typeKey] = unsafeBitCast(binding, to: BindingCell<UITableViewCell>.self)
+    func _register<I: AnyObject>(_ item: I.Type, binding: @escaping Binding<I>) {
+        registeredCells[TypeKey.for(item)] = unsafeBitCast(binding, to: Binding<Cell>.self)
     }
 
     /// Binds UITableView instance to this delegate
-    open func bind(_ tableView: UITableView) {
+    open func bind(_ view: View) {
         fatalError("Implement in subclass")
     }
 
@@ -223,8 +223,14 @@ open class RealtimeTableViewDelegate<Model, Section> {
     }
 }
 
+open class TableViewDelegate<View, Item: AnyObject, Model, Section>: CollectibleViewDelegate<View, Item, Model, Section> {
+    open weak var tableDelegate: UITableViewDelegate?
+    open weak var editingDataSource: RealtimeEditingTableDataSource?
+    open weak var prefetchingDataSource: UITableViewDataSourcePrefetching?
+}
+
 /// A class that provides tools to manage UITableView data source reactively.
-public final class SingleSectionTableViewDelegate<Model>: RealtimeTableViewDelegate<Model, Void> {
+public final class SingleSectionTableViewDelegate<Model>: TableViewDelegate<UITableView, UITableViewCell, Model, Void> {
     fileprivate lazy var delegateService: Service = Service(self)
     public var headerView: UIView?
 
@@ -234,6 +240,15 @@ public final class SingleSectionTableViewDelegate<Model>: RealtimeTableViewDeleg
         where C.Element == Model, C.Index == Int {
             self.collection = AnySharedCollection(collection)
             super.init(cell: cell)
+    }
+
+    /// Registers new type of cell with binding closure
+    ///
+    /// - Parameters:
+    ///   - cell: Cell type inherited from `UITableViewCell`.
+    ///   - binding: Closure to bind model.
+    open func register<Cell: UITableViewCell>(_ cell: Cell.Type, binding: @escaping Binding<Cell>) {
+        _register(cell, binding: binding)
     }
 
     /// Sets new source of elements
@@ -335,6 +350,10 @@ extension SingleSectionTableViewDelegate {
             delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
         }
 
+        override func tableView(_ tableView: UITableView, shouldIndentWhileEditingRowAt indexPath: IndexPath) -> Bool {
+            return delegate.tableDelegate?.tableView?(tableView, shouldIndentWhileEditingRowAt: indexPath) ?? true
+        }
+
         // MARK: UIScrollView
 
         override func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -428,7 +447,33 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
         self.items = items
     }
 
+    func willDisplaySection(_ collectionView: UICollectionView, items: AnyRealtimeCollection<Model>, at index: Int) {
+        items.changes.listening(onValue: { [weak collectionView] e in
+            guard let cv = collectionView else { return }
+            cv.performBatchUpdates({
+                switch e {
+                case .initial:
+                    cv.reloadSections([index])
+                case .updated(let deleted, let inserted, let modified, let moved):
+                    cv.insertItems(at: inserted.map { IndexPath(row: $0, section: index) })
+                    cv.deleteItems(at: deleted.map { IndexPath(row: $0, section: index) })
+                    cv.reloadItems(at: modified.map { IndexPath(row: $0, section: index) })
+                    moved.forEach({ (move) in
+                        cv.moveItem(at: IndexPath(row: move.from, section: index), to: IndexPath(row: move.to, section: index))
+                    })
+                }
+            }, completion: nil)
+        }).add(to: disposeStorage)
+        self.items = items
+    }
+
     func endDisplaySection(_ tableView: UITableView, at index: Int) {
+        guard let itms = items else { return debugLog("Ends display section that already not visible") }
+        debugFatalError(condition: !itms.isObserved, "Trying to stop observing of section, but it is no longer observed")
+        items = nil
+    }
+
+    func endDisplaySection(_ collectionView: UICollectionView, at index: Int) {
         guard let itms = items else { return debugLog("Ends display section that already not visible") }
         debugFatalError(condition: !itms.isObserved, "Trying to stop observing of section, but it is no longer observed")
         items = nil
@@ -440,7 +485,7 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
     }
 }
 
-public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableViewDelegate<Model, Section> {
+public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate<UITableView, UITableViewCell, Model, Section> {
     public typealias BindingSection<View: AnyObject> = (ReuseSection<Model, View>, Section, Int) -> Void
     public typealias ConfigureSection = (UITableView, Int) -> UIView?
     fileprivate var configureSection: ConfigureSection
@@ -468,6 +513,15 @@ public final class SectionedTableViewDelegate<Model, Section>: RealtimeTableView
     deinit {
         reuseSectionController.free()
         sections.lazy.map(models).forEach { $0.keepSynced = false }
+    }
+
+    /// Registers new type of cell with binding closure
+    ///
+    /// - Parameters:
+    ///   - cell: Cell type inherited from `UITableViewCell`.
+    ///   - binding: Closure to bind model.
+    open func register<Cell: UITableViewCell>(_ cell: Cell.Type, binding: @escaping Binding<Cell>) {
+        _register(cell, binding: binding)
     }
 
     /// Registers new type of header/footer with binding closure
@@ -646,6 +700,10 @@ extension SectionedTableViewDelegate {
             delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
         }
 
+        override func tableView(_ tableView: UITableView, shouldIndentWhileEditingRowAt indexPath: IndexPath) -> Bool {
+            return delegate.tableDelegate?.tableView?(tableView, shouldIndentWhileEditingRowAt: indexPath) ?? true
+        }
+
 //        override func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {
 //            delegate.editingDataSource?.tableView(tableView, moveRowAt: sourceIndexPath, to: destinationIndexPath)
 //        }
@@ -708,6 +766,274 @@ extension SectionedTableViewDelegate {
         @available(iOS 11.0, *)
         override func scrollViewDidChangeAdjustedContentInset(_ scrollView: UIScrollView) {
             delegate.tableDelegate?.scrollViewDidChangeAdjustedContentInset?(scrollView)
+        }
+    }
+}
+
+
+public final class CollectionViewDelegate<Model, Section>: CollectibleViewDelegate<UICollectionView, UICollectionViewCell, Model, Section> {
+    public typealias BindingSection<View: AnyObject> = (ReuseSection<Model, View>, Section, IndexPath) -> Void
+    public typealias ConfigureSection = (UICollectionView, String, IndexPath) -> UICollectionReusableView
+    fileprivate var configureSection: ConfigureSection
+    fileprivate var registeredHeaders: [TypeKey: BindingSection<UICollectionReusableView>] = [:]
+    fileprivate var reuseSectionController: ReuseRowController<ReuseSection<Model, UICollectionReusableView>, IndexPath> = ReuseRowController()
+    fileprivate lazy var delegateService: Service = Service(self)
+    var sections: AnySharedCollection<Section> {
+        willSet {
+            sections.lazy.map(models).forEach { $0.keepSynced = false }
+        }
+    }
+    let models: (Section) -> AnyRealtimeCollection<Model>
+
+    open weak var collectionDelegate: UICollectionViewDelegate?
+    open weak var layoutDelegate: UICollectionViewDelegateFlowLayout?
+    open weak var prefetchingDataSource: UICollectionViewDataSourcePrefetching?
+
+    public init<C: BidirectionalCollection>(_ sections: C,
+                                            _ models: @escaping (Section) -> AnyRealtimeCollection<Model>,
+                                            cell: @escaping ConfigureCell,
+                                            section: @escaping ConfigureSection)
+        where C.Element == Section, C.Index == Int {
+            self.sections = AnySharedCollection(sections)
+            self.models = models
+            self.configureSection = section
+            super.init(cell: cell)
+    }
+
+    deinit {
+        reuseSectionController.free()
+        sections.lazy.map(models).forEach { $0.keepSynced = false }
+    }
+
+    /// Registers new type of cell with binding closure
+    ///
+    /// - Parameters:
+    ///   - cell: Cell type inherited from `UICollectionViewCell`.
+    ///   - binding: Closure to bind model.
+    open func register<Cell: UICollectionViewCell>(_ cell: Cell.Type, binding: @escaping Binding<Cell>) {
+        _register(cell, binding: binding)
+    }
+
+    /// Registers new type of header/footer with binding closure
+    ///
+    /// - Parameters:
+    ///   - header: Header type inherited from `UITableViewHeaderFooterView`.
+    ///   - binding: Closure to bind model.
+    public func register<Header: UICollectionReusableView>(supplementaryView header: Header.Type, binding: @escaping BindingSection<Header>) {
+        registeredHeaders[TypeKey.for(header)] = unsafeBitCast(binding, to: BindingSection<UICollectionReusableView>.self)
+    }
+
+    public override func model(at indexPath: IndexPath) -> Model {
+        guard let items = reuseSectionController.activeItem(at: indexPath)?.items else {
+            return models(sections[indexPath.section])[indexPath.row]
+        }
+
+        return items[indexPath.row]
+    }
+
+    /// Returns `Section` element at index
+    public func section(at index: Int) -> Section {
+        return sections[index]
+    }
+
+    /// Sets new source of elements
+    public func collectionView<C: BidirectionalCollection>(_ collectionView: UICollectionView, newData: C)
+        where C.Element == Section, C.Index == Int {
+            self.reuseController.freeAll()
+            self.sections = AnySharedCollection(newData)
+            collectionView.reloadData()
+    }
+
+    public func setNewData<C: BidirectionalCollection>(_ newData: C) where C.Element == Section, C.Index == Int {
+        self.sections = AnySharedCollection(newData)
+    }
+
+    public override func bind(_ collectionView: UICollectionView) {
+        collectionView.delegate = nil
+        collectionView.dataSource = nil
+        collectionView.delegate = delegateService
+        collectionView.dataSource = delegateService
+        if #available(iOS 10.0, *) {
+            collectionView.prefetchDataSource = nil
+            collectionView.prefetchDataSource = delegateService
+        }
+    }
+}
+extension CollectionViewDelegate {
+    final class Service: _CollectionViewSectionedAdapter, UICollectionViewDelegateFlowLayout {
+        unowned let delegate: CollectionViewDelegate<Model, Section>
+
+        init(_ delegate: CollectionViewDelegate<Model, Section>) {
+            self.delegate = delegate
+        }
+
+        override var providesSupplementaryViews: Bool { return true }
+
+        override func responds(to aSelector: Selector!) -> Bool {
+            if aSelector == #selector(UICollectionViewDelegate.collectionView(_:transitionLayoutForOldLayout:newLayout:)) {
+                return delegate.collectionDelegate?.responds(to: aSelector) ?? false
+            } else {
+                return super.responds(to: aSelector)
+            }
+        }
+
+        @available(iOS 10.0, *)
+        override func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
+            delegate.prefetchingDataSource?.collectionView?(collectionView, cancelPrefetchingForItemsAt: indexPaths)
+        }
+        @available(iOS 10.0, *)
+        override func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
+            delegate.prefetchingDataSource?.collectionView(collectionView, prefetchItemsAt: indexPaths)
+        }
+        override func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
+            return delegate.models(delegate.sections[section]).count
+        }
+        override func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
+            return delegate.configureCell(collectionView, indexPath, delegate.model(at: indexPath))
+        }
+        override func numberOfSections(in collectionView: UICollectionView) -> Int {
+            return delegate.sections.count
+        }
+        override func collectionView(_ collectionView: UICollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> UICollectionReusableView {
+            return delegate.configureSection(collectionView, kind, indexPath)
+        }
+        override func collectionView(_ collectionView: UICollectionView, canMoveItemAt indexPath: IndexPath) -> Bool { return false }
+        override func collectionView(_ collectionView: UICollectionView, moveItemAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {}
+        override func indexTitles(for collectionView: UICollectionView) -> [String]? { return nil }
+        override func collectionView(_ collectionView: UICollectionView, indexPathForIndexTitle title: String, at index: Int) -> IndexPath { fatalError() }
+
+        override func collectionView(_ collectionView: UICollectionView, shouldHighlightItemAt indexPath: IndexPath) -> Bool {
+            return delegate.collectionDelegate?.collectionView?(collectionView, shouldHighlightItemAt: indexPath) ?? false
+        }
+        override func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {
+            delegate.collectionDelegate?.collectionView?(collectionView, didHighlightItemAt: indexPath)
+        }
+        override func collectionView(_ collectionView: UICollectionView, didUnhighlightItemAt indexPath: IndexPath) {
+            delegate.collectionDelegate?.collectionView?(collectionView, didUnhighlightItemAt: indexPath)
+        }
+        override func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
+            return delegate.collectionDelegate?.collectionView?(collectionView, shouldSelectItemAt: indexPath) ?? false
+        }
+        override func collectionView(_ collectionView: UICollectionView, shouldDeselectItemAt indexPath: IndexPath) -> Bool {
+            return delegate.collectionDelegate?.collectionView?(collectionView, shouldDeselectItemAt: indexPath) ?? false
+        }
+        override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+            delegate.collectionDelegate?.collectionView?(collectionView, didSelectItemAt: indexPath)
+        }
+        override func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
+            delegate.collectionDelegate?.collectionView?(collectionView, didDeselectItemAt: indexPath)
+        }
+        override func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+            let item = delegate.reuseController.dequeueItem(at: indexPath)
+            guard let bind = delegate.registeredCells[TypeKey.for(type(of: cell))] else {
+                fatalError("Unregistered cell by type \(type(of: cell))")
+            }
+
+            let model = delegate.model(at: indexPath)
+            item.view = cell
+            bind(item, model, indexPath)
+
+            delegate.collectionDelegate?.collectionView?(collectionView, willDisplay: cell, forItemAt: indexPath)
+        }
+        override func collectionView(_ collectionView: UICollectionView, willDisplaySupplementaryView view: UICollectionReusableView, forElementKind elementKind: String, at indexPath: IndexPath) {
+            let item = delegate.reuseSectionController.dequeueItem(at: indexPath, rowBuilder: ReuseSection.init)
+            guard let bind = delegate.registeredHeaders[TypeKey.for(type(of: view))] else {
+                fatalError("Unregistered header by type \(type(of: view))")
+            }
+            let model = delegate.sections[indexPath.section]
+            item.view = view
+            bind(item, model, indexPath)
+
+            if item.isNotBeingDisplay {
+                item.willDisplaySection(collectionView, items: delegate.models(delegate.sections[indexPath.section]), at: indexPath.section)
+            }
+
+            delegate.collectionDelegate?.collectionView?(collectionView, willDisplaySupplementaryView: view, forElementKind: elementKind, at: indexPath)
+        }
+        override func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
+            delegate.reuseController.free(at: indexPath)
+            delegate.collectionDelegate?.collectionView?(collectionView, didEndDisplaying: cell, forItemAt: indexPath)
+        }
+        override func collectionView(_ collectionView: UICollectionView, didEndDisplayingSupplementaryView view: UICollectionReusableView, forElementOfKind elementKind: String, at indexPath: IndexPath) {
+            delegate.collectionDelegate?.collectionView?(collectionView, didEndDisplayingSupplementaryView: view, forElementOfKind: elementKind, at: indexPath)
+
+            guard let sectionItem = delegate.reuseSectionController.activeItem(at: indexPath) else { return }
+
+            sectionItem.endDisplaySection(collectionView, at: indexPath.section)
+            sectionItem.free()
+        }
+        override func collectionView(_ collectionView: UICollectionView, shouldShowMenuForItemAt indexPath: IndexPath) -> Bool {
+            return delegate.collectionDelegate?.collectionView?(collectionView, shouldShowMenuForItemAt: indexPath) ?? false
+        }
+        override func collectionView(_ collectionView: UICollectionView, canPerformAction action: Selector, forItemAt indexPath: IndexPath, withSender sender: Any?) -> Bool {
+            return delegate.collectionDelegate?.collectionView?(collectionView, canPerformAction: action, forItemAt: indexPath, withSender: sender) ?? false
+        }
+        override func collectionView(_ collectionView: UICollectionView, performAction action: Selector, forItemAt indexPath: IndexPath, withSender sender: Any?) {
+            delegate.collectionDelegate?.collectionView?(collectionView, performAction: action, forItemAt: indexPath, withSender: sender)
+        }
+        override func collectionView(_ collectionView: UICollectionView, transitionLayoutForOldLayout fromLayout: UICollectionViewLayout, newLayout toLayout: UICollectionViewLayout) -> UICollectionViewTransitionLayout {
+            return delegate.collectionDelegate!.collectionView!(collectionView, transitionLayoutForOldLayout: fromLayout, newLayout: toLayout)
+        }
+        @available(iOS 9.0, *)
+        override func collectionView(_ collectionView: UICollectionView, canFocusItemAt indexPath: IndexPath) -> Bool {
+            return delegate.collectionDelegate?.collectionView?(collectionView, canFocusItemAt: indexPath) ?? false
+        }
+        @available(iOS 9.0, *)
+        override func collectionView(_ collectionView: UICollectionView, shouldUpdateFocusIn context: UICollectionViewFocusUpdateContext) -> Bool {
+            return delegate.collectionDelegate?.collectionView?(collectionView, shouldUpdateFocusIn: context) ?? false
+        }
+        @available(iOS 9.0, *)
+        override func collectionView(_ collectionView: UICollectionView, didUpdateFocusIn context: UICollectionViewFocusUpdateContext, with coordinator: UIFocusAnimationCoordinator) {
+            delegate.collectionDelegate?.collectionView?(collectionView, didUpdateFocusIn: context, with: coordinator)
+        }
+        @available(iOS 9.0, *)
+        override func indexPathForPreferredFocusedView(in collectionView: UICollectionView) -> IndexPath? {
+            return delegate.collectionDelegate?.indexPathForPreferredFocusedView?(in: collectionView)
+        }
+        @available(iOS 9.0, *)
+        override func collectionView(_ collectionView: UICollectionView, targetIndexPathForMoveFromItemAt originalIndexPath: IndexPath, toProposedIndexPath proposedIndexPath: IndexPath) -> IndexPath {
+            return delegate.collectionDelegate?.collectionView?(collectionView, targetIndexPathForMoveFromItemAt: originalIndexPath, toProposedIndexPath: proposedIndexPath) ?? proposedIndexPath
+        }
+        @available(iOS 9.0, *)
+        override func collectionView(_ collectionView: UICollectionView, targetContentOffsetForProposedContentOffset proposedContentOffset: CGPoint) -> CGPoint {
+            return delegate.collectionDelegate?.collectionView?(collectionView, targetContentOffsetForProposedContentOffset: proposedContentOffset) ?? proposedContentOffset
+        }
+        @available(iOS 11.0, *)
+        override func collectionView(_ collectionView: UICollectionView, shouldSpringLoadItemAt indexPath: IndexPath, with context: UISpringLoadedInteractionContext) -> Bool {
+            return delegate.collectionDelegate?.collectionView?(collectionView, shouldSpringLoadItemAt: indexPath, with: context) ?? false
+        }
+
+        // Flow layout
+
+        func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
+            return delegate.layoutDelegate?.collectionView?(collectionView, layout: collectionViewLayout, sizeForItemAt: indexPath)
+                ?? (collectionViewLayout as? UICollectionViewFlowLayout)?.itemSize
+                ?? .zero
+        }
+        func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, insetForSectionAt section: Int) -> UIEdgeInsets {
+            return delegate.layoutDelegate?.collectionView?(collectionView, layout: collectionViewLayout, insetForSectionAt: section)
+                ?? (collectionViewLayout as? UICollectionViewFlowLayout)?.sectionInset
+                ?? .zero
+        }
+        func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, minimumLineSpacingForSectionAt section: Int) -> CGFloat {
+            return delegate.layoutDelegate?.collectionView?(collectionView, layout: collectionViewLayout, minimumLineSpacingForSectionAt: section)
+                ?? (collectionViewLayout as? UICollectionViewFlowLayout)?.minimumLineSpacing
+                ?? 0
+        }
+        func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, minimumInteritemSpacingForSectionAt section: Int) -> CGFloat {
+            return delegate.layoutDelegate?.collectionView?(collectionView, layout: collectionViewLayout, minimumInteritemSpacingForSectionAt: section)
+                ?? (collectionViewLayout as? UICollectionViewFlowLayout)?.minimumInteritemSpacing
+                ?? 0
+        }
+        func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, referenceSizeForHeaderInSection section: Int) -> CGSize {
+            return delegate.layoutDelegate?.collectionView?(collectionView, layout: collectionViewLayout, referenceSizeForHeaderInSection: section)
+                ?? (collectionViewLayout as? UICollectionViewFlowLayout)?.headerReferenceSize
+                ?? .zero
+        }
+        func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, referenceSizeForFooterInSection section: Int) -> CGSize {
+            return delegate.layoutDelegate?.collectionView?(collectionView, layout: collectionViewLayout, referenceSizeForFooterInSection: section)
+                ?? (collectionViewLayout as? UICollectionViewFlowLayout)?.footerReferenceSize
+                ?? .zero
         }
     }
 }

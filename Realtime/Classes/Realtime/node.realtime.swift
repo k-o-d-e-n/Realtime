@@ -14,7 +14,7 @@ enum InternalKeys: String, CodingKey {
     /// version of RealtimeValue
     case modelVersion = "__mv"
     /// root database key for links hierarchy
-    case links = "__links" // rename to '__lnks'
+    case links = "__lnks"
     /// key of RealtimeValue in 'links' branch which stores all external links to this values
     case linkItems = "__l_itms"
     /// key of RealtimeCollection in 'links' branch which stores prototypes of all collection elements
@@ -31,22 +31,71 @@ enum InternalKeys: String, CodingKey {
     case link = "__lnk"
     /// Indicates raw value of enum, or subclass
     case raw = "__raw"
+    /// key of reference to source location
+    case source = "__src"
+}
+
+/// Represents branch of database tree
+public final class BranchNode: Node {
+    public init(key: String) {
+        super.init(key: key, parent: .root)
+    }
+    public init<T: RawRepresentable>(key: T) where T.RawValue == String {
+        super.init(key: key.rawValue, parent: .root)
+    }
+    override public var parent: Node? { set {} get { return .root } }
+    override var isRoot: Bool { return false }
+    override var isAnchor: Bool { return true }
+    override var isRooted: Bool { return true }
+    override var root: Node? { return .root }
+    override var first: Node? { return nil }
+    override func path(from node: Node) -> String { return key }
+    override func hasAncestor(node: Node) -> Bool { return node == .root }
+    override func _validate() {
+        debugFatalError(
+            condition: RealtimeApp._isInitialized && key.split(separator: "/")
+                .contains(where: { $0.rangeOfCharacter(from: RealtimeApp.app.configuration.unavailableSymbols) != nil }),
+            "Key has unavailable symbols"
+        )
+    }
+    override public var description: String { return "branch: \(key)" }
+}
+/// Node for internal database services
+final class ServiceNode: Node {
+    public init(key: String) {
+        super.init(key: key, parent: .root)
+    }
+    public init<T: RawRepresentable>(key: T) where T.RawValue == String {
+        super.init(key: key.rawValue, parent: .root)
+    }
+    override public var parent: Node? { set {} get { return .root } }
+    override var isRoot: Bool { return false }
+    override var isAnchor: Bool { return true }
+    override var isRooted: Bool { return true }
+    override var root: Node? { return .root }
+    override var first: Node? { return nil }
+    override func path(from node: Node) -> String { return key }
+    override func hasAncestor(node: Node) -> Bool { return node == .root }
+    override func _validate() {}
+    override public var description: String { return "service: \(key)" }
 }
 
 /// Represents reference to database tree node
 public class Node: Hashable {
     /// Root node
     public static let root: Node = Root()
-    class Root: Node {
+    final class Root: Node {
         init() { super.init(key: "", parent: nil) }
         override var parent: Node? { set {} get { return nil } }
         override var isRoot: Bool { return true }
+        override var isAnchor: Bool { return true }
         override var isRooted: Bool { return true }
         override var root: Node? { return nil }
         override var first: Node? { return nil }
         override var rootPath: String { return "" }
         override func path(from node: Node) -> String { fatalError("Root node cannot have parent nodes") }
         override func hasAncestor(node: Node) -> Bool { return false }
+        override func _validate() {}
         override var description: String { return "root" }
     }
 
@@ -76,12 +125,10 @@ public class Node: Hashable {
     }
 
     public init(key: String, parent: Node?) {
-        debugFatalError(
-            condition: RealtimeApp._isInitialized && (parent?.underestimatedCount ?? 0) >= RealtimeApp.app.maxNodeDepth - 1,
-            "Maximum depth limit of child nodes exceeded"
-        )
         self.key = key
         self.parent = parent
+
+        _validate()
     }
 
     /// True if node is instance stored in Node.root
@@ -90,13 +137,26 @@ public class Node: Hashable {
     var isRooted: Bool { return root === Node.root }
     /// Returns the most senior node. It may no equal Node.root
     var root: Node? { return parent.map { $0.root ?? $0 } }
-    /// Returns the most senior node excluding Node.root instance.
+    /// Returns the most senior node excluding Node.root instance or nil if node is not rooted.
     var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
 
+    var isAnchor: Bool { return false }
+    /// Returns current anchor node
+    var branch: Node? { return isAnchor ? self : parent?.branch }
+
     /// Returns path from the most senior node.
-    public var rootPath: String {
-        return parent.map { $0.isRoot ? key : $0.rootPath + "/" + key } ?? key
+    public var absolutePath: String {
+        return parent.map { $0.isRoot ? key : $0.absolutePath + "/" + key } ?? key
     }
+
+    /// Returns path from the nearest anchor node or
+    /// if anchor node does not exist from the most senior node.
+    public var path: String {
+        return parent.map { $0.isAnchor ? key : $0.path + "/" + key } ?? key
+    }
+
+    @available(*, renamed: "absolutePath", deprecated: 0.8.5, message: "Use `path` or `absolutePath` instead.")
+    public var rootPath: String { return absolutePath }
 
     /// Returns path from passed node.
     ///
@@ -119,11 +179,45 @@ public class Node: Hashable {
         fatalError("Path cannot be get from non parent node")
     }
 
+    /// Returns ancestor node that is child to passed node
+    ///
+    /// - Parameter ancestor: Related ancestor node
+    /// - Returns: Ancestor node or nil
+    func first(after ancestor: Node) -> Node? {
+        guard ancestor != self else { fatalError("Cannot get from the same node") }
+
+        var current: Node = self
+        while let next = current.parent {
+            if next != ancestor {
+                return current
+            } else {
+                current = next
+            }
+        }
+
+        fatalError("Cannot be get from non parent node")
+    }
+
+    func after(ancestor: Node) -> [Node] {
+        guard ancestor != self else { fatalError("Cannot get from the same node") }
+
+        var result: [Node] = [self]
+        while let next = result[0].parent {
+            if next == ancestor {
+                return result
+            } else {
+                result.insert(next, at: 0)
+            }
+        }
+
+        fatalError("Cannot be get from non parent node")
+    }
+
     /// Returns ancestor node on specified level up
     ///
     /// - Parameter level: Number of levels up to ancestor
     /// - Returns: Ancestor node
-    func ancestor(onLevelUp level: Int) -> Node? {
+    func ancestor(onLevelUp level: UInt) -> Node? {
         guard level > 0 else { fatalError("Level must be more than 0") }
         
         var currentLevel = 1
@@ -140,7 +234,7 @@ public class Node: Hashable {
     ///
     /// - Parameter level: Level up
     /// - Returns: String of path
-    func path(fromLevelUp level: Int) -> String {
+    func path(fromLevelUp level: UInt) -> String {
         var path = key
         var currentLevel = 0
         var current = self
@@ -173,6 +267,41 @@ public class Node: Hashable {
         return false
     }
 
+    func nearestCommonPrefix(for node: Node) -> Node? {
+        guard self !== node else { return self }
+
+        let otherNodes = node.reversed()
+        let thisNodes = self.reversed()
+        guard otherNodes.first == thisNodes.first else { return nil }
+
+        var prefixNode: Node?
+        for i in (1 ..< Swift.min(otherNodes.count, thisNodes.count)) {
+            let next = thisNodes[i]
+            if otherNodes[i].key != next.key {
+                return prefixNode
+            } else {
+                prefixNode = next
+            }
+        }
+        return prefixNode
+    }
+
+    internal func _validate() {
+        debugFatalError(
+            condition: !RealtimeApp._isInitialized,
+            "You must initialize Realtime"
+        )
+        debugFatalError(
+            condition: (parent?.underestimatedCount ?? 0) >= RealtimeApp.app.configuration.maxNodeDepth - 1,
+            "Maximum depth limit of child nodes exceeded"
+        )
+        debugFatalError(
+            condition: key.split(separator: "/")
+                .contains(where: { $0.rangeOfCharacter(from: RealtimeApp.app.configuration.unavailableSymbols) != nil }),
+            "Key has unavailable symbols"
+        )
+    }
+
     internal func movedToNode(keyedBy key: String) -> Node {
         let parent = Node(key: key)
         self.parent = parent
@@ -183,10 +312,21 @@ public class Node: Hashable {
         guard lhs !== rhs else { return true }
         guard lhs.key == rhs.key else { return false }
 
-        return lhs.rootPath == rhs.rootPath
+        var lhsAncestor = lhs
+        var rhsAncestor = rhs
+        while let left = lhsAncestor.parent, let right = rhsAncestor.parent {
+            if left.key == right.key {
+                lhsAncestor = left
+                rhsAncestor = right
+            } else {
+                return false
+            }
+        }
+
+        return lhsAncestor.key == rhsAncestor.key
     }
 
-    public var description: String { return rootPath }
+    public var description: String { return absolutePath }
     public var debugDescription: String { return description }
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
@@ -195,10 +335,10 @@ public extension Node {
         return Node.root.child(with: reference.rootPath)
     }
     public func reference(for database: Database = Database.database()) -> DatabaseReference {
-        return .fromRoot(rootPath, of: database)
+        return .fromRoot(absolutePath, of: database)
     }
     public func file(for storage: Storage = Storage.storage()) -> StorageReference {
-        return storage.reference(withPath: rootPath)
+        return storage.reference(withPath: absolutePath)
     }
 }
 public extension Node {
@@ -208,6 +348,10 @@ public extension Node {
     /// - Returns: Database reference node
     static func root<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
         return Node.root.child(with: path.rawValue)
+    }
+
+    static func branch<Path: RawRepresentable>(_ path: Path) -> Node where Path.RawValue == String {
+        return BranchNode(key: path)
     }
 
     /// Generates an automatically calculated key of database.
@@ -285,7 +429,7 @@ public extension Node {
     }
 }
 public extension Node {
-    internal static var linksNode: Node { return RealtimeApp.app.linksNode }
+    internal static var linksNode: Node { return RealtimeApp.app.configuration.linksNode }
     internal var linksNode: Node {
         guard isRooted else { fatalError("Try get links node from not rooted node: \(self)") }
         return copy(to: Node.linksNode)
@@ -300,7 +444,7 @@ public extension Node {
         return generate(linkKeyedBy: RealtimeApp.app.database.generateAutoID(), to: targetNodes)
     }
     internal func generate(linkKeyedBy linkKey: String, to targetNodes: [Node]) -> (node: Node, link: SourceLink) {
-        return (linksItemsNode.child(with: linkKey), SourceLink(id: linkKey, links: targetNodes.map { $0.rootPath }))
+        return (linksItemsNode.child(with: linkKey), SourceLink(id: linkKey, links: targetNodes.map { $0.absolutePath }))
     }
 }
 
@@ -314,7 +458,6 @@ extension Node: Sequence {
         }
     }
 }
-
 
 public extension RawRepresentable where Self.RawValue == String {
     /// checks availability child in snapshot with node name   
@@ -360,3 +503,8 @@ extension String: RawRepresentable {
     }
 }
 
+extension Node {
+    var _hasMultipleLevelNode: Bool {
+        return contains(where: { $0.key.split(separator: "/").count > 1 && type(of: $0) != BranchNode.self })
+    }
+}

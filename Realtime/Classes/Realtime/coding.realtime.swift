@@ -24,9 +24,23 @@ public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, Cus
     func hasChildren() -> Bool
     func hasChild(_ childPathString: String) -> Bool
     func child(forPath path: String) -> RealtimeDataProtocol
-    func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T]
-    func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult]
-    func forEach(_ body: (RealtimeDataProtocol) throws -> Swift.Void) rethrows
+}
+extension RealtimeDataProtocol {
+    public func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
+        return try makeIterator().map(transform)
+    }
+    public func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
+        return try makeIterator().compactMap(transform)
+    }
+    public func forEach(_ body: (RealtimeDataProtocol) throws -> Swift.Void) rethrows {
+        return try makeIterator().forEach(body)
+    }
+    public func reduce<Result>(_ initialResult: Result, nextPartialResult: (Result, RealtimeDataProtocol) throws -> Result) rethrows -> Result {
+        return try makeIterator().reduce(initialResult, nextPartialResult)
+    }
+    public func reduce<Result>(into result: inout Result, updateAccumulatingResult: (inout Result, RealtimeDataProtocol) throws -> Void) rethrows -> Result {
+        return try makeIterator().reduce(into: result, updateAccumulatingResult)
+    }
 }
 
 extension DataSnapshot: RealtimeDataProtocol, Sequence {
@@ -84,7 +98,7 @@ public protocol RealtimeDataRepresented {
     /// - Parameters:
     ///   - data: Realtime database data
     ///   - exactly: Indicates that data should be applied as is (for example, empty values will be set to `nil`).
-    init(data: RealtimeDataProtocol, exactly: Bool) throws
+    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws
 
     /// Applies value of data snapshot
     ///
@@ -92,24 +106,24 @@ public protocol RealtimeDataRepresented {
     ///   - data: Realtime database data
     ///   - exactly: Indicates that data should be applied as is (for example, empty values will be set to `nil`).
     ///               Pass `false` if data represents part of data (for example filtered list).
-    mutating func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws
+    mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws
 }
 extension RealtimeDataRepresented {
     init(data: RealtimeDataProtocol) throws {
-        try self.init(data: data, exactly: true)
+        try self.init(data: data, event: .value)
     }
-    mutating public func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        self = try Self.init(data: data)
+    mutating public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        self = try Self.init(data: data, event: event)
     }
     mutating func apply(_ data: RealtimeDataProtocol) throws {
-        try apply(data, exactly: true)
+        try apply(data, event: .value)
     }
 }
 
 /// A type that can represented to an adopted Realtime database value
 public protocol RealtimeDataValueRepresented {
     /// Value adopted for Realtime database
-    var rdbValue: RealtimeDataValue { get } // TODO: Instead add variable that will return representer, or method `func represented()`
+    func defaultRepresentation() throws -> Any
 }
 
 public protocol ExpressibleBySequence {
@@ -144,7 +158,7 @@ extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatabl
 /// You shouldn't apply for some custom values.
 public protocol RealtimeDataValue: RealtimeDataRepresented {}
 extension RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard let v = data.value as? Self else {
             throw RealtimeError(initialization: Self.self, data.value as Any)
         }
@@ -163,7 +177,7 @@ extension RealtimeDataValue {
 //    }
 //}
 extension Array: RealtimeDataValue, RealtimeDataRepresented where Element: RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard let v = data.value as? Array<Element> else {
             throw RealtimeError(initialization: Array<Element>.self, data.value as Any)
         }
@@ -183,7 +197,7 @@ extension Array: RealtimeDataValue, RealtimeDataRepresented where Element: Realt
 //    }
 //}
 extension Dictionary: RealtimeDataValue, RealtimeDataRepresented where Key: RealtimeDataValue, Value == RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, exactly: Bool) throws {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard let v = data.value as? [Key: Value] else {
             throw RealtimeError(initialization: [Key: Value].self, data.value as Any)
         }
@@ -410,12 +424,12 @@ public extension Representer where V: RealtimeValue {
     ///   - rootLevelsUp: Level of root node to do relation path
     ///   - ownerNode: Database node of relation owner
     /// - Returns: Relation representer
-    static func relation(_ mode: RelationMode, rootLevelsUp: Int?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
+    static func relation(_ mode: RelationMode, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
                 guard let node = v.node else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation value node.") }
-                let rootNode = try rootLevelsUp.map { level -> Node in
+                let anchorNode = try rootLevelsUp.map { level -> Node in
                     if let ancestor = owner.ancestor(onLevelUp: level) {
                         return ancestor
                     } else {
@@ -423,12 +437,26 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
 
-                return RelationRepresentation(path: node.path(from: rootNode ?? .root), property: mode.path(for: owner)).rdbValue
-        },
+                return try RelationRepresentation(
+                    path: node.path(from: anchorNode ?? .root),
+                    property: mode.path(for: owner),
+                    payload: (v.raw, v.payload)
+                ).defaultRepresentation()
+            },
             decoding: { d in
+                guard let owner = ownerNode.value
+                else { throw RealtimeError(decoding: V.self, d, reason: "Can`t get relation owner node") }
+                let anchorNode = try rootLevelsUp.map { level -> Node in
+                    if let ancestor = owner.ancestor(onLevelUp: level) {
+                        return ancestor
+                    } else {
+                        throw RealtimeError(decoding: V.self, d, reason: "Couldn`t get root node")
+                    }
+                }
                 let relation = try RelationRepresentation(data: d)
-                return V(in: Node.root.child(with: relation.targetPath), options: [:])
-        })
+                return relation.make(fromAnchor: anchorNode ?? .root, options: [:])
+            }
+        )
     }
 
     /// Representer that convert `RealtimeValue` as database reference.
@@ -438,28 +466,26 @@ public extension Representer where V: RealtimeValue {
     static func reference(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
-                switch mode {
-                case .fullPath:
-                    if let ref = v.reference() {
-                        return ref.rdbValue
-                    } else {
-                        throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
-                    }
-                case .path(from: let n):
-                    if let ref = v.reference(from: n) {
-                        return ref.rdbValue
-                    } else {
-                        throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
-                    }
+                guard let node = v.node else {
+                    throw RealtimeError(source: .coding, description: "Can`t get reference from value \(v), using mode \(mode)")
                 }
-        },
+                let ref: String
+                switch mode {
+                case .fullPath: ref = node.absolutePath
+                case .path(from: let n): ref = node.path(from: n)
+                }
+                return try ReferenceRepresentation(
+                    ref: ref,
+                    payload: (raw: v.raw, user: v.payload)
+                ).defaultRepresentation()
+            },
             decoding: { (data) in
                 let reference = try ReferenceRepresentation(data: data)
                 switch mode {
                 case .fullPath: return reference.make(options: options)
-                case .path(from: let n): return reference.make(in: n, options: options)
+                case .path(from: let n): return reference.make(fromAnchor: n, options: options)
                 }
-        }
+            }
         )
     }
 }
@@ -470,7 +496,7 @@ public extension Representer {
 }
 public extension Representer where V: RealtimeDataRepresented & RealtimeDataValueRepresented {
     static var realtimeData: Representer<V> {
-        return Representer<V>(encoding: { $0.rdbValue }, decoding: V.init)
+        return Representer<V>(encoding: { try $0.defaultRepresentation() }, decoding: V.init)
     }
 }
 
@@ -488,7 +514,7 @@ extension Representer {
         }
         self.decoding = { data -> V in
             guard data.exists() else {
-                return nil
+                throw RealtimeError(decoding: R.V.self, data, reason: "Required property is not exists")
             }
             return .some(try base.decode(data))
         }

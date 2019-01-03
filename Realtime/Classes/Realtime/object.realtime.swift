@@ -7,16 +7,127 @@
 //
 
 import Foundation
-import FirebaseDatabase
+
+public struct Version: Comparable, Equatable {
+    /// The major version.
+    public let major: UInt32
+
+    /// The minor version.
+    public let minor: UInt32
+
+    /// Create a version object.
+    public init(_ major: UInt32, _ minor: UInt32) {
+        precondition(major >= 0 && minor >= 0, "Negative versioning is invalid.")
+        self.major = major
+        self.minor = minor
+    }
+
+    public static func < (lhs: Version, rhs: Version) -> Bool {
+        return lhs.major < rhs.major || lhs.minor < rhs.minor
+    }
+}
+
+public struct Versioner {
+    var isCollector: Bool
+    var finalized: String?
+    var levels: [Version] = []
+    var isEmpty: Bool { return levels.isEmpty }
+
+    init() {
+        self.isCollector = true
+    }
+
+    init(version: String) {
+        self.isCollector = false
+        self.finalized = version
+        self.levels = Data(base64Encoded: version).map({ d in
+            let size = d.count / MemoryLayout<Version>.size
+            return (0 ..< size).reduce(into: [], { (res, i) in
+                let offset = i * MemoryLayout<Version>.size
+                res.append(
+                    d.subdata(in: (offset..<offset + MemoryLayout<Version>.size))
+                        .withUnsafeBytes({ $0.pointee })
+                )
+            })
+        }) ?? []
+    }
+
+    mutating func finalize() -> String {
+        guard let final = self.finalized else {
+            var levels = self.levels
+            let finalized = Data(bytes: &levels, count: MemoryLayout<Version>.size * levels.count).base64EncodedString()
+            self.finalized = finalized
+            return finalized
+        }
+        return final
+    }
+
+    /// Returns version from the lowest level by removing
+    ///
+    /// - Returns: Version object
+    /// - Throws: No more levels
+    public mutating func dequeue() throws -> Version {
+        guard !isCollector else { fatalError("Versioner was created to collect versions") }
+        if levels.isEmpty {
+            throw RealtimeError(source: .value, description: "No more levels")
+        } else {
+            return levels.removeFirst()
+        }
+    }
+
+    public mutating func enqueue(_ version: Version) {
+        guard isCollector else { fatalError("Versioner was created with immutable version value") }
+        levels.append(version)
+    }
+
+    fileprivate mutating func _turn() {
+        isCollector = !isCollector
+    }
+
+    public static func < (lhs: Versioner, rhs: Versioner) -> Bool {
+        if lhs.isEmpty {
+            return !rhs.isEmpty
+        } else {
+            let count = min(lhs.levels.count, rhs.levels.count)
+            let contains = (0..<count).contains { (i) -> Bool in
+                let left = lhs.levels[i]
+                let right = rhs.levels[i]
+                return left < right
+            }
+
+            return contains
+        }
+    }
+
+    public static func ==(lhs: Versioner, rhs: Versioner) -> Bool {
+        let count = min(lhs.levels.count, rhs.levels.count)
+        let contains = (0..<count).contains { (i) -> Bool in
+            let left = lhs.levels[i]
+            let right = rhs.levels[i]
+            return left != right
+        }
+
+        return !contains
+    }
+
+    public static func ===(lhs: Versioner, rhs: Versioner) -> Bool {
+        return lhs.levels == rhs.levels
+    }
+}
+extension Versioner: CustomDebugStringConvertible {
+    public var debugDescription: String {
+        return levels.isEmpty ? "0.0" : levels.map { "\($0.major).\($0.minor)" }.debugDescription
+    }
+}
 
 /// Base class for any database value
 open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugStringConvertible {
+    /// Remote version of model
+    fileprivate(set) var _version: String?
     /// Database that associated with this value
     public fileprivate(set) var database: RealtimeDatabase?
     /// Node of database tree
     public fileprivate(set) var node: Node?
-    /// Version of representation
-    public fileprivate(set) var version: Int?
     /// Raw value if Realtime value represented as enumerated type
     public fileprivate(set) var raw: RealtimeDataValue?
     /// User defined payload related with this value
@@ -35,9 +146,8 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         if case let pl as [String: RealtimeDataValue] = options[.userPayload] {
             self.payload = pl
         }
-        if case let ipl as SystemPayload = options[.systemPayload] {
-            self.version = ipl.version
-            self.raw = ipl.raw
+        if case let ipl as RealtimeDataValue = options[.rawValue] {
+            self.raw = ipl
         }
     }
 
@@ -55,7 +165,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
 
         database.load(for: node, timeout: timeout, completion: { d in
             do {
-                try self.apply(d, exactly: true)
+                try self.apply(d, event: .value)
                 completion?.assign(nil)
                 self.dataObserver.send(.value((d, .value)))
             } catch let e {
@@ -101,10 +211,20 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         }
     }
 
+    func _invalidateObserving() {
+        let observingValues = self.observing
+        observingValues.forEach { (args) in
+            endObserve(for: args.value.token)
+        }
+        self.observing = [:]
+    }
+
+    // not used
     internal func _isObserved(_ event: DatabaseDataEvent) -> Bool {
         return observing[event].map { $0.counter > 0 } ?? false
     }
 
+    // not used
     internal func _numberOfObservers(for event: DatabaseDataEvent) -> Int {
         return observing[event]?.counter ?? 0
     }
@@ -115,7 +235,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         }
         return database.observe(event, on: node, onUpdate: { d in
             do {
-                try self.apply(d, exactly: event == .value)
+                try self.apply(d, event: event)
                 self.dataObserver.send(.value((d, event)))
             } catch let e {
                 self.dataObserver.send(.error(e))
@@ -158,6 +278,10 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         debugFatalError(condition: !parent.isRooted, "Value will be saved non rooted node: \(parent)")
     }
     public func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
+        _RealtimeValue_didSave(in: database, in: parent, by: key)
+    }
+
+    func _RealtimeValue_didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         debugFatalError(condition: self.node.map { $0.key != key } ?? false, "Value has been saved to node: \(parent) by key: \(key), but current node has key: \(node?.key ?? "").")
         debugFatalError(condition: !parent.isRooted, "Value has been saved non rooted node: \(parent)")
 
@@ -171,6 +295,13 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         observing.forEach { (item) in
             observing[item.key] = (observe(item.key)!, item.value.counter)
         }
+    }
+
+    public func willUpdate(through ancestor: Node, in transaction: Transaction) {
+        debugFatalError(condition: self.node == nil || !self.node!.isRooted,
+                        "Value will be updated, but has not been inserted before. Current node: \(self.node?.description ?? "")")
+        debugFatalError(condition: ancestor != self.node && !self.node!.hasAncestor(node: ancestor),
+                        "Value will be updated through node: \(ancestor), but it is not ancestor for current node: \(self.node?.description ?? "")")
     }
 
     public func didUpdate(through ancestor: Node) {
@@ -191,8 +322,15 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     }
 
     internal final func _write_RealtimeValue(to transaction: Transaction, by node: Node) {
-        if let mv = version {
-            transaction.addValue(mv, by: Node(key: InternalKeys.modelVersion, parent: node))
+        var versioner = Versioner()
+        putVersion(into: &versioner)
+        if !versioner.isEmpty {
+            let finalizedVersion = versioner.finalize()
+            transaction.addValue(finalizedVersion, by: Node(key: InternalKeys.modelVersion, parent: node))
+            transaction.addCompletion { [weak self] (result) in
+                guard result, let `self` = self else { return }
+                self._version = finalizedVersion
+            }
         }
         if let rw = raw {
             transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
@@ -208,28 +346,34 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
 
     // MARK: Realtime Value
 
-    public required init(data: RealtimeDataProtocol, exactly: Bool) throws {
-        self.database = data.database
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        self.database = data.database ?? RealtimeApp.app.database
         self.node = data.node
-        try apply(data, exactly: exactly)
+        try apply(data, event: event)
     }
 
-    func _apply_RealtimeValue(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        version = try data.version()
-        raw = try data.rawValue()
-        payload = try InternalKeys.payload.map(from: data)
+    func _apply_RealtimeValue(_ data: RealtimeDataProtocol) throws {
+        self._version = try data.version()
+        self.raw = try data.rawValue()
+        self.payload = try data.payload()
     }
-    open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try _apply_RealtimeValue(data, exactly: exactly)
+    open func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        debugFatalError(condition: data.node.map { $0 != node } ?? false, "Tries apply data with incorrect reference")
+        try _apply_RealtimeValue(data)
+    }
+
+    /// support Versionable
+    open func putVersion(into versioner: inout Versioner) {
+        // override in subclass
+        // always call super method first, to achieve correct version value
     }
     
     public var debugDescription: String {
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
-            ref: \(node?.rootPath ?? "not referred"),
-            version: \(version ?? 0),
-            raw: \(raw ?? "no raw"),
-            has changes: \(_hasChanges)
+            ref: \(node?.absolutePath ?? "not referred"),
+            raw: \(raw ?? "null"),
+            hasChanges: \(_hasChanges)
         }
         """
     }
@@ -271,7 +415,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///         }
 ///     }
 ///
-open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Versionable {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
     public var keepSynced: Bool = false {
@@ -283,7 +427,16 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     }
 
     /// Parent object
-    open weak var parent: Object?
+    open weak var parent: Object? {
+        didSet {
+            if let node = self.node, let p = parent {
+                /// node.parent annulled in didRemove
+                debugFatalError(condition: node.parent.map({ $0 != parent.node }) ?? false,
+                                "Parent object was changed, but his node doesn`t equal parent node in current object")
+                node.parent = p.node
+            }
+        }
+    }
 
     /// Labels of properties that shouldn`t represent as database data
     open var ignoredLabels: [String] {
@@ -312,10 +465,32 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
             enumerateLoadedChilds { (_, value: _RealtimeValue) in
-                value.didSave(in: database, in: node)
+                if conditionForWrite(of: value) {
+                    value.didSave(in: database, in: node)
+                } else {
+                    if let node = value.node {
+                        value._RealtimeValue_didSave(in: database, in: parent, by: node.key)
+                    } else {
+                        debugFatalError("Unkeyed value has been saved to undefined location in parent node: \(parent.absolutePath)")
+                    }
+                }
             }
         } else {
-            debugFatalError("Unkeyed value has been saved to location in parent node: \(parent.rootPath)")
+            debugFatalError("Unkeyed value has been saved to location in parent node: \(parent.absolutePath)")
+        }
+    }
+
+    public override func willUpdate(through ancestor: Node, in transaction: Transaction) {
+        super.willUpdate(through: ancestor, in: transaction)
+
+        guard var current = self._version.map(Versioner.init(version:)) else {
+            _performMigrationIfNeeded(in: transaction)
+            return
+        }
+        var targetVersion = Versioner()
+        putVersion(into: &targetVersion)
+        if !targetVersion.isEmpty, current < targetVersion {
+            _performMigration(from: &current, to: &targetVersion, in: transaction)
         }
     }
 
@@ -332,12 +507,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             value.willRemove(in: transaction, from: ancestor)
         }
-        guard let node = self.node else {
-            return debugFatalError("Couldn`t get reference")
-        }
-        let needRemoveLinks = node.parent == ancestor
+        let linksWillNotBeRemovedInAncestor = node?.parent == ancestor
         let links: Links = Links(
-            in: Node(key: InternalKeys.linkItems, parent: node.linksNode),
+            in: self.node.map { Node(key: InternalKeys.linkItems, parent: $0.linksNode) },
             options: [.database: database as Any, .representer: Representer<[SourceLink]>.links.requiredProperty()]
         ).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
@@ -348,14 +520,10 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
                             transaction.removeValue(by: n)
                         }
                     }
-                    do {
-                        if needRemoveLinks {
-                            try transaction.delete(links)
-                        }
-                        promise.fulfill()
-                    } catch let e {
-                        promise.reject(e)
+                    if linksWillNotBeRemovedInAncestor {
+                        transaction.delete(links)
                     }
+                    promise.fulfill()
                 }),
                 fail: .just(promise.reject)
             )
@@ -372,19 +540,77 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         super.didRemove(from: ancestor)
     }
     
-    override open func apply(_ data: RealtimeDataProtocol, exactly: Bool) throws {
-        try super.apply(data, exactly: exactly)
+    override open func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.apply(data, event: event)
         try reflect { (mirror) in
-            try apply(data, exactly: exactly, to: mirror)
+            try apply(data, event: event, to: mirror)
         }
     }
-    private func apply(_ data: RealtimeDataProtocol, exactly: Bool, to mirror: Mirror) throws {
+    private func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent, to mirror: Mirror) throws {
         try mirror.children.forEach { (child) in
             guard isNotIgnoredLabel(child.label) else { return }
 
             if var value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
-                try value.apply(parentDataIfNeeded: data, exactly: exactly)
+                try value.apply(parentDataIfNeeded: data, parentEvent: event)
             }
+        }
+    }
+
+    open func performMigration(from currentVersion: inout Versioner, to newVersion: inout Versioner, in transaction: Transaction) throws {
+        // override in subclass
+        // always call super method first, otherwise result of migration can be unexpected
+    }
+
+    func _performMigrationIfNeeded(in transaction: Transaction) {
+        guard let node = self.node, node.isRooted else { return }
+
+        var targetVersion = Versioner()
+        putVersion(into: &targetVersion)
+        targetVersion._turn()
+        transaction.addPrecondition { [unowned self] (promise) in
+            transaction.database.load(
+                for: Node(key: InternalKeys.modelVersion, parent: node),
+                timeout: .seconds(10),
+                completion: { (data) in
+                    do {
+                        var currentVersion = data.exists() ? Versioner(version: try data.unbox(as: String.self)) : Versioner(version: "")
+                        if !targetVersion.isEmpty, currentVersion < targetVersion {
+                            self._performMigration(from: &currentVersion, to: &targetVersion, in: transaction)
+                        }
+                        promise.fulfill()
+                    } catch let e {
+                        debugPrintLog("Migration aborted. Error: \(String(describing: e))")
+//                        promise.reject(err)
+                        // or
+                        promise.fulfill()
+                    }
+                },
+                onCancel: { err in
+                    debugPrintLog("Migration aborted. Cannot load model version. Error: \(String(describing: err))")
+//                    promise.reject(err)
+                    // or
+                    promise.fulfill()
+                }
+            )
+        }
+    }
+
+    func _performMigration(from oldVersion: inout Versioner, to newVersion: inout Versioner, in transaction: Transaction) {
+        debugPrintLog("Begin migration from \(oldVersion) to \(newVersion)")
+        do {
+            try performMigration(from: &oldVersion, to: &newVersion, in: transaction)
+            let finalizedVersion = newVersion.finalize()
+            transaction.addValue(finalizedVersion, by: Node(key: InternalKeys.modelVersion, parent: self.node))
+            transaction.addCompletion { [weak self] (result) in
+                if result {
+                    self?._version = finalizedVersion
+                    debugPrintLog("Migration was ended successful")
+                } else {
+                    debugPrintLog("Migration was ended with errors:")
+                }
+            }
+        } catch let e {
+            debugPrintLog("Migration failed. Error: \(String(describing: e))")
         }
     }
 
@@ -510,6 +736,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     private func reflect(to type: Any.Type = Object.self, _ block: (Mirror) throws -> Void) rethrows {
         var mirror = Mirror(reflecting: self)
         try block(mirror)
+        guard type != mirror.subjectType else { return }
         while let _mirror = mirror.superclassMirror, _mirror.subjectType != type {
             try block(_mirror)
             mirror = _mirror
@@ -552,8 +779,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         }
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
-            ref: \(node?.rootPath ?? "not referred"),
-            version: \(version ?? 0),
+            ref: \(node?.absolutePath ?? "not referred"),
             raw: \(raw ?? "no raw"),
             has changes: \(_hasChanges),
             keepSynced: \(keepSynced),
@@ -666,20 +892,15 @@ public extension Object {
 
     /// writes empty value by Object node in transaction
     @discardableResult
-    public func delete(in transaction: Transaction) throws -> Transaction {
-        try transaction.delete(self)
+    public func delete(in transaction: Transaction) -> Transaction {
+        transaction.delete(self)
         return transaction
     }
 
-    public func delete() throws -> Transaction {
+    public func delete() -> Transaction {
         guard let db = self.database else { fatalError("Object has not database reference, because was not saved") }
 
         let transaction = Transaction(database: db)
-        do {
-            return try delete(in: transaction)
-        } catch let e {
-            transaction.revert()
-            throw e
-        }
+        return delete(in: transaction)
     }
 }
