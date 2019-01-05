@@ -237,7 +237,7 @@ public final class SingleSectionTableViewDelegate<Model>: TableViewDelegate<UITa
     var collection: AnySharedCollection<Model>
 
     public init<C: BidirectionalCollection>(_ collection: C, cell: @escaping ConfigureCell)
-        where C.Element == Model, C.Index == Int {
+        where C.Element == Model {
             self.collection = AnySharedCollection(collection)
             super.init(cell: cell)
     }
@@ -253,13 +253,13 @@ public final class SingleSectionTableViewDelegate<Model>: TableViewDelegate<UITa
 
     /// Sets new source of elements
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
-        where C.Element == Model, C.Index == Int {
+        where C.Element == Model {
             self.reuseController.freeAll()
             self.collection = AnySharedCollection(newData)
             tableView.reloadData()
     }
 
-    public func setNewData<C: BidirectionalCollection>(_ newData: C) where C.Element == Model, C.Index == Int {
+    public func setNewData<C: BidirectionalCollection>(_ newData: C) where C.Element == Model {
         self.collection = AnySharedCollection(newData)
     }
 
@@ -428,42 +428,52 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
     }
 
     func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
-        items.changes.listening(onValue: { [weak tableView] e in
-            guard let tv = tableView else { return }
-            tv.beginUpdates()
-            switch e {
-            case .initial:
-                tv.reloadSections([index], with: .automatic)
-            case .updated(let deleted, let inserted, let modified, let moved):
-                tv.insertRows(at: inserted.map { IndexPath(row: $0, section: index) }, with: .automatic)
-                tv.deleteRows(at: deleted.map { IndexPath(row: $0, section: index) }, with: .automatic)
-                tv.reloadRows(at: modified.map { IndexPath(row: $0, section: index) }, with: .automatic)
-                moved.forEach({ (move) in
-                    tv.moveRow(at: IndexPath(row: move.from, section: index), to: IndexPath(row: move.to, section: index))
-                })
+        items.changes.listening(
+            onValue: { [weak tableView] e in
+                guard let tv = tableView else { return }
+                tv.beginUpdates()
+                switch e {
+                case .initial:
+                    tv.reloadSections([index], with: .automatic)
+                case .updated(let deleted, let inserted, let modified, let moved):
+                    tv.insertRows(at: inserted.map { IndexPath(row: $0, section: index) }, with: .automatic)
+                    tv.deleteRows(at: deleted.map { IndexPath(row: $0, section: index) }, with: .automatic)
+                    tv.reloadRows(at: modified.map { IndexPath(row: $0, section: index) }, with: .automatic)
+                    moved.forEach({ (move) in
+                        tv.moveRow(at: IndexPath(row: move.from, section: index), to: IndexPath(row: move.to, section: index))
+                    })
+                }
+                tv.endUpdates()
+            },
+            onError: { error in
+                debugPrintLog(String(describing: error))
             }
-            tv.endUpdates()
-        }).add(to: disposeStorage)
+        ).add(to: disposeStorage)
         self.items = items
     }
 
     func willDisplaySection(_ collectionView: UICollectionView, items: AnyRealtimeCollection<Model>, at index: Int) {
-        items.changes.listening(onValue: { [weak collectionView] e in
-            guard let cv = collectionView else { return }
-            cv.performBatchUpdates({
-                switch e {
-                case .initial:
-                    cv.reloadSections([index])
-                case .updated(let deleted, let inserted, let modified, let moved):
-                    cv.insertItems(at: inserted.map { IndexPath(row: $0, section: index) })
-                    cv.deleteItems(at: deleted.map { IndexPath(row: $0, section: index) })
-                    cv.reloadItems(at: modified.map { IndexPath(row: $0, section: index) })
-                    moved.forEach({ (move) in
-                        cv.moveItem(at: IndexPath(row: move.from, section: index), to: IndexPath(row: move.to, section: index))
-                    })
-                }
-            }, completion: nil)
-        }).add(to: disposeStorage)
+        items.changes.listening(
+            onValue: { [weak collectionView] e in
+                guard let cv = collectionView else { return }
+                cv.performBatchUpdates({
+                    switch e {
+                    case .initial:
+                        cv.reloadSections([index])
+                    case .updated(let deleted, let inserted, let modified, let moved):
+                        cv.insertItems(at: inserted.map { IndexPath(row: $0, section: index) })
+                        cv.deleteItems(at: deleted.map { IndexPath(row: $0, section: index) })
+                        cv.reloadItems(at: modified.map { IndexPath(row: $0, section: index) })
+                        moved.forEach({ (move) in
+                            cv.moveItem(at: IndexPath(row: move.from, section: index), to: IndexPath(row: move.to, section: index))
+                        })
+                    }
+                }, completion: nil)
+            },
+            onError: { error in
+                debugPrintLog(String(describing: error))
+            }
+        ).add(to: disposeStorage)
         self.items = items
     }
 
@@ -503,7 +513,7 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
                                             _ models: @escaping (Section) -> AnyRealtimeCollection<Model>,
                                             cell: @escaping ConfigureCell,
                                             section: @escaping ConfigureSection)
-        where C.Element == Section, C.Index == Int {
+        where C.Element == Section {
             self.sections = AnySharedCollection(sections)
             self.models = models
             self.configureSection = section
@@ -534,11 +544,8 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
     }
 
     public override func model(at indexPath: IndexPath) -> Model {
-        guard let items = reuseSectionController.activeItem(at: indexPath.section)?.items else {
-            return models(sections[indexPath.section])[indexPath.row]
-        }
-
-        return items[indexPath.row]
+        let items = reuseSectionController.activeItem(at: indexPath.section)?.items ?? models(sections[indexPath.section])
+        return items[items.index(items.startIndex, offsetBy: indexPath.row)]
     }
 
     /// Returns `Section` element at index
@@ -548,13 +555,13 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
 
     /// Sets new source of elements
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
-        where C.Element == Section, C.Index == Int {
+        where C.Element == Section {
             self.reuseController.freeAll()
             self.sections = AnySharedCollection(newData)
             tableView.reloadData()
     }
 
-    public func setNewData<C: BidirectionalCollection>(_ newData: C) where C.Element == Section, C.Index == Int {
+    public func setNewData<C: BidirectionalCollection>(_ newData: C) where C.Element == Section {
         self.sections = AnySharedCollection(newData)
     }
 
@@ -793,7 +800,7 @@ public final class CollectionViewDelegate<Model, Section>: CollectibleViewDelega
                                             _ models: @escaping (Section) -> AnyRealtimeCollection<Model>,
                                             cell: @escaping ConfigureCell,
                                             section: @escaping ConfigureSection)
-        where C.Element == Section, C.Index == Int {
+        where C.Element == Section {
             self.sections = AnySharedCollection(sections)
             self.models = models
             self.configureSection = section
@@ -824,11 +831,8 @@ public final class CollectionViewDelegate<Model, Section>: CollectibleViewDelega
     }
 
     public override func model(at indexPath: IndexPath) -> Model {
-        guard let items = reuseSectionController.activeItem(at: indexPath)?.items else {
-            return models(sections[indexPath.section])[indexPath.row]
-        }
-
-        return items[indexPath.row]
+        let items = reuseSectionController.activeItem(at: indexPath)?.items ?? models(sections[indexPath.section])
+        return items[items.index(items.startIndex, offsetBy: indexPath.row)]
     }
 
     /// Returns `Section` element at index
@@ -838,13 +842,13 @@ public final class CollectionViewDelegate<Model, Section>: CollectibleViewDelega
 
     /// Sets new source of elements
     public func collectionView<C: BidirectionalCollection>(_ collectionView: UICollectionView, newData: C)
-        where C.Element == Section, C.Index == Int {
+        where C.Element == Section {
             self.reuseController.freeAll()
             self.sections = AnySharedCollection(newData)
             collectionView.reloadData()
     }
 
-    public func setNewData<C: BidirectionalCollection>(_ newData: C) where C.Element == Section, C.Index == Int {
+    public func setNewData<C: BidirectionalCollection>(_ newData: C) where C.Element == Section {
         self.sections = AnySharedCollection(newData)
     }
 
