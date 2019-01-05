@@ -204,6 +204,17 @@ extension OtherTests {
         XCTAssertTrue(node1._hasMultipleLevelNode)
         XCTAssertFalse(node2._hasMultipleLevelNode)
     }
+
+    func testDecodingRawValue() {
+        let data: RealtimeDataProtocol = ObjectNode(node: .root, childs: [.value(ValueNode(node: Node(key: InternalKeys.raw, parent: .root), value: 1))])
+
+        do {
+            let rawValue = try data.rawValue()
+            XCTAssertEqual(rawValue as! Int, 1)
+        } catch let e {
+            XCTFail(e.describingErrorDescription)
+        }
+    }
 }
 
 internal func _makeCollectionDescription<C: Collection>(_ collection: C,
