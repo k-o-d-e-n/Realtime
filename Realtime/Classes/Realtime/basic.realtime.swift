@@ -206,8 +206,8 @@ extension Optional: RealtimeDataRepresented where Wrapped: RealtimeDataRepresent
 public extension RealtimeValue {
     var dbKey: String! { return node?.key }
 
-    /// Equals `isRooted`
-    var isInserted: Bool { return isRooted }
+    /// Indicates that value has key
+    var isKeyed: Bool { return node != nil }
     /// Indicates that value has no rooted node
     var isStandalone: Bool { return !isRooted }
     /// Indicates that value has parent node

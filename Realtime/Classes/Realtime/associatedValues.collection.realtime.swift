@@ -623,3 +623,8 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
         """
     }
 }
+extension ExplicitAssociatedValues {
+    public func value(for key: Key, completion: @escaping (Value?, Error?) -> Void) {
+        view._item(for: key.dbKey, completion: completion)
+    }
+}
