@@ -27,23 +27,49 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func file<T>(in object: Object, representer: Representer<T>) -> File<T> {
+    func file<T>(in object: Object, representer: Representer<T>, metadata: [String: Any] = [:]) -> File<T> {
         return File(
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
-                .representer: representer.requiredProperty()
+                .representer: representer.requiredProperty(),
+                .metadata: metadata
             ]
         )
     }
-    func file<T>(in object: Object, representer: Representer<T>) -> File<T?> {
+    func file<T>(in object: Object, representer: Representer<T>, metadata: [String: Any] = [:]) -> File<T?> {
         return File(
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
-                .representer: representer.optionalProperty()
+                .representer: representer.optionalProperty(),
+                .metadata: metadata
             ]
         )
+    }
+    func png(in object: Object) -> File<UIImage> {
+        return file(in: object, representer: Representer<UIImage>.png, metadata: ["contentType": "image/png"])
+    }
+    func png(in object: Object) -> File<UIImage?> {
+        return file(in: object, representer: Representer<UIImage>.png, metadata: ["contentType": "image/png"])
+    }
+    func jpeg(in object: Object, compressionQuality: CGFloat = 1.0) -> File<UIImage> {
+        return file(in: object, representer: Representer<UIImage>.jpeg(quality: compressionQuality), metadata: ["contentType": "image/jpeg"])
+    }
+    func jpeg(in object: Object, compressionQuality: CGFloat = 1.0) -> File<UIImage?> {
+        return file(in: object, representer: Representer<UIImage>.jpeg(quality: compressionQuality), metadata: ["contentType": "image/jpeg"])
+    }
+    func readonlyPng(in object: Object) -> ReadonlyFile<UIImage> {
+        return readonlyFile(in: object, representer: Representer<UIImage>.png)
+    }
+    func readonlyPng(in object: Object) -> ReadonlyFile<UIImage?> {
+        return readonlyFile(in: object, representer: Representer<UIImage>.png)
+    }
+    func readonlyJpeg(in object: Object, compressionQuality: CGFloat = 1.0) -> ReadonlyFile<UIImage> {
+        return readonlyFile(in: object, representer: Representer<UIImage>.jpeg(quality: compressionQuality))
+    }
+    func readonlyJpeg(in object: Object, compressionQuality: CGFloat = 1.0) -> ReadonlyFile<UIImage?> {
+        return readonlyFile(in: object, representer: Representer<UIImage>.jpeg(quality: compressionQuality))
     }
 }
 
@@ -94,6 +120,7 @@ extension ReadonlyProperty {
 extension ValueOption {
     /// Key for `RealtimeStorage` instance
     static var storage: ValueOption = ValueOption("realtime.storage")
+    static var metadata: ValueOption = ValueOption("realtime.file.metadata")
 }
 
 /// Defines readonly property for files storage
@@ -121,8 +148,26 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
 
 /// Defines read/write property for files storage
 public final class File<T>: Property<T> {
+    let metadata: [String: Any]
+
+    public required init(in node: Node?, options: [ValueOption : Any]) {
+        if case let md as [String: Any] = options[.metadata] {
+            self.metadata = md
+        } else {
+            self.metadata = [:]
+        }
+        super.init(in: node, options: options)
+    }
+
+    required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        self.metadata = [:] // TODO: Metadata
+        try super.init(data: data, event: event)
+    }
+
     override func cacheValue(_ node: Node, value: Any?) -> CacheNode {
-        return .file(FileNode(node: node, value: value))
+        let file = FileNode(node: node, value: value)
+        file.metadata = metadata
+        return .file(file)
     }
 
     public override func runObserving() -> Bool {

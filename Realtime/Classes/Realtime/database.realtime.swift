@@ -411,7 +411,7 @@ extension Storage: RealtimeStorage {
                 guard case let data as Data = value else {
                     fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.location)")
                 }
-                reference(withPath: location.absolutePath).put(data, metadata: nil, completion: { (md, err) in
+                reference(withPath: location.absolutePath).put(data, metadata: file.metadata, completion: { (md, err) in
                     addCompletion(location, md, err)
                 })
             } else {

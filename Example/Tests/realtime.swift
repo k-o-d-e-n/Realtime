@@ -140,21 +140,24 @@ func checkStates(in v: RealtimeValue, for event: RVEvent, _ line: Int = #line) {
     switch event {
     case .didSave, .willRemove:
         XCTAssertTrue(v.isReferred, "line: \(line)")
-        XCTAssertTrue(v.isInserted, "line: \(line)")
+        XCTAssertTrue(v.isKeyed, "line: \(line)")
         XCTAssertTrue(v.isRooted, "line: \(line)")
         XCTAssertFalse(v.isStandalone, "line: \(line)")
     case .willSave(let t), .didRemove(let t):
         switch t {
         case .rooted: return
-        case .unkeyed: XCTAssertFalse(v.isReferred, "line: \(line)")
-        case .keyed: XCTAssertFalse(v.isReferred, "line: \(line)")
+        case .unkeyed:
+            XCTAssertFalse(v.isKeyed, "line: \(line)")
+            XCTAssertFalse(v.isReferred, "line: \(line)")
+        case .keyed:
+            XCTAssertTrue(v.isKeyed, "line: \(line)")
+            XCTAssertFalse(v.isReferred, "line: \(line)")
         case .nested(parent: let p):
             switch p {
             case .unkeyed: XCTAssertFalse(v.isReferred, "line: \(line)")
             default: XCTAssertTrue(v.isReferred, "line: \(line)")
             }
         }
-        XCTAssertFalse(v.isInserted, "line: \(line)")
         XCTAssertFalse(v.isRooted, "line: \(line)")
         XCTAssertTrue(v.isStandalone, "line: \(line)")
     }
@@ -821,22 +824,22 @@ extension RealtimeTests {
         let node = Node(key: "testObjects", parent: .root)
         testObject.didSave(in: Cache.root, in: node)
 
-        XCTAssertTrue(testObject.isInserted)
-        XCTAssertTrue(testObject.property.isInserted)
-        XCTAssertTrue(testObject.linkedArray.isInserted)
-        XCTAssertTrue(testObject.array.isInserted)
-        XCTAssertTrue(testObject.dictionary.isInserted)
+        XCTAssertTrue(testObject.isRooted)
+        XCTAssertTrue(testObject.property.isRooted)
+        XCTAssertTrue(testObject.linkedArray.isRooted)
+        XCTAssertTrue(testObject.array.isRooted)
+        XCTAssertTrue(testObject.dictionary.isRooted)
     }
 
     func testDisconnectNode() {
         let node = Node(key: "testObjects", parent: .root).childByAutoId()
         let testObject = TestObject(in: node)
 
-        XCTAssertTrue(testObject.isInserted)
-        XCTAssertTrue(testObject.property.isInserted)
-        XCTAssertTrue(testObject.linkedArray.isInserted)
-        XCTAssertTrue(testObject.array.isInserted)
-        XCTAssertTrue(testObject.dictionary.isInserted)
+        XCTAssertTrue(testObject.isRooted)
+        XCTAssertTrue(testObject.property.isRooted)
+        XCTAssertTrue(testObject.linkedArray.isRooted)
+        XCTAssertTrue(testObject.array.isRooted)
+        XCTAssertTrue(testObject.dictionary.isRooted)
 
         testObject.didRemove()
 
