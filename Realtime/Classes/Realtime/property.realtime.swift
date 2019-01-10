@@ -676,6 +676,17 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             }
         })
     }
+    public func loadState(completion: Assign<PropertyState<T>>, fail: Assign<Error>) {
+        load(completion: .just { err in
+            if let e = err {
+                fail.call(e)
+            } else if let v = self._value {
+                completion.call(v)
+            } else {
+                fail.call(RealtimeError(source: .value, description: "Undefined error in \(self)"))
+            }
+        })
+    }
 
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
         /// readonly property cannot have changes

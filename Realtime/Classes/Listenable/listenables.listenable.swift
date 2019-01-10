@@ -431,3 +431,20 @@ public struct Constant<T>: Listenable {
         )
     }
 }
+public struct SequenceListenable<Element>: Listenable {
+    let value: AnySequence<Element>
+    public init<S: Sequence>(_ value: S) where S.Element == Element {
+        self.value = AnySequence(value)
+    }
+    public func listening(_ assign: Closure<ListenEvent<Element>, Void>) -> Disposable {
+        value.forEach({ assign.call(.value($0)) })
+        return EmptyDispose()
+    }
+    public func listeningItem(_ assign: Closure<ListenEvent<Element>, Void>) -> ListeningItem {
+        return ListeningItem(
+            resume: { self.value.forEach({ assign.call(.value($0)) }) },
+            pause: { _ in },
+            token: value.forEach({ assign.call(.value($0)) })
+        )
+    }
+}

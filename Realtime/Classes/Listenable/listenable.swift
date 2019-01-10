@@ -255,6 +255,19 @@ public extension ListenEvent {
         }
     }
 }
+extension ListenEvent: Listenable {
+    public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
+        assign.call(self)
+        return EmptyDispose()
+    }
+    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        return ListeningItem(
+            resume: { assign.call(self) },
+            pause: { _ in },
+            token: assign.call(self)
+        )
+    }
+}
 
 /// Common protocol for all objects that ensures listening value. 
 public protocol Listenable {
@@ -391,7 +404,7 @@ public struct AsyncReadonlyRepeater<Value>: Listenable {
     
     public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
         let store = ListeningDisposeStore()
-        repeater.depends(on: source.onReceiveMap(fetching)).add(to: store)
+        repeater.depends(on: source.mapAsync(fetching)).add(to: store)
         self.repeater = repeater
         self.store = store
     }

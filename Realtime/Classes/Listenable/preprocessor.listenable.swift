@@ -139,7 +139,7 @@ public extension Listenable {
     /// - Warning: This does not preserve the sequence of events
     ///
     /// - Parameter event: Closure to run async work.
-    public func onReceive(_ event: @escaping (Out, Promise) throws -> Void) -> Preprocessor<Out, Out> {
+    public func doAsync(_ event: @escaping (Out, Promise) throws -> Void) -> Preprocessor<Out, Out> {
         return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem),
                             bridgeMaker: Bridge(event: event))
     }
@@ -147,7 +147,7 @@ public extension Listenable {
     /// and waits when is received signal in `ResultPromise`
     ///
     /// - Parameter event: Closure to run async work.
-    public func onReceiveMap<Result>(_ event: @escaping (Out, ResultPromise<Result>) throws -> Void) -> Preprocessor<Out, Result> {
+    public func mapAsync<Result>(_ event: @escaping (Out, ResultPromise<Result>) throws -> Void) -> Preprocessor<Out, Result> {
         return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem),
                             bridgeMaker: Bridge(event: event))
     }
@@ -431,6 +431,7 @@ public struct Accumulator<T>: Listenable {
 
     public init<L: Listenable>(repeater: Repeater<T>, _ inputs: L...) where L.Out == T {
         self.repeater = repeater
+        self._first = _First()
         inputs.forEach { l in
             repeater.depends(on: l).add(to: store)
         }
@@ -438,6 +439,7 @@ public struct Accumulator<T>: Listenable {
 
     public init<L: Listenable>(repeater: Repeater<T>, _ inputs: [L]) where L.Out == T {
         self.repeater = repeater
+        self._first = _First()
         inputs.forEach { l in
             repeater.depends(on: l).add(to: store)
         }
@@ -445,33 +447,44 @@ public struct Accumulator<T>: Listenable {
 
     public init<L1: Listenable, L2: Listenable>(repeater: Repeater<T>, _ one: L1, _ two: L2) where T == (L1.Out, L2.Out) {
         self.repeater = repeater
+        let _first = _First()
 
         var event: (one: ListenEvent<L1.Out>?, two: ListenEvent<L2.Out>?) {
             didSet {
-                switch event {
-                case (.some(.value(let v1)), .some(.value(let v2))):
-                    repeater.send(.value((v1, v2)))
-                case (.some(.value), .some(.error(let e2))):
-                    repeater.send(.error(e2))
-                case (.some(.error(let e1)), .some(.value)):
-                    repeater.send(.error(e1))
-                case (.some(.error(let e1)), .some(.error(let e2))):
-                    repeater.send(
-                        .error(
-                            RealtimeError(source: .listening, description:
-                                """
-                                    Error #1: \(e1.localizedDescription),
-                                    Error #2: \(e2.localizedDescription)
-                                """
-                            )
-                        )
-                    )
-                default: break
+                if let e = fulfill() {
+                    _first._wrapped = nil
+                    repeater.send(e)
                 }
             }
         }
+
+        func fulfill() -> ListenEvent<T>? {
+            switch event {
+            case (.some(.value(let v1)), .some(.value(let v2))):
+                return .value((v1, v2))
+            case (.some(.value), .some(.error(let e2))):
+                return .error(e2)
+            case (.some(.error(let e1)), .some(.value)):
+                return .error(e1)
+            case (.some(.error(let e1)), .some(.error(let e2))):
+                return
+                    .error(
+                        RealtimeError(source: .listening, description:
+                            """
+                            Error #1: \(e1.localizedDescription),
+                            Error #2: \(e2.localizedDescription)
+                            """
+                        )
+                    )
+            default: return nil
+            }
+        }
+
         one.listening({ event.one = $0 }).add(to: store)
         two.listening({ event.two = $0 }).add(to: store)
+
+        _first._wrapped = fulfill()
+        self._first = _first
     }
 
     struct Compound3<V1, V2, V3> {
@@ -514,21 +527,41 @@ public struct Accumulator<T>: Listenable {
         _ first: L1, _ second: L2, _ third: L3
     ) where T == (L1.Out, L2.Out, L3.Out) {
         self.repeater = repeater
+        let _first = _First()
 
         var event: Compound3<L1.Out, L2.Out, L3.Out> = Compound3() {
             didSet {
-                event.fulfill().map(repeater.send)
+                if let e = event.fulfill() {
+                    _first._wrapped = nil
+                    repeater.send(e)
+                }
             }
         }
         first.listening({ event.first = $0 }).add(to: store)
         second.listening({ event.second = $0 }).add(to: store)
         third.listening({ event.third = $0 }).add(to: store)
+
+        _first._wrapped = event.fulfill()
+        self._first = _first
+    }
+
+    private let _first: _First
+    private class _First {
+        var _wrapped: ListenEvent<T>?
+    }
+
+    private func sendFirstIfExists(_ assign: Assign<ListenEvent<T>>) {
+        if let f = _first._wrapped {
+            assign.call(f)
+        }
     }
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        defer { sendFirstIfExists(assign) }
         return repeater.listening(assign)
     }
     public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        defer { sendFirstIfExists(assign) }
         return repeater.listeningItem(assign)
     }
 }
@@ -584,50 +617,69 @@ public extension Listenable {
     func combine<L1: Listenable, L2: Listenable>(with other1: L1, _ other2: L2) -> Combine<(Out, L1.Out, L2.Out)> {
         return Combine(accumulator: Accumulator(repeater: .unsafe(), self, other1, other2))
     }
+
+    /// Creates retained storage that saves last values
+    ///
+    /// - Parameters:
+    ///   - size: Storage size
+    ///   - sendLast: If true it will be emit existed last
+    /// values on each next listening immediately
+    /// - Returns: Preprocessor object
+    func memoize(_ size: Int, sendLast: Bool) -> Memoize<Out> {
+        return Memoize(AnyListenable(self.listening, self.listeningItem), maxCount: size, sendLast: sendLast)
+    }
+    func memoizeOne(sendLast: Bool) -> Preprocessor<[Out], Out> {
+        return memoize(1, sendLast: sendLast).map({ $0[0] })
+    }
 }
 
-struct Memoize<T>: Listenable {
-    let base: AnyListenable<T>
-    let maxCount: Int
-    let sendOnResume: Bool
+/// Added implicit storage in chain with retained listening point
+public struct Memoize<T>: Listenable {
+    let storage: ValueStorage<[T]>
+    let dispose: ListeningDispose
+    let sendLast: Bool
 
-    func listening(_ assign: Assign<ListenEvent<[T]>>) -> Disposable {
-        var memoized: [T] = []
-        return base
-            .map({ (v) -> [T] in
-                memoized = Array((memoized + [v]).suffix(self.maxCount))
-                return memoized
-            })
-            .listening(assign)
+    init(_ base: AnyListenable<T>, maxCount: Int, sendLast: Bool) {
+        let storage: ValueStorage<[T]> = ValueStorage.unsafe(strong: [])
+        self.dispose = ListeningDispose(base.listening(
+            onValue: { (value) in
+                storage.value = Array((storage.value + [value]).suffix(maxCount))
+            },
+            onError: storage.sendError
+        ))
+        self.storage = storage
+        self.sendLast = sendLast
     }
 
-    func listeningItem(_ assign: Assign<ListenEvent<[T]>>) -> ListeningItem {
-        var memoized: [T] = []
-        let item = base
-            .map({ (v) -> [T] in
-                memoized = Array((memoized + [v]).suffix(self.maxCount))
-                return memoized
-            })
-            .listeningItem(assign)
-        if sendOnResume {
-            return ListeningItem(
-                resume: {
-                    item.resume()
-                    assign.call(.value(memoized))
-                    return ()
-                },
-                pause: item.pause,
-                token: ()
-            )
-        } else {
-            return item
+    private func sendLastIfNeeded(_ assign: Closure<ListenEvent<[T]>, Void>) {
+        if sendLast, storage.value.count > 0 {
+            assign.call(.value(storage.value))
         }
     }
-}
 
-extension Listenable {
-    func memoize(maxCount: Int, send: Bool, sendOnResume: Bool) -> Memoize<Out> {
-        return Memoize(base: AnyListenable(self.listening, self.listeningItem), maxCount: maxCount, sendOnResume: sendOnResume)
+    public func listening(_ assign: Closure<ListenEvent<[T]>, Void>) -> Disposable {
+        defer { sendLastIfNeeded(assign) }
+        let disposer = storage.listening(assign)
+        let unmanaged = Unmanaged.passUnretained(dispose).retain()
+        return ListeningDispose.init({
+            unmanaged.release()
+            disposer.dispose()
+        })
+    }
+
+    public func listeningItem(_ assign: Closure<ListenEvent<[T]>, Void>) -> ListeningItem {
+        defer { sendLastIfNeeded(assign) }
+        let item = storage.listeningItem(assign)
+        let unmanaged = Unmanaged.passUnretained(dispose).retain()
+        return ListeningItem(
+            resume: {
+                defer { self.sendLastIfNeeded(assign) }
+                return item.resume()
+            },
+            pause: item.pause,
+            dispose: { item.dispose(); unmanaged.release() },
+            token: ()
+        )
     }
 }
 
@@ -670,7 +722,7 @@ public extension Listenable {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
-        return onReceiveMap { (event, promise: ResultPromise<L.Out>) in
+        return mapAsync { (event, promise: ResultPromise<L.Out>) in
             let next = try transform(event)
             disposable = next.listening({ (out) in
                 switch out {
@@ -686,7 +738,7 @@ public extension Listenable where Out: _Optional {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
-        return compactMap().onReceiveMap { (event, promise: ResultPromise<L.Out>) in
+        return compactMap().mapAsync { (event, promise: ResultPromise<L.Out>) in
             let next = try transform(event)
             disposable = next.listening({ (out) in
                 switch out {
