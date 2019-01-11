@@ -133,6 +133,11 @@ public extension Listenable {
                             bridgeMaker: Bridge(transform: transform))
     }
 
+    /// transforms value if it's not `nil`, otherwise skips value
+    func compactMap<U>(_ transform: @escaping (Out) -> U?) -> Preprocessor<U?, U> {
+        return self.map(transform).compactMap()
+    }
+
     /// Returns listenable that on receive value event calls the passed closure
     /// and waits when is received signal in `Promise`
     ///
@@ -160,7 +165,7 @@ public extension Listenable where Out: _Optional {
             .map { transform($0.unsafelyUnwrapped) }
     }
     /// transforms value if it's not `nil`, otherwise returns `nil`
-    func optionalMap<U>(_ transform: @escaping (Out.Wrapped) -> U?) -> Preprocessor<Out, U?> {
+    func wrappedMap<U>(_ transform: @escaping (Out.Wrapped) -> U?) -> Preprocessor<Out, U?> {
         return map { $0.flatMap(transform) }
     }
     /// skips `nil` values
@@ -168,8 +173,6 @@ public extension Listenable where Out: _Optional {
         return flatMap({ $0 })
     }
 }
-
-// MARK:
 
 /// Fires if disposes use his Disposable. Else if has previous dispose behaviors like as once(), livetime(_:) and others, will not called.
 /// Can calls before last event.
@@ -590,11 +593,26 @@ public struct Combine<T>: Listenable {
 }
 
 public extension Listenable {
+    /// See `func join`.
+    /// - Returns: Unretained preprocessor
     func joined(with others: Self...) -> Accumulator<Out> {
         return Accumulator(repeater: .unsafe(), [self] + others)
     }
+    /// See `func join`.
+    /// - Returns: Unretained preprocessor
+    func joined<L: Listenable>(with others: L...) -> Accumulator<Out> where L.Out == Self.Out {
+        return Accumulator(repeater: .unsafe(), [self.asAny()] + others.map(AnyListenable.init))
+    }
+    /// Connects sources to single out
+    ///
+    /// - Parameter others: Sources that emit the same values
+    /// - Returns: Retained preprocessor
     func join(with others: Self...) -> Combine<Out> {
         return Combine(accumulator: Accumulator(repeater: .unsafe(), [self] + others))
+    }
+    /// See description `func join(with others: Self...)`
+    func join<L: Listenable>(with others: L...) -> Combine<Out> where L.Out == Self.Out {
+        return Combine(accumulator: Accumulator(repeater: .unsafe(), [self.asAny()] + others.map(AnyListenable.init)))
     }
 
     /// Returns listenable object that emits event when all sources emit at least one event
@@ -604,16 +622,18 @@ public extension Listenable {
     func combined<L: Listenable>(with other: L) -> Accumulator<(Out, L.Out)> {
         return Accumulator(repeater: .unsafe(), self, other)
     }
+    /// See description `func combined(with:)`
     func combined<L1: Listenable, L2: Listenable>(with other1: L1, _ other2: L2) -> Accumulator<(Out, L1.Out, L2.Out)> {
         return Accumulator(repeater: .unsafe(), self, other1, other2)
     }
     /// Preprocessor that emits event when all sources emit at least one event
     ///
     /// - Parameter other: Other source
-    /// - Returns: Preprocessor object
+    /// - Returns: Retained preprocessor object
     func combine<L: Listenable>(with other: L) -> Combine<(Out, L.Out)> {
         return Combine(accumulator: combined(with: other))
     }
+    /// See description `func combine(with:)`
     func combine<L1: Listenable, L2: Listenable>(with other1: L1, _ other2: L2) -> Combine<(Out, L1.Out, L2.Out)> {
         return Combine(accumulator: Accumulator(repeater: .unsafe(), self, other1, other2))
     }
@@ -624,10 +644,11 @@ public extension Listenable {
     ///   - size: Storage size
     ///   - sendLast: If true it will be emit existed last
     /// values on each next listening immediately
-    /// - Returns: Preprocessor object
+    /// - Returns: Retained preprocessor object
     func memoize(_ size: Int, sendLast: Bool) -> Memoize<Out> {
         return Memoize(AnyListenable(self.listening, self.listeningItem), maxCount: size, sendLast: sendLast)
     }
+    /// See description `func memoize`
     func memoizeOne(sendLast: Bool) -> Preprocessor<[Out], Out> {
         return memoize(1, sendLast: sendLast).map({ $0[0] })
     }

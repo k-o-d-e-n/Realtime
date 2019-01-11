@@ -579,6 +579,27 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
 
     // storage
 
+    func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (Data?) -> Void, onCancel: ((Error) -> Void)?) -> RealtimeStorageTask {
+        if node == location {
+            fatalError("Cannot load file from root")
+        } else if let node = child(by: node) {
+            switch node {
+            case .file(let file): completion(file.value as? Data)
+            default: completion(nil)
+            }
+        } else {
+            completion(nil)
+        }
+        return CacheStorageTask()
+    }
+
+    struct CacheStorageTask: RealtimeStorageTask {
+        var progress: AnyListenable<Progress> { return AnyListenable(Constant(Progress(totalUnitCount: 0))) }
+        func pause() {}
+        func cancel() {}
+        func resume() {}
+    }
+
     func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
         let results = transaction.updateNode.files.map { (file) -> Transaction.FileCompletion in
             do {

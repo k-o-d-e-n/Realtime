@@ -9,13 +9,13 @@ import Foundation
 import FirebaseDatabase
 
 extension DatabaseReference {
-    public func update(use keyValuePairs: [String : Any], completion: ((Error?) -> Void)?) {
+    public func update(use keyValuePairs: [String : Any?], completion: ((Error?) -> Void)?) {
         if let completion = completion {
-            updateChildValues(keyValuePairs, withCompletionBlock: { error, dbNode in
+            updateChildValues(keyValuePairs as [String: Any], withCompletionBlock: { error, dbNode in
                 completion(error.map({ RealtimeError(external: $0, in: .database) }))
             })
         } else {
-            updateChildValues(keyValuePairs)
+            updateChildValues(keyValuePairs as [String: Any])
         }
     }
 }
@@ -376,11 +376,93 @@ extension StorageReference {
     }
 }
 
+public protocol RealtimeStorageTask {
+    var progress: AnyListenable<Progress> { get }
+
+    func pause()
+    func cancel()
+    func resume()
+}
+extension StorageDownloadTask: RealtimeStorageTask {
+    public var progress: AnyListenable<Progress> {
+        return AnyListenable(Status(task: self, status: .progress).compactMap({ $0.progress }))
+    }
+}
+extension StorageDownloadTask {
+    struct Status: Listenable {
+        let task: StorageDownloadTask
+        let status: StorageTaskStatus
+
+        func listening(_ assign: Closure<ListenEvent<StorageTaskSnapshot>, Void>) -> Disposable {
+            let handle = task.observe(status, handler: assign.map({ .value($0) }).closure)
+            return ListeningDispose({
+                self.task.removeObserver(withHandle: handle)
+            })
+        }
+        func listeningItem(_ assign: Closure<ListenEvent<StorageTaskSnapshot>, Void>) -> ListeningItem {
+            let handler = assign.map({ .value($0) }).closure
+            let handle = task.observe(status, handler: handler)
+            return ListeningItem(
+                resume: { () -> String? in
+                    return self.task.observe(self.status, handler: handler)
+                },
+                pause: task.removeObserver,
+                token: handle
+            )
+        }
+    }
+}
+
 public protocol RealtimeStorage {
+    func load(
+        for node: Node,
+        timeout: DispatchTimeInterval,
+        completion: @escaping (Data?) -> Void,
+        onCancel: ((Error) -> Void)?
+    ) -> RealtimeStorageTask
     func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void)
 }
 
 extension Storage: RealtimeStorage {
+    public func load(
+        for node: Node,
+        timeout: DispatchTimeInterval,
+        completion: @escaping (Data?) -> Void,
+        onCancel: ((Error) -> Void)?
+    ) -> RealtimeStorageTask {
+        var invalidated: Int32 = 0
+        let ref = node.file(for: self)
+        let invalidate = { (task: StorageDownloadTask?) -> Bool in
+            if OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated) {
+                task?.cancel()
+                return true
+            } else {
+                return false
+            }
+        }
+        var task: StorageDownloadTask!
+        task = ref.getData(maxSize: .max) { (data, error) in
+            guard invalidate(nil) else { return }
+            switch error {
+            case .none: completion(data)
+            case .some(let nsError as NSError):
+                if let code = StorageErrorCode(rawValue: nsError.code), code == .objectNotFound {
+                    completion(nil)
+                } else {
+                    onCancel?(nsError)
+                }
+            default: onCancel?(error!)
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: {
+            if invalidate(task) {
+                onCancel?(RealtimeError(source: .database, description: "Operation timeout"))
+            }
+        })
+
+        return task
+    }
     public func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
         var nearest = transaction.updateNode
         while nearest.childs.count == 1, case .some(.object(let next)) = nearest.childs.first {

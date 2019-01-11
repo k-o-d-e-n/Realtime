@@ -388,16 +388,16 @@ extension PropertyState: _Optional {
     }
 }
 public extension PropertyState where T: _Optional {
-    var wrapped: T.Wrapped? {
+    var unwrapped: T.Wrapped? {
         switch self {
         case .removed: return nil
         case .local(let v): return v.wrapped
         case .remote(let v): return v.wrapped
-        case .error(_, let v): return v?.wrapped
+        case .error(_, let v): return v?.unwrapped
         }
     }
     static func <==(_ value: inout T.Wrapped?, _ prop: PropertyState<T>) {
-        value = prop.wrapped
+        value = prop.unwrapped
     }
 }
 extension PropertyState: Equatable where T: Equatable {
@@ -435,6 +435,14 @@ public extension PropertyState {
     }
     static func =!(_ value: inout T, _ prop: PropertyState<T>) {
         value = prop.wrapped!
+    }
+}
+public extension PropertyState where T: _Optional {
+    static func ?? <Def>(optional: PropertyState<T>, defaultValue: @autoclosure () throws -> Def) rethrows -> T.Wrapped where Def == T.Wrapped {
+        return try optional.unwrapped ?? defaultValue()
+    }
+    static func ?? <Def>(optional: PropertyState<T>, defaultValue: @autoclosure () throws -> Def?) rethrows -> T.Wrapped? where Def == T.Wrapped {
+        return try optional.unwrapped ?? defaultValue()
     }
 }
 
@@ -825,7 +833,7 @@ public extension ReadonlyProperty {
 }
 public extension ReadonlyProperty where T: _Optional {
     var unwrapped: T.Wrapped? {
-        return _value.flatMap { $0.wrapped }
+        return _value.flatMap { $0.unwrapped }
     }
     static func ?? (optional: T.Wrapped?, property: ReadonlyProperty<T>) -> T.Wrapped? {
         return optional ?? property.unwrapped

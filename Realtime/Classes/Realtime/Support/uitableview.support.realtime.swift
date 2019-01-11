@@ -38,9 +38,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     ///   - value: Listenable value
     ///   - source: Source of value
     ///   - assign: Closure that calls on receieve value
-    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void, _ error: ((Error) -> Void)?) {
-        // current function requires the call on each willDisplay event.
-        // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
+    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
         set(value, assign, error)
 
         guard source.canObserve else { return }
@@ -51,9 +49,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         }
     }
 
-    public func bind<T: Listenable>(_ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void, _ error: ((Error) -> Void)?) {
-        // current function requires the call on each willDisplay event.
-        // TODO: On rebinding will not call listeningItem in Property<...>, because Accumulator call listening once and only
+    public func bind<T: Listenable>(_ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
         set(value, assign, error)
 
         sources.forEach { source in
@@ -71,7 +67,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     /// - Parameters:
     ///   - value: Listenable value
     ///   - assign: Closure that calls on receieve value
-    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((Error) -> Void)?) {
+    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
         bind(value, value, assign, error)
     }
 
@@ -87,16 +83,22 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         _view.compactMap().listening(onValue: { assign($0, value) }).add(to: disposeStorage)
     }
 
-    public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((Error) -> Void)?) {
+    public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
         value
-            .listening(
-                onValue: { [weak self] (val) in
-                    if let view = self?._view.value {
-                        assign(view, val)
+            .listening({ [weak self] (event) in
+                if let view = self?._view.value {
+                    switch event {
+                    case .value(let v):
+                        assign(view, v)
+                    case .error(let e):
+                        if let errClosure = error {
+                            errClosure(view, e)
+                        } else {
+                            debugLog(String(describing: e))
+                        }
                     }
-                },
-                onError: error ?? { debugLog(String(describing: $0)) }
-            )
+                }
+            })
             .add(to: disposeStorage)
     }
 
@@ -117,6 +119,28 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 
     open func reload() {
         disposeStorage.resume()
+    }
+}
+extension ReuseItem {
+    public func set<T: Listenable>(
+        _ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
+    ) {
+        set(value, assign, { _, e in error(e) })
+    }
+    public func bind<T: Listenable & RealtimeValueActions>(
+        _ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
+    ) {
+        bind(value, assign, { _, e in error(e) })
+    }
+    public func bind<T: Listenable>(
+        _ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
+    ) {
+        bind(value, sources: sources, assign, { _, e in error(e) })
+    }
+    public func bind<T: Listenable, S: RealtimeValueActions>(
+        _ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
+    ) {
+        bind(value, source, assign, { _, e in error(e) })
     }
 }
 
