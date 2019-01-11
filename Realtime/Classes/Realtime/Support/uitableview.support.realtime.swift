@@ -360,7 +360,7 @@ extension SingleSectionTableViewDelegate {
         func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             let item = delegate.reuseController.dequeueItem(at: indexPath)
             guard let bind = delegate.registeredCells[cell.typeKey] else {
-                fatalError("Unregistered cell by type \(type(of: cell))")
+                fatalError("Unregistered cell with type \(type(of: cell))")
             }
 
             let model = delegate.collection[indexPath.row]

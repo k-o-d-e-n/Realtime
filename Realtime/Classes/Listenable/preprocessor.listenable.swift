@@ -134,7 +134,7 @@ public extension Listenable {
     }
 
     /// transforms value if it's not `nil`, otherwise skips value
-    func compactMap<U>(_ transform: @escaping (Out) -> U?) -> Preprocessor<U?, U> {
+    func compactMap<U>(_ transform: @escaping (Out) throws -> U?) -> Preprocessor<U?, U> {
         return self.map(transform).compactMap()
     }
 
@@ -158,19 +158,64 @@ public extension Listenable {
     }
 }
 public extension Listenable where Out: _Optional {
-    /// transforms value if it's not `nil`, otherwise skips value
-    func flatMap<U>(_ transform: @escaping (Out.Wrapped) -> U) -> Preprocessor<Out, U> {
-        return self
-            .filter { $0.map { _ in true } ?? false }
-            .map { transform($0.unsafelyUnwrapped) }
+    /// transforms value if it's not `nil`, otherwise returns `nil`
+    func flatMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U) -> Preprocessor<Out, U?> {
+        return map { try $0.map(transform) }
     }
     /// transforms value if it's not `nil`, otherwise returns `nil`
-    func wrappedMap<U>(_ transform: @escaping (Out.Wrapped) -> U?) -> Preprocessor<Out, U?> {
-        return map { $0.flatMap(transform) }
+    func flatMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U?) -> Preprocessor<Out, U?> {
+        return map { try $0.flatMap(transform) }
     }
+    /// unwraps value
+    func flatMap() -> Preprocessor<Out, Out.Wrapped?> {
+        return flatMap({ $0 })
+    }
+
+    public func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result>) throws -> Void) -> Preprocessor<Out, Result?> {
+        return mapAsync({ (out, promise) in
+            guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
+            let wrappedPromise = ResultPromise<Result>(receiver: promise.fulfill, error: promise.reject)
+            try event(wrapped, wrappedPromise)
+        })
+    }
+    public func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result?>) throws -> Void) -> Preprocessor<Out, Result?> {
+        return mapAsync({ (out, promise) in
+            guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
+            try event(wrapped, promise)
+        })
+    }
+
+    /// transforms value if it's not `nil`, otherwise skips value
+    func filterMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U) -> Preprocessor<Out, U> {
+        return self
+            .filter { $0.map { _ in true } ?? false }
+            .map { try transform($0.unsafelyUnwrapped) }
+    }
+
     /// skips `nil` values
     func compactMap() -> Preprocessor<Out, Out.Wrapped> {
-        return flatMap({ $0 })
+        return filterMap({ $0 })
+    }
+}
+public extension Listenable where Out: _Optional, Out.Wrapped: _Optional {
+    /// transforms value if it's not `nil`, otherwise returns `nil`
+    func flatMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U?) -> Preprocessor<Out, U?> {
+        return map({ try $0.flatMap(transform) })
+    }
+
+    /// unwraps value
+    func flatMap() -> Preprocessor<Out, Out.Wrapped.Wrapped?> {
+        return flatMap({ $0.wrapped })
+    }
+}
+public extension Listenable where Out: _Optional {
+    func `default`(_ defaultValue: Out.Wrapped) -> Preprocessor<Out, Out.Wrapped> {
+        return map({ $0.wrapped ?? defaultValue })
+    }
+}
+public extension Listenable where Out: _Optional, Out.Wrapped: HasDefaultLiteral {
+    func `default`() -> Preprocessor<Out, Out.Wrapped> {
+        return map({ $0.wrapped ?? Out.Wrapped() })
     }
 }
 
@@ -755,16 +800,44 @@ public extension Listenable {
     }
 }
 public extension Listenable where Out: _Optional {
-    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L) -> Preprocessor<Out.Wrapped, L.Out> {
+    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L) -> Preprocessor<Out, L.Out?> {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
-        return compactMap().mapAsync { (event, promise: ResultPromise<L.Out>) in
+        return flatMapAsync { (event, promise: ResultPromise<L.Out>) in
             let next = try transform(event)
             disposable = next.listening({ (out) in
                 switch out {
                 case .error(let e): promise.reject(e)
                 case .value(let v): promise.fulfill(v)
+                }
+            })
+        }
+    }
+    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Out, L.Out?> {
+        var disposable: Disposable? {
+            didSet { oldValue?.dispose() }
+        }
+        return flatMapAsync { (event, promise: ResultPromise<L.Out?>) in
+            guard let next = try transform(event) else { return promise.fulfill(nil) }
+            disposable = next.listening({ (out) in
+                switch out {
+                case .error(let e): promise.reject(e)
+                case .value(let v): promise.fulfill(v)
+                }
+            })
+        }
+    }
+    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Out, L.Out.Wrapped?> where L.Out: _Optional {
+        var disposable: Disposable? {
+            didSet { oldValue?.dispose() }
+        }
+        return flatMapAsync { (event, promise: ResultPromise<L.Out.Wrapped?>) in
+            guard let next = try transform(event) else { return promise.fulfill(nil) }
+            disposable = next.listening({ (out) in
+                switch out {
+                case .error(let e): promise.reject(e)
+                case .value(let v): promise.fulfill(v.wrapped)
                 }
             })
         }
