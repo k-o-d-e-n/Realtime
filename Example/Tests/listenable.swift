@@ -536,7 +536,7 @@ class ListenableTests: XCTestCase {
         var property = ValueStorage<Double>.unsafe(strong: .pi)
         property
             .map { $0.exponent }
-            .onReceive { v, exp in
+            .doAsync { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })
             }
             .listening(onValue: {
@@ -570,10 +570,10 @@ class ListenableTests: XCTestCase {
         var property = ValueStorage<Double>.unsafe(strong: .pi)
         property
             .map { $0.exponent }
-            .onReceive { v, exp in
+            .doAsync { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill() })
             }
-            .onReceive({ (v, promise) in
+            .doAsync({ (v, promise) in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { promise.fulfill() })
             })
             .listening(onValue: {
@@ -607,7 +607,7 @@ class ListenableTests: XCTestCase {
         var property = ValueStorage<Double>.unsafe(strong: .pi)
         property
             .map { $0.exponent }
-            .onReceiveMap { v, exp in
+            .mapAsync { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill("\(v)") })
             }
             .listening(onValue: {
@@ -641,10 +641,10 @@ class ListenableTests: XCTestCase {
         var property = ValueStorage<Double>.unsafe(strong: .pi)
         property
             .map { $0.exponent }
-            .onReceiveMap { v, exp in
+            .mapAsync { v, exp in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill("\(v)") })
             }
-            .onReceiveMap({ (v, promise) in
+            .mapAsync({ (v, promise) in
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { promise.fulfill(v.count) })
             })
             .listening(onValue: {

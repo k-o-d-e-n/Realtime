@@ -71,18 +71,6 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         bind(value, value, assign, error)
     }
 
-    /// Sets value immediatelly when view will be received
-    ///
-    /// - Parameters:
-    ///   - value: Some value
-    ///   - assign: Closure that calls on receive view
-    public func set<T>(_ value: T, _ assign: @escaping (View, T) -> Void) {
-        // current function does not require the call on each willDisplay event. It can call only on initialize `ReuseItem`.
-        // But for it, need to separate dispose storages on iterated and permanent.
-        _view.value.map { assign($0, value) }
-        _view.compactMap().listening(onValue: { assign($0, value) }).add(to: disposeStorage)
-    }
-
     public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
         value
             .listening({ [weak self] (event) in
@@ -100,16 +88,6 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
                 }
             })
             .add(to: disposeStorage)
-    }
-
-    /// Adds configuration block that will be called on receive view
-    ///
-    /// - Parameters:
-    ///   - config: Closure to configure view
-    public func set(config: @escaping (View) -> Void) {
-        // by analogue with `set(_:_:)` function
-        _view.value.map(config)
-        _view.compactMap().listening(onValue: config).add(to: disposeStorage)
     }
 
     func free() {
@@ -209,6 +187,7 @@ public extension RealtimeEditingTableDataSource {
     }
 }
 
+/*
 protocol ReuseElement: class {
     associatedtype BaseView
 }
@@ -224,10 +203,11 @@ protocol CollectibleViewDelegateProtocol {
     func model(at index: Index) -> Model
     func reload()
 }
+*/
 
 /// A proxy base class that provides tools to manage UITableView reactively.
 open class CollectibleViewDelegate<View, Cell: AnyObject, Model, Section> {
-    public typealias Binding<Cell: AnyObject> = (ReuseItem<Cell>, Model, IndexPath) -> Void
+    public typealias Binding<Cell: AnyObject> = (ReuseItem<Cell>, Cell, Model, IndexPath) -> Void
     public typealias ConfigureCell = (View, IndexPath, Model) -> Cell
     fileprivate let reuseController: ReuseController<Cell, IndexPath> = ReuseController()
     fileprivate var registeredCells: [TypeKey: Binding<Cell>] = [:]
@@ -365,7 +345,7 @@ extension SingleSectionTableViewDelegate {
 
             let model = delegate.collection[indexPath.row]
             item.view = cell
-            bind(item, model, indexPath)
+            bind(item, cell, model, indexPath)
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
         }
@@ -537,7 +517,7 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
 }
 
 public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate<UITableView, UITableViewCell, Model, Section> {
-    public typealias BindingSection<View: AnyObject> = (ReuseSection<Model, View>, Section, Int) -> Void
+    public typealias BindingSection<View: AnyObject> = (ReuseSection<Model, View>, View, Section, Int) -> Void
     public typealias ConfigureSection = (UITableView, Int) -> UIView?
     fileprivate var configureSection: ConfigureSection
     fileprivate var registeredHeaders: [TypeKey: BindingSection<UIView>] = [:]
@@ -663,7 +643,7 @@ extension SectionedTableViewDelegate {
 
             let model = delegate.model(at: indexPath)
             item.view = cell
-            bind(item, model, indexPath)
+            bind(item, cell, model, indexPath)
 
             delegate.tableDelegate?.tableView?(tableView, willDisplay: cell, forRowAt: indexPath)
 
@@ -715,7 +695,7 @@ extension SectionedTableViewDelegate {
             }
             let model = delegate.sections[section]
             item.view = view
-            bind(item, model, section)
+            bind(item, view, model, section)
 
             if item.isNotBeingDisplay {
                 item.willDisplaySection(tableView, items: delegate.models(delegate.sections[section]), at: section)
@@ -813,7 +793,7 @@ extension SectionedTableViewDelegate {
 
 
 public final class CollectionViewDelegate<Model, Section>: CollectibleViewDelegate<UICollectionView, UICollectionViewCell, Model, Section> {
-    public typealias BindingSection<View: AnyObject> = (ReuseSection<Model, View>, Section, IndexPath) -> Void
+    public typealias BindingSection<View: AnyObject> = (ReuseSection<Model, View>, View, Section, IndexPath) -> Void
     public typealias ConfigureSection = (UICollectionView, String, IndexPath) -> UICollectionReusableView
     fileprivate var configureSection: ConfigureSection
     fileprivate var registeredHeaders: [TypeKey: BindingSection<UICollectionReusableView>] = [:]
@@ -969,7 +949,7 @@ extension CollectionViewDelegate {
 
             let model = delegate.model(at: indexPath)
             item.view = cell
-            bind(item, model, indexPath)
+            bind(item, cell, model, indexPath)
 
             delegate.collectionDelegate?.collectionView?(collectionView, willDisplay: cell, forItemAt: indexPath)
         }
@@ -980,7 +960,7 @@ extension CollectionViewDelegate {
             }
             let model = delegate.sections[indexPath.section]
             item.view = view
-            bind(item, model, indexPath)
+            bind(item, view, model, indexPath)
 
             if item.isNotBeingDisplay {
                 item.willDisplaySection(collectionView, items: delegate.models(delegate.sections[indexPath.section]), at: indexPath.section)
