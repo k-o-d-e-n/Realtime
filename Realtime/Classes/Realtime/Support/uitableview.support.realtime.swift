@@ -14,7 +14,7 @@ protocol ReuseItemProtocol {
 }
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
-    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, dispatcher: .queue(.main))
+    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, dispatcher: .queue(.main)) // why ValueStorage used? if it is not used
     public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
 
     open internal(set) weak var view: View? {
@@ -122,31 +122,34 @@ extension ReuseItem {
     }
 }
 
-class ReuseController<View: AnyObject, Key: Hashable> {
-    private var freeItems: [ReuseItem<View>] = []
-    private var activeItems: [Key: ReuseItem<View>] = [:]
+struct ReuseController<Row, Key: Hashable> where Row: ReuseItemProtocol {
+    var freeItems: [Row] = []
+    var activeItems: [Key: Row] = [:]
 
-    deinit {
-        free()
+    typealias RowBuilder = () -> Row
+
+    func active(at key: Key) -> Row? {
+        return activeItems[key]
     }
 
-    func dequeueItem(at key: Key) -> ReuseItem<View> {
+    mutating func dequeue(at key: Key, rowBuilder: RowBuilder) -> Row {
         guard let item = activeItems[key] else {
-            let item = freeItems.popLast() ?? ReuseItem<View>()
+            let item = freeItems.popLast() ?? rowBuilder()
             activeItems[key] = item
             return item
         }
+        item.free()
         return item
     }
 
-    func free(at key: Key) {
+    mutating func free(at key: Key) {
         guard let item = activeItems.removeValue(forKey: key)
-            else { return debugLog("Try free non-active reuse item by key \(key)") } //fatalError("Try free non-active reuse item") }
+            else { return debugLog("Try free non-active reuse item by key \(key)") }
         item.free()
         freeItems.append(item)
     }
 
-    func freeAll() {
+    mutating func freeAll() {
         activeItems.forEach {
             $0.value.free()
             freeItems.append($0.value)
@@ -154,8 +157,8 @@ class ReuseController<View: AnyObject, Key: Hashable> {
         activeItems.removeAll()
     }
 
-    func free() {
-        activeItems.forEach({ $0.value.free() })
+    mutating func free() {
+        activeItems.forEach { $0.value.free() }
         activeItems.removeAll()
         freeItems.removeAll()
     }
@@ -209,7 +212,7 @@ protocol CollectibleViewDelegateProtocol {
 open class CollectibleViewDelegate<View, Cell: AnyObject, Model, Section> {
     public typealias Binding<Cell: AnyObject> = (ReuseItem<Cell>, Cell, Model, IndexPath) -> Void
     public typealias ConfigureCell = (View, IndexPath, Model) -> Cell
-    fileprivate let reuseController: ReuseController<Cell, IndexPath> = ReuseController()
+    fileprivate var reuseController: ReuseController<ReuseItem<Cell>, IndexPath> = ReuseController()
     fileprivate var registeredCells: [TypeKey: Binding<Cell>] = [:]
     fileprivate var configureCell: ConfigureCell
 
@@ -338,7 +341,7 @@ extension SingleSectionTableViewDelegate {
 
         /// events
         func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            let item = delegate.reuseController.dequeueItem(at: indexPath)
+            let item = delegate.reuseController.dequeue(at: indexPath, rowBuilder: ReuseItem.init)
             guard let bind = delegate.registeredCells[cell.typeKey] else {
                 fatalError("Unregistered cell with type \(type(of: cell))")
             }
@@ -521,7 +524,7 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
     public typealias ConfigureSection = (UITableView, Int) -> UIView?
     fileprivate var configureSection: ConfigureSection
     fileprivate var registeredHeaders: [TypeKey: BindingSection<UIView>] = [:]
-    fileprivate var reuseSectionController: ReuseRowController<ReuseSection<Model, UIView>, Int> = ReuseRowController()
+    fileprivate var reuseSectionController: ReuseController<ReuseSection<Model, UIView>, Int> = ReuseController()
     fileprivate lazy var delegateService: Service = Service(self)
     var sections: AnySharedCollection<Section> {
         willSet {
@@ -565,7 +568,7 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
     }
 
     public override func model(at indexPath: IndexPath) -> Model {
-        let items = reuseSectionController.activeItem(at: indexPath.section)?.items ?? models(sections[indexPath.section])
+        let items = reuseSectionController.active(at: indexPath.section)?.items ?? models(sections[indexPath.section])
         return items[items.index(items.startIndex, offsetBy: indexPath.row)]
     }
 
@@ -636,7 +639,7 @@ extension SectionedTableViewDelegate {
 
         /// events
         func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            let item = delegate.reuseController.dequeueItem(at: indexPath)
+            let item = delegate.reuseController.dequeue(at: indexPath, rowBuilder: ReuseItem.init)
             guard let bind = delegate.registeredCells[cell.typeKey] else {
                 fatalError("Unregistered cell by type \(type(of: cell))")
             }
@@ -649,7 +652,7 @@ extension SectionedTableViewDelegate {
 
 //            guard
 //                delegate.sections.count > indexPath.section + 1,
-//                let items = delegate.reuseSectionController.activeItem(at: indexPath.section)?.items,
+//                let items = delegate.reuseSectionController.active(at: indexPath.section)?.items,
 //                indexPath.row >= (items.count / 2)
 //            else {
 //                return
@@ -667,7 +670,7 @@ extension SectionedTableViewDelegate {
 
 //            var endDisplaySection: Bool {
 //                if oldOffset > tableView.contentOffset.y {
-//                    if let items = delegate.reuseSectionController.activeItem(at: indexPath.section)?.items {
+//                    if let items = delegate.reuseSectionController.active(at: indexPath.section)?.items {
 //                        return items.count == indexPath.row + 1
 //                    } else {
 //                        // unexpected behavior
@@ -678,7 +681,7 @@ extension SectionedTableViewDelegate {
 //                }
 //            }
 //
-//            guard endDisplaySection, let sectionItem = delegate.reuseSectionController.activeItem(at: indexPath.section) else { return }
+//            guard endDisplaySection, let sectionItem = delegate.reuseSectionController.active(at: indexPath.section) else { return }
 //
 //            sectionItem.endDisplaySection(tableView, at: indexPath.section)
 //            sectionItem.free()
@@ -689,7 +692,7 @@ extension SectionedTableViewDelegate {
         }
 
         func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
-            let item = delegate.reuseSectionController.dequeueItem(at: section, rowBuilder: ReuseSection.init)
+            let item = delegate.reuseSectionController.dequeue(at: section, rowBuilder: ReuseSection.init)
             guard let bind = delegate.registeredHeaders[TypeKey.for(type(of: view))] else {
                 fatalError("Unregistered header by type \(type(of: view))")
             }
@@ -707,7 +710,7 @@ extension SectionedTableViewDelegate {
         func tableView(_ tableView: UITableView, didEndDisplayingHeaderView view: UIView, forSection section: Int) {
             delegate.tableDelegate?.tableView?(tableView, didEndDisplayingHeaderView: view, forSection: section)
 
-            guard let sectionItem = delegate.reuseSectionController.activeItem(at: section) else { return }
+            guard let sectionItem = delegate.reuseSectionController.active(at: section) else { return }
 
             sectionItem.endDisplaySection(tableView, at: section)
             sectionItem.free()
@@ -797,7 +800,7 @@ public final class CollectionViewDelegate<Model, Section>: CollectibleViewDelega
     public typealias ConfigureSection = (UICollectionView, String, IndexPath) -> UICollectionReusableView
     fileprivate var configureSection: ConfigureSection
     fileprivate var registeredHeaders: [TypeKey: BindingSection<UICollectionReusableView>] = [:]
-    fileprivate var reuseSectionController: ReuseRowController<ReuseSection<Model, UICollectionReusableView>, IndexPath> = ReuseRowController()
+    fileprivate var reuseSectionController: ReuseController<ReuseSection<Model, UICollectionReusableView>, IndexPath> = ReuseController()
     fileprivate lazy var delegateService: Service = Service(self)
     var sections: AnySharedCollection<Section> {
         willSet {
@@ -845,7 +848,7 @@ public final class CollectionViewDelegate<Model, Section>: CollectibleViewDelega
     }
 
     public override func model(at indexPath: IndexPath) -> Model {
-        let items = reuseSectionController.activeItem(at: indexPath)?.items ?? models(sections[indexPath.section])
+        let items = reuseSectionController.active(at: indexPath)?.items ?? models(sections[indexPath.section])
         return items[items.index(items.startIndex, offsetBy: indexPath.row)]
     }
 
@@ -942,7 +945,7 @@ extension CollectionViewDelegate {
             delegate.collectionDelegate?.collectionView?(collectionView, didDeselectItemAt: indexPath)
         }
         override func collectionView(_ collectionView: UICollectionView, willDisplay cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-            let item = delegate.reuseController.dequeueItem(at: indexPath)
+            let item = delegate.reuseController.dequeue(at: indexPath, rowBuilder: ReuseItem.init)
             guard let bind = delegate.registeredCells[TypeKey.for(type(of: cell))] else {
                 fatalError("Unregistered cell by type \(type(of: cell))")
             }
@@ -954,7 +957,7 @@ extension CollectionViewDelegate {
             delegate.collectionDelegate?.collectionView?(collectionView, willDisplay: cell, forItemAt: indexPath)
         }
         override func collectionView(_ collectionView: UICollectionView, willDisplaySupplementaryView view: UICollectionReusableView, forElementKind elementKind: String, at indexPath: IndexPath) {
-            let item = delegate.reuseSectionController.dequeueItem(at: indexPath, rowBuilder: ReuseSection.init)
+            let item = delegate.reuseSectionController.dequeue(at: indexPath, rowBuilder: ReuseSection.init)
             guard let bind = delegate.registeredHeaders[TypeKey.for(type(of: view))] else {
                 fatalError("Unregistered header by type \(type(of: view))")
             }
@@ -975,7 +978,7 @@ extension CollectionViewDelegate {
         override func collectionView(_ collectionView: UICollectionView, didEndDisplayingSupplementaryView view: UICollectionReusableView, forElementOfKind elementKind: String, at indexPath: IndexPath) {
             delegate.collectionDelegate?.collectionView?(collectionView, didEndDisplayingSupplementaryView: view, forElementOfKind: elementKind, at: indexPath)
 
-            guard let sectionItem = delegate.reuseSectionController.activeItem(at: indexPath) else { return }
+            guard let sectionItem = delegate.reuseSectionController.active(at: indexPath) else { return }
 
             sectionItem.endDisplaySection(collectionView, at: indexPath.section)
             sectionItem.free()
