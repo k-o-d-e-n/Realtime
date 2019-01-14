@@ -222,14 +222,6 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         return try super.setValue(value, in: transaction)
     }
 
-    public override func willRemove(in transaction: Transaction, from ancestor: Node) {
-        super.willRemove(in: transaction, from: ancestor)
-        guard let node = self.node, node.isRooted else {
-            fatalError("Cannot get node")
-        }
-        removeOldValueIfExists(in: transaction, by: node)
-    }
-
     override func _write(to transaction: Transaction, by node: Node) throws {
         _write_RealtimeValue(to: transaction, by: node)
         if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
@@ -244,41 +236,12 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         if hasChanges {
             try _write(to: transaction, by: node)
             transaction.addReversion(currentReversion())
-            removeOldValueIfExists(in: transaction, by: node)
         }
     }
 
     public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try _apply_RealtimeValue(data)
         try super.apply(data, event: event)
-    }
-
-    private func removeOldValueIfExists(in transaction: Transaction, by node: Node) {
-        let options = self.options
-        transaction.addPrecondition { [unowned transaction] (promise) in
-            transaction.database.load(
-                for: node,
-                timeout: .seconds(10),
-                completion: { data in
-                    guard data.exists() else { return promise.fulfill() }
-                    do {
-                        if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
-                            let anchorNode = options.rootLevelsUp.flatMap(ownerNode.ancestor) ?? .root
-                            let relation = try RelationRepresentation(data: data)
-                            transaction.removeValue(by: anchorNode.child(with: relation.targetPath).child(with: relation.relatedProperty))
-                            promise.fulfill()
-                        } else {
-                            throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
-                        }
-                    } catch let e {
-                        promise.reject(e)
-                    }
-                },
-                onCancel: { e in
-                    promise.reject(RealtimeError(external: e, in: .value))
-                }
-            )
-        }
     }
 
     public struct Options {

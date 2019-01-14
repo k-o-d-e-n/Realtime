@@ -665,18 +665,6 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         )
         super.didSave(in: database, in: parent, by: key)
     }
-
-    public override func willRemove(in transaction: Transaction, from ancestor: Node) {
-        super.willRemove(in: transaction, from: ancestor)
-        transaction.addPrecondition { [unowned transaction] (promise) in
-            self.view.load(completion: .just { [unowned self] e in
-                self.view.forEach({ (item) in
-                    self._removeBackward(for: item, element: nil, in: transaction)
-                })
-                promise.fulfill()
-            })
-        }
-    }
 }
 
 extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
@@ -872,19 +860,5 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
             self?.storage[item.dbKey] = element
         }
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item
-        /// a backward remove
-        _removeBackward(for: item, element: element, in: transaction)
-    }
-
-    private func _removeBackward(for item: RelationsItem, element: Element?, in transaction: Transaction) {
-        let anchorNode = options.anchor(forElement: (element ?? buildElement(with: item)).node!, collection: self.node!)!.element
-        let ownerNode = self.node!.ancestor(onLevelUp: options.ownerLevelsUp)!
-
-        var node = anchorNode.child(with: item.relation.targetPath).child(with: item.relation.relatedProperty)
-        switch options.property {
-        case .oneToMany, .manyToMany: node = node.child(with: ownerNode.key)
-        case .oneToOne: break
-        }
-        transaction.removeValue(by: node)
     }
 }

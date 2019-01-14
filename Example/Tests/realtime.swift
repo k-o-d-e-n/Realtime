@@ -560,10 +560,10 @@ extension RealtimeTests {
                     XCTAssertTrue(group._manager.wrapped?.dbKey == userCopy.dbKey)
                     XCTAssertTrue(groupCopy._manager.wrapped?.dbKey == userCopy.dbKey)
 
-                    // removing must also remove related value
-                    groupCopy._manager <== nil
-                    let removе = try groupCopy.update()
-                    removе.commit(with: { (state, errors) in
+                    let remove = Transaction(database: Cache.root)
+                    try groupCopy._manager.setValue(nil, in: remove)
+                    userCopy.ownedGroups.remove(element: groupCopy, in: remove)
+                    remove.commit(with: { (state, errors) in
                         errors?.forEach({ XCTFail($0.describingErrorDescription) })
 
                         do {
@@ -614,7 +614,9 @@ extension RealtimeTests {
                     XCTAssertTrue(userCopy.ownedGroups.first?.dbKey == groupCopy.dbKey)
 
                     // removing must also remove related value
-                    let remove = userCopy.ownedGroups.remove(element: groupCopy)
+                    let remove = Transaction(database: Cache.root)
+                    userCopy.ownedGroups.remove(element: groupCopy, in: remove)
+                    try groupCopy._manager.setValue(nil, in: remove)
                     remove.commit(with: { (state, errors) in
                         errors?.forEach({ XCTFail($0.describingErrorDescription) })
 
