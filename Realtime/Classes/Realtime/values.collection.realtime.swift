@@ -500,4 +500,24 @@ where Element: WritableRealtimeValue & Comparable {
         """
     }
 }
+extension ExplicitValues {
+    public func write(_ element: Element, in transaction: Transaction) throws {
+        guard let parentNode = self.node, parentNode.isRooted
+        else { fatalError("Cannot be written, because collection is not rooted") }
+        try transaction._set(
+            element,
+            by: Node(key: element.node?.key ?? transaction.database.generateAutoID(), parent: self.node)
+        )
+    }
+}
+extension ExplicitValues where Element: RealtimeValueEvents {
+    public func write(_ element: Element, in transaction: Transaction) throws {
+        guard let parentNode = self.node, parentNode.isRooted
+        else { fatalError("Cannot be written, because collection is not rooted") }
+        try transaction.set(
+            element,
+            by: Node(key: element.node?.key ?? transaction.database.generateAutoID(), parent: self.node)
+        )
+    }
+}
 

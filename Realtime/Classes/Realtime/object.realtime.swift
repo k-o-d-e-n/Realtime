@@ -550,7 +550,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         try mirror.children.forEach { (child) in
             guard isNotIgnoredLabel(child.label) else { return }
 
-            if var value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
+            if var value: _RealtimeValue = forceValue(from: child, mirror: mirror), conditionForRead(of: value) {
                 try value.apply(parentDataIfNeeded: data, parentEvent: event)
             }
         }
@@ -633,6 +633,11 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     /// - Parameter property: Value to evalute condition
     /// - Returns: Boolean value of condition
     open func conditionForWrite(of property: _RealtimeValue) -> Bool {
+        return true
+    }
+
+    // temporary decision to avoid error in optional nested objects that has required properties
+    open func conditionForRead(of property: _RealtimeValue) -> Bool {
         return true
     }
 

@@ -156,7 +156,8 @@ public protocol RealtimeDatabase: class {
         onCancel: ((Error) -> Void)?
     ) -> UInt
     func observe(
-        node: Node, limit: UInt,
+        _ event: DatabaseDataEvent,
+        on node: Node, limit: UInt,
         before: Any?, after: Any?,
         ascending: Bool, ordering: RealtimeDataOrdering,
         completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
@@ -281,7 +282,8 @@ extension Database: RealtimeDatabase {
     }
 
     public func observe(
-        node: Node, limit: UInt,
+        _ event: DatabaseDataEvent,
+        on node: Node, limit: UInt,
         before: Any?, after: Any?,
         ascending: Bool, ordering: RealtimeDataOrdering,
         completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
@@ -311,49 +313,62 @@ extension Database: RealtimeDatabase {
             }
         }
 
-//        var singleLoaded = false
-//        let added = query.observe(
-//            .childAdded,
-//            with: { (data) in
-//                if singleLoaded {
-//                    completion(data, .child(.added))
-//                }
-//            },
-//            withCancel: cancelHandler
-//        )
-//        let removed = query.observe(
-//            .childRemoved,
-//            with: { (data) in
-//                if singleLoaded {
-//                    completion(data, .child(.removed))
-//                }
-//            },
-//            withCancel: cancelHandler
-//        )
-//        let changed = query.observe(
-//            .childChanged,
-//            with: { (data) in
-//                if singleLoaded {
-//                    completion(data, .child(.changed))
-//                }
-//            },
-//            withCancel: cancelHandler
-//        )
-        query.observeSingleEvent(
-            of: .value,
-            with: { (data) in
-                completion(data, .value)
-//                singleLoaded = true
+        switch event {
+        case .value:
+            let handle = query.observe(
+                .value,
+                with: { (data) in
+                    completion(data, .value)
+                },
+                withCancel: cancelHandler
+            )
+            return ListeningDispose({
+                query.removeObserver(withHandle: handle)
+            })
+        case .child(let changes):
+            var singleLoaded = false
+            let added = changes.contains(.added) ? query.observe(
+                .childAdded,
+                with: { (data) in
+                    if singleLoaded {
+                        completion(data, .child(.added))
+                    }
+                },
+                withCancel: cancelHandler
+            ) : nil
+            let removed = changes.contains(.removed) ? query.observe(
+                .childRemoved,
+                with: { (data) in
+                    if singleLoaded {
+                        completion(data, .child(.removed))
+                    }
+                },
+                withCancel: cancelHandler
+            ) : nil
+            let changed = changes.contains(.changed) ? query.observe(
+                .childChanged,
+                with: { (data) in
+                    if singleLoaded {
+                        completion(data, .child(.changed))
+                    }
+                },
+                withCancel: cancelHandler
+            ) : nil
+            query.observeSingleEvent(
+                of: .value,
+                with: { (data) in
+                    completion(data, .value)
+                    singleLoaded = true
             },
-            withCancel: cancelHandler
-        )
+                withCancel: cancelHandler
+            )
 
-        return EmptyDispose()
-//        return ListeningDispose({
-//            query.removeObserver(withHandle: added)
-//            query.removeObserver(withHandle: removed)
-//            query.removeObserver(withHandle: changed)
-//        })
+            return ListeningDispose({
+                added.map(query.removeObserver)
+                removed.map(query.removeObserver)
+                changed.map(query.removeObserver)
+            })
+        }
     }
 }
 
@@ -378,6 +393,7 @@ extension StorageReference {
 
 public protocol RealtimeStorageTask {
     var progress: AnyListenable<Progress> { get }
+    var success: AnyListenable<RealtimeMetadata?> { get }
 
     func pause()
     func cancel()
@@ -386,6 +402,19 @@ public protocol RealtimeStorageTask {
 extension StorageDownloadTask: RealtimeStorageTask {
     public var progress: AnyListenable<Progress> {
         return AnyListenable(Status(task: self, status: .progress).compactMap({ $0.progress }))
+    }
+    public var success: AnyListenable<RealtimeMetadata?> {
+        return AnyListenable(Status(task: self, status: .success).map({ snapshot in
+            if let e = snapshot.error {
+                if case let nsError as NSError = e, let code = StorageErrorCode(rawValue: nsError.code), code == .objectNotFound {
+                    return nil
+                } else {
+                    throw RealtimeError(external: e, in: .storage)
+                }
+            } else {
+                return snapshot.metadata?.dictionaryRepresentation()
+            }
+        }))
     }
 }
 extension StorageDownloadTask {
@@ -562,7 +591,8 @@ class PagingController {
         }
         var disposable: Disposable?
         disposable = database.observe(
-            node: node,
+            .child(.added),
+            on: node,
             limit: pageSize,
             before: nil,
             after: nil,
@@ -570,8 +600,10 @@ class PagingController {
             ordering: .key,
             completion: { [weak self] data, event in
                 guard let `self` = self else { return }
-                self.endPage = data.childrenCount == self.pageSize ? nil : disposable
-                self.startPage = disposable
+                if event == .value {
+                    self.endPage = data.childrenCount == self.pageSize ? nil : disposable
+                    self.startPage = disposable
+                }
                 self.delegate?.pagingControllerDidReceive(data: data, with: event)
             },
             onCancel: { [weak self] (error) in
@@ -593,7 +625,8 @@ class PagingController {
 
         var disposable: Disposable?
         disposable = database.observe(
-            node: node,
+            .child([]),
+            on: node,
             limit: pageSize,
             before: ascending ? first : nil,
             after: ascending ? nil : first,
@@ -635,7 +668,8 @@ class PagingController {
 
         var disposable: Disposable?
         disposable = database.observe(
-            node: node,
+            .child([]),
+            on: node,
             limit: pageSize,
             before: ascending ? nil : last,
             after: ascending ? last : nil,

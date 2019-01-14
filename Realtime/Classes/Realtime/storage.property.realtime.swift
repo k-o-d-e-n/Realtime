@@ -109,8 +109,43 @@ extension ValueOption {
     static var metadata: ValueOption = ValueOption("realtime.file.metadata")
 }
 
+class FileDownloadTask: RealtimeStorageTask {
+    var dispose: Disposable?
+    let base: RealtimeStorageTask
+    var state: State = .run
+
+    init(_ base: RealtimeStorageTask) {
+        self.base = base
+    }
+
+    enum State {
+        case run, pause, finish
+    }
+
+    var progress: AnyListenable<Progress> { return base.progress }
+    var success: AnyListenable<RealtimeMetadata?> { return base.success }
+    func resume() {
+        if state != .finish {
+            state = .run
+            base.resume()
+        }
+    }
+    func pause() {
+        if state != .finish {
+            state = .pause
+            base.pause()
+        }
+    }
+    func cancel() {
+        state = .finish
+        base.cancel()
+    }
+}
+
 /// Defines readonly property for files storage
 public final class ReadonlyFile<T>: ReadonlyProperty<T> {
+    private var _currentDownloadTask: FileDownloadTask?
+    public private(set) var metadata: RealtimeMetadata?
     public override func runObserving() -> Bool {
         // currently it disabled
         return false
@@ -124,8 +159,23 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
         loadFile(timeout: timeout, completion: completion)
     }
 
-    public func downloadTask(timout: DispatchTimeInterval = .seconds(30), completion: Assign<Error?>?) -> RealtimeStorageTask {
-        return loadFile(timeout: timout, completion: completion)
+    public func downloadTask(timeout: DispatchTimeInterval = .seconds(30)) -> RealtimeStorageTask {
+        let task: FileDownloadTask
+        if let currentTask = _currentDownloadTask, currentTask.state != .finish {
+            currentTask.resume()
+            task = currentTask
+        } else {
+            task = FileDownloadTask(loadFile(timeout: timeout, completion: nil))
+            _currentDownloadTask = task
+            task.dispose = task.success.listening({ (result) in
+                switch result {
+                case .value(let md): self.metadata = md
+                case .error: break
+                }
+                self._currentDownloadTask = nil
+            })
+        }
+        return task
     }
 
     public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -138,7 +188,8 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
 
 /// Defines read/write property for files storage
 public final class File<T>: Property<T> {
-    let metadata: [String: Any]
+    private var _currentDownloadTask: FileDownloadTask?
+    public private(set) var metadata: RealtimeMetadata?
 
     public required init(in node: Node?, options: [ValueOption : Any]) {
         if case let md as [String: Any] = options[.metadata] {
@@ -150,13 +201,17 @@ public final class File<T>: Property<T> {
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        self.metadata = [:] // TODO: Metadata
+        if case let file as FileNode = data {
+            self.metadata = file.metadata
+        } else {
+            self.metadata = [:] // TODO: Metadata
+        }
         try super.init(data: data, event: event)
     }
 
     override func cacheValue(_ node: Node, value: Any?) -> CacheNode {
         let file = FileNode(node: node, value: value)
-        file.metadata = metadata
+        file.metadata = metadata ?? [:]
         return .file(file)
     }
 
@@ -173,8 +228,23 @@ public final class File<T>: Property<T> {
         loadFile(timeout: timeout, completion: completion)
     }
 
-    public func downloadTask(timout: DispatchTimeInterval = .seconds(30), completion: Assign<Error?>?) -> RealtimeStorageTask {
-        return loadFile(timeout: timout, completion: completion)
+    public func downloadTask(timeout: DispatchTimeInterval = .seconds(30)) -> RealtimeStorageTask {
+        let task: FileDownloadTask
+        if let currentTask = _currentDownloadTask, currentTask.state != .finish {
+            currentTask.resume()
+            task = currentTask
+        } else {
+            task = FileDownloadTask(loadFile(timeout: timeout, completion: nil))
+            _currentDownloadTask = task
+            task.dispose = task.success.listening({ (result) in
+                switch result {
+                case .value(let md): self.metadata = md
+                case .error: break
+                }
+                self._currentDownloadTask = nil
+            })
+        }
+        return task
     }
 
     public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

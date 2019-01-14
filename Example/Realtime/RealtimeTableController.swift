@@ -232,7 +232,7 @@ extension RealtimeTableController: RealtimeEditingTableDataSource {
                             print(e.localizedDescription)
                         }
                     }
-            },
+                },
                 object: {
                     Global.rtUsers[indexPath.row].delete().commit(with: { (_, err) in
                         self.activityView.stopAnimating()
@@ -252,7 +252,7 @@ extension RealtimeTableController: RealtimeEditingTableDataSource {
     }
 
     override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        return false
+        return true
     }
     override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
         return false

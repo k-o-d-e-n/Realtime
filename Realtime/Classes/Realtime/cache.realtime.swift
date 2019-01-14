@@ -571,7 +571,7 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             }))
     }
 
-    func observe(node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
+    func observe(_ event: DatabaseDataEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
                  completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
                  onCancel: ((Error) -> Void)?) -> Disposable {
         fatalError("Not implemented")
@@ -595,6 +595,7 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
 
     struct CacheStorageTask: RealtimeStorageTask {
         var progress: AnyListenable<Progress> { return AnyListenable(Constant(Progress(totalUnitCount: 0))) }
+        var success: AnyListenable<RealtimeMetadata?> { return AnyListenable(Constant(nil)) }
         func pause() {}
         func cancel() {}
         func resume() {}
