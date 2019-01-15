@@ -302,6 +302,7 @@ public extension ValueOption {
 }
 
 public enum PropertyState<T> {
+    case none
     case local(T)
     case remote(T)
     case removed(local: Bool)
@@ -322,7 +323,7 @@ extension PropertyState: _Optional {
 
     public var wrapped: T? {
         switch self {
-        case .removed: return nil
+        case .none, .removed: return nil
         case .local(let v): return v
         case .remote(let v): return v
         case .error(_, let v): return v?.wrapped
@@ -339,7 +340,7 @@ extension PropertyState: _Optional {
     public typealias Wrapped = T
 
     public init(nilLiteral: ()) {
-        self = .removed(local: true)
+        self = .none
     }
 
     internal var lastNonError: PropertyState<T>? {
@@ -352,7 +353,7 @@ extension PropertyState: _Optional {
 public extension PropertyState where T: _Optional {
     var unwrapped: T.Wrapped? {
         switch self {
-        case .removed: return nil
+        case .none, .removed: return nil
         case .local(let v): return v.wrapped
         case .remote(let v): return v.wrapped
         case .error(_, let v): return v?.unwrapped
@@ -415,19 +416,13 @@ public typealias OptionalProperty<T> = Property<T?>
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
     fileprivate var oldValue: PropertyState<T>?
     override var _hasChanges: Bool {
-        switch _value {
-        case .some(.local): return true
-        case .some(.removed(let local)): return local
-        case .none, .some(.remote),
-             .some(.error):
-            return false
-        }
+        return oldValue != nil
     }
 
     public func revert() {
-        guard hasChanges else { return }
-
-        _value = oldValue
+        if let old = oldValue {
+            _value = old
+        }
     }
     public func currentReversion() -> () -> Void {
         return { [weak self] in
@@ -473,8 +468,10 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
-        debugAction {
-            if _value == nil {
+        self.oldValue = nil
+        switch _value {
+        case .none, .removed:
+            debugAction {
                 do {
                     /// test required property
                     _ = try representer.encode(nil)
@@ -482,6 +479,19 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
                     debugFatalError("Required property '\(key)': \(type(of: self)) has been saved, but value does not exists")
                 }
             }
+        case .local(let v):
+            _setValue(.remote(v))
+        default: break
+        }
+    }
+
+    public override func didUpdate(through ancestor: Node) {
+        super.didUpdate(through: ancestor)
+        self.oldValue = nil
+        switch _value {
+        case .local(let v):
+            _setValue(.remote(v))
+        default: break
         }
     }
 
@@ -492,15 +502,13 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super (_RealtimeValue)
         switch _value {
-        case .none, .some(.remote), .some(.error): break
-        case .some(.removed(let local)):
-            if local {
-                debugFatalError("Property has not been set")
-                throw RealtimeError(encoding: T.self, reason: "Property has not been set")
-            }
-        case .some(.local(let changed)):
+        case .local(let changed):
             _addReversion(to: transaction, by: node)
             try transaction._addValue(cacheValue(node, value: representer.encode(changed)))
+        case .removed(true):
+            debugFatalError("Property has not been set")
+            throw RealtimeError(encoding: T.self, reason: "Property has not been set")
+        case .none, .remote, .error, .removed(false): break
         }
     }
 
@@ -509,7 +517,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
     override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super (_RealtimeValue)
         switch _value {
-        case .none:
+        case .none, .removed:
             /// throws error if property required
             /// does not add to transaction with consideration about empty node to save operation
             /// otherwise need to use update operation
@@ -519,14 +527,9 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
                 debugFatalError("Required property has not been set '\(node)': \(type(of: self))")
                 throw e
             }
-        case .some(.local(let v)):
+        case .local(let v):
             _addReversion(to: transaction, by: node)
             try transaction._addValue(cacheValue(node, value: representer.encode(v)))
-        case .some(.removed(let local)):
-            if local {
-                debugFatalError("Property has not been set")
-                throw RealtimeError(encoding: T.self, reason: "Property has not been set")
-            }
         default:
             debugFatalError("Unexpected behavior")
             throw RealtimeError(encoding: T.self, reason: "Unexpected state for current operation")
@@ -562,7 +565,7 @@ public extension Property {
 /// Defines readonly property with any value
 @available(*, introduced: 0.4.3)
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
-    fileprivate var _value: PropertyState<T>?
+    fileprivate var _value: PropertyState<T>
     fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T?>
 
@@ -613,6 +616,8 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 
         if let inital = options[.initialValue], let v = inital as? T {
             self._value = .local(v)
+        } else {
+            self._value = .none
         }
         self.representer = representer
         super.init(in: node, options: options)
@@ -654,14 +659,10 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 
     public func loadValue(completion: Assign<T>, fail: Assign<Error>) {
         load(completion: .just { err in
-            if let v = self._value {
-                switch v {
-                case .error(let e, last: _): fail.assign(e)
-                case .remote(let v): completion.assign(v)
-                default:
-                    fail.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
-                }
-            } else {
+            switch self._value {
+            case .error(let e, last: _): fail.assign(e)
+            case .remote(let v): completion.assign(v)
+            default:
                 fail.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
             }
         })
@@ -670,10 +671,8 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         load(completion: .just { err in
             if let e = err {
                 fail.call(e)
-            } else if let v = self._value {
-                completion.call(v)
             } else {
-                fail.call(RealtimeError(source: .value, description: "Undefined error in \(self)"))
+                completion.call(self._value)
             }
         })
     }
@@ -687,24 +686,6 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
     
     // MARK: Events
-    
-    override public func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
-        super.didSave(in: database, in: parent, by: key)
-        switch _value {
-        case .some(.local(let v)):
-            _setValue(.remote(v))
-        default: break
-        }
-    }
-
-    public override func didUpdate(through ancestor: Node) {
-        super.didUpdate(through: ancestor)
-        switch _value {
-        case .some(.local(let v)):
-            _setValue(.remote(v))
-        default: break
-        }
-    }
     
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
@@ -742,7 +723,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
 
     internal func _setError(_ error: Error) {
-        _value = .error(error, last: _value?.lastNonError)
+        _value = .error(error, last: _value.lastNonError)
         repeater.send(.error(error))
     }
 
@@ -761,7 +742,7 @@ extension ReadonlyProperty: Listenable {
         defer {
             switch _value {
             case .none: break
-            case .some(let e): assign.call(.value(e))
+            default: assign.call(.value(_value))
             }
         }
         return repeater.listening(assign)
@@ -776,14 +757,14 @@ extension ReadonlyProperty: Equatable where T: Equatable {
 }
 public extension ReadonlyProperty {
     /// Last property state
-    var lastEvent: PropertyState<T>? {
+    var state: PropertyState<T> {
         return _value
     }
 
     /// Current value of property
     /// `nil` if property has no value, or has been removed
     var wrapped: T? {
-        return _value?.wrapped
+        return _value.wrapped
     }
 }
 public extension ReadonlyProperty {
@@ -815,7 +796,7 @@ public extension ReadonlyProperty {
 }
 public extension ReadonlyProperty where T: _Optional {
     var unwrapped: T.Wrapped? {
-        return _value.flatMap { $0.unwrapped }
+        return _value.unwrapped
     }
     static func ?? (optional: T.Wrapped?, property: ReadonlyProperty<T>) -> T.Wrapped? {
         return optional ?? property.unwrapped
@@ -824,7 +805,7 @@ public extension ReadonlyProperty where T: _Optional {
         value = prop.unwrapped
     }
 }
-func <== <T>(_ value: inout T.Wrapped?, _ prop: ReadonlyProperty<T>?) where T: _Optional {
+public func <== <T>(_ value: inout T.Wrapped?, _ prop: ReadonlyProperty<T>?) where T: _Optional {
     value = prop?.unwrapped
 }
 public extension ReadonlyProperty where T: HasDefaultLiteral {

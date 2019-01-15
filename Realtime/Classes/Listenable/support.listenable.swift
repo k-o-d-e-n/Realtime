@@ -145,14 +145,10 @@ extension UIControl {
         }
     }
 }
+extension UIControl: RealtimeCompatible {}
 public extension RTime where Base: UIControl {
     func onEvent(_ controlEvent: UIControlEvents) -> ControlEvent<Base> {
         return ControlEvent(control: base, events: controlEvent)
-    }
-}
-extension UIControl: RealtimeCompatible {
-    public func onEvent(_ controlEvent: UIControlEvents) -> ControlEvent<UIControl> {
-        return ControlEvent(control: self, events: controlEvent)
     }
 }
 public extension RTime where Base: UITextField {
@@ -164,6 +160,34 @@ public extension UITextField {
     func onTextChange() -> Preprocessor<(control: UITextField, event: UIEvent), String?> {
         return ControlEvent(control: self, events: .valueChanged).map({ $0.0.text })
     }
+}
+
+extension UIBarButtonItem {
+    public class Tap<BI: UIBarButtonItem>: Listenable {
+        let repeater: Repeater<BI> = Repeater.unsafe()
+        weak var buttonItem: BI?
+
+        init(item: BI) {
+            self.buttonItem = item
+            item.target = self
+            item.action = #selector(_action(_:))
+        }
+
+        @objc func _action(_ button: UIBarButtonItem) {
+            repeater.send(.value(button as! BI))
+        }
+
+        public func listening(_ assign: Closure<ListenEvent<BI>, Void>) -> Disposable {
+            return repeater.listening(assign)
+        }
+        public func listeningItem(_ assign: Closure<ListenEvent<BI>, Void>) -> ListeningItem {
+            return repeater.listeningItem(assign)
+        }
+    }
+}
+extension UIBarButtonItem: RealtimeCompatible {}
+extension RTime where Base: UIBarButtonItem {
+    public var tap: UIBarButtonItem.Tap<Base> { return UIBarButtonItem.Tap(item: base) }
 }
 
 public extension RTime where Base: UIImagePickerController {

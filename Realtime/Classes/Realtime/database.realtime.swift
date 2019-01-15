@@ -204,7 +204,7 @@ extension Database: RealtimeDatabase {
     }
 
     public func generateAutoID() -> String {
-        return reference().childByAutoId().key
+        return reference().childByAutoId().key!
     }
 
     public func commit(transaction: Transaction, completion: ((Error?) -> Void)?) {

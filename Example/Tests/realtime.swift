@@ -352,7 +352,7 @@ extension RealtimeTests {
                 exp.fulfill()
             }
         } catch let e {
-            XCTFail(e.localizedDescription)
+            XCTFail(e.describingErrorDescription)
         }
 
         waitForExpectations(timeout: 5) { (err) in
@@ -672,7 +672,7 @@ extension RealtimeTests {
 
             let userCopy = try User(data: data.child(forNode: user.node!), event: .child(.added))
 
-            if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
+            if case .error(let e, _) = userCopy.ownedGroup.state {
                 XCTFail(e.localizedDescription)
             } else {
                 XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == userCopy.ownedGroup.unwrapped?.dbKey)
@@ -729,7 +729,7 @@ extension RealtimeTests {
 
             let conversationCopy = try Conversation(data: data.child(forNode: conversation.node!), event: .child(.added))
 
-            if case .error(let e, _)? = conversation.chairman.lastEvent {
+            if case .error(let e, _) = conversation.chairman.state {
                 XCTFail(e.localizedDescription)
             } else {
                 XCTAssertTrue(conversationCopy.secretary.unwrapped?.dbKey == conversation.secretary.unwrapped?.dbKey)
