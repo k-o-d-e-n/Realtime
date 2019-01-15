@@ -156,7 +156,7 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
+        fatalError("init(data:event:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
     }
 
     @discardableResult
@@ -212,7 +212,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        fatalError("init(data:strongly:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
+        fatalError("init(data:event:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
     }
 
     @discardableResult
@@ -306,7 +306,6 @@ public enum PropertyState<T> {
     case remote(T)
     case removed(local: Bool)
     indirect case error(Error, last: PropertyState<T>?)
-    //        case reverted(ListenValue<T>?)
 }
 extension PropertyState: _Optional {
     public func map<U>(_ f: (T) throws -> U) rethrows -> U? {
@@ -415,13 +414,15 @@ public typealias OptionalProperty<T> = Property<T?>
 /// Defines read/write property with any value
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
     fileprivate var oldValue: PropertyState<T>?
-    internal var _changedValue: T? {
+    override var _hasChanges: Bool {
         switch _value {
-        case .some(.local(let v)): return v
-        case .none, .some(.remote), .some(.error), .some(.removed): return nil
+        case .some(.local): return true
+        case .some(.removed(let local)): return local
+        case .none, .some(.remote),
+             .some(.error):
+            return false
         }
     }
-    override var _hasChanges: Bool { return _changedValue != nil }
 
     public func revert() {
         guard hasChanges else { return }
@@ -456,10 +457,16 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
         return transaction
     }
 
+    /// Changes current value using mutation closure
+    ///
+    /// - Parameter using: Mutation closure
     public func change(_ using: (T?) -> T) {
         _setLocalValue(using(wrapped))
     }
 
+    /// Removes property value.
+    /// Note: Before run write operation you must set any value again, even if value has optional type,
+    /// otherwise operation will be ended with error.
     public func remove() {
         _setRemoved(isLocal: true)
     }
@@ -483,8 +490,15 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
     }
 
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
-        if let changed = _changedValue {
-            /// skip the call of super (_RealtimeValue)
+        /// skip the call of super (_RealtimeValue)
+        switch _value {
+        case .none, .some(.remote), .some(.error): break
+        case .some(.removed(let local)):
+            if local {
+                debugFatalError("Property has not been set")
+                throw RealtimeError(encoding: T.self, reason: "Property has not been set")
+            }
+        case .some(.local(let changed)):
             _addReversion(to: transaction, by: node)
             try transaction._addValue(cacheValue(node, value: representer.encode(changed)))
         }
@@ -508,6 +522,11 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
         case .some(.local(let v)):
             _addReversion(to: transaction, by: node)
             try transaction._addValue(cacheValue(node, value: representer.encode(v)))
+        case .some(.removed(let local)):
+            if local {
+                debugFatalError("Property has not been set")
+                throw RealtimeError(encoding: T.self, reason: "Property has not been set")
+            }
         default:
             debugFatalError("Unexpected behavior")
             throw RealtimeError(encoding: T.self, reason: "Unexpected state for current operation")

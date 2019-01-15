@@ -109,15 +109,10 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
     /// Currently no available
     public required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("AssociatedValues does not supported init(data:event:) yet.")
+        fatalError("AssociatedValues does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
         #else
         throw RealtimeError(source: .collection, description: "AssociatedValues does not supported init(data:event:) yet.")
         #endif
-    }
-
-    public convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, keysNode: Node) throws {
-        self.init(in: data.node, options: [.keysNode: keysNode, .database: data.database as Any])
-        try apply(data, event: event)
     }
 
     // MARK: Implementation

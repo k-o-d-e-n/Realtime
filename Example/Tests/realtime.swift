@@ -248,6 +248,22 @@ extension RealtimeTests {
             XCTFail(e.localizedDescription)
         }
     }
+    func testRemovePropertyValue() {
+        let rootObj = Object(in: Node.root, options: [.database: Cache.root])
+        let prop: Property<String?> = "prop".property(in: rootObj)
+
+        prop.remove()
+        let transaction = Transaction(database: Cache.root, storage: Cache.root)
+        do {
+            try rootObj.update(in: transaction)
+        } catch let e {
+            switch e {
+            case _ as RealtimeError: break
+            default: XCTFail("Unexpected error")
+            }
+        }
+        transaction.cancel()
+    }
     func testObjectRemove() {
         let obj = TestObject()
 
@@ -1026,6 +1042,7 @@ extension RealtimeTests {
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
 
+        XCTAssertTrue(testObject.hasChanges)
         do {
             try testObject.update(in: transaction)
 

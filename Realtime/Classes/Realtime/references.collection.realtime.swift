@@ -88,12 +88,6 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         super.init(in: view.node, options: options)
     }
 
-    public convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, elementsNode: Node) throws {
-        self.init(in: data.node, options: [.elementsNode: elementsNode,
-                                               .database: data.database as Any])
-        try apply(data, event: event)
-    }
-
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.storage = RCKeyValueStorage()
         self.view = SortedCollectionView(in: data.node, options: [.database: data.database as Any])
@@ -180,7 +174,7 @@ public class References<Element: RealtimeValue>: __RepresentableCollection<Eleme
     /// Currently, no available.
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("References does not supported init(data:event:) yet.")
+        fatalError("References does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
         #else
         throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
         #endif
@@ -453,9 +447,9 @@ public class DistributedReferences<Element: RealtimeValue>: __RepresentableColle
     /// Currently, no available.
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("References does not supported init(data:event:) yet.")
+        fatalError("DistributedReferences does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
         #else
-        throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
+        throw RealtimeError(source: .collection, description: "DistributedReferences does not supported init(data:event:) yet.")
         #endif
     }
 
@@ -542,9 +536,9 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("References does not supported init(data:event:) yet.")
+        fatalError("Relations does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
         #else
-        throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
+        throw RealtimeError(source: .collection, description: "Relations does not supported init(data:event:) yet.")
         #endif
     }
 
