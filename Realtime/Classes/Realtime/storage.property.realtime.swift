@@ -105,8 +105,8 @@ extension ReadonlyProperty {
 
 extension ValueOption {
     /// Key for `RealtimeStorage` instance
-    static var storage: ValueOption = ValueOption("realtime.storage")
-    static var metadata: ValueOption = ValueOption("realtime.file.metadata")
+    public static var storage: ValueOption = ValueOption("realtime.storage")
+    public static var metadata: ValueOption = ValueOption("realtime.file.metadata")
 }
 
 class FileDownloadTask: RealtimeStorageTask {

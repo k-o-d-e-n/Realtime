@@ -546,6 +546,14 @@ public class PagingControl {
 
     public init() {}
 
+    public func start(observeNew observe: Bool, completion: (() -> Void)?) {
+        controller?.start(observeNew: observe, completion: completion)
+    }
+
+    public func stop() {
+        controller?.stop()
+    }
+
     public func next() {
         controller?.next()
     }
@@ -585,13 +593,14 @@ class PagingController {
         self.delegate = delegate
     }
 
-    func start() {
+    func start(observeNew observe: Bool = true, completion: (() -> Void)? = nil) {
         guard startPage == nil else {
             fatalError("Controller already started")
         }
         var disposable: Disposable?
+        var completion = completion
         disposable = database.observe(
-            .child(.added),
+            .child(observe ? .added : []),
             on: node,
             limit: pageSize,
             before: nil,
@@ -605,6 +614,10 @@ class PagingController {
                     self.startPage = disposable
                 }
                 self.delegate?.pagingControllerDidReceive(data: data, with: event)
+                if let compl = completion {
+                    compl()
+                    completion = nil
+                }
             },
             onCancel: { [weak self] (error) in
                 self?.delegate?.pagingControllerDidCancel(with: error)

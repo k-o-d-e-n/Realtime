@@ -49,8 +49,8 @@ public final class BranchNode: Node {
     override var isRooted: Bool { return true }
     override var root: Node? { return .root }
     override var first: Node? { return nil }
-    override func path(from node: Node) -> String { return key }
-    override func hasAncestor(node: Node) -> Bool { return node == .root }
+    override public func path(from node: Node) -> String { return key }
+    override public func hasAncestor(node: Node) -> Bool { return node == .root }
     override func _validate() {
         debugFatalError(
             condition: RealtimeApp._isInitialized && key.split(separator: "/")
@@ -162,7 +162,7 @@ public class Node: Hashable {
     ///
     /// - Parameter node: Ancestor node.
     /// - Returns: String representation of path from ancestor node to current
-    func path(from node: Node) -> String {
+    public func path(from node: Node) -> String {
         guard node != self else { fatalError("Path does not exists for the same nodes") }
 
         var path = key
@@ -183,7 +183,7 @@ public class Node: Hashable {
     ///
     /// - Parameter ancestor: Related ancestor node
     /// - Returns: Ancestor node or nil
-    func first(after ancestor: Node) -> Node? {
+    public func first(after ancestor: Node) -> Node? {
         guard ancestor != self else { fatalError("Cannot get from the same node") }
 
         var current: Node = self
@@ -255,7 +255,7 @@ public class Node: Hashable {
     ///
     /// - Parameter node: Ancestor node
     /// - Returns: Result of search
-    func hasAncestor(node: Node) -> Bool {
+    public func hasAncestor(node: Node) -> Bool {
         // TODO: Improve checking by comparing on both sides
         var current: Node = self
         while let parent = current.parent {

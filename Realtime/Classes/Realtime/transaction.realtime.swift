@@ -339,13 +339,15 @@ public extension Transaction {
     /// - Parameters:
     ///   - value: `Data` type value
     ///   - node: Target node
-    public func addFile(_ value: Data, by node: Realtime.Node) {
+    public func addFile(_ value: Data, metadata: RealtimeMetadata = [:], by node: Realtime.Node) {
         if let merged = mergedToTransaction {
             merged.addFile(value, by: node)
         } else {
             guard node.isRooted else { fatalError("Node should be rooted") }
 
-            _addValue(.file(FileNode(node: node, value: value)))
+            let file = FileNode(node: node, value: value)
+            file.metadata = metadata
+            _addValue(.file(file))
         }
     }
 

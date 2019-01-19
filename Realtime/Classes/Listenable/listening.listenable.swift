@@ -126,6 +126,8 @@ public final class ListeningDisposeStore {
     private var disposes = [Disposable]()
     private var listeningItems = [ListeningItem]()
 
+    var isEmpty: Bool { return listeningItems.isEmpty && disposes.isEmpty }
+
     public init() {}
 
     deinit {

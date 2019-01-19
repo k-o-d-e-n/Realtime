@@ -35,7 +35,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap(), _model.compactMap())
     lazy var _didSelect: Repeater<IndexPath> = .unsafe()
 
-    var state: RowState = .free
+    var state: RowState = [.free, .pending]
 
     open internal(set) weak var model: Model? {
         set { _model.value = newValue }
@@ -186,6 +186,8 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
                 row.state.remove(.displaying)
                 row.free()
                 row.state.insert([.pending, .free])
+            } else {
+//                debugLog("\(row.state) \n \(row.view as Any) \n\(cell)")
             }
         }
     }
@@ -197,6 +199,7 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
             item.view = cell
             item._model.value = model
             item.state.insert(.displaying)
+            item.state.remove(.free)
         }
     }
 
@@ -279,13 +282,13 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
             item.view = cell
             item.model = model
             item.state.insert(.displaying)
+            item.state.remove(.free)
         }
     }
 
     override func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
-        if let row = reuseController.active(at: indexPath.row) {
+        if let row = reuseController.free(at: indexPath.row, ifRespondsFor: cell) {
             row.state.remove(.displaying)
-            row.free()
             row.state.insert([.pending, .free])
         }
     }
@@ -459,11 +462,11 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-            return form.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ?? 28.0
+            return form.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ?? tableView.sectionHeaderHeight
         }
 
         func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
-            return form.tableDelegate?.tableView?(tableView, heightForFooterInSection: section) ?? 28.0
+            return form.tableDelegate?.tableView?(tableView, heightForFooterInSection: section) ?? tableView.sectionFooterHeight
         }
 
         func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
@@ -533,6 +536,12 @@ extension Form {
                 toProposedIndexPath: proposedDestinationIndexPath
             )
             ?? proposedDestinationIndexPath
+        }
+
+        // MARK: UIScrollViewDelegate
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            form.tableDelegate?.scrollViewDidScroll?(scrollView)
         }
     }
 }

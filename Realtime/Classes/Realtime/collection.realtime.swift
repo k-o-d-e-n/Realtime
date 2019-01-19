@@ -19,7 +19,7 @@ extension ValueOption {
 /// - updated: Any update event
 public enum RCEvent {
     case initial
-    case updated(deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)])
+    case updated(deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)]) // may be [Int] replace to IndexSet?
 }
 
 /// -----------------------------------------

@@ -72,14 +72,22 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     }
 
     public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
+        debugFatalError(
+            condition: self.view == nil,
+            "No view in binding time"
+        )
+        // bindingView works if view setup before binding
+        weak var bindingView = self.view
         value
             .listening({ [weak self] (event) in
-                if let view = self?._view.value {
+                if let view = self?.view {
                     switch event {
                     case .value(let v):
-                        assign(view, v)
+                        if view === bindingView {
+                            assign(view, v)
+                        }
                     case .error(let e):
-                        if let errClosure = error {
+                        if let errClosure = error, view === bindingView {
                             errClosure(view, e)
                         } else {
                             debugLog(String(describing: e))
@@ -142,11 +150,16 @@ struct ReuseController<Row, Key: Hashable> where Row: ReuseItemProtocol {
         return item
     }
 
-    mutating func free(at key: Key) {
+    @discardableResult
+    mutating func free(at key: Key) -> Row? {
         guard let item = activeItems.removeValue(forKey: key)
-            else { return debugLog("Try free non-active reuse item by key \(key)") }
+        else {
+            debugLog("Try free non-active reuse item by key \(key)")
+            return nil
+        }
         item.free()
         freeItems.append(item)
+        return item
     }
 
     mutating func freeAll() {
@@ -161,6 +174,16 @@ struct ReuseController<Row, Key: Hashable> where Row: ReuseItemProtocol {
         activeItems.forEach { $0.value.free() }
         activeItems.removeAll()
         freeItems.removeAll()
+    }
+}
+extension ReuseController {
+    @discardableResult
+    mutating func free<View: AnyObject>(at key: Key, ifRespondsFor view: View) -> Row? where Row: ReuseItem<View> {
+        guard let item = activeItems[key], item.view === view else { return nil }
+        activeItems.removeValue(forKey: key)
+        item.free()
+        freeItems.append(item)
+        return item
     }
 }
 
@@ -354,7 +377,7 @@ extension SingleSectionTableViewDelegate {
         }
 
         func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            delegate.reuseController.free(at: indexPath)
+            delegate.reuseController.free(at: indexPath, ifRespondsFor: cell)
             delegate.tableDelegate?.tableView?(tableView, didEndDisplaying: cell, forRowAt: indexPath)
         }
 
@@ -502,15 +525,9 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
     }
 
     func endDisplaySection(_ tableView: UITableView, at index: Int) {
-        guard let itms = items else { return debugLog("Ends display section that already not visible") }
-//        debugFatalError(condition: !itms.isObserved, "Trying to stop observing of section, but it is no longer observed")
-        items = nil
     }
 
     func endDisplaySection(_ collectionView: UICollectionView, at index: Int) {
-        guard let itms = items else { return debugLog("Ends display section that already not visible") }
-//        debugFatalError(condition: !itms.isObserved, "Trying to stop observing of section, but it is no longer observed")
-        items = nil
     }
 
     override func free() {
@@ -665,7 +682,7 @@ extension SectionedTableViewDelegate {
         }
 
         func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            delegate.reuseController.free(at: indexPath)
+            delegate.reuseController.free(at: indexPath, ifRespondsFor: cell)
             delegate.tableDelegate?.tableView?(tableView, didEndDisplaying: cell, forRowAt: indexPath)
 
 //            var endDisplaySection: Bool {
@@ -710,10 +727,9 @@ extension SectionedTableViewDelegate {
         func tableView(_ tableView: UITableView, didEndDisplayingHeaderView view: UIView, forSection section: Int) {
             delegate.tableDelegate?.tableView?(tableView, didEndDisplayingHeaderView: view, forSection: section)
 
-            guard let sectionItem = delegate.reuseSectionController.active(at: section) else { return }
-
-            sectionItem.endDisplaySection(tableView, at: section)
-            sectionItem.free()
+            if let sectionItem = delegate.reuseSectionController.free(at: section, ifRespondsFor: view) {
+                sectionItem.endDisplaySection(tableView, at: section)
+            }
         }
 
         func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
@@ -972,16 +988,14 @@ extension CollectionViewDelegate {
             delegate.collectionDelegate?.collectionView?(collectionView, willDisplaySupplementaryView: view, forElementKind: elementKind, at: indexPath)
         }
         override func collectionView(_ collectionView: UICollectionView, didEndDisplaying cell: UICollectionViewCell, forItemAt indexPath: IndexPath) {
-            delegate.reuseController.free(at: indexPath)
+            delegate.reuseController.free(at: indexPath, ifRespondsFor: cell)
             delegate.collectionDelegate?.collectionView?(collectionView, didEndDisplaying: cell, forItemAt: indexPath)
         }
         override func collectionView(_ collectionView: UICollectionView, didEndDisplayingSupplementaryView view: UICollectionReusableView, forElementOfKind elementKind: String, at indexPath: IndexPath) {
+            if let sectionItem = delegate.reuseSectionController.free(at: indexPath, ifRespondsFor: view) {
+                sectionItem.endDisplaySection(collectionView, at: indexPath.section)
+            }
             delegate.collectionDelegate?.collectionView?(collectionView, didEndDisplayingSupplementaryView: view, forElementOfKind: elementKind, at: indexPath)
-
-            guard let sectionItem = delegate.reuseSectionController.active(at: indexPath) else { return }
-
-            sectionItem.endDisplaySection(collectionView, at: indexPath.section)
-            sectionItem.free()
         }
         override func collectionView(_ collectionView: UICollectionView, shouldShowMenuForItemAt indexPath: IndexPath) -> Bool {
             return delegate.collectionDelegate?.collectionView?(collectionView, shouldShowMenuForItemAt: indexPath) ?? false
