@@ -422,6 +422,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
     public func revert() {
         if let old = oldValue {
             _value = old
+            oldValue = nil
         }
     }
     public func currentReversion() -> () -> Void {

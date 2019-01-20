@@ -251,17 +251,18 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
                     }
                     return .updated(deleted: [], inserted: indexes, modified: [], moved: [])
                 case .child(.removed):
-                    let indexes: [Int]
                     if value.0.key == self.node?.key {
-                        indexes = try value.0.map(Element.init).compactMap({ self._elements.remove($0)?.index })
+                        let indexes: [Int] = try value.0.map(Element.init).compactMap({ self._elements.remove($0)?.index })
+                        if indexes.count == value.0.childrenCount {
+                            return .updated(deleted: indexes, inserted: [], modified: [], moved: [])
+                        } else {
+                            debugFatalError("Indexes: \(indexes), data: \(value.0)")
+                            throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
+                        }
                     } else {
                         let item = try Element(data: value.0)
-                        indexes = self._elements.remove(item).map({ [$0.index] }) ?? []
-                    }
-                    if indexes.count == value.0.childrenCount {
+                        let indexes: [Int] = self._elements.remove(item).map({ [$0.index] }) ?? []
                         return .updated(deleted: indexes, inserted: [], modified: [], moved: [])
-                    } else {
-                        throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
                     }
                 case .child(.changed):
                     let item = try Element(data: value.0)

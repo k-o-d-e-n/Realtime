@@ -617,7 +617,7 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
 
 extension SectionedTableViewDelegate {
     class Service: NSObject, UITableViewDataSource, UITableViewDelegate, UITableViewDataSourcePrefetching {
-        var oldOffset: CGFloat = 0.0
+//        var oldOffset: CGFloat = 0.0
         unowned let delegate: SectionedTableViewDelegate<Model, Section>
 
         init(_ delegate: SectionedTableViewDelegate<Model, Section>) {
@@ -751,7 +751,7 @@ extension SectionedTableViewDelegate {
         // MARK: UIScrollView
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
-            oldOffset = scrollView.contentOffset.y
+//            oldOffset = scrollView.contentOffset.y
             delegate.tableDelegate?.scrollViewDidScroll?(scrollView)
         }
 
