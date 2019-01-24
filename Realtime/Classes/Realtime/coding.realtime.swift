@@ -108,7 +108,7 @@ public protocol RealtimeDataRepresented {
     ///               Pass `false` if data represents part of data (for example filtered list).
     mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws
 }
-extension RealtimeDataRepresented {
+public extension RealtimeDataRepresented {
     init(data: RealtimeDataProtocol) throws {
         try self.init(data: data, event: .value)
     }
@@ -117,6 +117,11 @@ extension RealtimeDataRepresented {
     }
     mutating func apply(_ data: RealtimeDataProtocol) throws {
         try apply(data, event: .value)
+    }
+}
+public extension RealtimeDataRepresented where Self: Decodable {
+    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try self.init(from: data)
     }
 }
 

@@ -178,10 +178,22 @@ extension UIBarButtonItem {
         }
 
         public func listening(_ assign: Closure<ListenEvent<BI>, Void>) -> Disposable {
-            return repeater.listening(assign)
+            let disposable = repeater.listening(assign)
+            let unmanaged = Unmanaged.passUnretained(self).retain()
+            return ListeningDispose.init({
+                unmanaged.release()
+                disposable.dispose()
+            })
         }
         public func listeningItem(_ assign: Closure<ListenEvent<BI>, Void>) -> ListeningItem {
-            return repeater.listeningItem(assign)
+            let item = repeater.listeningItem(assign)
+            let unmanaged = Unmanaged.passUnretained(self).retain()
+            return ListeningItem(
+                resume: item.resume,
+                pause: item.pause,
+                dispose: { item.dispose(); unmanaged.release() },
+                token: ()
+            )
         }
     }
 }
