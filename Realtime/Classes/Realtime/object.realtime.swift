@@ -140,6 +140,13 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     internal var observing: [DatabaseDataEvent: (token: UInt, counter: Int)] = [:]
     let dataObserver: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = .unsafe()
 
+    public convenience init(in object: _RealtimeValue, keyedBy key: String, options: [ValueOption: Any] = [:]) {
+        self.init(
+            in: Node(key: key, parent: object.node),
+            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
+        )
+    }
+
     public required init(in node: Node?, options: [ValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
@@ -441,6 +448,14 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     /// Labels of properties that shouldn`t represent as database data
     open var ignoredLabels: [String] {
         return []
+    }
+
+    public convenience init(in object: Object, keyedBy key: String, options: [ValueOption: Any] = [:]) {
+        self.init(
+            in: Node(key: key, parent: object.node),
+            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
+        )
+        self.parent = object
     }
 
     @discardableResult

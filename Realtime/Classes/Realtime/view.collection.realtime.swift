@@ -436,6 +436,11 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         return _elements.remove(at: index)
     }
 
+    @discardableResult
+    func remove(_ element: Element) -> Int? {
+        return _elements.remove(element)?.index
+    }
+
     func removeAll() {
         _elements.removeAll()
     }

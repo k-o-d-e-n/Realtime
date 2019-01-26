@@ -471,7 +471,7 @@ where Element: WritableRealtimeValue & Comparable {
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: Transaction, by node: Node) throws {
-        /// readonly
+        try view._write(to: transaction, by: node)
     }
 
     // TODO: Events are not call for elements
@@ -501,12 +501,21 @@ where Element: WritableRealtimeValue & Comparable {
     }
 }
 extension ExplicitValues {
+    public func insert(_ element: Element) -> Int {
+        guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
+        return view.insert(element)
+    }
+    @discardableResult
+    public func remove(at index: Int) -> Element {
+        guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
+        return view.remove(at: index)
+    }
     public func write(_ element: Element, in transaction: Transaction) throws {
         guard let parentNode = self.node, parentNode.isRooted
         else { fatalError("Cannot be written, because collection is not rooted") }
         try transaction._set(
             element,
-            by: Node(key: element.node?.key ?? transaction.database.generateAutoID(), parent: self.node)
+            by: Node(key: element.node?.key ?? transaction.database.generateAutoID(), parent: parentNode)
         )
     }
 }
