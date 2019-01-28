@@ -215,6 +215,13 @@ extension OtherTests {
             XCTFail(e.describingErrorDescription)
         }
     }
+
+    func testPrefixOperator() {
+        let obj = TestObject()
+        obj.property <== "string"
+
+        XCTAssertEqual(§obj.property, "string")
+    }
 }
 
 internal func _makeCollectionDescription<C: Collection>(_ collection: C,

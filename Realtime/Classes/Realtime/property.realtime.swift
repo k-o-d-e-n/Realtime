@@ -10,7 +10,7 @@ import Foundation
 import FirebaseDatabase
 
 public extension RawRepresentable where Self.RawValue == String {
-    internal func property<T>(in object: Object, representer: Representer<T>) -> Property<T> {
+    func property<T>(in object: Object, representer: Representer<T>) -> Property<T> {
         return Property(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -19,7 +19,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    internal func property<T>(in object: Object, representer: Representer<T>) -> Property<T?> {
+    func property<T>(in object: Object, representer: Representer<T>) -> Property<T?> {
         return Property(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -374,8 +374,6 @@ extension PropertyState: Equatable where T: Equatable {
     }
 }
 
-infix operator =?
-infix operator =!
 public extension PropertyState {
     static func ?? (optional: PropertyState<T>, defaultValue: @autoclosure () throws -> T) rethrows -> T {
         return try optional.wrapped ?? defaultValue()
@@ -383,21 +381,8 @@ public extension PropertyState {
     static func ?? (optional: PropertyState<T>, defaultValue: @autoclosure () throws -> T?) rethrows -> T? {
         return try optional.wrapped ?? defaultValue()
     }
-    static func =?(_ value: inout T, _ prop: PropertyState<T>) {
-        if let v = prop.wrapped {
-            value = v
-        }
-    }
-    static func =?(_ value: inout T?, _ prop: PropertyState<T>) {
-        if let v = prop.wrapped {
-            value = v
-        }
-    }
     static func <==(_ value: inout T?, _ prop: PropertyState<T>) {
         value = prop.wrapped
-    }
-    static func =!(_ value: inout T, _ prop: PropertyState<T>) {
-        value = prop.wrapped!
     }
 }
 public extension PropertyState where T: _Optional {
@@ -556,10 +541,35 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
     }
 }
 
+prefix operator §
+public extension ReadonlyProperty {
+    static prefix func § (prop: ReadonlyProperty) -> T? {
+        return prop.wrapped
+    }
+}
+
 infix operator <==: AssignmentPrecedence
 public extension Property {
     static func <== (_ prop: Property, _ value: @autoclosure () throws -> T) rethrows {
         prop._setLocalValue(try value())
+    }
+}
+infix operator <!=: AssignmentPrecedence
+public extension Property where T: Equatable {
+    static func <!= (_ prop: Property, _ value: @autoclosure () throws -> T) rethrows {
+        let newValue = try value()
+        switch (prop.state, prop.oldValue) {
+        case (.remote(let oldValue), _):
+            if oldValue != newValue {
+                prop._setLocalValue(newValue)
+            }
+        case (.local, .some(let old)):
+            if old.wrapped == newValue {
+                prop._setLocalValue(newValue)
+            }
+        default:
+            prop._setLocalValue(newValue)
+        }
     }
 }
 
@@ -775,11 +785,6 @@ public extension ReadonlyProperty {
     static func ?? (optional: ReadonlyProperty, defaultValue: @autoclosure () throws -> T?) rethrows -> T? {
         return try optional.wrapped ?? defaultValue()
     }
-    static func =?(_ value: inout T, _ prop: ReadonlyProperty) {
-        if let v = prop.wrapped {
-            value = v
-        }
-    }
     static func <==(_ value: inout T?, _ prop: ReadonlyProperty) {
         value = prop.wrapped
     }
@@ -883,6 +888,20 @@ public extension ReadonlyProperty where T: HasDefaultLiteral & _ComparableWithDe
     func defaultOnEmpty() -> Self {
         self.representer = Representer(defaultOnEmpty: representer)
         return self
+    }
+}
+public extension ReadonlyProperty where T: Comparable {
+    public static func < (lhs: ReadonlyProperty<T>, rhs: T) -> Bool {
+        return lhs.mapValue({ $0 < rhs }) ?? false
+    }
+    public static func > (lhs: ReadonlyProperty<T>, rhs: T) -> Bool {
+        return lhs.mapValue({ $0 > rhs }) ?? false
+    }
+    public static func < (lhs: T, rhs: ReadonlyProperty<T>) -> Bool {
+        return rhs.mapValue({ $0 > lhs }) ?? false
+    }
+    public static func > (lhs: T, rhs: ReadonlyProperty<T>) -> Bool {
+        return rhs.mapValue({ $0 < lhs }) ?? false
     }
 }
 

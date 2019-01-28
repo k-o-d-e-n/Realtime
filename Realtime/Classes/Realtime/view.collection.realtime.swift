@@ -356,7 +356,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         }
         _elements.removeAll()
         for item in view {
-            let itemNode = node.child(with: item.dbKey)
+            let itemNode = node.child(with: item.node?.key ?? RealtimeApp.app.database.generateAutoID())
             try item.write(to: transaction, by: itemNode)
         }
     }

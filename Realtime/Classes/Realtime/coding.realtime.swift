@@ -615,7 +615,7 @@ public extension Representer where V: Codable {
                 let e = JSONEncoder()
                 e.dateEncodingStrategy = dateEncodingStrategy
                 e.keyEncodingStrategy = keyEncodingStrategy
-                let data = try JSONEncoder().encode(v)
+                let data = try e.encode(v)
                 return try JSONSerialization.jsonObject(with: data, options: .allowFragments)
             },
             decoding: V.init

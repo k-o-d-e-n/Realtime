@@ -571,6 +571,19 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         }
     }
 
+    public func currentVersion(on level: UInt) throws -> Version {
+        if isRooted {
+            guard var versioner = _version.map(Versioner.init) else { return Version(0, 0) }
+            try (0..<level).forEach({ _ in _ = try versioner.dequeue() })
+            return try versioner.dequeue()
+        } else {
+            var versioner = Versioner()
+            putVersion(into: &versioner)
+            try (0..<level).forEach({ _ in _ = try versioner.dequeue() })
+            return try versioner.dequeue()
+        }
+    }
+
     open func performMigration(from currentVersion: inout Versioner, to newVersion: inout Versioner, in transaction: Transaction) throws {
         // override in subclass
         // always call super method first, otherwise result of migration can be unexpected

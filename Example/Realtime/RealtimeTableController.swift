@@ -65,13 +65,13 @@ class RealtimeTableController: UITableViewController {
         }
         delegate.register(UITableViewCell.self) { (item, _, user, ip) in
             item.bind(user.name, { (cell, val) in
-                cell.textLabel!.text =? val
+                cell.textLabel!.text <== val
             }, nil)
         }
         delegate.register(TableCell.self) { (item, cell, user, ip) in
             cell.startIndicatorIfNeeeded()
             item.bind(user.name, { (cell, name) in
-                cell.label.text =? name
+                cell.label.text <== name
                 cell.indicator.stopAnimating()
             }, nil)
         }

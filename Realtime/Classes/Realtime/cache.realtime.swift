@@ -351,7 +351,7 @@ extension ObjectNode {
                         if n === node {
                             debugFatalError(condition: type(of: old) != type(of: v), "Tries to insert database value to storage node or conversely")
                             old.value = v.value
-                            debugLog("Replaced value by node: \(node) with value: \(v.value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
+                            debugPrintLog("Replaced value by node: \(node) with value: \(v.value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
                         } else {
                             fatalError("Tries insert value lower than earlier writed single value")
                         }
@@ -497,7 +497,7 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     }
 
     func generateAutoID() -> String {
-        return Database.database().generateAutoID() // need avoid using Firebase database
+        return UUID().uuidString // can be use function from firebase
     }
 
     func commit(transaction: Transaction, completion: ((Error?) -> Void)?) {
