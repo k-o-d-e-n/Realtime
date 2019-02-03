@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 public extension RawRepresentable where RawValue == String {
     func dictionary<Key, Value>(in object: Object, keys: Node) -> AssociatedValues<Key, Value> {
@@ -65,17 +64,22 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         get { return view.keepSynced }
     }
     public lazy var changes: AnyListenable<RCEvent> = self.view.changes
-        .do(onValue: { [unowned self] (e) in
+        .map { [unowned self] (data, e) in
             switch e {
             case .initial: break
             case .updated(let deleted, _, _, _):
-                deleted.forEach({ i in
-                    _ = self.storage
-                        .element(for: self.view[i].dbKey)
-                        .map({ self.storage.remove(for: $0.key) })
-                })
+                if !deleted.isEmpty {
+                    if deleted.count == 1 {
+                        self.didRemoveElement(by: data.key!)
+                    } else {
+                        data.forEach({ child in
+                            self.didRemoveElement(by: child.key!)
+                        })
+                    }
+                }
             }
-        })
+            return e
+        }
         .shared(connectionLive: .continuous)
         .asAny()
     public var dataExplorer: RCDataExplorer = .view(ascending: false) {
@@ -221,6 +225,12 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         super.didRemove(from: ancestor)
         view.didRemove()
         storage.forEach { $0.value.didRemove(from: valueBuilder.spaceNode) }
+    }
+
+    private func didRemoveElement(by key: String) {
+        _ = self.storage
+            .element(for: key)
+            .map({ self.storage.remove(for: $0.key) })
     }
 
     override public var debugDescription: String {
@@ -378,7 +388,7 @@ extension AssociatedValues {
     ///   - transaction: Write transaction or `nil`
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction? {
+    public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
         guard keyBuilder.spaceNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         let transaction = transaction ?? Transaction(database: database)
@@ -485,15 +495,19 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
         get { return view.keepSynced }
     }
     public lazy var changes: AnyListenable<RCEvent> = self.view.changes
-        .do(onValue: { [unowned self] (e) in
+        .map { [unowned self] (data, e) in
             switch e {
             case .initial: break
             case .updated(let deleted, _, let modified, _):
-                deleted.forEach({ i in
-                    _ = self.storage
-                        .element(for: self.view[i].dbKey)
-                        .map({ self.storage.remove(for: $0.key) })
-                })
+                if !deleted.isEmpty {
+                    if deleted.count == 1 {
+                        self.didRemoveElement(by: data.key!)
+                    } else {
+                        data.forEach({ child in
+                            self.didRemoveElement(by: child.key!)
+                        })
+                    }
+                }
                 modified.forEach({ (i) in
                     let value = self.view[i]
                     self.storage
@@ -501,7 +515,8 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
                         .map({ self.storage.set(value: value, for: $0.key) })
                 })
             }
-        })
+            return e
+        }
         .shared(connectionLive: .continuous)
         .asAny()
     public var dataExplorer: RCDataExplorer = .view(ascending: false) {
@@ -595,7 +610,14 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: Transaction, by node: Node) throws {
         /// skip the call of super (_RealtimeValue)
-        try view._write(to: transaction, by: node)
+        let view = self.view.elements
+        transaction.addReversion { [weak self] in
+            self?.view.elements = view
+        }
+        self.view.removeAll()
+        for (key: key, value: value) in storage {
+            try transaction._set(value, by: Node(key: key.dbKey, parent: node))
+        }
     }
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
@@ -606,6 +628,12 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
         view.didRemove()
+    }
+
+    private func didRemoveElement(by key: String) {
+        _ = self.storage
+            .element(for: key)
+            .map({ self.storage.remove(for: $0.key) })
     }
 
     override public var debugDescription: String {
@@ -621,5 +649,39 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
 extension ExplicitAssociatedValues {
     public func value(for key: Key, completion: @escaping (Value?, Error?) -> Void) {
         view._item(for: key.dbKey, completion: completion)
+    }
+
+    public func removeAll() {
+        view.removeAll()
+        storage.removeAll()
+    }
+
+    @discardableResult
+    public func set(_ value: Value, for key: Key) -> Int {
+        guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
+        storage.set(value: value, for: key)
+        return view.insert(value)
+    }
+    @discardableResult
+    public func remove(at index: Int) -> Value {
+        guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
+        return view.remove(at: index)
+    }
+    @discardableResult
+    public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction {
+        guard isRooted else { fatalError("Cannot be written, because collection is not rooted") }
+        guard let valueNode = view.first(where: { $0.dbKey == key.dbKey }).node else { fatalError("Value is not found") }
+
+        let transaction = transaction ?? Transaction()
+        transaction.removeValue(by: valueNode)
+        return transaction
+    }
+    public func write(_ value: Value, for key: Key, in transaction: Transaction) throws {
+        guard let parentNode = self.node, parentNode.isRooted
+            else { fatalError("Cannot be written, because collection is not rooted") }
+        try transaction._set(
+            value,
+            by: Node(key: key.dbKey ?? transaction.database.generateAutoID(), parent: parentNode)
+        )
     }
 }

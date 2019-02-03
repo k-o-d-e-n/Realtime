@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 public extension RawRepresentable where RawValue == String {
     func values<Element>(in object: Object) -> Values<Element> {
@@ -64,15 +63,22 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         get { return view.keepSynced }
     }
     public lazy var changes: AnyListenable<RCEvent> = self.view.changes
-        .do(onValue: { [unowned self] (e) in
+        .map { [unowned self] (data, e) in
             switch e {
             case .initial: break
             case .updated(let deleted, _, _, _):
-                deleted.forEach({ i in
-                    self.storage.remove(for: self.view[i].dbKey)
-                })
+                if !deleted.isEmpty {
+                    if deleted.count == 1 {
+                        self.storage.remove(for: data.key!)
+                    } else {
+                        data.forEach({ child in
+                            self.storage.remove(for: child.key!)
+                        })
+                    }
+                }
             }
-        })
+            return e
+        }
         .shared(connectionLive: .continuous)
         .asAny()
     public var dataExplorer: RCDataExplorer = .view(ascending: false) {
@@ -422,6 +428,7 @@ where Element: WritableRealtimeValue & Comparable {
         get { return view.keepSynced }
     }
     public lazy var changes: AnyListenable<RCEvent> = self.view.changes
+        .map({ $1 })
         .shared(connectionLive: .continuous)
         .asAny()
     public var dataExplorer: RCDataExplorer = .view(ascending: false) {

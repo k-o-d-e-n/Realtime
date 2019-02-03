@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 /// An object that contains value is associated by database reference.
 public protocol UpdateNode: RealtimeDataProtocol {
@@ -574,7 +573,11 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     func observe(_ event: DatabaseDataEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
                  completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
                  onCancel: ((Error) -> Void)?) -> Disposable {
-        fatalError("Not implemented")
+        fatalError("Unimplemented")
+    }
+
+    func runTransaction(in node: Node, withLocalEvents: Bool, _ updater: @escaping (RealtimeDataProtocol) -> ConcurrentIterationResult, onComplete: ((ConcurrentOperationResult) -> Void)?) {
+        fatalError("Unimplemented")
     }
 
     // storage

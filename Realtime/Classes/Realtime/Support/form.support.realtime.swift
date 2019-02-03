@@ -496,6 +496,10 @@ extension Form {
             }
         }
 
+        func tableView(_ tableView: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {
+            return form.tableDelegate?.tableView?(tableView, shouldHighlightRowAt: indexPath) ?? true
+        }
+
         func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
             tableView.deselectRow(at: indexPath, animated: true)
             form.didSelect(at: indexPath)

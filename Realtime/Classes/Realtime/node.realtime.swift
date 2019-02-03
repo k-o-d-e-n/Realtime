@@ -7,8 +7,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
-import FirebaseStorage
 
 enum InternalKeys: String, CodingKey {
     /// version of RealtimeValue
@@ -330,17 +328,6 @@ public class Node: Hashable {
     public var debugDescription: String { return description }
 }
 extension Node: CustomStringConvertible, CustomDebugStringConvertible {}
-public extension Node {
-    static func from(_ reference: DatabaseReference) -> Node {
-        return Node.root.child(with: reference.rootPath)
-    }
-    public func reference(for database: Database = Database.database()) -> DatabaseReference {
-        return .fromRoot(absolutePath, of: database)
-    }
-    public func file(for storage: Storage = Storage.storage()) -> StorageReference {
-        return storage.reference(withPath: absolutePath)
-    }
-}
 public extension Node {
     /// Returns a child reference of database tree
     ///

@@ -246,3 +246,27 @@ internal func _makeCollectionDescription<C: Collection>(_ collection: C,
     result += type != nil ? "])" : "]"
     return result
 }
+
+class ObjectWithOptionalNestedObject: Object {
+    var nestedObj: Object?
+}
+
+extension OtherTests {
+    func testOptionalNestedObject() {
+        let objONO = ObjectWithOptionalNestedObject()
+        objONO.nestedObj = Object()
+
+        let mirror = Mirror(reflecting: objONO)
+        mirror.children.forEach { (child) in
+            XCTAssertNotNil(child.value as? _RealtimeValue)
+        }
+    }
+//    func testApplyingOptionalNestedObject() {
+//        let objONO = ObjectWithOptionalNestedObject()
+//
+//        let data = ObjectNode(node: .root, childs: [.value(ValueNode(node: Node(key: "nestedObj", parent: .root), value: [InternalKeys.raw.rawValue: 0]))])
+//        try! objONO.apply(data, event: .value)
+//
+//        XCTAssertNotNil(objONO.nestedObj)
+//    }
+}

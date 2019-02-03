@@ -20,6 +20,18 @@ extension DatabaseReference {
     }
 }
 
+extension Node {
+    static func from(_ reference: DatabaseReference) -> Node {
+        return Node.root.child(with: reference.rootPath)
+    }
+    public func reference(for database: Database = Database.database()) -> DatabaseReference {
+        return .fromRoot(absolutePath, of: database)
+    }
+    public func file(for storage: Storage = Storage.storage()) -> StorageReference {
+        return storage.reference(withPath: absolutePath)
+    }
+}
+
 /// Realtime database cache policy
 ///
 /// - default: Default cache policy (usually, it corresponds `inMemory` case)
@@ -117,6 +129,15 @@ public enum RealtimeDataOrdering {
     case child(String)
 }
 
+public enum ConcurrentIterationResult {
+    case abort
+    case value(Any?)
+}
+public enum ConcurrentOperationResult {
+    case error(Error)
+    case data(RealtimeDataProtocol)
+}
+
 /// A database that can used in `Realtime` framework.
 public protocol RealtimeDatabase: class {
     /// A database cache policy.
@@ -163,6 +184,14 @@ public protocol RealtimeDatabase: class {
         completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> Disposable
+
+    func runTransaction(
+        in node: Node,
+        withLocalEvents: Bool,
+        _ updater: @escaping (RealtimeDataProtocol) -> ConcurrentIterationResult,
+        onComplete: ((ConcurrentOperationResult) -> Void)?
+    )
+
     /// Removes all of existing observers on passed database reference.
     ///
     /// - Parameter node: Database reference
@@ -369,6 +398,36 @@ extension Database: RealtimeDatabase {
                 changed.map(query.removeObserver)
             })
         }
+    }
+
+    public func runTransaction(
+        in node: Node,
+        withLocalEvents: Bool,
+        _ updater: @escaping (RealtimeDataProtocol) -> ConcurrentIterationResult,
+        onComplete: ((ConcurrentOperationResult) -> Void)?
+    ) {
+        reference(withPath: node.absolutePath).runTransactionBlock(
+            { mutableData in
+                switch updater(mutableData) {
+                case .abort: return .abort()
+                case .value(let v):
+                    mutableData.value = v
+                    return .success(withValue: mutableData)
+                }
+            },
+            andCompletionBlock: onComplete.map({ closure in
+                return { error, flag, data in
+                    if let e = error {
+                        closure(.error(RealtimeError(external: e, in: .database)))
+                    } else if flag, let d = data {
+                        closure(.data(d))
+                    } else {
+                        closure(.error(RealtimeError(source: .database, description: "Unexpected result of concurrent operation")))
+                    }
+                }
+            }),
+            withLocalEvents: withLocalEvents
+        )
     }
 }
 

@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 public extension RawRepresentable where Self.RawValue == String {
     func property<T>(in object: Object, representer: Representer<T>) -> Property<T> {
@@ -907,15 +906,25 @@ public extension ReadonlyProperty where T: Comparable {
 
 // TODO: Reconsider usage it. Some RealtimeValue things are not need here.
 public final class SharedProperty<T>: _RealtimeValue where T: RealtimeDataValue & HasDefaultLiteral {
-    private var _value: T
-    public var value: T { return _value }
+    private var _value: State
+    public var value: T {
+        switch _value {
+        case .error(_, let old): return old
+        case .value(let v): return v
+        }
+    }
     let repeater: Repeater<T> = Repeater.unsafe()
     let representer: Representer<T> = .any
+
+    enum State {
+        case error(Error, old: T)
+        case value(T)
+    }
 
     // MARK: Initializers, deinitializer
 
     public required init(in node: Node?, options: [ValueOption: Any]) {
-        self._value = T()
+        self._value = .value(T())
         super.init(in: node, options: options)
     }
 
@@ -923,24 +932,31 @@ public final class SharedProperty<T>: _RealtimeValue where T: RealtimeDataValue 
 
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
-        setValue(T())
+        setState(.value(T()))
     }
 
     // MARK: Changeable
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        self._value = T()
+        self._value = .value(T())
         try super.init(data: data, event: event)
     }
 
     override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try super.apply(data, event: event)
-        setValue(try representer.decode(data))
+        setState(.value(try representer.decode(data)))
     }
 
-    fileprivate func setValue(_ value: T) {
+    fileprivate func setError(_ error: Error) {
+        setState(.error(error, old: value))
+    }
+
+    fileprivate func setState(_ value: State) {
         self._value = value
-        repeater.send(.value(value))
+        switch value {
+        case .error(let e, _): repeater.send(.error(e))
+        case .value(let v): return repeater.send(.value(v))
+        }
     }
 }
 extension SharedProperty: Listenable {
@@ -950,40 +966,36 @@ extension SharedProperty: Listenable {
 }
 
 public extension SharedProperty {
-    public func changeValue(use changing: @escaping (T) throws -> T,
-                            completion: ((Bool, T) -> Void)? = nil) {
-        guard let ref = node?.reference() else  {
+    public func change(use updater: @escaping (T) throws -> T) {
+        guard let database = self.database, let node = self.node, node.isRooted else  {
             fatalError("Can`t get database reference")
         }
-        ref.runTransactionBlock({ data in
-            do {
-                let dataValue = data.exists() ? try T.init(data: data) : T()
-                data.value = try changing(dataValue)
-            } catch let e {
-                debugFatalError(e.localizedDescription)
-
-                return .abort()
-            }
-            return .success(withValue: data)
-        }, andCompletionBlock: { [unowned self] error, commited, snapshot in
-            guard error == nil else {
-                completion?(false, self.value)
-                return
-            }
-
-            if let s = snapshot {
+        let representer = self.representer
+        database.runTransaction(
+            in: node,
+            withLocalEvents: true,
+            { (data) -> ConcurrentIterationResult in
                 do {
-                    self.setValue(try self.representer.decode(s))
-                    completion?(true, self.value)
-                } catch {
-                    completion?(false, self.value)
+                    let currentValue = data.exists() ? try T.init(data: data) : T()
+                    let newValue = try updater(currentValue)
+                    return .value(try representer.encode(newValue))
+                } catch let e {
+                    debugFatalError(e.localizedDescription)
+                    return .abort
                 }
-            } else {
-                debugFatalError("Transaction completed without error, but snapshot does not exist")
-
-                completion?(false, self.value)
+            },
+            onComplete: { result in
+                switch result {
+                case .error(let e): self.setError(e)
+                case .data(let data):
+                    do {
+                        self.setState(.value(try self.representer.decode(data)))
+                    } catch let e {
+                        self.setError(e)
+                    }
+                }
             }
-        })
+        )
     }
 }
 

@@ -6,8 +6,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
-import FirebaseStorage
 
 /// TODO: Reconsider it
 public protocol Reverting: class {

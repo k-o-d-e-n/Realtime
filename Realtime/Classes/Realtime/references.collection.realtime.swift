@@ -56,14 +56,21 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         get { return view.keepSynced }
     }
     public lazy var changes: AnyListenable<RCEvent> = self.view.changes
-        .do(onValue: { [unowned self] event in
-            switch event {
-            case .initial: return
+        .map({ [unowned self] (data, e) in
+            switch e {
+            case .initial: return e
             case .updated(let deleted, _, _, _):
-                deleted.forEach({ i in
-                    self.storage.remove(for: self.view[i].dbKey)
-                })
+                if !deleted.isEmpty {
+                    if deleted.count == 1 {
+                        self.storage.remove(for: data.key!)
+                    } else {
+                        data.forEach({ child in
+                            self.storage.remove(for: child.key!)
+                        })
+                    }
+                }
             }
+            return e
         })
         .shared(connectionLive: .continuous)
         .asAny()

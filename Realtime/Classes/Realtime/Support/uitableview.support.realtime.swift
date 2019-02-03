@@ -545,13 +545,13 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
     fileprivate lazy var delegateService: Service = Service(self)
     var sections: AnySharedCollection<Section> {
         willSet {
-            sections.lazy.map(models).forEach { $0.keepSynced = false }
+            sections.enumerated().lazy.map({ self.models($1, $0) }).forEach { $0.keepSynced = false }
         }
     }
-    let models: (Section) -> AnyRealtimeCollection<Model>
+    let models: (Section, Int) -> AnyRealtimeCollection<Model>
 
     public init<C: BidirectionalCollection>(_ sections: C,
-                                            _ models: @escaping (Section) -> AnyRealtimeCollection<Model>,
+                                            _ models: @escaping (Section, Int) -> AnyRealtimeCollection<Model>,
                                             cell: @escaping ConfigureCell,
                                             section: @escaping ConfigureSection)
         where C.Element == Section {
@@ -563,7 +563,7 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
 
     deinit {
         reuseSectionController.free()
-        sections.lazy.map(models).forEach { $0.keepSynced = false }
+        sections.enumerated().lazy.map({ self.models($1, $0) }).forEach { $0.keepSynced = false }
     }
 
     /// Registers new type of cell with binding closure
@@ -585,7 +585,7 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
     }
 
     public override func model(at indexPath: IndexPath) -> Model {
-        let items = reuseSectionController.active(at: indexPath.section)?.items ?? models(sections[indexPath.section])
+        let items = reuseSectionController.active(at: indexPath.section)?.items ?? models(sections[indexPath.section], indexPath.section)
         return items[items.index(items.startIndex, offsetBy: indexPath.row)]
     }
 
@@ -629,7 +629,7 @@ extension SectionedTableViewDelegate {
         }
 
         func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-            return delegate.models(delegate.sections[section]).count
+            return delegate.models(delegate.sections[section], section).count
         }
 
         func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -718,7 +718,7 @@ extension SectionedTableViewDelegate {
             bind(item, view, model, section)
 
             if item.isNotBeingDisplay {
-                item.willDisplaySection(tableView, items: delegate.models(delegate.sections[section]), at: section)
+                item.willDisplaySection(tableView, items: delegate.models(delegate.sections[section], section), at: section)
             }
 
             delegate.tableDelegate?.tableView?(tableView, willDisplayHeaderView: view, forSection: section)

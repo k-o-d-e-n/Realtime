@@ -333,7 +333,7 @@ class RealtimeViewController: UIViewController {
             let transaction = g.conversations.remove(for: u)
 
             self.freeze()
-            transaction?.commit(with: { _, errs in
+            transaction.commit(with: { _, errs in
                 self.unfreeze()
                 if let errors = errs {
                     print(errors)
