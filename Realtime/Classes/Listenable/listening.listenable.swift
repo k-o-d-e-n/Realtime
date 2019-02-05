@@ -49,12 +49,14 @@ extension ListeningDispose {
 
 /// Listening with possibility to control connection state
 public final class ListeningItem {
-    let _resume: () -> Void
-    let _pause: () -> Void
-    let _dispose: () -> Void
-    let _isListen: () -> Bool
+    private let _resume: () -> Void
+    private let _pause: () -> Void
+    private let _dispose: () -> Void
+    private let _isListen: () -> Bool
 
     public var isListen: Bool { return _isListen() }
+    var invalidated: Int32 = 0
+    public var isDisposed: Bool { return invalidated == 1 }
 
     public init<Token>(resume: @escaping () -> Token?, pause: @escaping (Token) -> Void, dispose: (() -> Void)? = nil, token: Token?) {
         var tkn = token
@@ -95,10 +97,12 @@ public final class ListeningItem {
 }
 extension ListeningItem: Disposable {
     public func dispose() {
-        if isListen {
-            _pause()
+        if OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated) {
+            if isListen {
+                _pause()
+            }
+            _dispose()
         }
-        _dispose()
     }
 }
 
@@ -121,6 +125,8 @@ public extension Disposable {
 public final class ListeningDisposeStore {
     private var disposes = [Disposable]()
     private var listeningItems = [ListeningItem]()
+
+    var isEmpty: Bool { return listeningItems.isEmpty && disposes.isEmpty }
 
     public init() {}
 

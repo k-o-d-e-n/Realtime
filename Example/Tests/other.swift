@@ -16,7 +16,7 @@ class OtherTests: XCTestCase {
         var counter = 0
         let control = UIControl()
 
-        let disposable = control.onEvent(.touchUpInside).listening({ _ in
+        let disposable = control.realtime.onEvent(.touchUpInside).listening({ _ in
             counter += 1
         })
 
@@ -204,6 +204,24 @@ extension OtherTests {
         XCTAssertTrue(node1._hasMultipleLevelNode)
         XCTAssertFalse(node2._hasMultipleLevelNode)
     }
+
+    func testDecodingRawValue() {
+        let data: RealtimeDataProtocol = ObjectNode(node: .root, childs: [.value(ValueNode(node: Node(key: InternalKeys.raw, parent: .root), value: 1))])
+
+        do {
+            let rawValue = try data.rawValue()
+            XCTAssertEqual(rawValue as! Int, 1)
+        } catch let e {
+            XCTFail(e.describingErrorDescription)
+        }
+    }
+
+    func testPrefixOperator() {
+        let obj = TestObject()
+        obj.property <== "string"
+
+        XCTAssertEqual(§obj.property, "string")
+    }
 }
 
 internal func _makeCollectionDescription<C: Collection>(_ collection: C,
@@ -227,4 +245,28 @@ internal func _makeCollectionDescription<C: Collection>(_ collection: C,
     }
     result += type != nil ? "])" : "]"
     return result
+}
+
+class ObjectWithOptionalNestedObject: Object {
+    var nestedObj: Object?
+}
+
+extension OtherTests {
+    func testOptionalNestedObject() {
+        let objONO = ObjectWithOptionalNestedObject()
+        objONO.nestedObj = Object()
+
+        let mirror = Mirror(reflecting: objONO)
+        mirror.children.forEach { (child) in
+            XCTAssertNotNil(child.value as? _RealtimeValue)
+        }
+    }
+//    func testApplyingOptionalNestedObject() {
+//        let objONO = ObjectWithOptionalNestedObject()
+//
+//        let data = ObjectNode(node: .root, childs: [.value(ValueNode(node: Node(key: "nestedObj", parent: .root), value: [InternalKeys.raw.rawValue: 0]))])
+//        try! objONO.apply(data, event: .value)
+//
+//        XCTAssertNotNil(objONO.nestedObj)
+//    }
 }

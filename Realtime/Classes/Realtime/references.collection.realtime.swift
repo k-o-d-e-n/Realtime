@@ -56,14 +56,21 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         get { return view.keepSynced }
     }
     public lazy var changes: AnyListenable<RCEvent> = self.view.changes
-        .do(onValue: { [unowned self] event in
-            switch event {
-            case .initial: return
+        .map({ [unowned self] (data, e) in
+            switch e {
+            case .initial: return e
             case .updated(let deleted, _, _, _):
-                deleted.forEach({ i in
-                    self.storage.remove(for: self.view[i].dbKey)
-                })
+                if !deleted.isEmpty {
+                    if deleted.count == 1 {
+                        self.storage.remove(for: data.key!)
+                    } else {
+                        data.forEach({ child in
+                            self.storage.remove(for: child.key!)
+                        })
+                    }
+                }
             }
+            return e
         })
         .shared(connectionLive: .continuous)
         .asAny()
@@ -86,12 +93,6 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         self.storage = RCKeyValueStorage()
         self.view = view
         super.init(in: view.node, options: options)
-    }
-
-    public convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, elementsNode: Node) throws {
-        self.init(in: data.node, options: [.elementsNode: elementsNode,
-                                               .database: data.database as Any])
-        try apply(data, event: event)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -180,7 +181,7 @@ public class References<Element: RealtimeValue>: __RepresentableCollection<Eleme
     /// Currently, no available.
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("References does not supported init(data:event:) yet.")
+        fatalError("References does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
         #else
         throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
         #endif
@@ -453,9 +454,9 @@ public class DistributedReferences<Element: RealtimeValue>: __RepresentableColle
     /// Currently, no available.
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("References does not supported init(data:event:) yet.")
+        fatalError("DistributedReferences does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
         #else
-        throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
+        throw RealtimeError(source: .collection, description: "DistributedReferences does not supported init(data:event:) yet.")
         #endif
     }
 
@@ -542,9 +543,9 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         #if DEBUG
-        fatalError("References does not supported init(data:event:) yet.")
+        fatalError("Relations does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
         #else
-        throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
+        throw RealtimeError(source: .collection, description: "Relations does not supported init(data:event:) yet.")
         #endif
     }
 
@@ -664,18 +665,6 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
             "Collection did save in node that is not have ancestor with defined anchor type \(options.anchor)"
         )
         super.didSave(in: database, in: parent, by: key)
-    }
-
-    public override func willRemove(in transaction: Transaction, from ancestor: Node) {
-        super.willRemove(in: transaction, from: ancestor)
-        transaction.addPrecondition { [unowned transaction] (promise) in
-            self.view.load(completion: .just { [unowned self] e in
-                self.view.forEach({ (item) in
-                    self._removeBackward(for: item, element: nil, in: transaction)
-                })
-                promise.fulfill()
-            })
-        }
     }
 }
 
@@ -872,19 +861,5 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
             self?.storage[item.dbKey] = element
         }
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item
-        /// a backward remove
-        _removeBackward(for: item, element: element, in: transaction)
-    }
-
-    private func _removeBackward(for item: RelationsItem, element: Element?, in transaction: Transaction) {
-        let anchorNode = options.anchor(forElement: (element ?? buildElement(with: item)).node!, collection: self.node!)!.element
-        let ownerNode = self.node!.ancestor(onLevelUp: options.ownerLevelsUp)!
-
-        var node = anchorNode.child(with: item.relation.targetPath).child(with: item.relation.relatedProperty)
-        switch options.property {
-        case .oneToMany, .manyToMany: node = node.child(with: ownerNode.key)
-        case .oneToOne: break
-        }
-        transaction.removeValue(by: node)
     }
 }

@@ -36,7 +36,7 @@ extension Optional: _Optional {
 public extension Listenable where Out: RealtimeValueActions {
     /// Loads a value is associated with `RealtimeValueActions` value
     func load(timeout: DispatchTimeInterval = .seconds(10)) -> Preprocessor<Out, Out> {
-        return onReceive({ (prop, promise) in
+        return doAsync({ (prop, promise) in
             prop.load(timeout: timeout, completion: <-{ err in
                 if let e = err {
                     promise.reject(e)
@@ -143,14 +143,10 @@ extension UIControl {
         static func ==(lhs: Listening, rhs: Listening) -> Bool { return lhs === rhs }
     }
 }
+extension UIControl: RealtimeCompatible {}
 public extension RTime where Base: UIControl {
     func onEvent(_ controlEvent: UIControl.Event) -> ControlEvent<Base> {
         return ControlEvent(control: base, events: controlEvent)
-    }
-}
-extension UIControl: RealtimeCompatible {
-    public func onEvent(_ controlEvent: UIControl.Event) -> ControlEvent<UIControl> {
-        return ControlEvent(control: self, events: controlEvent)
     }
 }
 public extension RTime where Base: UITextField {
@@ -158,10 +154,45 @@ public extension RTime where Base: UITextField {
         return onEvent(.editingChanged).map { $0.0.text }
     }
 }
-public extension UITextField {
-    func onTextChange() -> Preprocessor<(control: UITextField, event: UIEvent), String?> {
-        return ControlEvent(control: self, events: .valueChanged).map({ $0.0.text })
+
+extension UIBarButtonItem {
+    public class Tap<BI: UIBarButtonItem>: Listenable {
+        let repeater: Repeater<BI> = Repeater.unsafe()
+        weak var buttonItem: BI?
+
+        init(item: BI) {
+            self.buttonItem = item
+            item.target = self
+            item.action = #selector(_action(_:))
+        }
+
+        @objc func _action(_ button: UIBarButtonItem) {
+            repeater.send(.value(button as! BI))
+        }
+
+        public func listening(_ assign: Closure<ListenEvent<BI>, Void>) -> Disposable {
+            let disposable = repeater.listening(assign)
+            let unmanaged = Unmanaged.passUnretained(self).retain()
+            return ListeningDispose.init({
+                unmanaged.release()
+                disposable.dispose()
+            })
+        }
+        public func listeningItem(_ assign: Closure<ListenEvent<BI>, Void>) -> ListeningItem {
+            let item = repeater.listeningItem(assign)
+            let unmanaged = Unmanaged.passUnretained(self).retain()
+            return ListeningItem(
+                resume: item.resume,
+                pause: item.pause,
+                dispose: { item.dispose(); unmanaged.release() },
+                token: ()
+            )
+        }
     }
+}
+extension UIBarButtonItem: RealtimeCompatible {}
+extension RTime where Base: UIBarButtonItem {
+    public var tap: UIBarButtonItem.Tap<Base> { return UIBarButtonItem.Tap(item: base) }
 }
 
 public extension RTime where Base: UIImagePickerController {

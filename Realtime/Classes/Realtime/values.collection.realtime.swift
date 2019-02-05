@@ -7,7 +7,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 public extension RawRepresentable where RawValue == String {
     func values<Element>(in object: Object) -> Values<Element> {
@@ -64,15 +63,22 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         get { return view.keepSynced }
     }
     public lazy var changes: AnyListenable<RCEvent> = self.view.changes
-        .do(onValue: { [unowned self] (e) in
+        .map { [unowned self] (data, e) in
             switch e {
             case .initial: break
             case .updated(let deleted, _, _, _):
-                deleted.forEach({ i in
-                    self.storage.remove(for: self.view[i].dbKey)
-                })
+                if !deleted.isEmpty {
+                    if deleted.count == 1 {
+                        self.storage.remove(for: data.key!)
+                    } else {
+                        data.forEach({ child in
+                            self.storage.remove(for: child.key!)
+                        })
+                    }
+                }
             }
-        })
+            return e
+        }
         .shared(connectionLive: .continuous)
         .asAny()
     public var dataExplorer: RCDataExplorer = .view(ascending: false) {
@@ -422,6 +428,7 @@ where Element: WritableRealtimeValue & Comparable {
         get { return view.keepSynced }
     }
     public lazy var changes: AnyListenable<RCEvent> = self.view.changes
+        .map({ $1 })
         .shared(connectionLive: .continuous)
         .asAny()
     public var dataExplorer: RCDataExplorer = .view(ascending: false) {
@@ -471,7 +478,7 @@ where Element: WritableRealtimeValue & Comparable {
     /// Collection does not respond for versions and raw value, and also payload.
     /// To change value version/raw can use enum, but use modified representer.
     override func _write(to transaction: Transaction, by node: Node) throws {
-        /// readonly
+        try view._write(to: transaction, by: node)
     }
 
     // TODO: Events are not call for elements
@@ -498,6 +505,44 @@ where Element: WritableRealtimeValue & Comparable {
         elements: \(view.map { $0.dbKey })
         }
         """
+    }
+}
+extension ExplicitValues {
+    public func insert(_ element: Element) -> Int {
+        guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
+        return view.insert(element)
+    }
+    @discardableResult
+    public func remove(at index: Int) -> Element {
+        guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
+        return view.remove(at: index)
+    }
+    public func write(_ element: Element, in transaction: Transaction) throws {
+        guard let parentNode = self.node, parentNode.isRooted
+        else { fatalError("Cannot be written, because collection is not rooted") }
+        try transaction._set(
+            element,
+            by: Node(key: element.node?.key ?? transaction.database.generateAutoID(), parent: parentNode)
+        )
+    }
+    @discardableResult
+    public func remove(at index: Int, in transaction: Transaction) -> Element {
+        guard isRooted else { fatalError("Cannot be written, because collection is not rooted") }
+        guard isSynced else { fatalError("Cannot be removed at index, because collection is not synced.") }
+
+        let element = view[index]
+        transaction.removeValue(by: element.node!)
+        return element
+    }
+}
+extension ExplicitValues where Element: RealtimeValueEvents {
+    public func write(_ element: Element, in transaction: Transaction) throws {
+        guard let parentNode = self.node, parentNode.isRooted
+        else { fatalError("Cannot be written, because collection is not rooted") }
+        try transaction.set(
+            element,
+            by: Node(key: element.node?.key ?? transaction.database.generateAutoID(), parent: self.node)
+        )
     }
 }
 

@@ -108,7 +108,7 @@ public protocol RealtimeDataRepresented {
     ///               Pass `false` if data represents part of data (for example filtered list).
     mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws
 }
-extension RealtimeDataRepresented {
+public extension RealtimeDataRepresented {
     init(data: RealtimeDataProtocol) throws {
         try self.init(data: data, event: .value)
     }
@@ -117,6 +117,11 @@ extension RealtimeDataRepresented {
     }
     mutating func apply(_ data: RealtimeDataProtocol) throws {
         try apply(data, event: .value)
+    }
+}
+public extension RealtimeDataRepresented where Self: Decodable {
+    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try self.init(from: data)
     }
 }
 
@@ -167,57 +172,6 @@ extension RealtimeDataValue {
     }
 }
 
-//extension Optional: RealtimeDataValue where Wrapped: RealtimeDataValue {
-//    public init(data: RealtimeDataProtocol) throws {
-//        if data.exists() {
-//            self = try Wrapped(data: data)
-//        } else {
-//            self = .none
-//        }
-//    }
-//}
-extension Array: RealtimeDataValue, RealtimeDataRepresented where Element: RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        guard let v = data.value as? Array<Element> else {
-            throw RealtimeError(initialization: Array<Element>.self, data.value as Any)
-        }
-
-        self = v
-    }
-}
-
-// TODO: Swift 4.2
-//extension Dictionary: RealtimeDataValue, FireDataRepresented where Key: RealtimeDataValue, Value: RealtimeDataValue {
-//    public init(data: RealtimeDataProtocol) throws {
-//        guard let v = data.value as? [Key: Value] else {
-//            throw RealtimeError("Failed data for type: \([Key: Value].self)")
-//        }
-//
-//        self = v
-//    }
-//}
-extension Dictionary: RealtimeDataValue, RealtimeDataRepresented where Key: RealtimeDataValue, Value == RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        guard let v = data.value as? [Key: Value] else {
-            throw RealtimeError(initialization: [Key: Value].self, data.value as Any)
-        }
-
-        self = v
-    }
-}
-
-extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral {
-    public init() { self = .none }
-    public static func _isDefaultLiteral(_ lhs: Optional<Wrapped>) -> Bool {
-        return lhs == nil
-    }
-}
-//extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral where Wrapped: HasDefaultLiteral & _ComparableWithDefaultLiteral {
-//    public init() { self = .none }
-//    public static func _isDefaultLiteral(_ lhs: Optional<Wrapped>) -> Bool {
-//        return lhs.map(Wrapped._isDefaultLiteral) ?? lhs == nil
-//    }
-//}
 extension Bool      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
 extension Int       : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
 extension Double    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
@@ -234,18 +188,81 @@ extension UInt64    : HasDefaultLiteral, _ComparableWithDefaultLiteral, Realtime
 extension CGFloat   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
 extension String    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
 extension Data      : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
-extension Array     : HasDefaultLiteral {}
-extension Dictionary: HasDefaultLiteral {}
-extension Array: _ComparableWithDefaultLiteral {
+extension Array     : HasDefaultLiteral, _ComparableWithDefaultLiteral {
     public static func _isDefaultLiteral(_ lhs: Array<Element>) -> Bool {
         return lhs.isEmpty
     }
 }
-extension Dictionary: _ComparableWithDefaultLiteral {
+extension Array: RealtimeDataValue, RealtimeDataRepresented where Element: RealtimeDataValue {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        guard let v = data.value as? Array<Element> else {
+            throw RealtimeError(initialization: Array<Element>.self, data.value as Any)
+        }
+
+        self = v
+    }
+}
+extension Dictionary: HasDefaultLiteral, _ComparableWithDefaultLiteral {
     public static func _isDefaultLiteral(_ lhs: Dictionary<Key, Value>) -> Bool {
         return lhs.isEmpty
     }
 }
+extension Dictionary: RealtimeDataValue, RealtimeDataRepresented where Key: RealtimeDataValue, Value == RealtimeDataValue {
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        guard let v = data.value as? [Key: Value] else {
+            throw RealtimeError(initialization: [Key: Value].self, data.value as Any)
+        }
+
+        self = v
+    }
+}
+extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral {
+    public init() { self = .none }
+    public static func _isDefaultLiteral(_ lhs: Optional<Wrapped>) -> Bool {
+        return lhs == nil
+    }
+}
+extension NSNull    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension NSValue   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension NSString  : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension NSArray   : HasDefaultLiteral, _ComparableWithDefaultLiteral {
+    public static func _isDefaultLiteral(_ lhs: NSArray) -> Bool {
+        return lhs.count == 0
+    }
+}
+extension NSDictionary: HasDefaultLiteral, _ComparableWithDefaultLiteral {
+    public static func _isDefaultLiteral(_ lhs: NSDictionary) -> Bool {
+        return lhs.count == 0
+    }
+}
+
+//extension Optional: RealtimeDataValue where Wrapped: RealtimeDataValue {
+//    public init(data: RealtimeDataProtocol) throws {
+//        if data.exists() {
+//            self = try Wrapped(data: data)
+//        } else {
+//            self = .none
+//        }
+//    }
+//}
+
+// TODO: Swift 4.2
+//extension Dictionary: RealtimeDataValue, FireDataRepresented where Key: RealtimeDataValue, Value: RealtimeDataValue {
+//    public init(data: RealtimeDataProtocol) throws {
+//        guard let v = data.value as? [Key: Value] else {
+//            throw RealtimeError("Failed data for type: \([Key: Value].self)")
+//        }
+//
+//        self = v
+//    }
+//}
+
+//extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral where Wrapped: HasDefaultLiteral & _ComparableWithDefaultLiteral {
+//    public init() { self = .none }
+//    public static func _isDefaultLiteral(_ lhs: Optional<Wrapped>) -> Bool {
+//        return lhs.map(Wrapped._isDefaultLiteral) ?? lhs == nil
+//    }
+//}
 
 // MARK: Representer --------------------------------------------------------------------------
 
@@ -598,7 +615,7 @@ public extension Representer where V: Codable {
                 let e = JSONEncoder()
                 e.dateEncodingStrategy = dateEncodingStrategy
                 e.keyEncodingStrategy = keyEncodingStrategy
-                let data = try JSONEncoder().encode(v)
+                let data = try e.encode(v)
                 return try JSONSerialization.jsonObject(with: data, options: .allowFragments)
             },
             decoding: V.init

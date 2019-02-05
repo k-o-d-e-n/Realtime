@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 /// An object that contains value is associated by database reference.
 public protocol UpdateNode: RealtimeDataProtocol {
@@ -351,7 +350,7 @@ extension ObjectNode {
                         if n === node {
                             debugFatalError(condition: type(of: old) != type(of: v), "Tries to insert database value to storage node or conversely")
                             old.value = v.value
-                            debugLog("Replaced value by node: \(node) with value: \(v.value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
+                            debugPrintLog("Replaced value by node: \(node) with value: \(v.value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
                         } else {
                             fatalError("Tries insert value lower than earlier writed single value")
                         }
@@ -497,7 +496,7 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     }
 
     func generateAutoID() -> String {
-        return Database.database().generateAutoID() // need avoid using Firebase database
+        return UUID().uuidString // can be use function from firebase
     }
 
     func commit(transaction: Transaction, completion: ((Error?) -> Void)?) {
@@ -571,13 +570,39 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             }))
     }
 
-    func observe(node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
+    func observe(_ event: DatabaseDataEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
                  completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
                  onCancel: ((Error) -> Void)?) -> Disposable {
-        fatalError("Not implemented")
+        fatalError("Unimplemented")
+    }
+
+    func runTransaction(in node: Node, withLocalEvents: Bool, _ updater: @escaping (RealtimeDataProtocol) -> ConcurrentIterationResult, onComplete: ((ConcurrentOperationResult) -> Void)?) {
+        fatalError("Unimplemented")
     }
 
     // storage
+
+    func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (Data?) -> Void, onCancel: ((Error) -> Void)?) -> RealtimeStorageTask {
+        if node == location {
+            fatalError("Cannot load file from root")
+        } else if let node = child(by: node) {
+            switch node {
+            case .file(let file): completion(file.value as? Data)
+            default: completion(nil)
+            }
+        } else {
+            completion(nil)
+        }
+        return CacheStorageTask()
+    }
+
+    struct CacheStorageTask: RealtimeStorageTask {
+        var progress: AnyListenable<Progress> { return AnyListenable(Constant(Progress(totalUnitCount: 0))) }
+        var success: AnyListenable<RealtimeMetadata?> { return AnyListenable(Constant(nil)) }
+        func pause() {}
+        func cancel() {}
+        func resume() {}
+    }
 
     func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
         let results = transaction.updateNode.files.map { (file) -> Transaction.FileCompletion in

@@ -140,21 +140,24 @@ func checkStates(in v: RealtimeValue, for event: RVEvent, _ line: Int = #line) {
     switch event {
     case .didSave, .willRemove:
         XCTAssertTrue(v.isReferred, "line: \(line)")
-        XCTAssertTrue(v.isInserted, "line: \(line)")
+        XCTAssertTrue(v.isKeyed, "line: \(line)")
         XCTAssertTrue(v.isRooted, "line: \(line)")
         XCTAssertFalse(v.isStandalone, "line: \(line)")
     case .willSave(let t), .didRemove(let t):
         switch t {
         case .rooted: return
-        case .unkeyed: XCTAssertFalse(v.isReferred, "line: \(line)")
-        case .keyed: XCTAssertFalse(v.isReferred, "line: \(line)")
+        case .unkeyed:
+            XCTAssertFalse(v.isKeyed, "line: \(line)")
+            XCTAssertFalse(v.isReferred, "line: \(line)")
+        case .keyed:
+            XCTAssertTrue(v.isKeyed, "line: \(line)")
+            XCTAssertFalse(v.isReferred, "line: \(line)")
         case .nested(parent: let p):
             switch p {
             case .unkeyed: XCTAssertFalse(v.isReferred, "line: \(line)")
             default: XCTAssertTrue(v.isReferred, "line: \(line)")
             }
         }
-        XCTAssertFalse(v.isInserted, "line: \(line)")
         XCTAssertFalse(v.isRooted, "line: \(line)")
         XCTAssertTrue(v.isStandalone, "line: \(line)")
     }
@@ -258,6 +261,22 @@ extension RealtimeTests {
             XCTFail(e.localizedDescription)
         }
     }
+    func testRemovePropertyValue() {
+        let rootObj = Object(in: Node.root, options: [.database: Cache.root])
+        let prop: Property<String?> = "prop".property(in: rootObj)
+
+        prop.remove()
+        let transaction = Transaction(database: Cache.root, storage: Cache.root)
+        do {
+            try rootObj.update(in: transaction)
+        } catch let e {
+            switch e {
+            case _ as RealtimeError: break
+            default: XCTFail("Unexpected error")
+            }
+        }
+        transaction.cancel()
+    }
     func testObjectRemove() {
         let obj = TestObject()
 
@@ -346,7 +365,7 @@ extension RealtimeTests {
                 exp.fulfill()
             }
         } catch let e {
-            XCTFail(e.localizedDescription)
+            XCTFail(e.describingErrorDescription)
         }
 
         waitForExpectations(timeout: 5) { (err) in
@@ -570,10 +589,10 @@ extension RealtimeTests {
                     XCTAssertTrue(group._manager.wrapped?.dbKey == userCopy.dbKey)
                     XCTAssertTrue(groupCopy._manager.wrapped?.dbKey == userCopy.dbKey)
 
-                    // removing must also remove related value
-                    groupCopy._manager <== nil
-                    let removе = try groupCopy.update()
-                    removе.commit(with: { (state, errors) in
+                    let remove = Transaction(database: Cache.root)
+                    try groupCopy._manager.setValue(nil, in: remove)
+                    userCopy.ownedGroups.remove(element: groupCopy, in: remove)
+                    remove.commit(with: { (state, errors) in
                         errors?.forEach({ XCTFail($0.describingErrorDescription) })
 
                         do {
@@ -624,7 +643,9 @@ extension RealtimeTests {
                     XCTAssertTrue(userCopy.ownedGroups.first?.dbKey == groupCopy.dbKey)
 
                     // removing must also remove related value
-                    let remove = userCopy.ownedGroups.remove(element: groupCopy)
+                    let remove = Transaction(database: Cache.root)
+                    userCopy.ownedGroups.remove(element: groupCopy, in: remove)
+                    try groupCopy._manager.setValue(nil, in: remove)
                     remove.commit(with: { (state, errors) in
                         errors?.forEach({ XCTFail($0.describingErrorDescription) })
 
@@ -664,7 +685,7 @@ extension RealtimeTests {
 
             let userCopy = try User(data: data.child(forNode: user.node!), event: .child(.added))
 
-            if case .error(let e, _)? = userCopy.ownedGroup.lastEvent {
+            if case .error(let e, _) = userCopy.ownedGroup.state {
                 XCTFail(e.localizedDescription)
             } else {
                 XCTAssertTrue(userCopy.ownedGroup.unwrapped?.dbKey == userCopy.ownedGroup.unwrapped?.dbKey)
@@ -721,7 +742,7 @@ extension RealtimeTests {
 
             let conversationCopy = try Conversation(data: data.child(forNode: conversation.node!), event: .child(.added))
 
-            if case .error(let e, _)? = conversation.chairman.lastEvent {
+            if case .error(let e, _) = conversation.chairman.state {
                 XCTFail(e.localizedDescription)
             } else {
                 XCTAssertTrue(conversationCopy.secretary.unwrapped?.dbKey == conversation.secretary.unwrapped?.dbKey)
@@ -834,22 +855,22 @@ extension RealtimeTests {
         let node = Node(key: "testObjects", parent: .root)
         testObject.didSave(in: Cache.root, in: node)
 
-        XCTAssertTrue(testObject.isInserted)
-        XCTAssertTrue(testObject.property.isInserted)
-        XCTAssertTrue(testObject.linkedArray.isInserted)
-        XCTAssertTrue(testObject.array.isInserted)
-        XCTAssertTrue(testObject.dictionary.isInserted)
+        XCTAssertTrue(testObject.isRooted)
+        XCTAssertTrue(testObject.property.isRooted)
+        XCTAssertTrue(testObject.linkedArray.isRooted)
+        XCTAssertTrue(testObject.array.isRooted)
+        XCTAssertTrue(testObject.dictionary.isRooted)
     }
 
     func testDisconnectNode() {
         let node = Node(key: "testObjects", parent: .root).childByAutoId()
         let testObject = TestObject(in: node)
 
-        XCTAssertTrue(testObject.isInserted)
-        XCTAssertTrue(testObject.property.isInserted)
-        XCTAssertTrue(testObject.linkedArray.isInserted)
-        XCTAssertTrue(testObject.array.isInserted)
-        XCTAssertTrue(testObject.dictionary.isInserted)
+        XCTAssertTrue(testObject.isRooted)
+        XCTAssertTrue(testObject.property.isRooted)
+        XCTAssertTrue(testObject.linkedArray.isRooted)
+        XCTAssertTrue(testObject.array.isRooted)
+        XCTAssertTrue(testObject.dictionary.isRooted)
 
         testObject.didRemove()
 
@@ -1034,6 +1055,7 @@ extension RealtimeTests {
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
 
+        XCTAssertTrue(testObject.hasChanges)
         do {
             try testObject.update(in: transaction)
 

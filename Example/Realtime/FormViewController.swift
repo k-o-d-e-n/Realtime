@@ -158,7 +158,7 @@ class FormViewController: UIViewController {
                 let delegate = SingleSectionTableViewDelegate(Global.rtGroups, cell: { (tv, ip, _) -> UITableViewCell in
                     return tv.dequeueReusableCell(withIdentifier: NSStringFromClass(UITableViewCell.self), for: ip)
                 })
-                delegate.register(UITableViewCell.self, binding: { (item, group, ip) in
+                delegate.register(UITableViewCell.self, binding: { (item, _, group, ip) in
                     item.bind(group.name, { (cell, name) in
                         cell.textLabel?.text <== name
                     }, nil)

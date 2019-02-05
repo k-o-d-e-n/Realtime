@@ -10,20 +10,18 @@ import Foundation
 public struct RCItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDataValue?
     public var payload: [String : RealtimeDataValue]?
-    public var node: Node?
-    public let dbKey: String!
+    public let node: Node?
     var priority: Int?
     var linkID: String?
 
     init(key: String?, value: RealtimeValue) {
         self.raw = value.raw
         self.payload = value.payload
-        self.dbKey = key ?? value.dbKey
+        self.node = Node(key: key ?? value.dbKey)
     }
 
     public init(in node: Node?, options: [ValueOption : Any]) {
         self.node = node
-        self.dbKey = node?.key
         self.raw = options[.rawValue] as? RealtimeDataValue
         self.payload = options[.userPayload] as? [String: RealtimeDataValue]
     }
@@ -34,7 +32,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         }
 
         let valueData = InternalKeys.value.child(from: data)
-        self.dbKey = key
+        self.node = Node(key: key)
         self.raw = try valueData.rawValue()
         self.linkID = try InternalKeys.link.map(from: data)
         self.priority = try InternalKeys.index.map(from: data)
@@ -223,7 +221,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         get { return _elements }
     }
 
-    var changes: Preprocessor<(RealtimeDataProtocol, DatabaseDataEvent), RCEvent> {
+    var changes: Preprocessor<(RealtimeDataProtocol, DatabaseDataEvent), (data: RealtimeDataProtocol, event: RCEvent)> {
         return dataObserver
             .filter({ [unowned self] e in
                 if e.1 != .value {
@@ -235,10 +233,10 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
                     return true
                 }
             })
-            .map { [unowned self] (value) -> RCEvent in
+            .map { [unowned self] (value) -> (data: RealtimeDataProtocol, event: RCEvent) in
                 switch value.1 {
                 case .value:
-                    return .initial
+                    return (value.0, .initial)
                 case .child(.added):
                     let indexes: [Int]
                     if value.0.key == self.node?.key {
@@ -249,27 +247,28 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
                         let item = try Element(data: value.0)
                         indexes = [self._elements.insert(item)]
                     }
-                    return .updated(deleted: [], inserted: indexes, modified: [], moved: [])
+                    return (value.0, .updated(deleted: [], inserted: indexes, modified: [], moved: []))
                 case .child(.removed):
-                    let indexes: [Int]
                     if value.0.key == self.node?.key {
-                        indexes = try value.0.map(Element.init).compactMap({ self._elements.remove($0)?.index })
+                        let indexes: [Int] = try value.0.map(Element.init).compactMap({ self._elements.remove($0)?.index })
+                        if indexes.count == value.0.childrenCount {
+                            return (value.0, .updated(deleted: indexes, inserted: [], modified: [], moved: []))
+                        } else {
+                            debugFatalError("Indexes: \(indexes), data: \(value.0)")
+                            throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
+                        }
                     } else {
                         let item = try Element(data: value.0)
-                        indexes = self._elements.remove(item).map({ [$0.index] }) ?? []
-                    }
-                    if indexes.count == value.0.childrenCount {
-                        return .updated(deleted: indexes, inserted: [], modified: [], moved: [])
-                    } else {
-                        throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
+                        let indexes: [Int] = self._elements.remove(item).map({ [$0.index] }) ?? []
+                        return (value.0, .updated(deleted: indexes, inserted: [], modified: [], moved: []))
                     }
                 case .child(.changed):
                     let item = try Element(data: value.0)
                     if let indexes = self._elements.move(item) {
                         if indexes.from != indexes.to {
-                            return .updated(deleted: [], inserted: [], modified: [], moved: [indexes])
+                            return (value.0, .updated(deleted: [], inserted: [], modified: [], moved: [indexes]))
                         } else {
-                            return .updated(deleted: [], inserted: [], modified: [indexes.to], moved: [])
+                            return (value.0, .updated(deleted: [], inserted: [], modified: [indexes.to], moved: []))
                         }
                     } else {
                         throw RealtimeError(source: .collection, description: "Cannot move items")
@@ -355,7 +354,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         }
         _elements.removeAll()
         for item in view {
-            let itemNode = node.child(with: item.dbKey)
+            let itemNode = node.child(with: item.node?.key ?? RealtimeApp.app.database.generateAutoID())
             try item.write(to: transaction, by: itemNode)
         }
     }
@@ -433,6 +432,11 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     @discardableResult
     func remove(at index: Int) -> Element {
         return _elements.remove(at: index)
+    }
+
+    @discardableResult
+    func remove(_ element: Element) -> Int? {
+        return _elements.remove(element)?.index
     }
 
     func removeAll() {

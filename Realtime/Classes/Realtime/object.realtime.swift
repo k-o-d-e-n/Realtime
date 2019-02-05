@@ -169,6 +169,13 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     internal var observing: [DatabaseDataEvent: (token: UInt, counter: Int)] = [:]
     let dataObserver: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = .unsafe()
 
+    public convenience init(in object: _RealtimeValue, keyedBy key: String, options: [ValueOption: Any] = [:]) {
+        self.init(
+            in: Node(key: key, parent: object.node),
+            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
+        )
+    }
+
     public required init(in node: Node?, options: [ValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
@@ -472,6 +479,14 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         return []
     }
 
+    public convenience init(in object: Object, keyedBy key: String, options: [ValueOption: Any] = [:]) {
+        self.init(
+            in: Node(key: key, parent: object.node),
+            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
+        )
+        self.parent = object
+    }
+
     @discardableResult
     public func runObserving() -> Bool {
         return _runObserving(.value)
@@ -579,9 +594,22 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         try mirror.children.forEach { (child) in
             guard isNotIgnoredLabel(child.label) else { return }
 
-            if var value: _RealtimeValue = forceValue(from: child, mirror: mirror) {
+            if var value: _RealtimeValue = forceValue(from: child, mirror: mirror), conditionForRead(of: value) {
                 try value.apply(parentDataIfNeeded: data, parentEvent: event)
             }
+        }
+    }
+
+    public func currentVersion(on level: UInt) throws -> Version {
+        if isRooted {
+            guard var versioner = _version.map(Versioner.init) else { return Version(0, 0) }
+            try (0..<level).forEach({ _ in _ = try versioner.dequeue() })
+            return try versioner.dequeue()
+        } else {
+            var versioner = Versioner()
+            putVersion(into: &versioner)
+            try (0..<level).forEach({ _ in _ = try versioner.dequeue() })
+            return try versioner.dequeue()
         }
     }
 
@@ -662,6 +690,11 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     /// - Parameter property: Value to evalute condition
     /// - Returns: Boolean value of condition
     open func conditionForWrite(of property: _RealtimeValue) -> Bool {
+        return true
+    }
+
+    // temporary decision to avoid error in optional nested objects that has required properties
+    open func conditionForRead(of property: _RealtimeValue) -> Bool {
         return true
     }
 

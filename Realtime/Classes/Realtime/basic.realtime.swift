@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 // #
 // ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
@@ -206,8 +205,8 @@ extension Optional: RealtimeDataRepresented where Wrapped: RealtimeDataRepresent
 public extension RealtimeValue {
     var dbKey: String! { return node?.key }
 
-    /// Equals `isRooted`
-    var isInserted: Bool { return isRooted }
+    /// Indicates that value has key
+    var isKeyed: Bool { return node != nil }
     /// Indicates that value has no rooted node
     var isStandalone: Bool { return !isRooted }
     /// Indicates that value has parent node
@@ -224,11 +223,13 @@ public extension RealtimeValue {
     }
 }
 
-public extension Hashable where Self: RealtimeValue {
-    func hash(into hasher: inout Hasher) { hasher.combine(dbKey) }
+public extension Equatable where Self: RealtimeValue {
     static func ==(lhs: Self, rhs: Self) -> Bool {
         return lhs.node == rhs.node
     }
+}
+public extension Hashable where Self: RealtimeValue {
+    var hashValue: Int { return dbKey.hashValue }
 }
 public extension Comparable where Self: RealtimeValue {
     static func < (lhs: Self, rhs: Self) -> Bool {
@@ -342,6 +343,32 @@ public protocol WritableRealtimeValue: RealtimeValue {
     ///   - transaction: Current transaction
     ///   - node: Database node where data will be store
     func write(to transaction: Transaction, by node: Node) throws
+}
+extension WritableRealtimeValue {
+    func writeSystemValues(to transaction: Transaction, by node: Node) throws {
+        if let rw = raw {
+            transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
+        }
+        if let pl = payload {
+            transaction.addValue(pl, by: Node(key: InternalKeys.payload, parent: node))
+        }
+    }
+}
+extension WritableRealtimeValue where Self: Versionable {
+    func writeSystemValues(to transaction: Transaction, by node: Node) throws {
+        var versioner = Versioner()
+        putVersion(into: &versioner)
+        if !versioner.isEmpty {
+            let finalizedVersion = versioner.finalize()
+            transaction.addValue(finalizedVersion, by: Node(key: InternalKeys.modelVersion, parent: node))
+        }
+        if let rw = raw {
+            transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
+        }
+        if let pl = payload {
+            transaction.addValue(pl, by: Node(key: InternalKeys.payload, parent: node))
+        }
+    }
 }
 
 /// Values that can be changed partially

@@ -63,17 +63,15 @@ class RealtimeTableController: UITableViewController {
         delegate = SingleSectionTableViewDelegate(users) { (table, ip, _) -> UITableViewCell in
             return table.dequeueReusableCell(withIdentifier: NSStringFromClass(TableCell.self), for: ip)
         }
-        delegate.register(UITableViewCell.self) { (item, user, ip) in
+        delegate.register(UITableViewCell.self) { (item, _, user, ip) in
             item.bind(user.name, { (cell, val) in
-                cell.textLabel!.text =? val
+                cell.textLabel!.text <== val
             }, nil)
         }
-        delegate.register(TableCell.self) { (item, user, ip) in
-            item.set(config: { (cell) in
-                cell.startIndicatorIfNeeeded()
-            })
+        delegate.register(TableCell.self) { (item, cell, user, ip) in
+            cell.startIndicatorIfNeeeded()
             item.bind(user.name, { (cell, name) in
-                cell.label.text =? name
+                cell.label.text <== name
                 cell.indicator.stopAnimating()
             }, nil)
         }
@@ -234,7 +232,7 @@ extension RealtimeTableController: RealtimeEditingTableDataSource {
                             print(e.localizedDescription)
                         }
                     }
-            },
+                },
                 object: {
                     Global.rtUsers[indexPath.row].delete().commit(with: { (_, err) in
                         self.activityView.stopAnimating()
@@ -254,7 +252,7 @@ extension RealtimeTableController: RealtimeEditingTableDataSource {
     }
 
     override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        return false
+        return true
     }
     override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
         return false

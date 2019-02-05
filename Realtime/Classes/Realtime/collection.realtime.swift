@@ -19,7 +19,7 @@ extension ValueOption {
 /// - updated: Any update event
 public enum RCEvent {
     case initial
-    case updated(deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)])
+    case updated(deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)]) // may be [Int] replace to IndexSet?
 }
 
 /// -----------------------------------------
@@ -51,6 +51,11 @@ public protocol RealtimeCollectionActions {
 /// A type that stores an abstract elements, receives the notify about a change of collection
 public protocol RealtimeCollectionView: BidirectionalCollection, RealtimeCollectionActions {
     func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void)
+}
+extension RealtimeCollectionView where Self: RealtimeCollection {
+    public func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void) {
+        view.contains(elementWith: key, completion: completion)
+    }
 }
 
 /// Defines way to explore data in collection

@@ -35,7 +35,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap(), _model.compactMap())
     lazy var _didSelect: Repeater<IndexPath> = .unsafe()
 
-    var state: RowState = .free
+    var state: RowState = [.free, .pending]
 
     open internal(set) weak var model: Model? {
         set { _model.value = newValue }
@@ -186,6 +186,8 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
                 row.state.remove(.displaying)
                 row.free()
                 row.state.insert([.pending, .free])
+            } else {
+//                debugLog("\(row.state) \n \(row.view as Any) \n\(cell)")
             }
         }
     }
@@ -197,6 +199,7 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
             item.view = cell
             item._model.value = model
             item.state.insert(.displaying)
+            item.state.remove(.free)
         }
     }
 
@@ -226,47 +229,6 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
     }
 }
 
-struct ReuseRowController<Row, Key: Hashable> where Row: ReuseItemProtocol {
-    fileprivate var freeItems: [Row] = []
-    fileprivate var activeItems: [Key: Row] = [:]
-
-    typealias RowBuilder = () -> Row
-
-    func activeItem(at key: Key) -> Row? {
-        return activeItems[key]
-    }
-
-    mutating func dequeueItem(at key: Key, rowBuilder: RowBuilder) -> Row {
-        guard let item = activeItems[key] else {
-            let item = freeItems.popLast() ?? rowBuilder()
-            activeItems[key] = item
-            return item
-        }
-        return item
-    }
-
-    mutating func free(at key: Key) {
-        guard let item = activeItems.removeValue(forKey: key)
-            else { return debugLog("Try free non-active reuse item by key \(key)") }
-        item.free()
-        freeItems.append(item)
-    }
-
-    mutating func freeAll() {
-        activeItems.forEach {
-            $0.value.free()
-            freeItems.append($0.value)
-        }
-        activeItems.removeAll()
-    }
-
-    mutating func free() {
-        activeItems.forEach { $0.value.free() }
-        activeItems.removeAll()
-        freeItems.removeAll()
-    }
-}
-
 open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, Model> {
     lazy var _rowModel: Repeater<RowModel> = Repeater.unsafe()
 
@@ -277,8 +239,8 @@ open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, 
 
 // Warning! is not responsible for update collection, necessary to make it.
 open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
-    var reuseController: ReuseRowController<ReuseFormRow<UITableViewCell, Model, RowModel>, Int> = ReuseRowController()
-    let rowBuilder: ReuseRowController<ReuseFormRow<UITableViewCell, Model, RowModel>, Int>.RowBuilder
+    var reuseController: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, Int> = ReuseController()
+    let rowBuilder: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, Int>.RowBuilder
 
     var collection: AnySharedCollection<RowModel>
 
@@ -292,12 +254,12 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     override var numberOfItems: Int { return collection.count }
 
     override func dequeueRow(at index: Int) -> Row<UITableViewCell, Model> {
-        let item = reuseController.dequeueItem(at: index, rowBuilder: rowBuilder)
+        let item = reuseController.dequeue(at: index, rowBuilder: rowBuilder)
         return item
     }
 
     override func row(at index: Int) -> Row<UITableViewCell, Model>? {
-        return reuseController.activeItem(at: index)
+        return reuseController.active(at: index)
     }
 
     override open func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) {
@@ -313,26 +275,26 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     }
 
     override func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
-        let item = reuseController.dequeueItem(at: indexPath.row, rowBuilder: rowBuilder)
+        let item = reuseController.dequeue(at: indexPath.row, rowBuilder: rowBuilder)
 
         if !item.state.contains(.displaying) || item.view !== cell {
             item._rowModel.send(.value(collection[indexPath.row]))
             item.view = cell
             item.model = model
             item.state.insert(.displaying)
+            item.state.remove(.free)
         }
     }
 
     override func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
-        if let row = reuseController.activeItem(at: indexPath.row) {
+        if let row = reuseController.free(at: indexPath.row, ifRespondsFor: cell) {
             row.state.remove(.displaying)
-            row.free()
             row.state.insert([.pending, .free])
         }
     }
 
     override func didSelect(at indexPath: IndexPath) {
-        reuseController.activeItem(at: indexPath.row)?._didSelect.send(.value(indexPath))
+        reuseController.active(at: indexPath.row)?._didSelect.send(.value(indexPath))
     }
 
     // Collection
@@ -346,7 +308,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         return i - 1
     }
     override open subscript(position: Int) -> Row<UITableViewCell, Model> {
-        guard let row = reuseController.activeItem(at: position) else { fatalError("Index out of range") }
+        guard let row = reuseController.active(at: position) else { fatalError("Index out of range") }
         return row
     }
 }
@@ -500,11 +462,11 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
-            return form.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ?? 28.0
+            return form.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ?? tableView.sectionHeaderHeight
         }
 
         func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
-            return form.tableDelegate?.tableView?(tableView, heightForFooterInSection: section) ?? 28.0
+            return form.tableDelegate?.tableView?(tableView, heightForFooterInSection: section) ?? tableView.sectionFooterHeight
         }
 
         func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
@@ -532,6 +494,10 @@ extension Form {
             } else if form.sections.indices.contains(indexPath.section) {
                 form.sections[indexPath.section].didEndDisplay(cell, at: indexPath)
             }
+        }
+
+        func tableView(_ tableView: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {
+            return form.tableDelegate?.tableView?(tableView, shouldHighlightRowAt: indexPath) ?? true
         }
 
         func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -574,6 +540,12 @@ extension Form {
                 toProposedIndexPath: proposedDestinationIndexPath
             )
             ?? proposedDestinationIndexPath
+        }
+
+        // MARK: UIScrollViewDelegate
+
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            form.tableDelegate?.scrollViewDidScroll?(scrollView)
         }
     }
 }
