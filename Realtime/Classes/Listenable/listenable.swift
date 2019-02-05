@@ -499,7 +499,7 @@ public extension Listenable {
     /// - Returns: Disposable
     @discardableResult
     func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.Out {
-        return livetime(other).listening(onValue: { [weak other] val in
+        return livetime(of: other).listening(onValue: { [weak other] val in
             other?.value = val
         })
     }
