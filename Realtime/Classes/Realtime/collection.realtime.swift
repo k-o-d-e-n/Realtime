@@ -53,7 +53,7 @@ public protocol RealtimeCollectionView: BidirectionalCollection, RealtimeCollect
     func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void)
 }
 extension RealtimeCollectionView where Self: RealtimeCollection {
-    func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void) {
+    public func contains(elementWith key: String, completion: @escaping (Bool, Error?) -> Void) {
         view.contains(elementWith: key, completion: completion)
     }
 }

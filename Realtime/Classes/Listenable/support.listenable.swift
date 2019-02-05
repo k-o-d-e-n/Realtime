@@ -156,11 +156,6 @@ public extension RTime where Base: UITextField {
         return onEvent(.editingChanged).map { $0.0.text }
     }
 }
-public extension UITextField {
-    func onTextChange() -> Preprocessor<(control: UITextField, event: UIEvent), String?> {
-        return ControlEvent(control: self, events: .valueChanged).map({ $0.0.text })
-    }
-}
 
 extension UIBarButtonItem {
     public class Tap<BI: UIBarButtonItem>: Listenable {

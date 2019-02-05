@@ -685,3 +685,57 @@ extension ExplicitAssociatedValues {
         )
     }
 }
+
+extension AnyRealtimeCollection: RealtimeCollectionView {}
+
+class KeyedCollection<Key, Value>: _RealtimeValue, RealtimeCollection where Key: RealtimeValue, Value: RealtimeValue {
+    typealias View = AnyRealtimeCollection<Key>
+    typealias Element = (key: Key, value: Value)
+    var storage: RCKeyValueStorage<Value> = [:]
+
+    public override var raw: RealtimeDataValue? { return nil }
+    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public let view: View
+    public var isSynced: Bool { return view.isSynced }
+    public override var isObserved: Bool { return view.isObserved }
+    public override var canObserve: Bool { return view.canObserve }
+    var dataExplorer: RCDataExplorer {
+        set { view.dataExplorer = newValue }
+        get { return view.dataExplorer }
+    }
+    var keepSynced: Bool {
+        set { view.keepSynced = newValue }
+        get { return view.keepSynced }
+    }
+    lazy var changes: AnyListenable<RCEvent> = self.view.changes
+
+    required init(in node: Node?, options: [ValueOption : Any]) {
+        guard case let keys as AnyRealtimeCollection<Key> = options[.keysNode] else { fatalError("Unexpected parameter") }
+        self.view = keys
+        super.init(in: node, options: options)
+    }
+
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        fatalError("init(data:event:) has not been implemented")
+    }
+
+    subscript(position: RealtimeCollectionIndex) -> Element {
+        let key = view[position]
+        if let value = storage.value(for: key.dbKey) {
+            return (key, value)
+        } else {
+            let value = Value(in: Node(key: key.dbKey, parent: node), options: [:])
+            storage.set(value: value, for: key.dbKey)
+            return (key, value)
+        }
+    }
+    public subscript(key: Key) -> Value? {
+        guard let v = storage.value(for: key.dbKey) else {
+            guard view.contains(key) else { return nil }
+            let value = Value(in: Node(key: key.dbKey, parent: node), options: [:])
+            storage.set(value: value, for: key.dbKey)
+            return value
+        }
+        return v
+    }
+}

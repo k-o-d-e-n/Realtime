@@ -525,6 +525,15 @@ extension ExplicitValues {
             by: Node(key: element.node?.key ?? transaction.database.generateAutoID(), parent: parentNode)
         )
     }
+    @discardableResult
+    public func remove(at index: Int, in transaction: Transaction) -> Element {
+        guard isRooted else { fatalError("Cannot be written, because collection is not rooted") }
+        guard isSynced else { fatalError("Cannot be removed at index, because collection is not synced.") }
+
+        let element = view[index]
+        transaction.removeValue(by: element.node!)
+        return element
+    }
 }
 extension ExplicitValues where Element: RealtimeValueEvents {
     public func write(_ element: Element, in transaction: Transaction) throws {
