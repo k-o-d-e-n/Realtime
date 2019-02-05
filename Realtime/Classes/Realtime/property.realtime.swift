@@ -10,11 +10,12 @@ import Foundation
 
 public extension RawRepresentable where Self.RawValue == String {
     func property<T>(in object: Object, representer: Representer<T>) -> Property<T> {
-        return Property(
+        return Property.required(
             in: Node(key: rawValue, parent: object.node),
+            representer: representer,
             options: [
                 .database: object.database as Any,
-                .representer: representer.requiredProperty()
+                .representer: Availability<T>.required(representer)
             ]
         )
     }
@@ -23,7 +24,7 @@ public extension RawRepresentable where Self.RawValue == String {
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
-                .representer: representer.optionalProperty()
+                .representer: Availability<T?>.optional(representer)
             ]
         )
     }
@@ -33,7 +34,7 @@ public extension RawRepresentable where Self.RawValue == String {
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
-                .representer: representer.requiredProperty()
+                .representer: Availability<T>.required(representer)
             ]
         )
     }
@@ -42,7 +43,7 @@ public extension RawRepresentable where Self.RawValue == String {
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
-                .representer: representer.optionalProperty()
+                .representer: Availability<T?>.optional(representer)
             ]
         )
     }
@@ -54,7 +55,7 @@ public extension RawRepresentable where Self.RawValue == String {
             in: Node(key: rawValue, parent: obj.node),
             options: [
                 .database: obj.database as Any,
-                .representer: Representer<T>.any.optionalProperty()
+                .representer: Availability<T?>.optional(Representer<T>.any)
             ]
         )
     }
@@ -151,7 +152,7 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
 
     public required init(in node: Node?, options: [ValueOption : Any]) {
         guard case let o as Mode = options[.reference] else { fatalError("Skipped required options") }
-        super.init(in: node, options: options.merging([.representer: o.representer], uniquingKeysWith: { _, new in new }))
+        super.init(in: node, options: options.merging([.representer: o.availability], uniquingKeysWith: { _, new in new }))
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -176,19 +177,21 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
     }
 
     public struct Mode {
-        let representer: Representer<Referenced?>
+        let availability: Availability<Referenced>
 
         public static func required(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode {
-            return Mode(representer: Representer.reference(mode, options: options).requiredProperty())
+            return Mode(availability: Availability<Referenced>.required(Representer.reference(mode, options: options)))
         }
-
+        public static func writeRequired<U: RealtimeValue>(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode where Referenced == Optional<U> {
+            return Mode(availability: Availability<Referenced>.writeRequired(Representer<U>.reference(mode, options: options)))
+        }
         public static func optional<U: RealtimeValue>(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode where Referenced == Optional<U> {
-            return Mode(representer: Representer.reference(mode, options: options).optionalProperty())
+            return Mode(availability: Availability<Referenced>.optional(Representer<U>.reference(mode, options: options)))
         }
     }
 
     public static func readonly(in node: Node?, mode: Mode) -> ReadonlyProperty<Referenced> {
-        return ReadonlyProperty(in: node, options: [.representer: mode.representer])
+        return ReadonlyProperty(in: node, options: [.representer: mode.availability])
     }
 }
 
@@ -207,7 +210,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
             self.options.ownerNode.value = ownerNode
         }
 
-        super.init(in: node, options: options.merging([.representer: relation.representer], uniquingKeysWith: { _, new in new }))
+        super.init(in: node, options: options.merging([.representer: relation.availability], uniquingKeysWith: { _, new in new }))
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -252,7 +255,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         let rootLevelsUp: UInt?
 
         let ownerNode: ValueStorage<Node?>
-        let representer: Representer<Related?>
+        let availability: Availability<Related>
 
         public static func required(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
@@ -261,10 +264,19 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                 property: property,
                 rootLevelsUp: rootLevelsUp,
                 ownerNode: ownerNode,
-                representer: Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode).requiredProperty()
+                availability: Availability.required(Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
             )
         }
-
+        public static func writeRequired<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options where Related == Optional<U> {
+            let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
+            return Options(
+                ownerLevelsUp: ownerLevelsUp,
+                property: property,
+                rootLevelsUp: rootLevelsUp,
+                ownerNode: ownerNode,
+                availability: Availability.writeRequired(Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
+            )
+        }
         public static func optional<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
@@ -272,7 +284,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                 property: property,
                 rootLevelsUp: rootLevelsUp,
                 ownerNode: ownerNode,
-                representer: Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode).optionalProperty()
+                availability: Availability.optional(Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
             )
         }
     }
@@ -289,7 +301,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     }
 
     public static func readonly(in node: Node?, config: Options) -> ReadonlyProperty<Related> {
-        return ReadonlyProperty(in: node, options: [.representer: config.representer])
+        return ReadonlyProperty(in: node, options: [.representer: config.availability])
     }
 }
 
@@ -392,9 +404,6 @@ public extension PropertyState where T: _Optional {
         return try optional.unwrapped ?? defaultValue()
     }
 }
-
-public typealias WriteRequiredProperty<T> = Property<T!>
-public typealias OptionalProperty<T> = Property<T?>
 
 /// Defines read/write property with any value
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
@@ -572,6 +581,30 @@ public extension Property where T: Equatable {
     }
 }
 
+public struct Availability<T> {
+    let property: () -> Representer<T?>
+    public var representer: Representer<T?> { return property() }
+
+    init(_ property: @escaping () -> Representer<T?>) {
+        self.property = property
+    }
+
+    public static func required(_ representer: Representer<T>) -> Availability {
+        return Availability(Representer.requiredProperty(representer))
+    }
+    public static func writeRequired<V>(_ representer: Representer<V>) -> Availability where Optional<V> == T {
+        return Availability(Representer.writeRequiredProperty(representer))
+    }
+    public static func optional<V>(_ representer: Representer<V>) -> Availability where Optional<V> == T {
+        return Availability(Representer.optionalProperty(representer))
+    }
+}
+extension Availability where T: HasDefaultLiteral & _ComparableWithDefaultLiteral {
+    func defaultOnEmpty() -> Availability {
+        return Availability({ self.representer.defaultOnEmpty() })
+    }
+}
+
 /// Defines readonly property with any value
 @available(*, introduced: 0.4.3)
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
@@ -595,41 +628,39 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     
     // MARK: Initializers, deinitializer
 
-    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) {
-        self.init(in: node, options: options.merging([.representer: representer.requiredProperty()], uniquingKeysWith: { _, new in new }))
+    public static func required(in node: Node?, representer: Representer<T>, options: [ValueOption: Any] = [:]) -> Self {
+        return self.init(in: node, options: options.merging([.representer: Availability.required(representer)], uniquingKeysWith: { _, new in new }))
+    }
+    public static func optional<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) -> Self where Optional<U> == T {
+        return self.init(in: node, options: options.merging([.representer: Availability.optional(representer)], uniquingKeysWith: { _, new in new }))
+    }
+    public static func writeRequired<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) -> Self where Optional<U> == T {
+        return self.init(in: node, options: options.merging([.representer: Availability.writeRequired(representer)], uniquingKeysWith: { _, new in new }))
     }
 
-    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) where Optional<U> == T {
-        self.init(in: node, options: options.merging([.representer: representer.optionalProperty()], uniquingKeysWith: { _, new in new }))
-    }
-
-//    public convenience init<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) where ImplicitlyUnwrappedOptional<U> == T {
-//        self.init(in: node, options: options.merging([.representer: representer.writeRequiredProperty()], uniquingKeysWith: { _, new in new }))
-//    }
-    
     /// Designed initializer
     ///
     /// Available options:
     /// - .initialValue *(optional)* - default property value
     /// - .representer *(required)* - instance of type `Representer<T>`.
     ///
-    /// **Warning**: You must pass representer that returns through next methods of `Representer<T>`:
-    /// - func requiredProperty() - throws error if value is not presented
-    /// - func optionalProperty() - can have empty value
-    /// - func writeRequiredProperty() - throws error in save operation if value is not set
+    /// **Warning**: You must pass representer that returns through next methods of `Availability<T>`:
+    /// - func required() - throws error if value is not presented
+    /// - func optional() - can have empty value
+    /// - func writeRequired() - throws error in save operation if value is not set
     ///
     /// - Parameters:
     ///   - node: Database node reference
     ///   - options: Option values
     public required init(in node: Node?, options: [ValueOption: Any]) {
-        guard case let representer as Representer<T?> = options[.representer] else { fatalError("Bad options") }
+        guard case let availability as Availability<T> = options[.representer] else { fatalError("Bad options") }
 
         if let inital = options[.initialValue], let v = inital as? T {
             self._value = .local(v)
         } else {
             self._value = .none
         }
-        self.representer = representer
+        self.representer = availability.representer
         super.init(in: node, options: options)
     }
 

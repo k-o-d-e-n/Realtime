@@ -554,7 +554,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         let linksWillNotBeRemovedInAncestor = node?.parent == ancestor
         let links: Links = Links(
             in: self.node.map { Node(key: InternalKeys.linkItems, parent: $0.linksNode) },
-            options: [.database: database as Any, .representer: Representer<[SourceLink]>.links.requiredProperty()]
+            options: [.database: database as Any, .representer: Availability.required(Representer<[SourceLink]>.links)]
         ).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
             links.loadValue(

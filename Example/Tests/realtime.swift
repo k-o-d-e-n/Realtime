@@ -98,16 +98,16 @@ class TestObject: Object {
         var usualProperty: Property<String?>
 
         required init(in node: Node?, options: [ValueOption : Any]) {
-            self.usualProperty = Property(in: Node(key: "usualprop", parent: node),
-                                          representer: .any,
-                                          options: [.database: options[.database] as Any])
+            self.usualProperty = Property.optional(in: Node(key: "usualprop", parent: node),
+                                                   representer: .any,
+                                                   options: [.database: options[.database] as Any])
             super.init(in: node, options: options)
         }
 
         required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-            self.usualProperty = Property(in: Node(key: "usualprop", parent: data.node),
-                                          representer: .any,
-                                          options: [.database: data.database as Any])
+            self.usualProperty = Property.optional(in: Node(key: "usualprop", parent: data.node),
+                                                   representer: .any,
+                                                   options: [.database: data.database as Any])
             try super.init(data: data, event: event)
         }
 
@@ -241,9 +241,10 @@ extension RealtimeTests {
         }
     }
     func testPropertySetValue() {
-        let property = Property<String>(in: Node(key: "value", parent: .root),
-                                        representer: Representer<String>.any,
-                                        options: [:])
+        let property = Property<String>(
+            in: Node(key: "value", parent: .root),
+            options: [.representer: Availability<String>.required(.any)]
+        )
 
         XCTAssertFalse(property.hasChanges)
         let transaction = Transaction(database: Cache.root)
@@ -755,7 +756,7 @@ extension RealtimeTests {
     }
 
     func testWriteRequiredPropertyFailsOnSave() {
-        let property = WriteRequiredProperty<String>(in: Node(key: "prop"), representer: Representer<String>.any)
+        let property = Property<String?>(in: Node(key: "prop"), options: [.representer: Availability.writeRequired(Representer<String>.any)])
 
         do {
             let transaction = Transaction()
@@ -776,7 +777,7 @@ extension RealtimeTests {
 
     func testWriteRequiredPropertySuccessOnDecode() {
         let _: String! = ""
-        let property = WriteRequiredProperty<String>(in: Node(key: "prop"), representer: Representer<String>.any)
+        let property = Property<String?>.writeRequired(in: Node(key: "prop"), representer: .any)
 
         do {
             let data = ValueNode(node: Node(key: "prop"), value: nil)
@@ -1422,7 +1423,7 @@ extension RealtimeTests {
         }
 
         let exp = expectation(description: "")
-        let prop = ReadonlyProperty<String>(in: Node.root("___tests/prop"), options: [.representer: Representer<String>.any.requiredProperty()])
+        let prop = ReadonlyProperty<String>(in: Node.root("___tests/prop"), options: [.representer: Availability.required(Representer<String>.any)])
 
         prop.load(timeout: .seconds(3), completion: .just { err in
             guard let e = err else { return XCTFail("Must be timout error") }
@@ -1448,68 +1449,68 @@ extension RealtimeTests {
 
 extension RealtimeTests {
     func testEqualFailsRequiredPropertyWithoutValueAndValue() {
-        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.any)])
         XCTAssertFalse(property ==== "")
         XCTAssertFalse("" ==== property)
     }
     func testNotEqualRequiredPropertyWithoutValueAndValue() {
-        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.any)])
         XCTAssertTrue(property !=== "")
         XCTAssertTrue("" !=== property)
     }
     func testEqualRequiredPropertyWithoutValueAndNil() {
-        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.any)])
         XCTAssertTrue(property ==== nil)
         XCTAssertTrue(nil ==== property)
     }
     func testEqualFailsRequiredPropertyWithValueAndValue() {
-        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.any)])
         property <== "string"
         XCTAssertFalse(property ==== "")
         XCTAssertFalse("" ==== property)
     }
     func testNotEqualRequiredPropertyWithValueAndValue() {
-        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.any)])
         property <== "string"
         XCTAssertTrue(property !=== "")
         XCTAssertTrue("" !=== property)
     }
     func testNotEqualRequiredPropertyWithValueAndNil() {
-        let property = Property<String>(in: .root, options: [.representer: Representer<String>.any.requiredProperty()])
+        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.any)])
         property <== "string"
         XCTAssertFalse(property ==== nil)
         XCTAssertFalse(nil ==== property)
     }
     func testEqualFailsOptionalPropertyWithoutValueAndValue() {
-        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.any)])
         XCTAssertFalse(property ==== "")
         XCTAssertFalse("" ==== property)
     }
     func testNotEqualOptionalPropertyWithoutValueAndValue() {
-        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.any)])
         XCTAssertTrue(property !=== "")
         XCTAssertTrue("" !=== property)
     }
     func testEqualOptionalPropertyWithNilValueAndNil() {
-        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.any)])
         property <== nil
         XCTAssertTrue(property ==== nil)
         XCTAssertTrue(nil ==== property)
     }
     func testEqualFailsOptionalPropertyWithValueAndValue() {
-        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.any)])
         property <== "string"
         XCTAssertFalse(property ==== "")
         XCTAssertFalse("" ==== property)
     }
     func testNotEqualOptionalPropertyWithValueAndValue() {
-        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.any)])
         property <== "string"
         XCTAssertTrue(property !=== "")
         XCTAssertTrue("" !=== property)
     }
     func testNotEqualOptionalPropertyWithValueAndNil() {
-        let property = Property<String?>(in: .root, options: [.representer: Representer<String>.any.optionalProperty()])
+        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.any)])
         property <== "string"
         XCTAssertFalse(property ==== nil)
         XCTAssertFalse(nil ==== property)
@@ -1525,7 +1526,7 @@ class VersionableObject: Object {
     lazy var nullVersionVariable: ReadonlyProperty<String?> = "nullVersionVariable".readonlyProperty(in: self)
 
     // added
-    lazy var firstMinorVersionVariable: WriteRequiredProperty<String> = WriteRequiredProperty(
+    lazy var firstMinorVersionVariable: Property<String?> = Property.writeRequired(
         in: Node(key: "firstMinorVersionVariable", parent: self.node),
         representer: Representer<String>.any,
         options: [.database: self.database as Any]
@@ -1534,7 +1535,7 @@ class VersionableObject: Object {
     // renamed
     @available(*, deprecated: 0.7)
     lazy var renamedFromVariable: ReadonlyProperty<String?> = "renamedFromVariable".readonlyProperty(in: self)
-    lazy var renamedToVariable: WriteRequiredProperty<String> = WriteRequiredProperty(
+    lazy var renamedToVariable: Property<String?> = Property.writeRequired(
         in: Node(key: "renamedToVariable", parent: self.node),
         representer: Representer<String>.any,
         options: [.database: self.database as Any]
