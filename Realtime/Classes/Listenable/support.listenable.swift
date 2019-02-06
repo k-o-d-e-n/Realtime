@@ -206,14 +206,16 @@ extension UIImagePickerController: RealtimeCompatible {
     public struct ImagePicker: Listenable {
         unowned var controller: UIImagePickerController
 
-        public func listening(_ assign: Assign<ListenEvent<(UIImagePickerController, [UIImagePickerController.InfoKey : Any])>>) -> Disposable {
+        public typealias Out = (UIImagePickerController, [UIImagePickerController.InfoKey : Any])
+
+        public func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
             let listening = Listening(controller, assign: assign)
             defer {
                 listening.start()
             }
             return listening
         }
-        public func listeningItem(_ assign: Closure<ListenEvent<(UIImagePickerController, [UIImagePickerController.InfoKey : Any])>, Void>) -> ListeningItem {
+        public func listeningItem(_ assign: Closure<ListenEvent<Out>, Void>) -> ListeningItem {
             let listening = Listening(controller, assign: assign)
             return ListeningItem(resume: listening.start, pause: listening.stop, dispose: listening.dispose, token: listening.start())
         }
@@ -222,9 +224,11 @@ extension UIImagePickerController: RealtimeCompatible {
     fileprivate class Listening: NSObject, Disposable, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         var _isDisposed: Bool = false
         unowned let controller: UIImagePickerController
-        let assign: Assign<ListenEvent<(UIImagePickerController, [UIImagePickerController.InfoKey : Any])>>
+        let assign: Assign<ListenEvent<Out>>
 
-        init(_ controller: UIImagePickerController, assign: Assign<ListenEvent<(UIImagePickerController, [UIImagePickerController.InfoKey : Any])>>) {
+        typealias Out = (UIImagePickerController, [UIImagePickerController.InfoKey : Any])
+
+        init(_ controller: UIImagePickerController, assign: Assign<ListenEvent<Out>>) {
             self.controller = controller
             self.assign = assign
         }
