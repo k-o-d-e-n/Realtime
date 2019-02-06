@@ -63,27 +63,19 @@ extension ReferenceRepresentation {
 /// Defines relation type.
 /// Associated value is path to relation property
 ///
-/// - **oneToOne**: Defines 'one to one' relation type.
+/// - **one**: Defines 'one to one' relation type.
 /// `String` value is path to property from owner object
-/// - **oneToMany**: Defines 'one to many' relation type.
+/// - **many**: Defines 'one to many' relation type.
 /// `String` value is path to property from owner object
-public enum RelationMode {
-    case oneToOne(String)
-    case oneToMany(String)
-    case manyToMany(String)
-
-    var propertyPath: String {
-        switch self {
-        case .oneToOne(let p), .oneToMany(let p), .manyToMany(let p):
-            return p
-        }
-    }
+public enum RelationProperty {
+    case one(name: String)
+    case many(format: String)
 
     func path(for relatedValueNode: Node) -> String {
         switch self {
-        case .oneToOne(let p): return p
-        case .oneToMany(let p), .manyToMany(let p):
-            return p + "/" + relatedValueNode.key
+        case .one(let p): return p
+        case .many(let f):
+            return String(format: f, relatedValueNode.key)
         }
     }
 }

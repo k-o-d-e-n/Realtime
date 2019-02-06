@@ -102,7 +102,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationMode) -> Relation<V> {
+    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relation<V> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -115,7 +115,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationMode) -> Relation<V?> {
+    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relation<V?> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -247,14 +247,14 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         /// Levels up by hierarchy to relation owner of this property
         let ownerLevelsUp: UInt
         /// String path from related object to his relation property
-        let property: RelationMode
+        let property: RelationProperty
         /// Levels up by hierarchy to the same node for both related values. Default nil, that means root node
         let rootLevelsUp: UInt?
 
         let ownerNode: ValueStorage<Node?>
         let representer: Representer<Related?>
 
-        public static func required(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options {
+        public static func required(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 ownerLevelsUp: ownerLevelsUp,
@@ -265,7 +265,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
             )
         }
 
-        public static func optional<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options where Related == Optional<U> {
+        public static func optional<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 ownerLevelsUp: ownerLevelsUp,

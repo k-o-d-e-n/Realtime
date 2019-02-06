@@ -294,6 +294,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
 
         self.database = database
         if let node = self.node {
+            debugFatalError(condition: node === parent, "Parent node cannot be equal child")
             node.parent = parent
         } else {
             self.node = Node(key: key, parent: parent)
@@ -437,9 +438,11 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     open weak var parent: Object? {
         didSet {
             if let node = self.node, let p = parent {
+                debugFatalError(condition: p === self, "Parent object cannot be equal child")
                 /// node.parent annulled in didRemove
-                debugFatalError(condition: node.parent.map({ $0 != parent.node }) ?? false,
+                debugFatalError(condition: node.parent.map({ $0 != p.node }) ?? false,
                                 "Parent object was changed, but his node doesn`t equal parent node in current object")
+                debugFatalError(condition: node === p.node, "Parent object has the same node reference that child object")
                 node.parent = p.node
             }
         }

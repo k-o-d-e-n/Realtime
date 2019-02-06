@@ -244,10 +244,10 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
 
     var collection: AnySharedCollection<RowModel>
 
-    public init<C: BidirectionalCollection>(_ collection: C, row builder: @escaping () -> ReuseFormRow<UITableViewCell, Model, RowModel>)
+    public init<C: BidirectionalCollection, Cell: UITableViewCell>(_ collection: C, row builder: @escaping () -> ReuseFormRow<Cell, Model, RowModel>)
         where C.Element == RowModel, C.Index == Int {
             self.collection = AnySharedCollection(collection)
-            self.rowBuilder = builder
+            self.rowBuilder = unsafeBitCast(builder, to: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, Int>.RowBuilder.self)
             super.init(headerTitle: nil, footerTitle: nil)
     }
 
@@ -278,9 +278,9 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         let item = reuseController.dequeue(at: indexPath.row, rowBuilder: rowBuilder)
 
         if !item.state.contains(.displaying) || item.view !== cell {
-            item._rowModel.send(.value(collection[indexPath.row]))
             item.view = cell
             item.model = model
+            item._rowModel.send(.value(collection[indexPath.row]))
             item.state.insert(.displaying)
             item.state.remove(.free)
         }
