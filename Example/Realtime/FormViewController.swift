@@ -187,8 +187,8 @@ class FormViewController: UIViewController {
         section.addRow(photo)
         section.addRow(ownedGroup)
 
-        let followers = ReuseRowSection<User, User>(Global.rtUsers, row: {
-            let row: ReuseFormRow<UITableViewCell, User, User> = ReuseFormRow(reuseIdentifier: defaultCellIdentifier)
+        let followers = ReuseRowSection<User, User>(Global.rtUsers, row: { () -> ReuseFormRow<TextCell, User, User> in
+            let row: ReuseFormRow<TextCell, User, User> = ReuseFormRow(reuseIdentifier: defaultCellIdentifier)
             row.onRowModel({ (user, row) in
                 row.view?.textLabel?.text <== user.name
                 row.bind(user.name, { (cell, name) in

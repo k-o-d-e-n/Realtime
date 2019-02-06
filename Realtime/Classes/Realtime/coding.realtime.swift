@@ -441,7 +441,7 @@ public extension Representer where V: RealtimeValue {
     ///   - rootLevelsUp: Level of root node to do relation path
     ///   - ownerNode: Database node of relation owner
     /// - Returns: Relation representer
-    static func relation(_ mode: RelationMode, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
+    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
