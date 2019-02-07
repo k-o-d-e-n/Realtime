@@ -79,21 +79,25 @@ extension ReadonlyProperty {
         guard let node = self.node, node.isRooted else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
+
+        guard let cache = RealtimeApp.app.configuration.storageCache else {
+            return fileTask(for: node, timeout: timeout, completion: completion)
+        }
+        return CachedFileDownloadTask(
+            nextLevel: self.fileTask(for: node, timeout: timeout, completion: completion),
+            cache: cache,
+            node: node,
+            completion: { data in
+                self.applyData(data, node: node, completion: completion)
+            }
+        )
+    }
+    fileprivate func fileTask(for node: Node, timeout: DispatchTimeInterval, completion: Assign<Error?>?) -> RealtimeStorageTask {
         return RealtimeApp.app.storage.load(
             for: node,
             timeout: timeout,
             completion: { (data) in
-                do {
-                    if let value = try self.representer.decode(FileNode(node: node, value: data)) {
-                        self._setValue(.remote(value))
-                    } else {
-                        self._setRemoved(isLocal: false)
-                    }
-                    completion?.call(nil)
-                } catch let e {
-                    self._setError(e)
-                    completion?.call(e)
-                }
+                self.applyData(data, node: node, completion: completion)
             },
             onCancel: { e in
                 self._setError(e)
@@ -101,12 +105,91 @@ extension ReadonlyProperty {
             }
         )
     }
+    fileprivate func applyData(_ data: Data?, node: Node, completion: Assign<Error?>?) {
+        do {
+            if let value = try self.representer.decode(FileNode(node: node, value: data)) {
+                self._setValue(.remote(value))
+                if let data = data, let cache = RealtimeApp.app.configuration.storageCache {
+                    cache.put(data, for: node, completion: nil)
+                }
+            } else {
+                self._setRemoved(isLocal: false)
+            }
+            completion?.call(nil)
+        } catch let e {
+            self._setError(e)
+            completion?.call(e)
+        }
+    }
 }
 
 extension ValueOption {
     /// Key for `RealtimeStorage` instance
     public static var storage: ValueOption = ValueOption("realtime.storage")
     public static var metadata: ValueOption = ValueOption("realtime.file.metadata")
+}
+
+class CachedFileDownloadTask: RealtimeStorageTask {
+    var _nextTask: RealtimeStorageTask? = nil
+    let nextLevelTask: () -> RealtimeStorageTask
+    let cache: RealtimeStorageCache
+    let node: Node
+    let completion: (Data) -> Void
+    var state: State = .pause
+    enum State {
+        case run, pause, finish
+    }
+
+    var progress: AnyListenable<Progress> { return _nextTask?.progress ?? Constant(Progress(totalUnitCount: 0)).asAny() }
+    let _success: Repeater<RealtimeMetadata?>
+    let _memoizedSuccess: Preprocessor<[RealtimeMetadata?], RealtimeMetadata?>
+    var success: AnyListenable<RealtimeMetadata?> { return _memoizedSuccess.asAny() }
+
+    init(nextLevel task: @escaping @autoclosure () -> RealtimeStorageTask,
+         cache: RealtimeStorageCache,
+         node: Node,
+         completion: @escaping (Data?) -> Void) {
+        let success = Repeater<RealtimeMetadata?>.unsafe()
+        self._success = success
+        self._memoizedSuccess = success.memoizeOne(sendLast: true)
+        self.nextLevelTask = task
+        self.cache = cache
+        self.node = node
+        self.completion = completion
+        resume()
+    }
+
+    func resume() {
+        guard state == .pause else { return }
+
+        state = .run
+        if let next = _nextTask {
+            next.resume()
+        } else {
+            let cacheCompl = self.completion
+            cache.file(for: node) { (data) in
+                if let d = data {
+                    self.state = .finish
+                    cacheCompl(d)
+                    self._success.send(.value(nil))
+                } else {
+                    let task = nextLevelTask()
+                    task.success.bind(to: self._success)
+                    _nextTask = task
+                }
+            }
+        }
+    }
+    func pause() {
+        guard state == .run else { return }
+        state = .pause
+        _nextTask?.pause()
+    }
+    func cancel() {
+        _nextTask?.cancel()
+        _nextTask = nil
+        state = .finish
+    }
 }
 
 class FileDownloadTask: RealtimeStorageTask {
@@ -131,7 +214,7 @@ class FileDownloadTask: RealtimeStorageTask {
         }
     }
     func pause() {
-        if state != .finish {
+        if state == .run {
             state = .pause
             base.pause()
         }
