@@ -187,8 +187,11 @@ class FormViewController: UIViewController {
         section.addRow(photo)
         section.addRow(ownedGroup)
 
-        let followers = ReuseRowSection<User, User>(Global.rtUsers, row: { () -> ReuseFormRow<TextCell, User, User> in
-            let row: ReuseFormRow<TextCell, User, User> = ReuseFormRow(reuseIdentifier: defaultCellIdentifier)
+        let followers = ReuseRowSection<User, User>(
+            Global.rtUsers,
+            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) as! TextCell },
+            row: { () -> ReuseFormRow<TextCell, User, User> in
+            let row: ReuseFormRow<TextCell, User, User> = ReuseFormRow()
             row.onRowModel({ (user, row) in
                 row.view?.textLabel?.text <== user.name
                 row.bind(user.name, { (cell, name) in
@@ -218,28 +221,6 @@ class FormViewController: UIViewController {
             return row
         })
         followers.headerTitle = "Followers"
-
-        Global.rtUsers.changes.once().listeningItem(onValue: { [weak self] event in
-            defer {
-                Global.rtUsers.stopObserving()
-            }
-            guard let `self` = self else { return }
-
-            self.tableView.beginUpdates()
-            switch event {
-            case .initial:
-                self.tableView.reloadSections([1], with: .automatic)
-            case .updated(let deleted, let inserted, let modified, let moved):
-                self.tableView.insertRows(at: inserted.map { IndexPath(row: $0, section: 1) }, with: .automatic)
-                self.tableView.deleteRows(at: deleted.map { IndexPath(row: $0, section: 1) }, with: .automatic)
-                self.tableView.reloadRows(at: modified.map { IndexPath(row: $0, section: 1) }, with: .automatic)
-                moved.forEach({ (move) in
-                    self.tableView.moveRow(at: IndexPath(row: move.from, section: 1), to: IndexPath(row: move.to, section: 0))
-                })
-            }
-            self.tableView.endUpdates()
-        }).add(to: store)
-        Global.rtUsers.runObserving()
 
         let user = User()
         self.form = Form(model: user, sections: [section, followers])
