@@ -621,9 +621,7 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
     }
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
-        if let node = self.node {
-            view.didSave(in: database, in: node.linksNode)
-        }
+        view.didSave(in: database, in: parent, by: key)
     }
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)

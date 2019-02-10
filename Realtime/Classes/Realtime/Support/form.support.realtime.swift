@@ -122,7 +122,7 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
     func reloadCell(at indexPath: IndexPath) { fatalError() }
     func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {}
     func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {}
-    func didSelect(at indexPath: IndexPath) {}
+    func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
 
     public typealias Element = Row<UITableViewCell, Model>
     open var startIndex: Int { fatalError("Override") }
@@ -203,7 +203,8 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
         }
     }
 
-    override func didSelect(at indexPath: IndexPath) {
+    override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
         rows[indexPath.row]._didSelect.send(.value(indexPath))
     }
 
@@ -293,7 +294,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         }
     }
 
-    override func didSelect(at indexPath: IndexPath) {
+    override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         reuseController.active(at: indexPath.row)?._didSelect.send(.value(indexPath))
     }
 
@@ -311,12 +312,17 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         guard let row = reuseController.active(at: position) else { fatalError("Index out of range") }
         return row
     }
+
+    public func model(at indexPath: IndexPath) -> RowModel {
+        return collection[indexPath.row]
+    }
 }
 
 open class Form<Model: AnyObject> {
     lazy var table: Table = Table(self)
     var sections: [Section<Model>]
     var removedSections: [Int: Section<Model>] = [:]
+    var performsUpdates: Bool = false
 
     open var numberOfSections: Int {
         return sections.count
@@ -355,24 +361,26 @@ open class Form<Model: AnyObject> {
         guard let tv = tableView else { fatalError() }
         guard tv.window != nil else { return }
         tv.beginUpdates()
+        performsUpdates = true
     }
 
     open func endUpdates() {
         guard let tv = tableView else { fatalError() }
-        guard tv.window != nil else { return }
+        guard performsUpdates else { return }
         tv.endUpdates()
+        performsUpdates = false
     }
 
     open func insertRow<Cell: UITableViewCell>(
         _ row: Row<Cell, Model>, at indexPath: IndexPath, with animation: UITableViewRowAnimation = .automatic
         ) {
         sections[indexPath.section].insertRow(row, at: indexPath.row)
-        tableView?.insertRows(at: [indexPath], with: animation)
+        if performsUpdates { tableView?.insertRows(at: [indexPath], with: animation) }
     }
 
     open func deleteRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation = .automatic) {
         indexPaths.sorted(by: >).forEach { sections[$0.section].deleteRow(at: $0.row) }
-        tableView?.deleteRows(at: indexPaths, with: animation)
+        if performsUpdates { tableView?.deleteRows(at: indexPaths, with: animation) }
     }
 
     open func moveRow(at indexPath: IndexPath, to newIndexPath: IndexPath) {
@@ -382,11 +390,11 @@ open class Form<Model: AnyObject> {
             let row = sections[indexPath.section].deleteRow(at: indexPath.row)
             sections[newIndexPath.section].insertRow(row, at: newIndexPath.row)
         }
-        tableView?.moveRow(at: indexPath, to: newIndexPath)
+        if performsUpdates { tableView?.moveRow(at: indexPath, to: newIndexPath) }
     }
 
     open func addSection(_ section: Section<Model>, with animation: UITableViewRowAnimation = .automatic) {
-        insertSection(section, at: sections.count)
+        insertSection(section, at: sections.count, with: animation)
     }
 
     open func insertSection(_ section: Section<Model>, at index: Int, with animation: UITableViewRowAnimation = .automatic) {
@@ -398,28 +406,22 @@ open class Form<Model: AnyObject> {
 
     open func deleteSections(at indexes: IndexSet, with animation: UITableViewRowAnimation) {
         indexes.reversed().forEach { removedSections[$0] = sections.remove(at: $0) }
-        if let tv = tableView, tv.window != nil {
-            tv.deleteSections(indexes, with: animation)
-        }
+        if performsUpdates { tableView?.deleteSections(indexes, with: animation) }
     }
 
     open func reloadRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation) {
-        if let tv = tableView, tv.window != nil {
-            tv.reloadRows(at: indexPaths, with: animation)
-        }
+        if performsUpdates { tableView?.reloadRows(at: indexPaths, with: animation) }
     }
 
     open func reloadSections(_ sections: IndexSet, with animation: UITableViewRowAnimation) {
-        if let tv = tableView, tv.window != nil {
-            tv.reloadSections(sections, with: animation)
-        }
+        if performsUpdates { tableView?.reloadSections(sections, with: animation) }
     }
 
-    open func didSelect(at indexPath: IndexPath) {
-        sections[indexPath.section].didSelect(at: indexPath)
+    open func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        sections[indexPath.section].didSelect(tableView, didSelectRowAt: indexPath)
     }
 
-    open func reload() {
+    open func reloadVisible() {
         if let tv = tableView {
             tv.indexPathsForVisibleRows?.forEach({ (ip) in
                 sections[ip.section].reloadCell(at: ip)
@@ -500,9 +502,17 @@ extension Form {
             return form.tableDelegate?.tableView?(tableView, shouldHighlightRowAt: indexPath) ?? true
         }
 
+        func tableView(_ tableView: UITableView, willSelectRowAt indexPath: IndexPath) -> IndexPath? {
+            return form.tableDelegate?.tableView?(tableView, willSelectRowAt: indexPath) ?? indexPath
+        }
+
         func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-            tableView.deselectRow(at: indexPath, animated: true)
-            form.didSelect(at: indexPath)
+            form.didSelect(tableView, didSelectRowAt: indexPath)
+            form.tableDelegate?.tableView?(tableView, didSelectRowAt: indexPath)
+        }
+
+        func tableView(_ tableView: UITableView, didDeselectRowAt indexPath: IndexPath) {
+            form.tableDelegate?.tableView?(tableView, didDeselectRowAt: indexPath)
         }
 
         func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
