@@ -248,6 +248,60 @@ open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, 
     }
 }
 
+extension UITableView {
+    public enum Operation {
+        case reload
+        case move(IndexPath)
+        case insert
+        case delete
+        case none
+
+        var isActive: Bool {
+            if case .none = self {
+                return false
+            }
+            return true
+        }
+    }
+
+    func scheduleOperation(_ operation: Operation, for indexPath: IndexPath, with animation: UITableViewRowAnimation) {
+        switch operation {
+        case .none: break
+        case .reload: reloadRows(at: [indexPath], with: animation)
+        case .move(let ip): moveRow(at: indexPath, to: ip)
+        case .insert: insertRows(at: [indexPath], with: animation)
+        case .delete: deleteRows(at: [indexPath], with: animation)
+        }
+    }
+
+    public class ScheduledUpdate {
+        internal private(set) var events: [IndexPath: UITableView.Operation]
+        var operations: [(IndexPath, UITableView.Operation)] = []
+        var isFulfilled: Bool { return events.isEmpty }
+
+        public init(events: [IndexPath: UITableView.Operation]) {
+            precondition(!events.isEmpty, "Events must not be empty")
+            self.events = events
+        }
+
+        func fulfill(_ indexPath: IndexPath) -> Bool {
+            if let operation = events.removeValue(forKey: indexPath) {
+                operations.append((indexPath, operation))
+                return true
+            } else {
+                return false
+            }
+        }
+
+        func batchUpdatesIfFulfilled(in tableView: UITableView) {
+            while !operations.isEmpty {
+                let (ip, op) = operations.removeLast()
+                tableView.scheduleOperation(op, for: ip, with: .automatic)
+            }
+        }
+    }
+}
+
 open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     typealias CellBuilder = (UITableView, IndexPath) -> UITableViewCell
     var updateDispose: Disposable?
@@ -259,6 +313,8 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     var section: Int?
     let collection: AnyRealtimeCollection<RowModel>
     override var numberOfItems: Int { return collection.count }
+
+    open var scheduledUpdate: UITableView.ScheduledUpdate?
 
     deinit {
         collection.keepSynced = false
@@ -314,21 +370,54 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         self.section = index
         updateDispose?.dispose()
         updateDispose = collection.changes.listening(
-            onValue: { [weak tableView] e in
+            onValue: { [weak tableView, unowned self] e in
                 guard let tv = tableView else { return }
-                tv.beginUpdates()
                 switch e {
                 case .initial:
+                    tv.beginUpdates()
                     tv.reloadSections([index], with: .automatic)
+                    tv.endUpdates()
                 case .updated(let deleted, let inserted, let modified, let moved):
-                    tv.insertRows(at: inserted.map { IndexPath(row: $0, section: index) }, with: .automatic)
-                    tv.deleteRows(at: deleted.map { IndexPath(row: $0, section: index) }, with: .automatic)
-                    tv.reloadRows(at: modified.map { IndexPath(row: $0, section: index) }, with: .automatic)
-                    moved.forEach({ (move) in
-                        tv.moveRow(at: IndexPath(row: move.from, section: index), to: IndexPath(row: move.to, section: index))
+                    var changes: [(IndexPath, UITableView.Operation)] = []
+                    inserted.forEach({ row in
+                        let ip = IndexPath(row: row, section: index)
+                        if self.scheduledUpdate?.fulfill(ip) ?? false {
+                        } else {
+                            changes.append((ip, .insert))
+                        }
                     })
+                    deleted.forEach({ row in
+                        let ip = IndexPath(row: row, section: index)
+                        if self.scheduledUpdate?.fulfill(ip) ?? false {
+                        } else {
+                            changes.append((ip, .delete))
+                        }
+                    })
+                    modified.forEach({ row in
+                        let ip = IndexPath(row: row, section: index)
+                        if self.scheduledUpdate?.fulfill(ip) ?? false {
+                        } else {
+                            changes.append((ip, .reload))
+                        }
+                    })
+                    moved.forEach({ (move) in
+                        changes.append((IndexPath(row: move.from, section: index), .move(IndexPath(row: move.to, section: index))))
+                    })
+                    if changes.contains(where: { $0.1.isActive }) {
+                        tv.beginUpdates()
+                        changes.forEach({ (ip, operation) in
+                            tv.scheduleOperation(operation, for: ip, with: .automatic)
+                        })
+                        self.scheduledUpdate?.batchUpdatesIfFulfilled(in: tv)
+                        self.scheduledUpdate = nil
+                        tv.endUpdates()
+                    } else if self.scheduledUpdate?.isFulfilled ?? false {
+                        tv.beginUpdates()
+                        self.scheduledUpdate?.batchUpdatesIfFulfilled(in: tv)
+                        self.scheduledUpdate = nil
+                        tv.endUpdates()
+                    }
                 }
-                tv.endUpdates()
             },
             onError: { error in
                 debugPrintLog(String(describing: error))

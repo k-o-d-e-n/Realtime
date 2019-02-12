@@ -233,6 +233,10 @@ public extension Hashable where Self: RealtimeValue {
 }
 public extension Comparable where Self: RealtimeValue {
     static func < (lhs: Self, rhs: Self) -> Bool {
+        return dbKeyLessThan(lhs, rhs: rhs)
+    }
+
+    public static func dbKeyLessThan(_ lhs: Self, rhs: Self) -> Bool {
         switch (lhs.node, rhs.node) {
         case (.some(let l), .some(let r)): return l.key < r.key
         default: return false

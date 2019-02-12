@@ -523,19 +523,19 @@ extension Storage: RealtimeStorage {
         completion: @escaping (Data?) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> RealtimeStorageTask {
-        var invalidated: Int32 = 0
+//        var invalidated: Int32 = 0
         let ref = node.file(for: self)
-        let invalidate = { (task: StorageDownloadTask?) -> Bool in
-            if OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated) {
-                task?.cancel()
-                return true
-            } else {
-                return false
-            }
-        }
+//        let invalidate = { (task: StorageDownloadTask?) -> Bool in
+//            if OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated) {
+//                task?.cancel()
+//                return true
+//            } else {
+//                return false
+//            }
+//        }
         var task: StorageDownloadTask!
         task = ref.getData(maxSize: .max) { (data, error) in
-            guard invalidate(nil) else { return }
+//            guard invalidate(nil) else { return }
             switch error {
             case .none: completion(data)
             case .some(let nsError as NSError):
@@ -548,11 +548,11 @@ extension Storage: RealtimeStorage {
             }
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: {
-            if invalidate(task) {
-                onCancel?(RealtimeError(source: .database, description: "Operation timeout"))
-            }
-        })
+//        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: {
+//            if invalidate(task) {
+//                onCancel?(RealtimeError(source: .database, description: "Operation timeout"))
+//            }
+//        })
 
         return task
     }

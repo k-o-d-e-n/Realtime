@@ -682,6 +682,10 @@ extension ExplicitAssociatedValues {
             by: Node(key: key.dbKey ?? transaction.database.generateAutoID(), parent: parentNode)
         )
     }
+
+    public func insertionIndex(for value: Value) -> Int {
+        return view.elements.insertionIndex(for: value)
+    }
 }
 
 extension AnyRealtimeCollection: RealtimeCollectionView {}
