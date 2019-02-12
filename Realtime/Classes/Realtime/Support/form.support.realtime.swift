@@ -302,30 +302,53 @@ extension UITableView {
     }
 }
 
+public protocol DynamicSectionDataSource: class, RandomAccessCollection {
+    var keepSynced: Bool { set get }
+    var changes: AnyListenable<RCEvent> { get }
+}
+
+public struct ReuseRowSectionDataSource<RowModel> {
+    let keepSynced: (Bool) -> Void
+    let changes: AnyListenable<RCEvent>
+    let collection: AnySharedCollection<RowModel>
+    var isSynced: Bool = false
+
+    public init<DS: DynamicSectionDataSource>(_ dataSource: DS) where DS.Element == RowModel {
+        self.keepSynced = { dataSource.keepSynced = $0 }
+        self.changes = dataSource.changes
+        self.collection = AnySharedCollection(dataSource)
+    }
+
+    public init<RC: RealtimeCollection>(collection: RC) where RC.Element == RowModel, RC.View.Element: DatabaseKeyRepresentable {
+        self.init(AnyRealtimeCollection(collection))
+    }
+}
+extension AnyRealtimeCollection: DynamicSectionDataSource {}
+
 open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     typealias CellBuilder = (UITableView, IndexPath) -> UITableViewCell
     var updateDispose: Disposable?
     var reuseController: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell> = ReuseController()
     let rowBuilder: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell>.RowBuilder
     let cellBuilder: CellBuilder
+    var dataSource: ReuseRowSectionDataSource<RowModel>
 
     var tableView: UITableView?
     var section: Int?
-    let collection: AnyRealtimeCollection<RowModel>
-    override var numberOfItems: Int { return collection.count }
-
     open var scheduledUpdate: UITableView.ScheduledUpdate?
 
+    override var numberOfItems: Int { return dataSource.collection.count }
+
     deinit {
-        collection.keepSynced = false
+        dataSource.keepSynced(false)
     }
 
-    public init<C: RealtimeCollection, Cell: UITableViewCell>(
-        _ collection: C,
+    public init<Cell: UITableViewCell>(
+        _ dataSource: ReuseRowSectionDataSource<RowModel>,
         cell cellBuilder: @escaping (UITableView, IndexPath) -> Cell,
         row rowBuilder: @escaping () -> ReuseFormRow<Cell, Model, RowModel>
-    ) where C.Element == RowModel, C.View.Element: DatabaseKeyRepresentable {
-        self.collection = AnyRealtimeCollection<RowModel>(collection)
+    ) {
+        self.dataSource = dataSource
         self.cellBuilder = unsafeBitCast(cellBuilder, to: CellBuilder.self)
         self.rowBuilder = unsafeBitCast(rowBuilder, to: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell>.RowBuilder.self)
         super.init(headerTitle: nil, footerTitle: nil)
@@ -346,7 +369,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         if !item.state.contains(.displaying) || item.view !== cell {
             item.view = cell
             item.model = model
-            item._rowModel.send(.value(collection[RealtimeCollectionIndex(indexPath.row)]))
+            item._rowModel.send(.value(dataSource.collection[indexPath.row]))
             item.state.insert(.displaying)
             item.state.remove(.free)
         }
@@ -369,7 +392,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         self.tableView = tableView
         self.section = index
         updateDispose?.dispose()
-        updateDispose = collection.changes.listening(
+        updateDispose = dataSource.changes.listening(
             onValue: { [weak tableView, unowned self] e in
                 guard let tv = tableView else { return }
                 switch e {
@@ -401,7 +424,11 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
                         }
                     })
                     moved.forEach({ (move) in
-                        changes.append((IndexPath(row: move.from, section: index), .move(IndexPath(row: move.to, section: index))))
+                        let ip = IndexPath(row: move.from, section: index)
+                        if self.scheduledUpdate?.fulfill(ip) ?? false {
+                        } else {
+                            changes.append((ip, .move(IndexPath(row: move.to, section: index))))
+                        }
                     })
                     if changes.contains(where: { $0.1.isActive }) {
                         tv.beginUpdates()
@@ -424,8 +451,9 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
             }
         )
 
-        if !collection.keepSynced {
-            collection.keepSynced = true
+        if !dataSource.isSynced {
+            dataSource.keepSynced(true)
+            dataSource.isSynced = true
         }
     }
 
@@ -456,7 +484,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     }
 
     public func model(at indexPath: IndexPath) -> RowModel {
-        return collection[RealtimeCollectionIndex(indexPath.row)]
+        return dataSource.collection[indexPath.row]
     }
 }
 

@@ -69,7 +69,7 @@ public enum RCDataExplorer {
 }
 
 /// A type that represents Realtime database collection
-public protocol RealtimeCollection: BidirectionalCollection, RealtimeValue, RealtimeCollectionActions {
+public protocol RealtimeCollection: RandomAccessCollection, RealtimeValue, RealtimeCollectionActions {
     associatedtype View: RealtimeCollectionView
     /// Object that stores data of the view collection
     var view: View { get }
@@ -109,6 +109,20 @@ extension RealtimeCollection where Element: DatabaseKeyRepresentable, View.Eleme
     ///   `false`.
     public func contains(_ element: Element) -> Bool {
         return view.contains { $0.dbKey == element.dbKey }
+    }
+}
+extension RealtimeCollection where Index == Int {
+    public func mapCommitedUpdate(_ event: RCEvent) -> (deleted: [Int], inserted: [Element], modified: [Element], moved: [Element]) {
+        switch event {
+        case .initial: return ([], Array(self), [], [])
+        case .updated(let deleted, let inserted, let modified, let moved):
+            return (
+                deleted,
+                inserted.map({ self[$0] }),
+                modified.map({ self[$0] }),
+                moved.map({ self[$1] })
+            )
+        }
     }
 }
 
