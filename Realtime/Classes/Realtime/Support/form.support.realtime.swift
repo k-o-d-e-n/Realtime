@@ -277,7 +277,7 @@ extension UITableView {
     public class ScheduledUpdate {
         internal private(set) var events: [IndexPath: UITableView.Operation]
         var operations: [(IndexPath, UITableView.Operation)] = []
-        var isFulfilled: Bool { return events.isEmpty }
+        var isReadyToUpdate: Bool { return events.isEmpty && !operations.isEmpty }
 
         public init(events: [IndexPath: UITableView.Operation]) {
             precondition(!events.isEmpty, "Events must not be empty")
@@ -438,7 +438,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
                         self.scheduledUpdate?.batchUpdatesIfFulfilled(in: tv)
                         self.scheduledUpdate = nil
                         tv.endUpdates()
-                    } else if self.scheduledUpdate?.isFulfilled ?? false {
+                    } else if self.scheduledUpdate?.isReadyToUpdate ?? false {
                         tv.beginUpdates()
                         self.scheduledUpdate?.batchUpdatesIfFulfilled(in: tv)
                         self.scheduledUpdate = nil

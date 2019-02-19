@@ -565,17 +565,21 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
         return IndexingIterator(_elements: self)
     } // iterator is not safe
     public subscript(position: Int) -> Element {
-        let value = view[position]
-        guard let element = storage.element(for: value.dbKey) else {
-            let keyPayload = value.payload?[InternalKeys.key.rawValue] as? [String: RealtimeDataValue]
-            let key = keyBuilder.build(with: value.dbKey, options: [
-                .rawValue: keyPayload?[InternalKeys.raw.rawValue] as Any,
-                .userPayload: keyPayload?[InternalKeys.payload.rawValue] as Any
-            ])
-            storage.set(value: value, for: key)
-            return (key, value)
+        if isStandalone {
+            return storage[storage.index(storage.startIndex, offsetBy: position)]
+        } else {
+            let value = view[position]
+            guard let element = storage.element(for: value.dbKey) else {
+                let keyPayload = value.payload?[InternalKeys.key.rawValue] as? [String: RealtimeDataValue]
+                let key = keyBuilder.build(with: value.dbKey, options: [
+                    .rawValue: keyPayload?[InternalKeys.raw.rawValue] as Any,
+                    .userPayload: keyPayload?[InternalKeys.payload.rawValue] as Any
+                ])
+                storage.set(value: value, for: key)
+                return (key, value)
+            }
+            return (element.key, value)
         }
-        return (element.key, value)
     }
     public subscript(key: Key) -> Value? {
         guard let v = storage.value(for: key) else {

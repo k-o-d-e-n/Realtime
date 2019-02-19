@@ -88,7 +88,7 @@ extension ReadonlyProperty {
             cache: cache,
             node: node,
             completion: { data in
-                self.applyData(data, node: node, completion: completion)
+                self.applyData(data, node: node, needCaching: false, completion: completion)
             }
         )
     }
@@ -97,7 +97,7 @@ extension ReadonlyProperty {
             for: node,
             timeout: timeout,
             completion: { (data) in
-                self.applyData(data, node: node, completion: completion)
+                self.applyData(data, node: node, needCaching: true, completion: completion)
             },
             onCancel: { e in
                 self._setError(e)
@@ -105,11 +105,11 @@ extension ReadonlyProperty {
             }
         )
     }
-    fileprivate func applyData(_ data: Data?, node: Node, completion: Assign<Error?>?) {
+    fileprivate func applyData(_ data: Data?, node: Node, needCaching: Bool, completion: Assign<Error?>?) {
         do {
             if let value = try self.representer.decode(FileNode(node: node, value: data)) {
                 self._setValue(.remote(value))
-                if let data = data, let cache = RealtimeApp.app.configuration.storageCache {
+                if needCaching, let data = data, let cache = RealtimeApp.app.configuration.storageCache {
                     cache.put(data, for: node, completion: nil)
                 }
             } else {

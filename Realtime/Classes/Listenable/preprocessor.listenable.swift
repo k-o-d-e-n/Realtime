@@ -601,6 +601,7 @@ public struct Accumulator<T>: Listenable {
     private func sendFirstIfExists(_ assign: Assign<ListenEvent<T>>) {
         if let f = _first._wrapped {
             assign.call(f)
+            _first._wrapped = nil
         }
     }
 
@@ -1024,5 +1025,20 @@ public extension Listenable {
     /// Connection with source keeps while current point exists listeners.
     func share(connectionLive strategy: Share<Out>.ConnectionLiveStrategy, _ repeater: Repeater<Out> = .unsafe()) -> Share<Out> {
         return Share(self, liveStrategy: strategy, repeater: repeater)
+    }
+}
+
+public extension Listenable where Out == Bool {
+    func and<L: Listenable>(_ other: L) -> Preprocessor<(Bool, Bool), Bool> where L.Out == Bool {
+        return combine(with: other).map({ $0 && $1 })
+    }
+    func and<L1: Listenable, L2: Listenable>(_ other1: L1, _ other2: L2) -> Preprocessor<(Bool, Bool, Bool), Bool> where L1.Out == Bool, L2.Out == Bool {
+        return combine(with: other1, other2).map({ $0 && $1 && $2 })
+    }
+    func or<L: Listenable>(_ other: L) -> Preprocessor<(Bool, Bool), Bool> where L.Out == Bool {
+        return combine(with: other).map({ $0 || $1 })
+    }
+    func or<L1: Listenable, L2: Listenable>(_ other1: L1, _ other2: L2) -> Preprocessor<(Bool, Bool, Bool), Bool> where L1.Out == Bool, L2.Out == Bool {
+        return combine(with: other1, other2).map({ $0 || $1 || $2 })
     }
 }

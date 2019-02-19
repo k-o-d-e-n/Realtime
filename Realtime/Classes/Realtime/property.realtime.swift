@@ -750,10 +750,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 extension ReadonlyProperty: Listenable {
     public func listening(_ assign: Assign<ListenEvent<PropertyState<T>>>) -> Disposable {
         defer {
-            switch _value {
-            case .none: break
-            default: assign.call(.value(_value))
-            }
+            assign.call(.value(_value))
         }
         return repeater.listening(assign)
     }
