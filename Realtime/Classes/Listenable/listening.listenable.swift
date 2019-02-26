@@ -146,6 +146,10 @@ public final class ListeningDisposeStore {
         disposes.forEach { $0.dispose() }
         disposes.removeAll()
     }
+    public func disposeItems() {
+        listeningItems.forEach { $0.dispose() }
+        listeningItems.removeAll()
+    }
 
     public func dispose() {
         disposes.forEach { $0.dispose() }

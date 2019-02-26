@@ -217,6 +217,7 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
     override func reloadCell(at indexPath: IndexPath) {
         let row = rows[indexPath.row]
         if row.isVisible {
+            // TODO: Current action is insufficiently
             row.view = row.view
         }
     }
@@ -539,6 +540,17 @@ open class Form<Model: AnyObject> {
         guard performsUpdates else { return }
         tv.endUpdates()
         performsUpdates = false
+    }
+
+    open func addRow<Cell: UITableViewCell>(
+        _ row: Row<Cell, Model>, with animation: UITableViewRowAnimation = .automatic
+        ) {
+        guard let last = self.last else { fatalError("Form is empty") }
+        let rowIndex = last.numberOfItems
+        last.addRow(row)
+        if performsUpdates {
+            tableView?.insertRows(at: [IndexPath(row: rowIndex, section: numberOfSections - 1)], with: animation)
+        }
     }
 
     open func insertRow<Cell: UITableViewCell>(

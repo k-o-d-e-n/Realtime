@@ -48,6 +48,14 @@ public extension Listenable where Out: RealtimeValueActions {
     }
 }
 
+public extension Listenable {
+    func bind<T>(to property: Property<T>) -> Disposable where T == Out {
+        return listening(onValue: { value in
+            property <== value
+        })
+    }
+}
+
 // MARK: - UI
 
 public extension Listenable where Self.Out == String? {
@@ -76,6 +84,26 @@ public extension Listenable where Self.Out == UIImage? {
 
 public struct RTime<Base> {
     public let base: Base
+}
+
+public protocol RealtimeListener {
+    associatedtype Listened
+    func take(realtime value: Listened)
+}
+public extension Listenable {
+    func bind<RL: RealtimeListener>(to listener: RL) -> Disposable where RL.Listened == Out {
+        return listening(onValue: listener.take)
+    }
+    func bind<RL: RealtimeListener & AnyObject>(toWeak listener: RL) -> Disposable where RL.Listened == Out {
+        return listening(onValue: { [weak listener] next in
+            listener?.take(realtime: next)
+        })
+    }
+    func bind<RL: RealtimeListener & AnyObject>(toUnowned listener: RL) -> Disposable where RL.Listened == Out {
+        return listening(onValue: { [unowned listener] next in
+            listener.take(realtime: next)
+        })
+    }
 }
 
 public protocol RealtimeCompatible {

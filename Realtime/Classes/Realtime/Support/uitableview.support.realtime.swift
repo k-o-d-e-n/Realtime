@@ -388,6 +388,10 @@ extension SingleSectionTableViewDelegate {
             return delegate.editingDataSource?.tableView(tableView, canEditRowAt: indexPath) ?? tableView.isEditing
         }
 
+        func tableView(_ tableView: UITableView, editActionsForRowAt indexPath: IndexPath) -> [UITableViewRowAction]? {
+            return delegate.tableDelegate?.tableView?(tableView, editActionsForRowAt: indexPath) ?? nil
+        }
+
         // MARK: UIScrollView
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {

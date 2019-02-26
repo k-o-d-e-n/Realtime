@@ -1027,6 +1027,7 @@ public extension MutationPoint where T: RealtimeDataValue {
 
         return transaction
     }
+    @discardableResult
     func mutate(by key: String? = nil, use value: T, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.addValue(value, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
