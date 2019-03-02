@@ -8,6 +8,8 @@
 
 // MARK: System type extensions
 
+import Foundation
+
 public struct RTime<Base> {
     public let base: Base
 }

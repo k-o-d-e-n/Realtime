@@ -477,14 +477,6 @@ public extension RawRepresentable where Self.RawValue == String {
     func subpath(with path: String) -> String {
         return rawValue + "/" + path
     }
-
-    func reference() -> DatabaseReference {
-        return .fromRoot(rawValue)
-    }
-
-    func reference(from ref: DatabaseReference) -> DatabaseReference {
-        return ref.child(rawValue)
-    }
 }
 
 extension String: RawRepresentable {

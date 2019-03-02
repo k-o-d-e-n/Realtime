@@ -77,12 +77,14 @@ public extension RawRepresentable where Self.RawValue == String {
     func url(in object: Object) -> Property<URL?> {
         return property(in: object, representer: Representer<URL>.default)
     }
+    #if os(macOS)
     func codable<V: Codable>(in object: Object) -> Property<V> {
         return property(in: object, representer: Representer<V>.json())
     }
     func optionalCodable<V: Codable>(in object: Object) -> Property<V?> {
         return property(in: object, representer: Representer<V>.json())
     }
+    #endif
 
     func reference<V: Object>(in object: Object, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V> {
         return Reference(
@@ -551,7 +553,7 @@ infix operator <==: AssignmentPrecedence
 public extension Property {
     static func <== (_ prop: Property, _ value: @autoclosure () throws -> T) rethrows {
         prop._setLocalValue(try value())
-    
+    }
 }
 infix operator <!=: AssignmentPrecedence
 public extension Property where T: Equatable {
@@ -573,7 +575,7 @@ public extension Property where T: Equatable {
 }
 
 /// Defines readonly property with any value
-@available(*, introduced: 0.4.3)
+// @available(*, introduced: 0.4.3)
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate var _value: PropertyState<T>
     fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
@@ -1043,6 +1045,7 @@ extension MutationPoint {
         return transaction
     }
 }
+#if os(macOS)
 public extension MutationPoint where T: Codable {
     @discardableResult
     func addValue(by key: String? = nil, use value: T, in transaction: Transaction? = nil) throws -> Transaction {
@@ -1055,3 +1058,4 @@ public extension MutationPoint where T: Codable {
         return transaction
     }
 }
+#endif

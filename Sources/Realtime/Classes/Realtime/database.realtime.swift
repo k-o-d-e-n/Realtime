@@ -69,34 +69,6 @@ public enum DatabaseObservingEvent: Hashable, CustomDebugStringConvertible {
 }
 
 public typealias DatabaseDataEvent = DatabaseObservingEvent
-extension DatabaseDataEvent {
-    init(firebase events: [DataEventType]) {
-        if events.isEmpty || events.contains(.value) {
-            self = .value
-        } else {
-            self = .child(events.reduce(into: DatabaseDataChanges(rawValue: 0), { (res, event) in
-                res.rawValue &= event.rawValue - 1
-            }))
-        }
-    }
-
-    var firebase: [DataEventType] {
-        switch self {
-        case .value: return [.value]
-        case .child(let c):
-            return [DataEventType.childAdded, DataEventType.childChanged,
-                    DataEventType.childMoved, DataEventType.childRemoved].filter { (e) -> Bool in
-                switch e {
-                case .childAdded: return c.contains(.added)
-                case .childChanged: return c.contains(.changed)
-                case .childMoved: return c.contains(.moved)
-                case .childRemoved: return c.contains(.removed)
-                default: return false
-                }
-            }
-        }
-    }
-}
 
 public enum RealtimeDataOrdering {
     case key
@@ -455,6 +427,35 @@ extension DatabaseReference {
             })
         } else {
             updateChildValues(keyValuePairs as [String: Any])
+        }
+    }
+}
+
+extension DatabaseDataEvent {
+    init(firebase events: [DataEventType]) {
+        if events.isEmpty || events.contains(.value) {
+            self = .value
+        } else {
+            self = .child(events.reduce(into: DatabaseDataChanges(rawValue: 0), { (res, event) in
+                res.rawValue &= event.rawValue - 1
+            }))
+        }
+    }
+
+    var firebase: [DataEventType] {
+        switch self {
+        case .value: return [.value]
+        case .child(let c):
+            return [DataEventType.childAdded, DataEventType.childChanged,
+                    DataEventType.childMoved, DataEventType.childRemoved].filter { (e) -> Bool in
+                switch e {
+                case .childAdded: return c.contains(.added)
+                case .childChanged: return c.contains(.changed)
+                case .childMoved: return c.contains(.moved)
+                case .childRemoved: return c.contains(.removed)
+                default: return false
+                }
+            }
         }
     }
 }

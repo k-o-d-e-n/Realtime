@@ -777,10 +777,11 @@ public struct Shared<T>: Listenable {
     }
 
     private func increment(_ storage: ValueStorage<(UInt, ListeningDispose?)>, source: AnyListenable<T>) {
-        if storage.value.1 == nil {
+        let value = storage.value
+        if value.1 == nil {
             storage.value = (1, ListeningDispose(source.bind(to: repeater)))
         } else {
-            storage.value.0 += 1
+            storage.value = (value.0 + 1, value.1)
         }
     }
 
