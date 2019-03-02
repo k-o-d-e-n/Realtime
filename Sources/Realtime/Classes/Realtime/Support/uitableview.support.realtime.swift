@@ -7,6 +7,7 @@
 //  Copyright © 2018 Denis Koryttsev. All rights reserved.
 //
 
+#if os(macOS)
 import UIKit
 
 protocol ReuseItemProtocol {
@@ -1063,3 +1064,4 @@ extension CollectionViewDelegate {
         }
     }
 }
+#endif

@@ -551,7 +551,7 @@ infix operator <==: AssignmentPrecedence
 public extension Property {
     static func <== (_ prop: Property, _ value: @autoclosure () throws -> T) rethrows {
         prop._setLocalValue(try value())
-    }
+    
 }
 infix operator <!=: AssignmentPrecedence
 public extension Property where T: Equatable {

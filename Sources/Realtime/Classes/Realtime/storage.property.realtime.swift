@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseStorage
 
 public extension RawRepresentable where Self.RawValue == String {
     func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T> {

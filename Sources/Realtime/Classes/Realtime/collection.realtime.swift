@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 extension ValueOption {
     static let elementBuilder = ValueOption("realtime.collection.builder")
@@ -174,6 +173,11 @@ public extension RealtimeCollection {
         }
     }
 }
+
+#if os(macOS)
+
+import FirebaseDatabase
+
 extension RealtimeCollection where Self: AnyObject, Element: RealtimeValue {
     public mutating func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
         filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
@@ -197,4 +201,4 @@ extension RealtimeCollection where Self: AnyObject, Element: RealtimeValue {
         }
     }
 }
-
+#endif

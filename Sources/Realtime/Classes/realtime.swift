@@ -6,8 +6,10 @@
 //
 
 import Foundation
+#if os(macOS)
 import FirebaseDatabase
 import FirebaseStorage
+#endif
 
 internal func debugAction(_ action: () -> Void) {
     #if DEBUG
@@ -59,6 +61,14 @@ public final class RealtimeApp {
         self.configuration = configuration
     }
 
+#if os(macOS)
+    public static func firebase(
+        configuration: Configuration = Configuration()
+    ) {
+        initialize(with: Database.database(), storage: Storage.storage())
+    }
+#endif
+
     /// Creates default configuration for Realtime application.
     ///
     /// Should call once in `application(_:didFinishLaunchingWithOptions:)`.
@@ -69,8 +79,8 @@ public final class RealtimeApp {
     ///   - linksNode: Database reference where will be store service data
     /// is related with creation external links.
     public static func initialize(
-        with database: RealtimeDatabase = Database.database(),
-        storage: RealtimeStorage = Storage.storage(),
+        with database: RealtimeDatabase,
+        storage: RealtimeStorage,
         configuration: Configuration = Configuration()
     ) {
         guard !_isInitialized else {

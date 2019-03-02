@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 // MARK: RealtimeDataProtocol ---------------------------------------------------------------
 
@@ -40,51 +39,6 @@ extension RealtimeDataProtocol {
     }
     public func reduce<Result>(into result: inout Result, updateAccumulatingResult: (inout Result, RealtimeDataProtocol) throws -> Void) rethrows -> Result {
         return try makeIterator().reduce(into: result, updateAccumulatingResult)
-    }
-}
-
-extension DataSnapshot: RealtimeDataProtocol, Sequence {
-    public var key: String? {
-        return self.ref.key
-    }
-
-    public var database: RealtimeDatabase? { return ref.database }
-    public var storage: RealtimeStorage? { return nil }
-    public var node: Node? { return Node.from(ref) }
-
-    public func child(forPath path: String) -> RealtimeDataProtocol {
-        return childSnapshot(forPath: path)
-    }
-
-    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        let childs = children
-        return AnyIterator {
-            return childs.nextObject() as? DataSnapshot
-        }
-    }
-}
-extension MutableData: RealtimeDataProtocol, Sequence {
-    public var database: RealtimeDatabase? { return nil }
-    public var storage: RealtimeStorage? { return nil }
-    public var node: Node? { return key.map(Node.init) }
-
-    public func exists() -> Bool {
-        return value.map { !($0 is NSNull) } ?? false
-    }
-
-    public func child(forPath path: String) -> RealtimeDataProtocol {
-        return childData(byAppendingPath: path)
-    }
-
-    public func hasChild(_ childPathString: String) -> Bool {
-        return hasChild(atPath: childPathString)
-    }
-
-    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        let childs = children
-        return AnyIterator {
-            return childs.nextObject() as? MutableData
-        }
     }
 }
 
@@ -623,46 +577,6 @@ public extension Representer where V: Codable {
     }
 }
 
-import UIKit.UIImage
-
-public extension Representer where V: UIImage {
-    static var png: Representer<UIImage> {
-        let base = Representer<Data>.any
-        return Representer<UIImage>(
-            encoding: { img -> Any? in
-                guard let data = UIImagePNGRepresentation(img) else {
-                    throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .png representation")
-                }
-                return data
-            },
-            decoding: { d in
-                let data = try base.decode(d)
-                guard let img = UIImage(data: data) else {
-                    throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
-                }
-                return img
-            }
-        )
-    }
-    static func jpeg(quality: CGFloat = 1.0) -> Representer<UIImage> {
-        let base = Representer<Data>.any
-        return Representer<UIImage>(
-            encoding: { img -> Any? in
-                guard let data = UIImageJPEGRepresentation(img, quality) else {
-                    throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .jpeg representation with compression quality: \(quality)")
-                }
-                return data
-            },
-            decoding: { d in
-                guard let img = UIImage(data: try base.decode(d)) else {
-                    throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
-                }
-                return img
-            }
-        )
-    }
-}
-
 public enum DateCodingStrategy {
     case secondsSince1970
     case millisecondsSince1970
@@ -712,6 +626,95 @@ public extension Representer where V == Date {
 }
 
 /// --------------------------- DataSnapshot Decoder ------------------------------
+
+#if os(macOS)
+
+import UIKit.UIImage
+
+public extension Representer where V: UIImage {
+    static var png: Representer<UIImage> {
+        let base = Representer<Data>.any
+        return Representer<UIImage>(
+            encoding: { img -> Any? in
+                guard let data = UIImagePNGRepresentation(img) else {
+                    throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .png representation")
+                }
+                return data
+            },
+            decoding: { d in
+                let data = try base.decode(d)
+                guard let img = UIImage(data: data) else {
+                    throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
+                }
+                return img
+            }
+        )
+    }
+    static func jpeg(quality: CGFloat = 1.0) -> Representer<UIImage> {
+        let base = Representer<Data>.any
+        return Representer<UIImage>(
+            encoding: { img -> Any? in
+                guard let data = UIImageJPEGRepresentation(img, quality) else {
+                    throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .jpeg representation with compression quality: \(quality)")
+                }
+                return data
+            },
+            decoding: { d in
+                guard let img = UIImage(data: try base.decode(d)) else {
+                    throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
+                }
+                return img
+            }
+        )
+    }
+}
+
+import FirebaseDatabase
+
+extension DataSnapshot: RealtimeDataProtocol, Sequence {
+    public var key: String? {
+        return self.ref.key
+    }
+
+    public var database: RealtimeDatabase? { return ref.database }
+    public var storage: RealtimeStorage? { return nil }
+    public var node: Node? { return Node.from(ref) }
+
+    public func child(forPath path: String) -> RealtimeDataProtocol {
+        return childSnapshot(forPath: path)
+    }
+
+    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
+        let childs = children
+        return AnyIterator {
+            return childs.nextObject() as? DataSnapshot
+        }
+    }
+}
+extension MutableData: RealtimeDataProtocol, Sequence {
+    public var database: RealtimeDatabase? { return nil }
+    public var storage: RealtimeStorage? { return nil }
+    public var node: Node? { return key.map(Node.init) }
+
+    public func exists() -> Bool {
+        return value.map { !($0 is NSNull) } ?? false
+    }
+
+    public func child(forPath path: String) -> RealtimeDataProtocol {
+        return childData(byAppendingPath: path)
+    }
+
+    public func hasChild(_ childPathString: String) -> Bool {
+        return hasChild(atPath: childPathString)
+    }
+
+    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
+        let childs = children
+        return AnyIterator {
+            return childs.nextObject() as? MutableData
+        }
+    }
+}
 
 public extension RealtimeDataProtocol {
     func unbox<T>(as type: T.Type) throws -> T {
@@ -910,3 +913,4 @@ extension DataSnapshot {
         }
     }
 }
+#endif

@@ -6,6 +6,7 @@
 //  Copyright © 2017 Denis Koryttsev. All rights reserved.
 //
 
+#if os(macOS)
 import FirebaseDatabase
 import FirebaseStorage
 
@@ -83,3 +84,4 @@ extension RealtimeDatabase {
         return token
     }
 }
+#endif
