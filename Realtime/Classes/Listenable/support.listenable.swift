@@ -105,6 +105,11 @@ public extension Listenable {
         })
     }
 }
+extension Property: RealtimeListener {
+    public func take(realtime value: T) {
+        self <== value
+    }
+}
 
 public protocol RealtimeCompatible {
     associatedtype Current = Self

@@ -676,12 +676,12 @@ class PagingController {
                 if event == .value {
                     self.endPage = data.childrenCount == self.pageSize ? nil : disposable
                     self.startPage = disposable
+                    if let compl = completion {
+                        compl()
+                        completion = nil
+                    }
                 }
                 self.delegate?.pagingControllerDidReceive(data: data, with: event)
-                if let compl = completion {
-                    compl()
-                    completion = nil
-                }
             },
             onCancel: { [weak self] (error) in
                 self?.delegate?.pagingControllerDidCancel(with: error)

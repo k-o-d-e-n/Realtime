@@ -129,6 +129,9 @@ extension ReuseItem {
         bind(value, source, assign, { _, e in error(e) })
     }
 }
+extension ReuseItem where View: UIView {
+    var _isVisible: Bool { return view.map { !$0.isHidden && $0.window != nil } ?? false }
+}
 
 struct ReuseController<Row, Key: Hashable> where Row: ReuseItemProtocol {
     var freeItems: [Row] = []
@@ -465,32 +468,8 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
         return items == nil
     }
 
-    func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
-        items.changes.listening(
-            onValue: { [weak tableView] e in
-                guard let tv = tableView else { return }
-                tv.beginUpdates()
-                switch e {
-                case .initial:
-                    tv.reloadSections([index], with: .automatic)
-                case .updated(let deleted, let inserted, let modified, let moved):
-                    tv.insertRows(at: inserted.map { IndexPath(row: $0, section: index) }, with: .automatic)
-                    tv.deleteRows(at: deleted.map { IndexPath(row: $0, section: index) }, with: .automatic)
-                    tv.reloadRows(at: modified.map { IndexPath(row: $0, section: index) }, with: .automatic)
-                    moved.forEach({ (move) in
-                        tv.moveRow(at: IndexPath(row: move.from, section: index), to: IndexPath(row: move.to, section: index))
-                    })
-                }
-                tv.endUpdates()
-            },
-            onError: { error in
-                debugPrintLog(String(describing: error))
-            }
-        ).add(to: disposeStorage)
-        self.items = items
-    }
-
     func willDisplaySection(_ collectionView: UICollectionView, items: AnyRealtimeCollection<Model>, at index: Int) {
+        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
         items.changes.listening(
             onValue: { [weak collectionView] e in
                 guard let cv = collectionView else { return }
@@ -516,14 +495,44 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
     }
 
     func endDisplaySection(_ tableView: UITableView, at index: Int) {
+        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
     }
 
     func endDisplaySection(_ collectionView: UICollectionView, at index: Int) {
+        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
     }
 
     override func free() {
         super.free()
         items = nil
+    }
+}
+extension ReuseSection where View: UIView {
+    func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
+        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
+        items.changes.listening(
+            onValue: { [unowned self, weak tableView] e in
+                // TODO: visibillity checks because tableView has unbalanced call `willDisplayHeaderView` method
+                guard self._isVisible, let tv = tableView else { return }
+                tv.beginUpdates()
+                switch e {
+                case .initial:
+                    tv.reloadSections([index], with: .automatic)
+                case .updated(let deleted, let inserted, let modified, let moved):
+                    tv.insertRows(at: inserted.map { IndexPath(row: $0, section: index) }, with: .automatic)
+                    tv.deleteRows(at: deleted.map { IndexPath(row: $0, section: index) }, with: .automatic)
+                    tv.reloadRows(at: modified.map { IndexPath(row: $0, section: index) }, with: .automatic)
+                    moved.forEach({ (move) in
+                        tv.moveRow(at: IndexPath(row: move.from, section: index), to: IndexPath(row: move.to, section: index))
+                    })
+                }
+                tv.endUpdates()
+            },
+            onError: { error in
+                debugPrintLog(String(describing: error))
+            }
+        ).add(to: disposeStorage)
+        self.items = items
     }
 }
 

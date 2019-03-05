@@ -320,7 +320,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
             if !controller.isStarted {
                 controller.start()
             }
-            return controller.isStarted
+            return true
         }
     }
 

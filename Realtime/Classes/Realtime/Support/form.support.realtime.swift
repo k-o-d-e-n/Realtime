@@ -86,7 +86,7 @@ extension Row where View: UITableViewCell {
 }
 public extension Row where View: UIView {
     var isVisible: Bool {
-        return state.contains(.displaying) && view.map { !$0.isHidden && $0.window != nil } ?? false
+        return state.contains(.displaying) && super._isVisible
     }
 }
 extension Row: CustomDebugStringConvertible {
@@ -699,6 +699,7 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+            tableView.endEditing(false)
             form.didSelect(tableView, didSelectRowAt: indexPath)
             form.tableDelegate?.tableView?(tableView, didSelectRowAt: indexPath)
         }
