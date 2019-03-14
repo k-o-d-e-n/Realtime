@@ -502,7 +502,7 @@ extension StorageDownloadTask {
 }
 
 public protocol RealtimeStorageCache {
-    func file(for node: Node, completion: (Data?) -> Void)
+    func file(for node: Node, completion: @escaping (Data?) -> Void)
     func put(_ file: Data, for node: Node, completion: ((Error?) -> Void)?)
 }
 

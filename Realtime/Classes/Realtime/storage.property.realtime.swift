@@ -173,9 +173,9 @@ class CachedFileDownloadTask: RealtimeStorageTask {
                     cacheCompl(d)
                     self._success.send(.value(nil))
                 } else {
-                    let task = nextLevelTask()
+                    let task = self.nextLevelTask()
                     task.success.bind(to: self._success)
-                    _nextTask = task
+                    self._nextTask = task
                 }
             }
         }
