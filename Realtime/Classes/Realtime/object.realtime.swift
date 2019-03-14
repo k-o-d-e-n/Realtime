@@ -423,7 +423,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///         }
 ///     }
 ///
-open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Versionable {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Comparable, Versionable {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
     public var keepSynced: Bool = false {

@@ -398,15 +398,16 @@ public typealias OptionalProperty<T> = Property<T?>
 
 /// Defines read/write property with any value
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
-    fileprivate var oldValue: PropertyState<T>?
+    fileprivate var _oldValue: PropertyState<T>?
     override var _hasChanges: Bool {
-        return oldValue != nil
+        return _oldValue != nil
     }
+    public var oldValue: PropertyState<T>? { return _oldValue }
 
     public func revert() {
-        if let old = oldValue {
+        if let old = _oldValue {
             _value = old
-            oldValue = nil
+            _oldValue = nil
         }
     }
     public func currentReversion() -> () -> Void {
@@ -453,7 +454,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
-        self.oldValue = nil
+        self._oldValue = nil
         switch _value {
         case .none, .removed:
             debugAction {
@@ -472,7 +473,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 
     public override func didUpdate(through ancestor: Node) {
         super.didUpdate(through: ancestor)
-        self.oldValue = nil
+        self._oldValue = nil
         switch _value {
         case .local(let v):
             _setValue(.remote(v))
@@ -527,14 +528,14 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 
     internal func _setLocalValue(_ value: T) {
         if !hasChanges {
-            oldValue = _value
+            _oldValue = _value
         }
         _setValue(.local(value))
     }
 
     override func _setRemoved(isLocal: Bool) {
         if isLocal && !hasChanges {
-            oldValue = _value
+            _oldValue = _value
         }
         super._setRemoved(isLocal: isLocal)
     }
@@ -557,7 +558,7 @@ infix operator <!=: AssignmentPrecedence
 public extension Property where T: Equatable {
     static func <!= (_ prop: Property, _ value: @autoclosure () throws -> T) rethrows {
         let newValue = try value()
-        switch (prop.state, prop.oldValue) {
+        switch (prop.state, prop._oldValue) {
         case (.remote(let oldValue), _):
             if oldValue != newValue {
                 prop._setLocalValue(newValue)

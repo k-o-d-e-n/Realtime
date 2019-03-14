@@ -188,7 +188,7 @@ class FormViewController: UIViewController {
         section.addRow(ownedGroup)
 
         let followers = ReuseRowSection<User, User>(
-            Global.rtUsers,
+            ReuseRowSectionDataSource(collection: Global.rtUsers),
             cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) as! TextCell },
             row: { () -> ReuseFormRow<TextCell, User, User> in
             let row: ReuseFormRow<TextCell, User, User> = ReuseFormRow()
