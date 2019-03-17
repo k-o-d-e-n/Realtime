@@ -560,16 +560,24 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     
     override open func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try super.apply(data, event: event)
-        try reflect { (mirror) in
-            try apply(data, event: event, to: mirror)
+        var errors: [String: Error] = [:]
+        reflect { (mirror) in
+            apply(data, event: event, to: mirror, errorsContainer: &errors)
+        }
+        if errors.count > 0 {
+            throw RealtimeError(source: .objectCoding(errors), description: "Failed decoding data: \(data) to type: \(type(of: self))")
         }
     }
-    private func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent, to mirror: Mirror) throws {
-        try mirror.children.forEach { (child) in
+    private func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent, to mirror: Mirror, errorsContainer: inout [String: Error]) {
+        mirror.children.forEach { (child) in
             guard isNotIgnoredLabel(child.label) else { return }
 
             if var value: _RealtimeValue = forceValue(from: child, mirror: mirror), conditionForRead(of: value) {
-                try value.apply(parentDataIfNeeded: data, parentEvent: event)
+                do {
+                    try value.apply(parentDataIfNeeded: data, parentEvent: event)
+                } catch let e {
+                    errorsContainer[value.dbKey] = e
+                }
             }
         }
     }

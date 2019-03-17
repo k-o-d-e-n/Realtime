@@ -41,6 +41,7 @@ public struct RealtimeError: LocalizedError {
 
         case listening
         case coding
+        case objectCoding([String: Error])
         case transaction([Error])
         case cache
         case database
