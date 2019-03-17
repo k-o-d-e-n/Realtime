@@ -823,6 +823,10 @@ public struct Shared<T>: Listenable {
     let repeater: Repeater<T>
     let liveStrategy: InternalLiveStrategy
 
+    /// Defines intermediate connection live strategy
+    ///
+    /// - continuous: Connection lives for all the time while current point alive
+    /// - repeatable: Connection lives if at least one listener exists
     public enum ConnectionLiveStrategy {
         case continuous
         case repeatable
@@ -906,10 +910,10 @@ public struct Share<T>: Listenable {
     let repeater: Repeater<T>
     let liveStrategy: InternalLiveStrategy
 
-    /// Defines behavior to support connection with source
+    /// Defines intermediate connection live strategy
     ///
-    /// - continuous: Connection creates once and lives continuously
-    /// - repeatable: Connection recreates when listeners more than 0.
+    /// - continuous: Connection lives for all the time while current point alive
+    /// - repeatable: Connection lives if at least one listener exists
     /// This retains source, therefore be careful to avoid retain cycle.
     public enum ConnectionLiveStrategy {
         case continuous

@@ -577,8 +577,8 @@ public extension Property where T: Equatable {
 @available(*, introduced: 0.4.3)
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate var _value: PropertyState<T>
-    fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T?>
+    fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
 
     internal var _raw: RealtimeDataValue? { return super.raw }
     internal var _payload: [String : RealtimeDataValue]? { return super.payload }
