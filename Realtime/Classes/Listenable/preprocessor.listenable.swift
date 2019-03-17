@@ -127,6 +127,76 @@ public extension Listenable {
     }
 }
 
+public struct EventMap<I, O>: Listenable {
+    fileprivate let listenable: AnyListenable<I>
+    let transform: (ListenEvent<I>) throws -> ListenEvent<O>
+
+    public func listening(_ assign: Closure<ListenEvent<O>, Void>) -> Disposable {
+        return listenable.listening(assign.mapIn({ event in
+            do {
+                return try self.transform(event)
+            } catch let e {
+                return .error(e)
+            }
+        }))
+    }
+
+    public func listeningItem(_ assign: Closure<ListenEvent<O>, Void>) -> ListeningItem {
+        return listenable.listeningItem(assign.mapIn({ event in
+            do {
+                return try self.transform(event)
+            } catch let e {
+                return .error(e)
+            }
+        }))
+    }
+}
+extension Listenable {
+    public func mapEvent<T>(_ transform: @escaping (ListenEvent<Out>) throws -> ListenEvent<T>) -> EventMap<Out, T> {
+        return EventMap(listenable: AnyListenable(self), transform: transform)
+    }
+    public func mapError(_ transform: @escaping (Error) -> Error) -> EventMap<Out, Out> {
+        return mapEvent({ (event) -> ListenEvent<Out> in
+            switch event {
+            case .error(let e): return .error(transform(e))
+            default: return event
+            }
+        })
+    }
+    public func resolve(with transform: @escaping (Error) throws -> Out) -> EventMap<Out, Out> {
+        return mapEvent({ (event) -> ListenEvent<Out> in
+            switch event {
+            case .error(let e): return .value(try transform(e))
+            default: return event
+            }
+        })
+    }
+    public func resolve(with value: @escaping @autoclosure () -> Out) -> EventMap<Out, Out> {
+        return mapEvent({ (event) -> ListenEvent<Out> in
+            switch event {
+            case .error: return .value(value())
+            default: return event
+            }
+        })
+    }
+    public func resolve(with transform: @escaping (Error) throws -> Out?) -> EventMap<Out, Out?> {
+        return mapEvent({ (event) -> ListenEvent<Out?> in
+            switch event {
+            case .error(let e): return .value(try transform(e))
+            case .value(let v): return .value(v)
+            }
+        })
+    }
+    public func resolve(with value: @escaping @autoclosure () -> Out?) -> EventMap<Out, Out?> {
+        return mapEvent({ (event) -> ListenEvent<Out?> in
+            switch event {
+            case .error: return .value(value())
+            case .value(let v): return .value(v)
+            }
+        })
+    }
+}
+
 /// Fires if disposes use his Disposable. Else if has previous dispose behaviors like as once(), livetime(_:) and others, will not called.
 /// Can calls before last event.
 public struct OnFire<T>: Listenable {

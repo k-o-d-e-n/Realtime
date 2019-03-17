@@ -715,6 +715,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             if let value = try representer.decode(data) {
                 _setValue(.remote(value))
             } else {
+                // actually does not call anyway
                 _setRemoved(isLocal: false)
             }
         } catch let e {
