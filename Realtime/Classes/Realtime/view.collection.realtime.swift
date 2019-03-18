@@ -234,48 +234,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
                 }
             })
             .map { [unowned self] (value) -> (data: RealtimeDataProtocol, event: RCEvent) in
-                switch value.1 {
-                case .value:
-                    return (value.0, .initial)
-                case .child(.added):
-                    let indexes: [Int]
-                    if value.0.key == self.node?.key {
-                        let elements = try value.0.map(Element.init)
-                        self._elements.insert(contentsOf: elements)
-                        indexes = elements.compactMap(self._elements.index(of:))
-                    } else {
-                        let item = try Element(data: value.0)
-                        indexes = [self._elements.insert(item)]
-                    }
-                    return (value.0, .updated(deleted: [], inserted: indexes, modified: [], moved: []))
-                case .child(.removed):
-                    if value.0.key == self.node?.key {
-                        let indexes: [Int] = try value.0.map(Element.init).compactMap({ self._elements.remove($0)?.index })
-                        if indexes.count == value.0.childrenCount {
-                            return (value.0, .updated(deleted: indexes, inserted: [], modified: [], moved: []))
-                        } else {
-                            debugFatalError("Indexes: \(indexes), data: \(value.0)")
-                            throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
-                        }
-                    } else {
-                        let item = try Element(data: value.0)
-                        let indexes: [Int] = self._elements.remove(item).map({ [$0.index] }) ?? []
-                        return (value.0, .updated(deleted: indexes, inserted: [], modified: [], moved: []))
-                    }
-                case .child(.changed):
-                    let item = try Element(data: value.0)
-                    if let indexes = self._elements.move(item) {
-                        if indexes.from != indexes.to {
-                            return (value.0, .updated(deleted: [], inserted: [], modified: [], moved: [indexes]))
-                        } else {
-                            return (value.0, .updated(deleted: [], inserted: [], modified: [indexes.to], moved: []))
-                        }
-                    } else {
-                        throw RealtimeError(source: .collection, description: "Cannot move items")
-                    }
-                default:
-                    throw RealtimeError(source: .collection, description: "Unexpected data event: \(value)")
-                }
+                return try self._apply(value.0, event: value.1)
             }
     }
 
@@ -360,14 +319,57 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     }
 
     public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        /// partial data processing see in `changes`
-        guard event == .value else { return }
+        _ = try _apply(data, event: event)
+    }
 
-        switch dataExplorer {
-        case .value(let ascending):
-            self._elements = try SortedArray(data: data, event: event, sorting: ascending ? (<) : (>))
-        case .page(let c):
-            self._elements = try SortedArray(data: data, event: event, sorting: c.ascending ? (<) : (>))
+    func _apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws -> (data: RealtimeDataProtocol, event: RCEvent) {
+        switch event {
+        case .value:
+            switch dataExplorer {
+            case .value(let ascending):
+                self._elements = try SortedArray(data: data, event: event, sorting: ascending ? (<) : (>))
+            case .page(let c):
+                self._elements = try SortedArray(data: data, event: event, sorting: c.ascending ? (<) : (>))
+            }
+            return (data, .initial)
+        case .child(.added):
+            let indexes: [Int]
+            if data.key == self.node?.key {
+                let elements = try data.map(Element.init)
+                self._elements.insert(contentsOf: elements)
+                indexes = elements.compactMap(self._elements.index(of:))
+            } else {
+                let item = try Element(data: data)
+                indexes = [self._elements.insert(item)]
+            }
+            return (data, .updated(deleted: [], inserted: indexes, modified: [], moved: []))
+        case .child(.removed):
+            if data.key == self.node?.key {
+                let indexes: [Int] = try data.map(Element.init).compactMap({ self._elements.remove($0)?.index })
+                if indexes.count == data.childrenCount {
+                    return (data, .updated(deleted: indexes, inserted: [], modified: [], moved: []))
+                } else {
+                    debugFatalError("Indexes: \(indexes), data: \(data)")
+                    throw RealtimeError(source: .coding, description: "Element has been removed in remote collection, but couldn`t find in local storage.")
+                }
+            } else {
+                let item = try Element(data: data)
+                let indexes: [Int] = self._elements.remove(item).map({ [$0.index] }) ?? []
+                return (data, .updated(deleted: indexes, inserted: [], modified: [], moved: []))
+            }
+        case .child(.changed):
+            let item = try Element(data: data)
+            if let indexes = self._elements.move(item) {
+                if indexes.from != indexes.to {
+                    return (data, .updated(deleted: [], inserted: [], modified: [], moved: [indexes]))
+                } else {
+                    return (data, .updated(deleted: [], inserted: [], modified: [indexes.to], moved: []))
+                }
+            } else {
+                throw RealtimeError(source: .collection, description: "Cannot move items")
+            }
+        default:
+            throw RealtimeError(source: .collection, description: "Unexpected data: \(data) for event: \(event)")
         }
     }
 

@@ -241,12 +241,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
             return nil
         }
         return database.observe(event, on: node, onUpdate: { d in
-            do {
-                try self.apply(d, event: event)
-                self.dataObserver.send(.value((d, event)))
-            } catch let e {
-                self.dataObserver.send(.error(e))
-            }
+            self.dataObserver.send(.value((d, event)))
         }, onCancel: { e in
             self.dataObserver.send(.error(e))
         })
@@ -451,6 +446,28 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     /// Labels of properties that shouldn`t represent as database data
     open var ignoredLabels: [String] {
         return []
+    }
+
+    var changes: AnyListenable<Void>!
+
+    public required init(in node: Node?, options: [ValueOption : Any]) {
+        super.init(in: node, options: options)
+        self.changes = self.dataObserver
+            .map { [unowned self] (data, event) -> Void in
+                try self.apply(data, event: event)
+            }
+            .shared(connectionLive: .continuous)
+            .asAny()
+    }
+
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.init(data: data, event: event)
+        self.changes = self.dataObserver
+            .map { [unowned self] (data, event) -> Void in
+                try self.apply(data, event: event)
+            }
+            .shared(connectionLive: .continuous)
+            .asAny()
     }
 
     public convenience init(in object: Object, keyedBy key: String, options: [ValueOption: Any] = [:]) {
@@ -831,11 +848,11 @@ extension RTime: Listenable where Base: Object {
     public typealias Out = Base
     /// Disposable listening of value
     public func listening(_ assign: Assign<ListenEvent<Base>>) -> Disposable {
-        return base.dataObserver.map({ [weak base] _ in base }).compactMap().listening(assign)
+        return base.changes.map({ [weak base] _ in base }).compactMap().listening(assign)
     }
     /// Listening with possibility to control active state
     public func listeningItem(_ assign: Assign<ListenEvent<Base>>) -> ListeningItem {
-        return base.dataObserver.map({ [weak base] _ in base }).compactMap().listeningItem(assign)
+        return base.changes.map({ [weak base] _ in base }).compactMap().listeningItem(assign)
     }
 }
 extension Object: RealtimeCompatible {}
