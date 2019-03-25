@@ -687,7 +687,7 @@ extension RealtimeTests {
     func testRelationPayload() {
         let exp = expectation(description: "")
         let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: 2, .userPayload: ["key": "value"]])
-        let relation: Relation<Object> = "relation".relation(in: Object(in: .root), RelationMode.oneToOne("obj"))
+        let relation: Relation<Object> = "relation".relation(in: Object(in: .root), .one(name: "obj"))
         relation <== obj
 
         let transaction = Transaction(database: Cache.root)
@@ -696,7 +696,7 @@ extension RealtimeTests {
             transaction.commit { (_, errors) in
                 _ = errors?.map({ XCTFail($0.describingErrorDescription) })
 
-                let copyRelation: Relation<Object> = "relation".relation(in: Object(in: .root), RelationMode.oneToOne("obj"))
+                let copyRelation: Relation<Object> = "relation".relation(in: Object(in: .root), .one(name: "obj"))
                 do {
                     try copyRelation.apply(Cache.root.child(by: copyRelation.node!)!.asUpdateNode(), event: .value)
 
@@ -774,7 +774,7 @@ extension RealtimeTests {
     }
 
     func testRepresenterOptional() {
-        let representer = Representer<TestObject>.relation(.oneToOne("prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil)).optional()
+        let representer = Representer<TestObject>.relation(.one(name: "prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil)).optional()
         do {
             let object = try representer.decode(ValueNode(node: Node(key: ""), value: nil))
             XCTAssertNil(object)

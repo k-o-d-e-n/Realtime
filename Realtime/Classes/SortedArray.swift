@@ -367,7 +367,7 @@ extension SortedArray {
 // MARK: - Binary search
 extension SortedArray {
     /// The index where `newElement` should be inserted to preserve the array's sort order.
-    internal func insertionIndex(for newElement: Element) -> Index {
+    public func insertionIndex(for newElement: Element) -> Index {
         switch search(for: newElement) {
         case let .found(at: index): return index
         case let .notFound(insertAt: index): return index

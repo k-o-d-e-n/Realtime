@@ -159,6 +159,37 @@ extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatabl
     }
 }
 
+public extension KeyedEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T, forKey key: K) throws {
+        try T._isDefaultLiteral(value) ? encodeNil(forKey: key) : encode(value, forKey: key)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T, forKey key: K) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value, forKey: key)
+        }
+    }
+}
+public extension UnkeyedEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        try T._isDefaultLiteral(value) ? encodeNil() : encode(value)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value)
+        }
+    }
+}
+public extension SingleValueEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        try T._isDefaultLiteral(value) ? encodeNil() : encode(value)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value)
+        }
+    }
+}
+
 /// Protocol for values that only valid for Realtime Database, e.g. `(NS)Array`, `(NS)Dictionary` and etc.
 /// You shouldn't apply for some custom values.
 public protocol RealtimeDataValue: RealtimeDataRepresented {}
@@ -441,7 +472,7 @@ public extension Representer where V: RealtimeValue {
     ///   - rootLevelsUp: Level of root node to do relation path
     ///   - ownerNode: Database node of relation owner
     /// - Returns: Relation representer
-    static func relation(_ mode: RelationMode, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
+    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
@@ -615,6 +646,7 @@ public extension Representer where V: Codable {
                 let e = JSONEncoder()
                 e.dateEncodingStrategy = dateEncodingStrategy
                 e.keyEncodingStrategy = keyEncodingStrategy
+                e.outputFormatting = .prettyPrinted
                 let data = try e.encode(v)
                 return try JSONSerialization.jsonObject(with: data, options: .allowFragments)
             },

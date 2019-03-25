@@ -282,7 +282,7 @@ extension Values {
         }
 
         let index = priority ?? view.count
-        let key = element.node.map { $0.key } ?? String(index)
+        let key = element.node.map { $0.key } ?? Node(parent: nil).key
         storage[key] = element
         var item = RCItem(key: key, value: element)
         item.priority = index
@@ -484,9 +484,7 @@ where Element: WritableRealtimeValue & Comparable {
     // TODO: Events are not call for elements
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
-        if let node = self.node {
-            view.didSave(in: database, in: node)
-        }
+        view.didSave(in: database, in: parent, by: key)
     }
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
         super.willRemove(in: transaction, from: ancestor)

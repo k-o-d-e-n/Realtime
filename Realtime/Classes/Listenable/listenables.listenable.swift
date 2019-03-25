@@ -156,14 +156,41 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         self.repeater = repeater
     }
 
+    enum Default {
+        case uninitialized
+        case some(T)
+
+        func _unbox() -> T {
+            switch self {
+            case .uninitialized: fatalError("Tries to read uninitialized value")
+            case .some(let v): return v
+            }
+        }
+    }
+
     /// Creates new instance with `strong` reference that has no thread-safe working context
     ///
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public init(unsafeStrong value: T?, dispatcher: Dispatcher) {
+    init(unsafeStrong value: Default, dispatcher: Dispatcher) {
         let repeater = Repeater(dispatcher: dispatcher)
-        var val: T! = value {
+        var val: Default = value {
+            didSet {
+                repeater.send(.value(val._unbox()))
+            }
+        }
+
+        self.init(
+            repeater: repeater,
+            get: { val._unbox() }, set: { val = .some($0) },
+            attachBehavior: .unsafe
+        )
+    }
+
+    init<Wrapped>(unsafeStrong value: T, dispatcher: Dispatcher) where Optional<Wrapped> == T {
+        let repeater = Repeater(dispatcher: dispatcher)
+        var val: T = value {
             didSet {
                 repeater.send(.value(val))
             }
@@ -183,9 +210,31 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - value: Initial value.
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public init(strong value: T?, lock: NSLocking, dispatcher: Dispatcher) {
+    init(strong value: Default, lock: NSLocking, dispatcher: Dispatcher) {
         let repeater = Repeater(dispatcher: dispatcher)
-        var val: T! = value {
+        var val: Default = value {
+            didSet {
+                repeater.send(.value(val._unbox()))
+            }
+        }
+
+        self.init(
+            repeater: repeater,
+            get: {
+                lock.lock(); defer { lock.unlock() }
+                return val._unbox()
+            },
+            set: {
+                lock.lock()
+                val = .some($0)
+                lock.unlock()
+            },
+            attachBehavior: .locked(lock)
+        )
+    }
+    init<Wrapped>(strong value: T, lock: NSLocking, dispatcher: Dispatcher) where Optional<Wrapped> == T {
+        let repeater = Repeater(dispatcher: dispatcher)
+        var val: T = value {
             didSet {
                 repeater.send(.value(val))
             }
@@ -211,7 +260,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public init<O: AnyObject>(unsafeWeak value: O?, dispatcher: Dispatcher) where Optional<O> == T {
+    init<O: AnyObject>(unsafeWeak value: O?, dispatcher: Dispatcher) where Optional<O> == T {
         let repeater = Repeater(dispatcher: dispatcher)
         weak var val = value {
             didSet {
@@ -233,7 +282,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - value: Initial value.
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public init<O: AnyObject>(weak value: O?, lock: NSLocking, dispatcher: Dispatcher) where Optional<O> == T {
+    init<O: AnyObject>(weak value: O?, lock: NSLocking, dispatcher: Dispatcher) where Optional<O> == T {
         let repeater = Repeater(dispatcher: dispatcher)
         weak var val = value {
             didSet {
@@ -261,10 +310,19 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
+    public static func unsafe(uninitializedWith dispatcher: Dispatcher = .default) -> ValueStorage {
+        return ValueStorage(unsafeStrong: .uninitialized, dispatcher: dispatcher)
+    }
     public static func unsafe(
-        strong value: T?,
+        strong value: T,
         dispatcher: Dispatcher = .default
         ) -> ValueStorage {
+        return ValueStorage(unsafeStrong: .some(value), dispatcher: dispatcher)
+    }
+    public static func unsafe<Wrapped>(
+        strong value: T,
+        dispatcher: Dispatcher = .default
+        ) -> ValueStorage where Optional<Wrapped> == T {
         return ValueStorage(unsafeStrong: value, dispatcher: dispatcher)
     }
 
@@ -288,10 +346,23 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func locked(
-        strong value: T?,
+        uninitializedWith lock: NSLocking = NSRecursiveLock(),
+        dispatcher: Dispatcher = .default
+        ) -> ValueStorage {
+        return ValueStorage(strong: .uninitialized, lock: lock, dispatcher: dispatcher)
+    }
+    public static func locked(
+        strong value: T,
         lock: NSLocking = NSRecursiveLock(),
         dispatcher: Dispatcher = .default
         ) -> ValueStorage {
+        return ValueStorage(strong: .some(value), lock: lock, dispatcher: dispatcher)
+    }
+    public static func locked<Wrapped>(
+        strong value: T,
+        lock: NSLocking = NSRecursiveLock(),
+        dispatcher: Dispatcher = .default
+        ) -> ValueStorage where Optional<Wrapped> == T {
         return ValueStorage(strong: value, lock: lock, dispatcher: dispatcher)
     }
 
@@ -342,7 +413,7 @@ extension ValueStorage where T: AnyObject {
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public init(unsafeUnowned value: T, dispatcher: Dispatcher) {
+    init(unsafeUnowned value: T, dispatcher: Dispatcher) {
         let repeater = Repeater(dispatcher: dispatcher)
         unowned var val = value {
             didSet {
@@ -364,7 +435,7 @@ extension ValueStorage where T: AnyObject {
     ///   - value: Initial value.
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    public init(unowned value: T, lock: NSLocking, dispatcher: Dispatcher) {
+    init(unowned value: T, lock: NSLocking, dispatcher: Dispatcher) {
         let repeater = Repeater(dispatcher: dispatcher)
         unowned var val = value {
             didSet {

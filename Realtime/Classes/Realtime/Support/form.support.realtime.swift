@@ -10,7 +10,7 @@ import Foundation
 public enum CellBuilder {
     case reuseIdentifier(String)
     case `static`(UITableViewCell)
-    case custom(() -> UITableViewCell)
+    case custom((UITableView, IndexPath) -> UITableViewCell)
 }
 
 struct RowState: OptionSet {
@@ -71,7 +71,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath)
         case .static(let cell): return cell
-        case .custom(let closure): return closure()
+        case .custom(let closure): return closure(tableView, indexPath)
         }
     }
 
@@ -86,7 +86,7 @@ extension Row where View: UITableViewCell {
 }
 public extension Row where View: UIView {
     var isVisible: Bool {
-        return state.contains(.displaying) && view.map { !$0.isHidden && $0.window != nil } ?? false
+        return state.contains(.displaying) && super._isVisible
     }
 }
 extension Row: CustomDebugStringConvertible {
@@ -105,37 +105,40 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
     open var footerTitle: String?
     open var headerTitle: String?
 
-    var numberOfItems: Int { return 0 }
+    var numberOfItems: Int { fatalError("override") }
 
     public init(headerTitle: String?, footerTitle: String?) {
         self.headerTitle = headerTitle
         self.footerTitle = footerTitle
     }
 
-    open func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) {}
-    open func insertRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>, at index: Int) {}
-    open func moveRow(at index: Int, to newIndex: Int) {}
+    internal func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) { fatalError() }
+    internal func insertRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>, at index: Int) { fatalError() }
+    internal func moveRow(at index: Int, to newIndex: Int) { fatalError() }
     @discardableResult
-    open func deleteRow(at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
-    func dequeueRow(at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
-    func row(at index: Int) -> Row<UITableViewCell, Model>? { fatalError() }
+    internal func deleteRow(at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
+
+    func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell { fatalError() }
+    func dequeueRow(for cell: UITableViewCell, at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
     func reloadCell(at indexPath: IndexPath) { fatalError() }
     func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {}
     func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {}
-    func didSelect(at indexPath: IndexPath) {}
+    func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
+
+    func willDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
+    func didEndDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
 
     public typealias Element = Row<UITableViewCell, Model>
-    open var startIndex: Int { fatalError("Override") }
-    open var endIndex: Int { fatalError("Override") }
+    open var startIndex: Int { fatalError("override") }
+    open var endIndex: Int { fatalError("override") }
     open func index(after i: Int) -> Int {
-        fatalError("Override")
+        fatalError("override")
     }
     open func index(before i: Int) -> Int {
-        fatalError("Override")
+        fatalError("override")
     }
     open subscript(position: Int) -> Row<UITableViewCell, Model> {
-        guard let r = row(at: position) else { fatalError("Index out of range") }
-        return r
+        fatalError("override")
     }
 }
 
@@ -145,11 +148,11 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 
     override var numberOfItems: Int { return rows.count }
 
-    override func dequeueRow(at index: Int) -> Row<UITableViewCell, Model> {
-        return rows[index]
+    override func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
+        return rows[indexPath.row].buildCell(for: tableView, at: indexPath)
     }
 
-    override func row(at index: Int) -> Row<UITableViewCell, Model>? {
+    override func dequeueRow(for cell: UITableViewCell, at index: Int) -> Row<UITableViewCell, Model> {
         return rows[index]
     }
 
@@ -203,13 +206,18 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
         }
     }
 
-    override func didSelect(at indexPath: IndexPath) {
+    override func willDisplaySection(_ tableView: UITableView, at index: Int) {}
+    override func didEndDisplaySection(_ tableView: UITableView, at index: Int) {}
+
+    override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
         rows[indexPath.row]._didSelect.send(.value(indexPath))
     }
 
     override func reloadCell(at indexPath: IndexPath) {
         let row = rows[indexPath.row]
         if row.isVisible {
+            // TODO: Current action is insufficiently
             row.view = row.view
         }
     }
@@ -232,69 +240,231 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, Model> {
     lazy var _rowModel: Repeater<RowModel> = Repeater.unsafe()
 
+    public init() {
+        super.init(cellBuilder: .custom({ _,_  in fatalError("Reuse form row does not responsible for cell building") }))
+    }
+
     public func onRowModel(_ doit: @escaping (RowModel, ReuseFormRow<View, Model, RowModel>) -> Void) {
         _rowModel.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 }
 
-// Warning! is not responsible for update collection, necessary to make it.
-open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
-    var reuseController: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, Int> = ReuseController()
-    let rowBuilder: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, Int>.RowBuilder
+extension UITableView {
+    public enum Operation {
+        case reload
+        case move(IndexPath)
+        case insert
+        case delete
+        case none
 
-    var collection: AnySharedCollection<RowModel>
-
-    public init<C: BidirectionalCollection>(_ collection: C, row builder: @escaping () -> ReuseFormRow<UITableViewCell, Model, RowModel>)
-        where C.Element == RowModel, C.Index == Int {
-            self.collection = AnySharedCollection(collection)
-            self.rowBuilder = builder
-            super.init(headerTitle: nil, footerTitle: nil)
+        var isActive: Bool {
+            if case .none = self {
+                return false
+            }
+            return true
+        }
     }
 
-    override var numberOfItems: Int { return collection.count }
+    func scheduleOperation(_ operation: Operation, for indexPath: IndexPath, with animation: UITableViewRowAnimation) {
+        switch operation {
+        case .none: break
+        case .reload: reloadRows(at: [indexPath], with: animation)
+        case .move(let ip): moveRow(at: indexPath, to: ip)
+        case .insert: insertRows(at: [indexPath], with: animation)
+        case .delete: deleteRows(at: [indexPath], with: animation)
+        }
+    }
 
-    override func dequeueRow(at index: Int) -> Row<UITableViewCell, Model> {
-        let item = reuseController.dequeue(at: index, rowBuilder: rowBuilder)
+    public class ScheduledUpdate {
+        internal private(set) var events: [IndexPath: UITableView.Operation]
+        var operations: [(IndexPath, UITableView.Operation)] = []
+        var isReadyToUpdate: Bool { return events.isEmpty && !operations.isEmpty }
+
+        public init(events: [IndexPath: UITableView.Operation]) {
+            precondition(!events.isEmpty, "Events must not be empty")
+            self.events = events
+        }
+
+        func fulfill(_ indexPath: IndexPath) -> Bool {
+            if let operation = events.removeValue(forKey: indexPath) {
+                operations.append((indexPath, operation))
+                return true
+            } else {
+                return false
+            }
+        }
+
+        func batchUpdatesIfFulfilled(in tableView: UITableView) {
+            while !operations.isEmpty {
+                let (ip, op) = operations.removeLast()
+                tableView.scheduleOperation(op, for: ip, with: .automatic)
+            }
+        }
+    }
+}
+
+public protocol DynamicSectionDataSource: class, RandomAccessCollection {
+    var keepSynced: Bool { set get }
+    var changes: AnyListenable<RCEvent> { get }
+}
+
+public struct ReuseRowSectionDataSource<RowModel> {
+    let keepSynced: (Bool) -> Void
+    let changes: AnyListenable<RCEvent>
+    let collection: AnySharedCollection<RowModel>
+    var isSynced: Bool = false
+
+    public init<DS: DynamicSectionDataSource>(_ dataSource: DS) where DS.Element == RowModel {
+        self.keepSynced = { dataSource.keepSynced = $0 }
+        self.changes = dataSource.changes
+        self.collection = AnySharedCollection(dataSource)
+    }
+
+    public init<RC: RealtimeCollection>(collection: RC) where RC.Element == RowModel, RC.View.Element: DatabaseKeyRepresentable {
+        self.init(AnyRealtimeCollection(collection))
+    }
+}
+extension AnyRealtimeCollection: DynamicSectionDataSource {}
+
+open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
+    typealias CellBuilder = (UITableView, IndexPath) -> UITableViewCell
+    var updateDispose: Disposable?
+    var reuseController: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell> = ReuseController()
+    let rowBuilder: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell>.RowBuilder
+    let cellBuilder: CellBuilder
+    var dataSource: ReuseRowSectionDataSource<RowModel>
+
+    var tableView: UITableView?
+    var section: Int?
+    open var scheduledUpdate: UITableView.ScheduledUpdate?
+
+    override var numberOfItems: Int { return dataSource.collection.count }
+
+    deinit {
+        dataSource.keepSynced(false)
+    }
+
+    public init<Cell: UITableViewCell>(
+        _ dataSource: ReuseRowSectionDataSource<RowModel>,
+        cell cellBuilder: @escaping (UITableView, IndexPath) -> Cell,
+        row rowBuilder: @escaping () -> ReuseFormRow<Cell, Model, RowModel>
+    ) {
+        self.dataSource = dataSource
+        self.cellBuilder = unsafeBitCast(cellBuilder, to: CellBuilder.self)
+        self.rowBuilder = unsafeBitCast(rowBuilder, to: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell>.RowBuilder.self)
+        super.init(headerTitle: nil, footerTitle: nil)
+    }
+
+    override func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
+        return cellBuilder(tableView, indexPath)
+    }
+
+    override func dequeueRow(for cell: UITableViewCell, at index: Int) -> Row<UITableViewCell, Model> {
+        let item = reuseController.dequeue(at: cell, rowBuilder: rowBuilder)
         return item
     }
 
-    override func row(at index: Int) -> Row<UITableViewCell, Model>? {
-        return reuseController.active(at: index)
-    }
-
-    override open func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) {
-        fatalError()
-    }
-
-    override open func insertRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>, at index: Int) {
-        fatalError()
-    }
-
-    override open func deleteRow(at index: Int) -> Row<UITableViewCell, Model> {
-        fatalError()
-    }
-
     override func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
-        let item = reuseController.dequeue(at: indexPath.row, rowBuilder: rowBuilder)
+        let item = reuseController.dequeue(at: cell, rowBuilder: rowBuilder)
 
         if !item.state.contains(.displaying) || item.view !== cell {
-            item._rowModel.send(.value(collection[indexPath.row]))
             item.view = cell
             item.model = model
+            item._rowModel.send(.value(dataSource.collection[indexPath.row]))
             item.state.insert(.displaying)
             item.state.remove(.free)
         }
     }
 
     override func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
-        if let row = reuseController.free(at: indexPath.row, ifRespondsFor: cell) {
+        if let row = reuseController.free(at: cell) {
             row.state.remove(.displaying)
             row.state.insert([.pending, .free])
         }
     }
 
-    override func didSelect(at indexPath: IndexPath) {
-        reuseController.active(at: indexPath.row)?._didSelect.send(.value(indexPath))
+    override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        if let cell = tableView.cellForRow(at: indexPath) {
+            reuseController.active(at: cell)?._didSelect.send(.value(indexPath))
+        }
+    }
+
+    override func willDisplaySection(_ tableView: UITableView, at index: Int) {
+        self.tableView = tableView
+        self.section = index
+        updateDispose?.dispose()
+        updateDispose = dataSource.changes.listening(
+            onValue: { [weak tableView, unowned self] e in
+                guard let tv = tableView else { return }
+                switch e {
+                case .initial:
+                    tv.beginUpdates()
+                    tv.reloadSections([index], with: .automatic)
+                    tv.endUpdates()
+                case .updated(let deleted, let inserted, let modified, let moved):
+                    var changes: [(IndexPath, UITableView.Operation)] = []
+                    inserted.forEach({ row in
+                        let ip = IndexPath(row: row, section: index)
+                        if self.scheduledUpdate?.fulfill(ip) ?? false {
+                        } else {
+                            changes.append((ip, .insert))
+                        }
+                    })
+                    deleted.forEach({ row in
+                        let ip = IndexPath(row: row, section: index)
+                        if self.scheduledUpdate?.fulfill(ip) ?? false {
+                        } else {
+                            changes.append((ip, .delete))
+                        }
+                    })
+                    modified.forEach({ row in
+                        let ip = IndexPath(row: row, section: index)
+                        if self.scheduledUpdate?.fulfill(ip) ?? false {
+                        } else {
+                            changes.append((ip, .reload))
+                        }
+                    })
+                    moved.forEach({ (move) in
+                        let ip = IndexPath(row: move.from, section: index)
+                        if self.scheduledUpdate?.fulfill(ip) ?? false {
+                        } else {
+                            changes.append((ip, .move(IndexPath(row: move.to, section: index))))
+                        }
+                    })
+                    if changes.contains(where: { $0.1.isActive }) {
+                        tv.beginUpdates()
+                        changes.forEach({ (ip, operation) in
+                            tv.scheduleOperation(operation, for: ip, with: .automatic)
+                        })
+                        self.scheduledUpdate?.batchUpdatesIfFulfilled(in: tv)
+                        self.scheduledUpdate = nil
+                        tv.endUpdates()
+                    } else if self.scheduledUpdate?.isReadyToUpdate ?? false {
+                        tv.beginUpdates()
+                        self.scheduledUpdate?.batchUpdatesIfFulfilled(in: tv)
+                        self.scheduledUpdate = nil
+                        tv.endUpdates()
+                    }
+                }
+            },
+            onError: { error in
+                debugPrintLog(String(describing: error))
+            }
+        )
+
+        if !dataSource.isSynced {
+            dataSource.keepSynced(true)
+            dataSource.isSynced = true
+        }
+    }
+
+    override func didEndDisplaySection(_ tableView: UITableView, at index: Int) {
+        self.tableView = nil
+        self.section = index
+        if let d = updateDispose {
+            d.dispose()
+            updateDispose = nil
+        }
     }
 
     // Collection
@@ -308,8 +478,14 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         return i - 1
     }
     override open subscript(position: Int) -> Row<UITableViewCell, Model> {
-        guard let row = reuseController.active(at: position) else { fatalError("Index out of range") }
+        guard let tv = tableView, let section = self.section else { fatalError("Section is not displaying") }
+        guard let cell = tv.cellForRow(at: IndexPath(row: position, section: section)), let row = reuseController.active(at: cell)
+        else { fatalError("Current row is not displaying") }
         return row
+    }
+
+    public func model(at indexPath: IndexPath) -> RowModel {
+        return dataSource.collection[indexPath.row]
     }
 }
 
@@ -317,6 +493,7 @@ open class Form<Model: AnyObject> {
     lazy var table: Table = Table(self)
     var sections: [Section<Model>]
     var removedSections: [Int: Section<Model>] = [:]
+    var performsUpdates: Bool = false
 
     open var numberOfSections: Int {
         return sections.count
@@ -348,31 +525,44 @@ open class Form<Model: AnyObject> {
     }
 
     open func numberOfItems(in section: Int) -> Int {
-        return sections[section].numberOfItems
+        return sections[section].count
     }
 
     open func beginUpdates() {
         guard let tv = tableView else { fatalError() }
         guard tv.window != nil else { return }
         tv.beginUpdates()
+        performsUpdates = true
     }
 
     open func endUpdates() {
         guard let tv = tableView else { fatalError() }
-        guard tv.window != nil else { return }
+        guard performsUpdates else { return }
         tv.endUpdates()
+        performsUpdates = false
+    }
+
+    open func addRow<Cell: UITableViewCell>(
+        _ row: Row<Cell, Model>, with animation: UITableViewRowAnimation = .automatic
+        ) {
+        guard let last = self.last else { fatalError("Form is empty") }
+        let rowIndex = last.numberOfItems
+        last.addRow(row)
+        if performsUpdates {
+            tableView?.insertRows(at: [IndexPath(row: rowIndex, section: numberOfSections - 1)], with: animation)
+        }
     }
 
     open func insertRow<Cell: UITableViewCell>(
         _ row: Row<Cell, Model>, at indexPath: IndexPath, with animation: UITableViewRowAnimation = .automatic
         ) {
         sections[indexPath.section].insertRow(row, at: indexPath.row)
-        tableView?.insertRows(at: [indexPath], with: animation)
+        if performsUpdates { tableView?.insertRows(at: [indexPath], with: animation) }
     }
 
     open func deleteRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation = .automatic) {
         indexPaths.sorted(by: >).forEach { sections[$0.section].deleteRow(at: $0.row) }
-        tableView?.deleteRows(at: indexPaths, with: animation)
+        if performsUpdates { tableView?.deleteRows(at: indexPaths, with: animation) }
     }
 
     open func moveRow(at indexPath: IndexPath, to newIndexPath: IndexPath) {
@@ -382,11 +572,11 @@ open class Form<Model: AnyObject> {
             let row = sections[indexPath.section].deleteRow(at: indexPath.row)
             sections[newIndexPath.section].insertRow(row, at: newIndexPath.row)
         }
-        tableView?.moveRow(at: indexPath, to: newIndexPath)
+        if performsUpdates { tableView?.moveRow(at: indexPath, to: newIndexPath) }
     }
 
     open func addSection(_ section: Section<Model>, with animation: UITableViewRowAnimation = .automatic) {
-        insertSection(section, at: sections.count)
+        insertSection(section, at: sections.count, with: animation)
     }
 
     open func insertSection(_ section: Section<Model>, at index: Int, with animation: UITableViewRowAnimation = .automatic) {
@@ -398,28 +588,22 @@ open class Form<Model: AnyObject> {
 
     open func deleteSections(at indexes: IndexSet, with animation: UITableViewRowAnimation) {
         indexes.reversed().forEach { removedSections[$0] = sections.remove(at: $0) }
-        if let tv = tableView, tv.window != nil {
-            tv.deleteSections(indexes, with: animation)
-        }
+        if performsUpdates { tableView?.deleteSections(indexes, with: animation) }
     }
 
     open func reloadRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation) {
-        if let tv = tableView, tv.window != nil {
-            tv.reloadRows(at: indexPaths, with: animation)
-        }
+        if performsUpdates { tableView?.reloadRows(at: indexPaths, with: animation) }
     }
 
     open func reloadSections(_ sections: IndexSet, with animation: UITableViewRowAnimation) {
-        if let tv = tableView, tv.window != nil {
-            tv.reloadSections(sections, with: animation)
-        }
+        if performsUpdates { tableView?.reloadSections(sections, with: animation) }
     }
 
-    open func didSelect(at indexPath: IndexPath) {
-        sections[indexPath.section].didSelect(at: indexPath)
+    open func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        sections[indexPath.section].didSelect(tableView, didSelectRowAt: indexPath)
     }
 
-    open func reload() {
+    open func reloadVisible() {
         if let tv = tableView {
             tv.indexPathsForVisibleRows?.forEach({ (ip) in
                 sections[ip.section].reloadCell(at: ip)
@@ -450,7 +634,7 @@ extension Form {
         }
 
         func numberOfSections(in tableView: UITableView) -> Int {
-            return form.sections.count
+            return form.numberOfSections
         }
 
         func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -478,7 +662,7 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-            return form.sections[indexPath.section].dequeueRow(at: indexPath.row).buildCell(for: tableView, at: indexPath)
+            return form.sections[indexPath.section].buildCell(for: tableView, at: indexPath)
         }
 
         func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
@@ -496,13 +680,32 @@ extension Form {
             }
         }
 
+        func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
+            form[section].willDisplaySection(tableView, at: section)
+            form.tableDelegate?.tableView?(tableView, willDisplayHeaderView: view, forSection: section)
+        }
+
+        func tableView(_ tableView: UITableView, didEndDisplayingHeaderView view: UIView, forSection section: Int) {
+            form[section].didEndDisplaySection(tableView, at: section)
+            form.tableDelegate?.tableView?(tableView, didEndDisplayingHeaderView: view, forSection: section)
+        }
+
         func tableView(_ tableView: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {
             return form.tableDelegate?.tableView?(tableView, shouldHighlightRowAt: indexPath) ?? true
         }
 
+        func tableView(_ tableView: UITableView, willSelectRowAt indexPath: IndexPath) -> IndexPath? {
+            return form.tableDelegate?.tableView?(tableView, willSelectRowAt: indexPath) ?? indexPath
+        }
+
         func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-            tableView.deselectRow(at: indexPath, animated: true)
-            form.didSelect(at: indexPath)
+            tableView.endEditing(false)
+            form.didSelect(tableView, didSelectRowAt: indexPath)
+            form.tableDelegate?.tableView?(tableView, didSelectRowAt: indexPath)
+        }
+
+        func tableView(_ tableView: UITableView, didDeselectRowAt indexPath: IndexPath) {
+            form.tableDelegate?.tableView?(tableView, didDeselectRowAt: indexPath)
         }
 
         func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {

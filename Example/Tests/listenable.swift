@@ -133,7 +133,7 @@ class ListenableTests: XCTestCase {
 
         var counter = 0
         let propertyIndexSet = ValueStorage<IndexSet>.unsafe(strong: IndexSet(integer: 0))
-        let readonlySum = AsyncReadonlyValue<(Int, Int)>(propertyIndexSet, storage: ValueStorage.unsafe(strong: nil)) { (v, promise) in
+        let readonlySum = AsyncReadonlyValue<(Int, Int)>(propertyIndexSet, storage: .unsafe()) { (v, promise) in
             let c = counter
             counter += 1
             DispatchQueue.global(qos: .background).async {
