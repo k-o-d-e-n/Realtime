@@ -1037,7 +1037,7 @@ public extension MutationPoint where T: RealtimeDataValue {
         return transaction
     }
 }
-extension MutationPoint {
+public extension MutationPoint {
     func removeValue(for key: String, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.removeValue(by: node.child(with: key))

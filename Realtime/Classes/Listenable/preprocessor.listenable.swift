@@ -155,6 +155,9 @@ extension Listenable {
     public func mapEvent<T>(_ transform: @escaping (ListenEvent<Out>) throws -> ListenEvent<T>) -> EventMap<Out, T> {
         return EventMap(listenable: AnyListenable(self), transform: transform)
     }
+    public func anywayValue() -> EventMap<Out, ListenEvent<Out>> {
+        return mapEvent({ .value($0) })
+    }
     public func mapError(_ transform: @escaping (Error) -> Error) -> EventMap<Out, Out> {
         return mapEvent({ (event) -> ListenEvent<Out> in
             switch event {
@@ -163,7 +166,7 @@ extension Listenable {
             }
         })
     }
-    public func resolve(with transform: @escaping (Error) throws -> Out) -> EventMap<Out, Out> {
+    public func resolved(with transform: @escaping (Error) throws -> Out) -> EventMap<Out, Out> {
         return mapEvent({ (event) -> ListenEvent<Out> in
             switch event {
             case .error(let e): return .value(try transform(e))
@@ -171,7 +174,7 @@ extension Listenable {
             }
         })
     }
-    public func resolve(with value: @escaping @autoclosure () -> Out) -> EventMap<Out, Out> {
+    public func resolved(with value: @escaping @autoclosure () -> Out) -> EventMap<Out, Out> {
         return mapEvent({ (event) -> ListenEvent<Out> in
             switch event {
             case .error: return .value(value())
@@ -179,7 +182,7 @@ extension Listenable {
             }
         })
     }
-    public func resolve(with transform: @escaping (Error) throws -> Out?) -> EventMap<Out, Out?> {
+    public func resolved(with transform: @escaping (Error) throws -> Out?) -> EventMap<Out, Out?> {
         return mapEvent({ (event) -> ListenEvent<Out?> in
             switch event {
             case .error(let e): return .value(try transform(e))
@@ -187,7 +190,7 @@ extension Listenable {
             }
         })
     }
-    public func resolve(with value: @escaping @autoclosure () -> Out?) -> EventMap<Out, Out?> {
+    public func resolved(with value: @escaping @autoclosure () -> Out?) -> EventMap<Out, Out?> {
         return mapEvent({ (event) -> ListenEvent<Out?> in
             switch event {
             case .error: return .value(value())

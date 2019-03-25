@@ -159,6 +159,37 @@ extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatabl
     }
 }
 
+public extension KeyedEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T, forKey key: K) throws {
+        try T._isDefaultLiteral(value) ? encodeNil(forKey: key) : encode(value, forKey: key)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T, forKey key: K) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value, forKey: key)
+        }
+    }
+}
+public extension UnkeyedEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        try T._isDefaultLiteral(value) ? encodeNil() : encode(value)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value)
+        }
+    }
+}
+public extension SingleValueEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        try T._isDefaultLiteral(value) ? encodeNil() : encode(value)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value)
+        }
+    }
+}
+
 /// Protocol for values that only valid for Realtime Database, e.g. `(NS)Array`, `(NS)Dictionary` and etc.
 /// You shouldn't apply for some custom values.
 public protocol RealtimeDataValue: RealtimeDataRepresented {}

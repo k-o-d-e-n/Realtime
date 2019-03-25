@@ -171,7 +171,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
         _snapshot = nil
         try view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if event == .value, let contained = storage.first(where: { $0.0.dbKey == key.dbKey }) { storage.remove(for: contained.key) }
+                if event == .value, let contained = storage.first(where: { $0.0.dbKey == key.dbKey }) { _ = storage.remove(for: contained.key) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
@@ -432,7 +432,7 @@ extension AssociatedValues {
         item.priority = count
 
         transaction.addReversion({ [weak self] in
-            self?.storage.remove(for: key)
+            _ = self?.storage.remove(for: key)
         })
         storage.set(value: element, for: key)
 
@@ -662,7 +662,8 @@ extension ExplicitAssociatedValues {
     public func set(_ value: Value, for key: Key) -> Int {
         guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
         storage.set(value: value, for: key)
-        return view.insert(value)
+        guard let index = view.index(of: value) else { return view.insert(value) }
+        return index
     }
     @discardableResult
     public func remove(at index: Int) -> Value {
@@ -670,7 +671,7 @@ extension ExplicitAssociatedValues {
         let value = view.remove(at: index)
         // TODO: Method is not correct, need use ordered storage
         if let node = value.node, let key = storage.element(for: node.key)?.key {
-            storage.remove(for: key)
+            _ = storage.remove(for: key)
         }
         return value
     }
