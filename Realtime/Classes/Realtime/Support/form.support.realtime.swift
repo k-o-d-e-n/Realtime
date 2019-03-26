@@ -44,7 +44,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
 
     let cellBuilder: CellBuilder
 
-    public init(cellBuilder: CellBuilder) {
+    public required init(cellBuilder: CellBuilder) {
         self.cellBuilder = cellBuilder
     }
     deinit {}
@@ -240,8 +240,12 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, Model> {
     lazy var _rowModel: Repeater<RowModel> = Repeater.unsafe()
 
-    public init() {
+    public required init() {
         super.init(cellBuilder: .custom({ _,_  in fatalError("Reuse form row does not responsible for cell building") }))
+    }
+
+    public required init(cellBuilder: CellBuilder) {
+        fatalError("Use init() initializer instead")
     }
 
     public func onRowModel(_ doit: @escaping (RowModel, ReuseFormRow<View, Model, RowModel>) -> Void) {
