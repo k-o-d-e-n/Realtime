@@ -103,7 +103,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationMode) -> Relation<V> {
+    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relation<V> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -116,7 +116,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationMode) -> Relation<V?> {
+    func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relation<V?> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -250,14 +250,14 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         /// Levels up by hierarchy to relation owner of this property
         let ownerLevelsUp: UInt
         /// String path from related object to his relation property
-        let property: RelationMode
+        let property: RelationProperty
         /// Levels up by hierarchy to the same node for both related values. Default nil, that means root node
         let rootLevelsUp: UInt?
 
         let ownerNode: ValueStorage<Node?>
         let availability: Availability<Related>
 
-        public static func required(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options {
+        public static func required(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 ownerLevelsUp: ownerLevelsUp,
@@ -267,7 +267,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                 availability: Availability.required(Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
             )
         }
-        public static func writeRequired<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options where Related == Optional<U> {
+        public static func writeRequired<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 ownerLevelsUp: ownerLevelsUp,
@@ -277,7 +277,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                 availability: Availability.writeRequired(Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
             )
         }
-        public static func optional<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationMode) -> Options where Related == Optional<U> {
+        public static func optional<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 ownerLevelsUp: ownerLevelsUp,
@@ -407,15 +407,16 @@ public extension PropertyState where T: _Optional {
 
 /// Defines read/write property with any value
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
-    fileprivate var oldValue: PropertyState<T>?
+    fileprivate var _oldValue: PropertyState<T>?
     override var _hasChanges: Bool {
-        return oldValue != nil
+        return _oldValue != nil
     }
+    public var oldValue: PropertyState<T>? { return _oldValue }
 
     public func revert() {
-        if let old = oldValue {
+        if let old = _oldValue {
             _value = old
-            oldValue = nil
+            _oldValue = nil
         }
     }
     public func currentReversion() -> () -> Void {
@@ -462,7 +463,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {
         super.didSave(in: database, in: parent, by: key)
-        self.oldValue = nil
+        self._oldValue = nil
         switch _value {
         case .none, .removed:
             debugAction {
@@ -481,7 +482,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 
     public override func didUpdate(through ancestor: Node) {
         super.didUpdate(through: ancestor)
-        self.oldValue = nil
+        self._oldValue = nil
         switch _value {
         case .local(let v):
             _setValue(.remote(v))
@@ -536,14 +537,14 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 
     internal func _setLocalValue(_ value: T) {
         if !hasChanges {
-            oldValue = _value
+            _oldValue = _value
         }
         _setValue(.local(value))
     }
 
     override func _setRemoved(isLocal: Bool) {
         if isLocal && !hasChanges {
-            oldValue = _value
+            _oldValue = _value
         }
         super._setRemoved(isLocal: isLocal)
     }
@@ -566,7 +567,7 @@ infix operator <!=: AssignmentPrecedence
 public extension Property where T: Equatable {
     static func <!= (_ prop: Property, _ value: @autoclosure () throws -> T) rethrows {
         let newValue = try value()
-        switch (prop.state, prop.oldValue) {
+        switch (prop.state, prop._oldValue) {
         case (.remote(let oldValue), _):
             if oldValue != newValue {
                 prop._setLocalValue(newValue)
@@ -609,8 +610,8 @@ extension Availability where T: HasDefaultLiteral & _ComparableWithDefaultLitera
 @available(*, introduced: 0.4.3)
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate var _value: PropertyState<T>
-    fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
     fileprivate(set) var representer: Representer<T?>
+    fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
 
     internal var _raw: RealtimeDataValue? { return super.raw }
     internal var _payload: [String : RealtimeDataValue]? { return super.payload }
@@ -745,6 +746,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             if let value = try representer.decode(data) {
                 _setValue(.remote(value))
             } else {
+                // actually does not call anyway
                 _setRemoved(isLocal: false)
             }
         } catch let e {
@@ -781,12 +783,15 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 extension ReadonlyProperty: Listenable {
     public func listening(_ assign: Assign<ListenEvent<PropertyState<T>>>) -> Disposable {
         defer {
-            switch _value {
-            case .none: break
-            default: assign.call(.value(_value))
-            }
+            assign.call(.value(_value))
         }
         return repeater.listening(assign)
+    }
+    public func listeningItem(_ assign: Closure<ListenEvent<PropertyState<T>>, Void>) -> ListeningItem {
+        defer {
+            assign.call(.value(_value))
+        }
+        return repeater.listeningItem(assign)
     }
 }
 extension ReadonlyProperty: Equatable where T: Equatable {
@@ -994,6 +999,9 @@ extension SharedProperty: Listenable {
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return repeater.listening(assign)
     }
+    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+        return repeater.listeningItem(assign)
+    }
 }
 
 public extension SharedProperty {
@@ -1061,6 +1069,7 @@ public extension MutationPoint where T: RealtimeDataValue {
 
         return transaction
     }
+    @discardableResult
     func mutate(by key: String? = nil, use value: T, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.addValue(value, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
@@ -1068,7 +1077,7 @@ public extension MutationPoint where T: RealtimeDataValue {
         return transaction
     }
 }
-extension MutationPoint {
+public extension MutationPoint {
     func removeValue(for key: String, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.removeValue(by: node.child(with: key))

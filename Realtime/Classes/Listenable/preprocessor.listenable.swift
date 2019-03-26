@@ -11,37 +11,6 @@ import Foundation
 
 typealias BridgeBlank<I, O> = (_ value: I, _ assign: @escaping (O) -> Void) -> Void
 
-public extension Listenable {
-    fileprivate func _distinctUntilChanged(_ def: Out?, comparer: @escaping (Out, Out) -> Bool) -> Preprocessor<Out, Out> {
-        var oldValue: Out? = def
-        return filter { newValue in
-            defer { oldValue = newValue }
-            return oldValue.map { comparer($0, newValue) } ?? true
-        }
-    }
-
-    /// blocks updates with the same values, using specific comparer. Defines initial value.
-    func distinctUntilChanged(_ def: Out, comparer: @escaping (Out, Out) -> Bool) -> Preprocessor<Out, Out> {
-        return _distinctUntilChanged(def, comparer: comparer)
-    }
-
-    /// blocks updates with the same values, using specific comparer
-    func distinctUntilChanged(comparer: @escaping (Out, Out) -> Bool) -> Preprocessor<Out, Out> {
-        return _distinctUntilChanged(nil, comparer: comparer)
-    }
-}
-public extension Listenable where Out: Equatable {
-	/// blocks updates with the same values with defined initial value.
-    func distinctUntilChanged(_ def: Out) -> Preprocessor<Out, Out> {
-        return distinctUntilChanged(def, comparer: !=)
-    }
-
-    /// blocks updates with the same values
-    func distinctUntilChanged() -> Preprocessor<Out, Out> {
-        return distinctUntilChanged(comparer: !=)
-    }
-}
-
 struct Bridge<I, O> {
     let bridge: BridgeBlank<ListenEvent<I>, ListenEvent<O>>
 
@@ -104,9 +73,9 @@ extension Bridge where I == O {
     }
 }
 
-public struct Preprocessor<I, O>: Listenable {
-    let listenable: AnyListenable<I>
-    let bridgeMaker: Bridge<I, O>
+public struct Preprocessor<I: Listenable, O>: Listenable {
+    let listenable: I
+    let bridgeMaker: Bridge<I.Out, O>
 
     public func listening(_ assign: Assign<ListenEvent<O>>) -> Disposable {
         return listenable.listening(bridgeMaker.wrapAssign(assign))
@@ -120,21 +89,21 @@ public extension Listenable {
     /// Returns listenable that filters value events
     ///
     /// - Parameter predicate: Closure to evaluate value
-    public func filter(_ predicate: @escaping (Out) -> Bool) -> Preprocessor<Out, Out> {
-        return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem),
+    public func filter(_ predicate: @escaping (Out) -> Bool) -> Preprocessor<Self, Out> {
+        return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(predicate: predicate))
     }
 
     /// Returns listenable that transforms value events
     ///
     /// - Parameter transform: Closure to transform value
-    public func map<U>(_ transform: @escaping (Out) throws -> U) -> Preprocessor<Out, U> {
-        return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem),
+    public func map<U>(_ transform: @escaping (Out) throws -> U) -> Preprocessor<Self, U> {
+        return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(transform: transform))
     }
 
     /// transforms value if it's not `nil`, otherwise skips value
-    func compactMap<U>(_ transform: @escaping (Out) throws -> U?) -> Preprocessor<U?, U> {
+    func compactMap<U>(_ transform: @escaping (Out) throws -> U?) -> Preprocessor<Preprocessor<Preprocessor<Self, U?>, U?>, U> {
         return self.map(transform).compactMap()
     }
 
@@ -144,88 +113,100 @@ public extension Listenable {
     /// - Warning: This does not preserve the sequence of events
     ///
     /// - Parameter event: Closure to run async work.
-    public func doAsync(_ event: @escaping (Out, Promise) throws -> Void) -> Preprocessor<Out, Out> {
-        return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem),
+    public func doAsync(_ event: @escaping (Out, Promise) throws -> Void) -> Preprocessor<Self, Out> {
+        return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(event: event))
     }
     /// Returns listenable that on receive value event calls the passed closure
     /// and waits when is received signal in `ResultPromise`
     ///
     /// - Parameter event: Closure to run async work.
-    public func mapAsync<Result>(_ event: @escaping (Out, ResultPromise<Result>) throws -> Void) -> Preprocessor<Out, Result> {
-        return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem),
+    public func mapAsync<Result>(_ event: @escaping (Out, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result> {
+        return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(event: event))
     }
 }
-public extension Listenable where Out: _Optional {
-    /// transforms value if it's not `nil`, otherwise returns `nil`
-    func flatMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U) -> Preprocessor<Out, U?> {
-        return map { try $0.map(transform) }
-    }
-    /// transforms value if it's not `nil`, otherwise returns `nil`
-    func flatMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U?) -> Preprocessor<Out, U?> {
-        return map { try $0.flatMap(transform) }
-    }
-    /// unwraps value
-    func flatMap() -> Preprocessor<Out, Out.Wrapped?> {
-        return flatMap({ $0 })
+
+public struct EventMap<I, O>: Listenable {
+    fileprivate let listenable: AnyListenable<I>
+    let transform: (ListenEvent<I>) throws -> ListenEvent<O>
+
+    public func listening(_ assign: Closure<ListenEvent<O>, Void>) -> Disposable {
+        return listenable.listening(assign.mapIn({ event in
+            do {
+                return try self.transform(event)
+            } catch let e {
+                return .error(e)
+            }
+        }))
     }
 
-    public func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result>) throws -> Void) -> Preprocessor<Out, Result?> {
-        return mapAsync({ (out, promise) in
-            guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
-            let wrappedPromise = ResultPromise<Result>(receiver: promise.fulfill, error: promise.reject)
-            try event(wrapped, wrappedPromise)
+    public func listeningItem(_ assign: Closure<ListenEvent<O>, Void>) -> ListeningItem {
+        return listenable.listeningItem(assign.mapIn({ event in
+            do {
+                return try self.transform(event)
+            } catch let e {
+                return .error(e)
+            }
+        }))
+    }
+}
+extension Listenable {
+    public func mapEvent<T>(_ transform: @escaping (ListenEvent<Out>) throws -> ListenEvent<T>) -> EventMap<Out, T> {
+        return EventMap(listenable: AnyListenable(self), transform: transform)
+    }
+    public func anywayValue() -> EventMap<Out, ListenEvent<Out>> {
+        return mapEvent({ .value($0) })
+    }
+    public func mapError(_ transform: @escaping (Error) -> Error) -> EventMap<Out, Out> {
+        return mapEvent({ (event) -> ListenEvent<Out> in
+            switch event {
+            case .error(let e): return .error(transform(e))
+            default: return event
+            }
         })
     }
-    public func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result?>) throws -> Void) -> Preprocessor<Out, Result?> {
-        return mapAsync({ (out, promise) in
-            guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
-            try event(wrapped, promise)
+    public func resolved(with transform: @escaping (Error) throws -> Out) -> EventMap<Out, Out> {
+        return mapEvent({ (event) -> ListenEvent<Out> in
+            switch event {
+            case .error(let e): return .value(try transform(e))
+            default: return event
+            }
         })
     }
-
-    /// transforms value if it's not `nil`, otherwise skips value
-    func filterMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U) -> Preprocessor<Out, U> {
-        return self
-            .filter { $0.map { _ in true } ?? false }
-            .map { try transform($0.unsafelyUnwrapped) }
+    public func resolved(with value: @escaping @autoclosure () -> Out) -> EventMap<Out, Out> {
+        return mapEvent({ (event) -> ListenEvent<Out> in
+            switch event {
+            case .error: return .value(value())
+            default: return event
+            }
+        })
     }
-
-    /// skips `nil` values
-    func compactMap() -> Preprocessor<Out, Out.Wrapped> {
-        return filterMap({ $0 })
+    public func resolved(with transform: @escaping (Error) throws -> Out?) -> EventMap<Out, Out?> {
+        return mapEvent({ (event) -> ListenEvent<Out?> in
+            switch event {
+            case .error(let e): return .value(try transform(e))
+            case .value(let v): return .value(v)
+            }
+        })
     }
-}
-public extension Listenable where Out: _Optional, Out.Wrapped: _Optional {
-    /// transforms value if it's not `nil`, otherwise returns `nil`
-    func flatMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U?) -> Preprocessor<Out, U?> {
-        return map({ try $0.flatMap(transform) })
-    }
-
-    /// unwraps value
-    func flatMap() -> Preprocessor<Out, Out.Wrapped.Wrapped?> {
-        return flatMap({ $0.wrapped })
-    }
-}
-public extension Listenable where Out: _Optional {
-    func `default`(_ defaultValue: Out.Wrapped) -> Preprocessor<Out, Out.Wrapped> {
-        return map({ $0.wrapped ?? defaultValue })
-    }
-}
-public extension Listenable where Out: _Optional, Out.Wrapped: HasDefaultLiteral {
-    func `default`() -> Preprocessor<Out, Out.Wrapped> {
-        return map({ $0.wrapped ?? Out.Wrapped() })
+    public func resolved(with value: @escaping @autoclosure () -> Out?) -> EventMap<Out, Out?> {
+        return mapEvent({ (event) -> ListenEvent<Out?> in
+            switch event {
+            case .error: return .value(value())
+            case .value(let v): return .value(v)
+            }
+        })
     }
 }
 
 /// Fires if disposes use his Disposable. Else if has previous dispose behaviors like as once(), livetime(_:) and others, will not called.
 /// Can calls before last event.
-public struct OnFire<T>: Listenable {
-    fileprivate let listenable: AnyListenable<T>
+public struct OnFire<T: Listenable>: Listenable {
+    fileprivate let listenable: T
     fileprivate let onFire: () -> Void
 
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
         let disposable = listenable.listening(assign)
         return ListeningDispose({
             disposable.dispose()
@@ -233,7 +214,7 @@ public struct OnFire<T>: Listenable {
         })
     }
 
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
         let base = listenable.listeningItem(assign)
         return ListeningItem(resume: base.resume, pause: base.pause,
                              dispose: { base.dispose(); self.onFire() }, token: ())
@@ -241,30 +222,30 @@ public struct OnFire<T>: Listenable {
 }
 public extension Listenable {
     /// calls closure on disconnect
-    func onFire(_ todo: @escaping () -> Void) -> OnFire<Out> {
-        return OnFire(listenable: AnyListenable(self.listening, self.listeningItem), onFire: todo)
+    func onFire(_ todo: @escaping () -> Void) -> OnFire<Self> {
+        return OnFire(listenable: self, onFire: todo)
     }
 }
 
-public struct Do<T>: Listenable {
-    fileprivate let listenable: AnyListenable<T>
-    fileprivate let doit: (ListenEvent<T>) -> Void
+public struct Do<T: Listenable>: Listenable {
+    fileprivate let listenable: T
+    fileprivate let doit: (ListenEvent<T.Out>) -> Void
 
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
         return listenable.listening(assign.with(work: doit))
     }
 
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
         return listenable.listeningItem(assign.with(work: doit))
     }
 }
 public extension Listenable {
     /// calls closure on receive next value
-    func `do`(_ something: @escaping (ListenEvent<Out>) -> Void) -> Do<Out> {
-        return Do(listenable: AnyListenable(self.listening, self.listeningItem), doit: something)
+    func `do`(_ something: @escaping (ListenEvent<Out>) -> Void) -> Do<Self> {
+        return Do(listenable: self, doit: something)
     }
 
-    func `do`(onValue something: @escaping (Out) -> Void) -> Do<Out> {
+    func `do`(onValue something: @escaping (Out) -> Void) -> Do<Self> {
         return self.do({ event in
             switch event {
             case .value(let v): something(v)
@@ -272,7 +253,7 @@ public extension Listenable {
             }
         })
     }
-    func `do`(onError something: @escaping (Error) -> Void) -> Do<Out> {
+    func `do`(onError something: @escaping (Error) -> Void) -> Do<Self> {
         return self.do({ event in
             switch event {
             case .error(let e): something(e)
@@ -282,14 +263,14 @@ public extension Listenable {
     }
 }
 
-public struct Once<T>: Listenable {
-    private let listenable: AnyListenable<T>
+public struct Once<T: Listenable>: Listenable {
+    private let listenable: T
 
-    init(base: AnyListenable<T>) {
+    init(_ base: T) {
         self.listenable = base
     }
 
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
         var shouldCall = true
         var disposable: Disposable? {
             didSet {
@@ -309,7 +290,7 @@ public struct Once<T>: Listenable {
         return disposable!
     }
 
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<ListenEvent<T.Out>>) -> ListeningItem {
         /// calls once and sets to pause, on resume call enabled once event yet
         var shouldCall = true
         var baseItem: ListeningItem?
@@ -339,8 +320,8 @@ public struct Once<T>: Listenable {
 }
 public extension Listenable {
     /// connection to receive single value
-    func once() -> Once<Out> {
-        return Once(base: AnyListenable(self.listening, self.listeningItem))
+    func once() -> Once<Self> {
+        return Once(self)
     }
 }
 
@@ -355,21 +336,21 @@ extension Bridge where I == O {
 }
 public extension Listenable {
     /// calls connection on specific queue
-    func queue(_ queue: DispatchQueue) -> Preprocessor<Out, Out> {
-        return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem), bridgeMaker: Bridge(queue: queue))
+    func queue(_ queue: DispatchQueue) -> Preprocessor<Self, Out> {
+        return Preprocessor(listenable: self, bridgeMaker: Bridge(queue: queue))
     }
 }
 
-public struct Deadline<T>: Listenable {
-    private let listenable: AnyListenable<T>
+public struct Deadline<T: Listenable>: Listenable {
+    private let listenable: T
     private let deadline: DispatchTime
 
-    init(base: AnyListenable<T>, deadline: DispatchTime) {
+    init(_ base: T, deadline: DispatchTime) {
         self.listenable = base
         self.deadline = deadline
     }
 
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
         var disposable: Disposable! = nil
         disposable = listenable.listening(assign.filter({ _ -> Bool in
             guard self.deadline >= .now() else {
@@ -380,7 +361,7 @@ public struct Deadline<T>: Listenable {
         }))
         return disposable
     }
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
         var base: ListeningItem?
         base = listenable.listeningItem(assign.filter({ _ -> Bool in
             guard self.deadline >= .now() else {
@@ -394,21 +375,21 @@ public struct Deadline<T>: Listenable {
 }
 public extension Listenable {
     /// works until time has not reached deadline
-    func deadline(_ time: DispatchTime) -> Deadline<Out> {
-        return Deadline(base: AnyListenable(self.listening, self.listeningItem), deadline: time)
+    func deadline(_ time: DispatchTime) -> Deadline<Self> {
+        return Deadline(self, deadline: time)
     }
 }
 
-public struct Livetime<T>: Listenable {
-    private let listenable: AnyListenable<T>
+public struct Livetime<T: Listenable>: Listenable {
+    private let listenable: T
     private weak var livingItem: AnyObject?
 
-    init(base: AnyListenable<T>, living: AnyObject) {
+    init(_ base: T, living: AnyObject) {
         self.listenable = base
         self.livingItem = living
     }
 
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
         var disposable: Disposable! = nil
         disposable = listenable.listening(assign.filter({ _ -> Bool in
             guard self.livingItem != nil else {
@@ -420,7 +401,7 @@ public struct Livetime<T>: Listenable {
         return disposable
     }
 
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
         var base: ListeningItem?
         base = listenable.listeningItem(assign.filter({ _ -> Bool in
             guard self.livingItem != nil else {
@@ -434,8 +415,8 @@ public struct Livetime<T>: Listenable {
 }
 public extension Listenable {
     /// works until alive specified object
-    func livetime(_ byItem: AnyObject) -> Livetime<Out> {
-        return Livetime(base: AnyListenable(self.listening, self.listeningItem), living: byItem)
+    func livetime(of object: AnyObject) -> Livetime<Self> {
+        return Livetime(self, living: object)
     }
 }
 
@@ -468,8 +449,8 @@ extension Bridge where I == O {
 }
 public extension Listenable {
     /// each next event are calling not earlier a specified period
-    func debounce(_ time: DispatchTimeInterval) -> Preprocessor<Out, Out> {
-        return Preprocessor(listenable: AnyListenable(self.listening, self.listeningItem), bridgeMaker: Bridge(debounce: time))
+    func debounce(_ time: DispatchTimeInterval) -> Preprocessor<Self, Out> {
+        return Preprocessor(listenable: self, bridgeMaker: Bridge(debounce: time))
     }
 }
 
@@ -601,6 +582,7 @@ public struct Accumulator<T>: Listenable {
     private func sendFirstIfExists(_ assign: Assign<ListenEvent<T>>) {
         if let f = _first._wrapped {
             assign.call(f)
+            _first._wrapped = nil
         }
     }
 
@@ -690,42 +672,70 @@ public extension Listenable {
     ///   - sendLast: If true it will be emit existed last
     /// values on each next listening immediately
     /// - Returns: Retained preprocessor object
-    func memoize(_ size: Int, sendLast: Bool) -> Memoize<Out> {
-        return Memoize(AnyListenable(self.listening, self.listeningItem), maxCount: size, sendLast: sendLast)
+    func memoize(_ size: Int, waitFulness: Bool = false, sendLast: Bool) -> Memoize<Self> {
+        debugFatalError(condition: size <= 0, "`size` must be more than 0")
+        return Memoize(
+            self,
+            storage: .unsafe(strong: ([], waitFulness && sendLast)),
+            options: Memoize.Options(count: size, waitFullness: waitFulness, sendLast: sendLast)
+        )
     }
     /// See description `func memoize`
-    func memoizeOne(sendLast: Bool) -> Preprocessor<[Out], Out> {
+    func memoizeOne(sendLast: Bool) -> Preprocessor<Memoize<Self>, Out> {
         return memoize(1, sendLast: sendLast).map({ $0[0] })
+    }
+
+    // TODO: Usage `Memoize` leads to retain both values, but must retains old value only
+//    func oldValue() -> Preprocessor<[Out], (old: Out, new: Out)> {
+//        return memoize(2, waitFulness: true, sendLast: false).map({ (old: $0[0], new: $0[1]) })
+//    }
+    func oldValue(_ default: Out?) -> Preprocessor<Memoize<Self>, (old: Out?, new: Out)> {
+        return memoize(2, waitFulness: false, sendLast: false)
+            .map({ $0.count == 2 ? (old: $0[0], new: $0[1]) : (old: `default`, new: $0[0]) })
+    }
+    func oldValue(_ default: Out) -> Preprocessor<Memoize<Self>, (old: Out, new: Out)> {
+        return memoize(2, waitFulness: false, sendLast: false)
+            .map({ $0.count == 2 ? (old: $0[0], new: $0[1]) : (old: `default`, new: $0[0]) })
     }
 }
 
 /// Added implicit storage in chain with retained listening point
-public struct Memoize<T>: Listenable {
-    let storage: ValueStorage<[T]>
+public struct Memoize<T: Listenable>: Listenable {
+    let storage: ValueStorage<([T.Out], Bool)>
     let dispose: ListeningDispose
-    let sendLast: Bool
 
-    init(_ base: AnyListenable<T>, maxCount: Int, sendLast: Bool) {
-        let storage: ValueStorage<[T]> = ValueStorage.unsafe(strong: [])
+    struct Options {
+        let count: Int
+        let waitFullness: Bool
+        let sendLast: Bool
+
+        func evaluate(_ current: [T.Out]) -> Bool {
+            guard waitFullness else { return true }
+            return current.count == count
+        }
+    }
+
+    init(_ base: T, storage: ValueStorage<([T.Out], Bool)>, options: Options) {
         self.dispose = ListeningDispose(base.listening(
             onValue: { (value) in
-                storage.value = Array((storage.value + [value]).suffix(maxCount))
+                let value = Array((storage.value.0 + [value]).suffix(options.count))
+                storage.value = (value, options.evaluate(value))
             },
             onError: storage.sendError
         ))
         self.storage = storage
-        self.sendLast = sendLast
     }
 
-    private func sendLastIfNeeded(_ assign: Closure<ListenEvent<[T]>, Void>) {
-        if sendLast, storage.value.count > 0 {
-            assign.call(.value(storage.value))
+    private func sendLastIfNeeded(_ assign: Closure<ListenEvent<[T.Out]>, Void>) {
+        let current = storage.value
+        if current.1 {
+            assign.call(.value(current.0))
         }
     }
 
-    public func listening(_ assign: Closure<ListenEvent<[T]>, Void>) -> Disposable {
+    public func listening(_ assign: Closure<ListenEvent<[T.Out]>, Void>) -> Disposable {
         defer { sendLastIfNeeded(assign) }
-        let disposer = storage.listening(assign)
+        let disposer = storage.map({ $0.0 }).listening(assign)
         let unmanaged = Unmanaged.passUnretained(dispose).retain()
         return ListeningDispose.init({
             unmanaged.release()
@@ -733,9 +743,9 @@ public struct Memoize<T>: Listenable {
         })
     }
 
-    public func listeningItem(_ assign: Closure<ListenEvent<[T]>, Void>) -> ListeningItem {
+    public func listeningItem(_ assign: Closure<ListenEvent<[T.Out]>, Void>) -> ListeningItem {
         defer { sendLastIfNeeded(assign) }
-        let item = storage.listeningItem(assign)
+        let item = storage.map({ $0.0 }).listeningItem(assign)
         let unmanaged = Unmanaged.passUnretained(dispose).retain()
         return ListeningItem(
             resume: {
@@ -749,28 +759,29 @@ public struct Memoize<T>: Listenable {
     }
 }
 
-public struct OldValue<T>: Listenable {
-    let base: AnyListenable<T>
+@available(*, deprecated: 0.9, message: "Use memoize preprocessor")
+public struct OldValue<T: Listenable>: Listenable {
+    let base: T
 
-    public func listening(_ assign: Assign<ListenEvent<(new: T, old: T?)>>) -> Disposable {
-        var old: T?
-        var current: T? {
+    public func listening(_ assign: Assign<ListenEvent<(new: T.Out, old: T.Out?)>>) -> Disposable {
+        var old: T.Out?
+        var current: T.Out? {
             didSet { old = oldValue }
         }
         return base
-            .map({ (v) -> (T, T?) in
+            .map({ (v) -> (T.Out, T.Out?) in
                 current = v
                 return (current!, old)
             })
             .listening(assign)
     }
-    public func listeningItem(_ assign: Closure<ListenEvent<(new: T, old: T?)>, Void>) -> ListeningItem {
-        var old: T?
-        var current: T? {
+    public func listeningItem(_ assign: Closure<ListenEvent<(new: T.Out, old: T.Out?)>, Void>) -> ListeningItem {
+        var old: T.Out?
+        var current: T.Out? {
             didSet { old = oldValue }
         }
         return base
-            .map({ (v) -> (T, T?) in
+            .map({ (v) -> (T.Out, T.Out?) in
                 current = v
                 return (current!, old)
             })
@@ -778,84 +789,24 @@ public struct OldValue<T>: Listenable {
     }
 }
 public extension Listenable {
-    func oldValue() -> OldValue<Out> {
-        return OldValue(base: AnyListenable(self.listening, self.listeningItem))
+    @available(*, deprecated: 0.9, message: "Use memoize preprocessor")
+    func oldValue() -> OldValue<Self> {
+        return OldValue(base: self)
     }
 }
 
-public extension Listenable {
-    public func then<L: Listenable>(_ transform: @escaping (Out) throws -> L) -> Preprocessor<Out, L.Out> {
-        var disposable: Disposable? {
-            didSet { oldValue?.dispose() }
-        }
-        return mapAsync { (event, promise: ResultPromise<L.Out>) in
-            let next = try transform(event)
-            disposable = next.listening({ (out) in
-                switch out {
-                case .error(let e): promise.reject(e)
-                case .value(let v): promise.fulfill(v)
-                }
-            })
-        }
-    }
-}
-public extension Listenable where Out: _Optional {
-    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L) -> Preprocessor<Out, L.Out?> {
-        var disposable: Disposable? {
-            didSet { oldValue?.dispose() }
-        }
-        return flatMapAsync { (event, promise: ResultPromise<L.Out>) in
-            let next = try transform(event)
-            disposable = next.listening({ (out) in
-                switch out {
-                case .error(let e): promise.reject(e)
-                case .value(let v): promise.fulfill(v)
-                }
-            })
-        }
-    }
-    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Out, L.Out?> {
-        var disposable: Disposable? {
-            didSet { oldValue?.dispose() }
-        }
-        return flatMapAsync { (event, promise: ResultPromise<L.Out?>) in
-            guard let next = try transform(event) else { return promise.fulfill(nil) }
-            disposable = next.listening({ (out) in
-                switch out {
-                case .error(let e): promise.reject(e)
-                case .value(let v): promise.fulfill(v)
-                }
-            })
-        }
-    }
-    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Out, L.Out.Wrapped?> where L.Out: _Optional {
-        var disposable: Disposable? {
-            didSet { oldValue?.dispose() }
-        }
-        return flatMapAsync { (event, promise: ResultPromise<L.Out.Wrapped?>) in
-            guard let next = try transform(event) else { return promise.fulfill(nil) }
-            disposable = next.listening({ (out) in
-                switch out {
-                case .error(let e): promise.reject(e)
-                case .value(let v): promise.fulfill(v.wrapped)
-                }
-            })
-        }
-    }
-}
+public struct DoDebug<T: Listenable>: Listenable {
+    fileprivate let listenable: T
+    fileprivate let doit: (ListenEvent<T.Out>) -> Void
 
-public struct DoDebug<T>: Listenable {
-    fileprivate let listenable: AnyListenable<T>
-    fileprivate let doit: (ListenEvent<T>) -> Void
-
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
         #if DEBUG
         return listenable.listening(assign.with(work: doit))
         #else
         return listenable.listening(assign)
         #endif
     }
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
+    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
         #if DEBUG
         return listenable.listeningItem(assign.with(work: doit))
         #else
@@ -865,16 +816,20 @@ public struct DoDebug<T>: Listenable {
 }
 public extension Listenable {
     /// calls closure on receive next value
-    func doOnDebug(_ something: @escaping (ListenEvent<Out>) -> Void) -> Do<Out> {
-        return Do(listenable: AnyListenable(self.listening, self.listeningItem), doit: something)
+    func doOnDebug(_ something: @escaping (ListenEvent<Out>) -> Void) -> DoDebug<Self> {
+        return DoDebug(listenable: self, doit: something)
     }
 }
 
 /// Creates unretained listening point
-public struct Shared<T>: Listenable {
-    let repeater: Repeater<T>
+public struct Shared<T: Listenable>: Listenable {
+    let repeater: Repeater<T.Out>
     let liveStrategy: InternalLiveStrategy
 
+    /// Defines intermediate connection live strategy
+    ///
+    /// - continuous: Connection lives for all the time while current point alive
+    /// - repeatable: Connection lives if at least one listener exists
     public enum ConnectionLiveStrategy {
         case continuous
         case repeatable
@@ -882,15 +837,15 @@ public struct Shared<T>: Listenable {
 
     enum InternalLiveStrategy {
         case continuous(Disposable)
-        case repeatable(AnyListenable<T>, ValueStorage<(UInt, ListeningDispose?)>, ListeningDispose)
+        case repeatable(T, ValueStorage<(UInt, ListeningDispose?)>, ListeningDispose)
     }
 
-    init<L: Listenable>(_ source: L, liveStrategy: ConnectionLiveStrategy, repeater: Repeater<T>) where L.Out == T {
+    init(_ source: T, liveStrategy: ConnectionLiveStrategy, repeater: Repeater<T.Out>) {
         self.repeater = repeater
         switch liveStrategy {
         case .repeatable:
             let connectionStorage = ValueStorage<(UInt, ListeningDispose?)>.unsafe(strong: (0, nil))
-            self.liveStrategy = .repeatable(source.asAny(), connectionStorage, ListeningDispose({
+            self.liveStrategy = .repeatable(source, connectionStorage, ListeningDispose({
                 connectionStorage.value = (connectionStorage.value.0, nil) // disposes when shared deinitialized
             }))
         case .continuous:
@@ -898,7 +853,7 @@ public struct Shared<T>: Listenable {
         }
     }
 
-    private func increment(_ storage: ValueStorage<(UInt, ListeningDispose?)>, source: AnyListenable<T>) {
+    private func increment(_ storage: ValueStorage<(UInt, ListeningDispose?)>, source: T) {
         if storage.value.1 == nil {
             storage.value = (1, ListeningDispose(source.bind(to: repeater)))
         } else {
@@ -915,7 +870,7 @@ public struct Shared<T>: Listenable {
         }
     }
 
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
         switch self.liveStrategy {
         case .continuous: return repeater.listening(assign)
         case .repeatable(let source, let disposeStorage, _):
@@ -927,7 +882,7 @@ public struct Shared<T>: Listenable {
             })
         }
     }
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<ListenEvent<T.Out>>) -> ListeningItem {
         switch self.liveStrategy {
         case .continuous: return repeater.listeningItem(assign)
         case .repeatable(let source, let disposeStorage, _):
@@ -948,20 +903,20 @@ public struct Shared<T>: Listenable {
 public extension Listenable {
     /// Creates unretained listening point
     /// Connection with source keeps while current point retained
-    func shared(connectionLive strategy: Shared<Out>.ConnectionLiveStrategy, _ repeater: Repeater<Out> = .unsafe()) -> Shared<Out> {
+    func shared(connectionLive strategy: Shared<Self>.ConnectionLiveStrategy, _ repeater: Repeater<Out> = .unsafe()) -> Shared<Self> {
         return Shared(self, liveStrategy: strategy, repeater: repeater)
     }
 }
 
 /// Creates retained listening point
-public struct Share<T>: Listenable {
-    let repeater: Repeater<T>
+public struct Share<T: Listenable>: Listenable {
+    let repeater: Repeater<T.Out>
     let liveStrategy: InternalLiveStrategy
 
-    /// Defines behavior to support connection with source
+    /// Defines intermediate connection live strategy
     ///
-    /// - continuous: Connection creates once and lives continuously
-    /// - repeatable: Connection recreates when listeners more than 0.
+    /// - continuous: Connection lives for all the time while current point alive
+    /// - repeatable: Connection lives if at least one listener exists
     /// This retains source, therefore be careful to avoid retain cycle.
     public enum ConnectionLiveStrategy {
         case continuous
@@ -970,14 +925,14 @@ public struct Share<T>: Listenable {
 
     enum InternalLiveStrategy {
         case continuous(ListeningDispose)
-        case repeatable(AnyListenable<T>, ValueStorage<ListeningDispose?>)
+        case repeatable(T, ValueStorage<ListeningDispose?>)
     }
 
-    init<L: Listenable>(_ source: L, liveStrategy: ConnectionLiveStrategy, repeater: Repeater<T>) where L.Out == T {
+    init(_ source: T, liveStrategy: ConnectionLiveStrategy, repeater: Repeater<T.Out>) {
         self.repeater = repeater
         switch liveStrategy {
         case .repeatable:
-            self.liveStrategy = .repeatable(source.asAny(), ValueStorage.unsafe(weak: nil))
+            self.liveStrategy = .repeatable(source, ValueStorage.unsafe(weak: nil))
         case .continuous:
             self.liveStrategy = .continuous(ListeningDispose(source.bind(to: repeater)))
         }
@@ -998,7 +953,7 @@ public struct Share<T>: Listenable {
         return dispose
     }
 
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
         let connection = currentDispose()
         let disposable = repeater.listening(assign)
         let unmanaged = Unmanaged.passUnretained(connection).retain()
@@ -1007,7 +962,7 @@ public struct Share<T>: Listenable {
             unmanaged.release()
         })
     }
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<ListenEvent<T.Out>>) -> ListeningItem {
         let connection = currentDispose()
         let item = repeater.listeningItem(assign)
         let unmanaged = Unmanaged.passUnretained(connection).retain()
@@ -1022,7 +977,197 @@ public struct Share<T>: Listenable {
 public extension Listenable {
     /// Creates retained listening point.
     /// Connection with source keeps while current point exists listeners.
-    func share(connectionLive strategy: Share<Out>.ConnectionLiveStrategy, _ repeater: Repeater<Out> = .unsafe()) -> Share<Out> {
+    func share(connectionLive strategy: Share<Self>.ConnectionLiveStrategy, _ repeater: Repeater<Out> = .unsafe()) -> Share<Self> {
         return Share(self, liveStrategy: strategy, repeater: repeater)
+    }
+}
+
+// MARK: Conveniences
+
+public extension Listenable {
+    fileprivate func _distinctUntilChanged(_ def: Out?, comparer: @escaping (Out, Out) -> Bool) -> Preprocessor<Self, Out> {
+        var oldValue: Out? = def
+        return filter { newValue in
+            defer { oldValue = newValue }
+            return oldValue.map { comparer($0, newValue) } ?? true
+        }
+    }
+
+    /// blocks updates with the same values, using specific comparer. Defines initial value.
+    func distinctUntilChanged(_ def: Out, comparer: @escaping (Out, Out) -> Bool) -> Preprocessor<Self, Out> {
+        return _distinctUntilChanged(def, comparer: comparer)
+    }
+
+    /// blocks updates with the same values, using specific comparer
+    func distinctUntilChanged(comparer: @escaping (Out, Out) -> Bool) -> Preprocessor<Self, Out> {
+        return _distinctUntilChanged(nil, comparer: comparer)
+    }
+}
+public extension Listenable where Out: Equatable {
+    /// blocks updates with the same values with defined initial value.
+    func distinctUntilChanged(_ def: Out) -> Preprocessor<Self, Out> {
+        return distinctUntilChanged(def, comparer: !=)
+    }
+
+    /// blocks updates with the same values
+    func distinctUntilChanged() -> Preprocessor<Self, Out> {
+        return distinctUntilChanged(comparer: !=)
+    }
+}
+
+public extension Listenable {
+    public func then<L: Listenable>(_ transform: @escaping (Out) throws -> L) -> Preprocessor<Self, L.Out> {
+        var disposable: Disposable? {
+            didSet { oldValue?.dispose() }
+        }
+        return mapAsync { (event, promise: ResultPromise<L.Out>) in
+            let next = try transform(event)
+            disposable = next.listening({ (out) in
+                switch out {
+                case .error(let e): promise.reject(e)
+                case .value(let v): promise.fulfill(v)
+                }
+            })
+        }
+    }
+}
+public extension Listenable where Out: _Optional {
+    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L) -> Preprocessor<Self, L.Out?> {
+        var disposable: Disposable? {
+            didSet { oldValue?.dispose() }
+        }
+        return flatMapAsync { (event, promise: ResultPromise<L.Out>) in
+            let next = try transform(event)
+            disposable = next.listening({ (out) in
+                switch out {
+                case .error(let e): promise.reject(e)
+                case .value(let v): promise.fulfill(v)
+                }
+            })
+        }
+    }
+    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Self, L.Out?> {
+        var disposable: Disposable? {
+            didSet { oldValue?.dispose() }
+        }
+        return flatMapAsync { (event, promise: ResultPromise<L.Out?>) in
+            guard let next = try transform(event) else { return promise.fulfill(nil) }
+            disposable = next.listening({ (out) in
+                switch out {
+                case .error(let e): promise.reject(e)
+                case .value(let v): promise.fulfill(v)
+                }
+            })
+        }
+    }
+    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Self, L.Out.Wrapped?> where L.Out: _Optional {
+        var disposable: Disposable? {
+            didSet { oldValue?.dispose() }
+        }
+        return flatMapAsync { (event, promise: ResultPromise<L.Out.Wrapped?>) in
+            guard let next = try transform(event) else { return promise.fulfill(nil) }
+            disposable = next.listening({ (out) in
+                switch out {
+                case .error(let e): promise.reject(e)
+                case .value(let v): promise.fulfill(v.wrapped)
+                }
+            })
+        }
+    }
+}
+
+public extension Listenable where Out: _Optional {
+    /// transforms value if it's not `nil`, otherwise returns `nil`
+    func flatMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U) -> Preprocessor<Self, U?> {
+        return map { try $0.map(transform) }
+    }
+    /// transforms value if it's not `nil`, otherwise returns `nil`
+    func flatMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U?) -> Preprocessor<Self, U?> {
+        return map { try $0.flatMap(transform) }
+    }
+    /// unwraps value
+    func flatMap() -> Preprocessor<Self, Out.Wrapped?> {
+        return flatMap({ $0 })
+    }
+
+    public func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result?> {
+        return mapAsync({ (out, promise) in
+            guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
+            let wrappedPromise = ResultPromise<Result>(receiver: promise.fulfill, error: promise.reject)
+            try event(wrapped, wrappedPromise)
+        })
+    }
+    public func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result?>) throws -> Void) -> Preprocessor<Self, Result?> {
+        return mapAsync({ (out, promise) in
+            guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
+            try event(wrapped, promise)
+        })
+    }
+
+    /// transforms value if it's not `nil`, otherwise skips value
+    func filterMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U) -> Preprocessor<Preprocessor<Self, Out>, U> {
+        return self
+            .filter { $0.map { _ in true } ?? false }
+            .map { try transform($0.unsafelyUnwrapped) }
+    }
+
+    /// skips `nil` values
+    func compactMap() -> Preprocessor<Preprocessor<Self, Out>, Out.Wrapped> {
+        return filterMap({ $0 })
+    }
+}
+public extension Listenable where Out: _Optional, Out.Wrapped: _Optional {
+    /// transforms value if it's not `nil`, otherwise returns `nil`
+    func flatMap<U>(_ transform: @escaping (Out.Wrapped) throws -> U?) -> Preprocessor<Self, U?> {
+        return map({ try $0.flatMap(transform) })
+    }
+
+    /// unwraps value
+    func flatMap() -> Preprocessor<Self, Out.Wrapped.Wrapped?> {
+        return flatMap({ $0.wrapped })
+    }
+}
+
+public extension Listenable where Out == Bool {
+    func and<L: Listenable>(_ other: L) -> Preprocessor<Combine<(Bool, Bool)>, Bool>
+        where L.Out == Bool {
+        return combine(with: other).map({ $0 && $1 })
+    }
+    func and<L1: Listenable, L2: Listenable>(_ other1: L1, _ other2: L2) -> Preprocessor<Combine<(Bool, Bool, Bool)>, Bool>
+        where L1.Out == Bool, L2.Out == Bool {
+        return combine(with: other1, other2).map({ $0 && $1 && $2 })
+    }
+    func or<L: Listenable>(_ other: L) -> Preprocessor<Combine<(Bool, Bool)>, Bool> where L.Out == Bool {
+        return combine(with: other).map({ $0 || $1 })
+    }
+    func or<L1: Listenable, L2: Listenable>(_ other1: L1, _ other2: L2) -> Preprocessor<Combine<(Bool, Bool, Bool)>, Bool>
+        where L1.Out == Bool, L2.Out == Bool {
+        return combine(with: other1, other2).map({ $0 || $1 || $2 })
+    }
+}
+
+public extension Listenable where Out: Comparable {
+    func lessThan<L: Listenable>(_ other: L) -> Preprocessor<Combine<(Out, Out)>, Bool> where L.Out == Out {
+        return combine(with: other).map({ $0 < $1 })
+    }
+    func lessThan<L: Listenable>(orEqual other: L) -> Preprocessor<Combine<(Out, Out)>, Bool> where L.Out == Out {
+        return combine(with: other).map({ $0 <= $1 })
+    }
+    func moreThan<L: Listenable>(_ other: L) -> Preprocessor<Combine<(Out, Out)>, Bool> where L.Out == Out {
+        return combine(with: other).map({ $0 > $1 })
+    }
+    func moreThan<L: Listenable>(orEqual other: L) -> Preprocessor<Combine<(Out, Out)>, Bool> where L.Out == Out {
+        return combine(with: other).map({ $0 >= $1 })
+    }
+}
+
+public extension Listenable where Out: _Optional {
+    func `default`(_ defaultValue: Out.Wrapped) -> Preprocessor<Self, Out.Wrapped> {
+        return map({ $0.wrapped ?? defaultValue })
+    }
+}
+public extension Listenable where Out: _Optional, Out.Wrapped: HasDefaultLiteral {
+    func `default`() -> Preprocessor<Self, Out.Wrapped> {
+        return map({ $0.wrapped ?? Out.Wrapped() })
     }
 }

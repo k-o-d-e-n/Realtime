@@ -87,17 +87,20 @@ public final class RealtimeApp {
         public let maxNodeDepth: UInt
         public let unavailableSymbols: CharacterSet
         public let cachePolicy: CachePolicy
+        public let storageCache: RealtimeStorageCache?
 
         /// Default configuration based on Firebase Realtime Database
         public init(linksNode: BranchNode? = nil,
                     maxNodeDepth: UInt = 32,
                     unavailableSymbols: CharacterSet = CharacterSet(charactersIn: ".#$][/"),
-                    cachePolicy: CachePolicy = .noCache
+                    cachePolicy: CachePolicy = .noCache,
+                    storageCache: RealtimeStorageCache? = nil
         ) {
             self.linksNode = linksNode ?? BranchNode(key: InternalKeys.links)
             self.maxNodeDepth = maxNodeDepth
             self.unavailableSymbols = unavailableSymbols
             self.cachePolicy = cachePolicy
+            self.storageCache = storageCache
 
             debugFatalError(
                 condition: self.linksNode.key.split(separator: "/")

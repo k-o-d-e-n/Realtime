@@ -323,6 +323,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
 
         self.database = database
         if let node = self.node {
+            debugFatalError(condition: node === parent, "Parent node cannot be equal child")
             node.parent = parent
         } else {
             self.node = Node(key: key, parent: parent)
@@ -451,7 +452,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///         }
 ///     }
 ///
-open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Versionable {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Comparable, Versionable {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
 
     public var keepSynced: Bool = false {
@@ -466,9 +467,11 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     open weak var parent: Object? {
         didSet {
             if let node = self.node, let p = parent {
+                debugFatalError(condition: p === self, "Parent object cannot be equal child")
                 /// node.parent annulled in didRemove
-                debugFatalError(condition: node.parent.map({ $0 != parent.node }) ?? false,
+                debugFatalError(condition: node.parent.map({ $0 != p.node }) ?? false,
                                 "Parent object was changed, but his node doesn`t equal parent node in current object")
+                debugFatalError(condition: node === p.node, "Parent object has the same node reference that child object")
                 node.parent = p.node
             }
         }
@@ -586,16 +589,24 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     
     override open func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try super.apply(data, event: event)
+        var errors: [String: Error] = [:]
         try Reflector(reflecting: self, to: Object.self).forEach { (mirror) in
-            try apply(data, event: event, to: mirror)
+            apply(data, event: event, to: mirror, errorsContainer: &errors)
+        }
+        if errors.count > 0 {
+            throw RealtimeError(source: .objectCoding(errors), description: "Failed decoding data: \(data) to type: \(type(of: self))")
         }
     }
-    private func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent, to mirror: Mirror) throws {
-        try mirror.children.forEach { (child) in
+    private func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent, to mirror: Mirror, errorsContainer: inout [String: Error]) {
+        mirror.children.forEach { (child) in
             guard isNotIgnoredLabel(child.label) else { return }
 
             if var value: _RealtimeValue = forceValue(from: child, mirror: mirror), conditionForRead(of: value) {
-                try value.apply(parentDataIfNeeded: data, parentEvent: event)
+                do {
+                    try value.apply(parentDataIfNeeded: data, parentEvent: event)
+                } catch let e {
+                    errorsContainer[value.dbKey] = e
+                }
             }
         }
     }

@@ -133,7 +133,7 @@ class ListenableTests: XCTestCase {
 
         var counter = 0
         let propertyIndexSet = ValueStorage<IndexSet>.unsafe(strong: IndexSet(integer: 0))
-        let readonlySum = AsyncReadonlyValue<(Int, Int)>(propertyIndexSet, storage: ValueStorage.unsafe(strong: nil)) { (v, promise) in
+        let readonlySum = AsyncReadonlyValue<(Int, Int)>(propertyIndexSet, storage: .unsafe()) { (v, promise) in
             let c = counter
             counter += 1
             DispatchQueue.global(qos: .background).async {
@@ -264,7 +264,7 @@ class ListenableTests: XCTestCase {
         var living: NSObject? = NSObject()
 
         performWaitExpectation("async", timeout: 10) { (exp) in
-            _ = stringProperty.livetime(living!).listening(onValue: { string in
+            _ = stringProperty.livetime(of: living!).listening(onValue: { string in
                 if counter == 0 {
                     XCTAssertEqual(string, beforeDeadlineValue)
                 } else if counter == 1 {
@@ -464,7 +464,7 @@ class ListenableTests: XCTestCase {
     }
 
     func testPreprocessorAsListenable() {
-        func map<T: Listenable, U>(_ listenable: T, _ transform: @escaping (T.Out) -> U) -> Preprocessor<T.Out, U> {
+        func map<T: Listenable, U>(_ listenable: T, _ transform: @escaping (T.Out) -> U) -> Preprocessor<T, U> {
             return listenable.map(transform)
         }
 
@@ -1023,7 +1023,7 @@ extension ListenableTests {
         let source = Repeater<Int>.unsafe()
 
         var value_counter = 0
-        var sharedSource: Shared<UInt32>? = source
+        var sharedSource: Shared<AnyListenable<UInt32>>? = source
             .do(onValue: {
                 if value_counter == 3 {
                     XCTAssertTrue($0 == 0 || $0 == 1000)
@@ -1032,6 +1032,7 @@ extension ListenableTests {
             .map(UInt32.init)
             .map(arc4random_uniform)
             .do(onValue: { print($0) })
+            .asAny()
             .shared(connectionLive: .continuous)
         let disposable1 = sharedSource!.listening(onValue: { value in
             value_counter += 1
@@ -1067,7 +1068,7 @@ extension ListenableTests {
         let source = Repeater<Int>.unsafe()
 
         var value_counter = 0
-        var shareSource: Shared<UInt32>? = source
+        var shareSource: Shared<AnyListenable<UInt32>>? = source
             .do(onValue: {
                 if $0 == 0 {
                     XCTFail("Must not call")
@@ -1076,6 +1077,7 @@ extension ListenableTests {
             .map(UInt32.init)
             .map(arc4random_uniform)
             .do(onValue: { print($0) })
+            .asAny()
             .shared(connectionLive: .repeatable)
         let disposable1 = shareSource!.listening(onValue: { value in
             value_counter += 1
@@ -1114,7 +1116,7 @@ extension ListenableTests {
         let source = Repeater<Int>.unsafe()
 
         var value_counter = 0
-        var shareSource: Share<UInt32>? = source
+        var shareSource: Share<AnyListenable<UInt32>>? = source
             .do(onValue: {
                 if $0 == 0 {
                     XCTFail("Must not call")
@@ -1126,6 +1128,7 @@ extension ListenableTests {
             .map(UInt32.init)
             .map(arc4random_uniform)
             .do(onValue: { print($0) })
+            .asAny()
             .share(connectionLive: .repeatable)
         let disposable1 = shareSource!.listening(onValue: { value in
             value_counter += 1
@@ -1165,7 +1168,7 @@ extension ListenableTests {
         let source = Repeater<Int>.unsafe()
 
         var value_counter = 0
-        var shareSource: Share<UInt32>? = source
+        var shareSource: Share<AnyListenable<UInt32>>? = source
             .do(onValue: {
                 if value_counter == 3 {
                     XCTAssertTrue($0 == 1000 || $0 == 0 || $0 == 10000)
@@ -1177,6 +1180,7 @@ extension ListenableTests {
             .map(UInt32.init)
             .map(arc4random_uniform)
             .do(onValue: { print($0) })
+            .asAny()
             .share(connectionLive: .continuous)
         let disposable1 = shareSource!.listening(onValue: { value in
             value_counter += 1

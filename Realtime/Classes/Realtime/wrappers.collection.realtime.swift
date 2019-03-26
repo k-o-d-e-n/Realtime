@@ -163,7 +163,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
         get { return base.dataExplorer }
     }
 
-    public init<C: RealtimeCollection>(_ base: C) where C.Iterator.Element == Element, C.View.Element: DatabaseKeyRepresentable {
+    public init<C: RealtimeCollection>(_ base: C) where C.Element == Element, C.View.Element: DatabaseKeyRepresentable {
         self.base = _AnyRealtimeCollection<C>(base: base)
     }
 

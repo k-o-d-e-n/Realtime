@@ -511,7 +511,7 @@ public struct RelationsItem: WritableRealtimeValue, Comparable {
 }
 
 public extension RawRepresentable where RawValue == String {
-    func relations<V: Object>(in object: Object, anchor: Relations<V>.Options.Anchor = .root, ownerLevelsUp: UInt = 1, _ property: RelationMode) -> Relations<V> {
+    func relations<V: Object>(in object: Object, anchor: Relations<V>.Options.Anchor = .root, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relations<V> {
         return Relations(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -555,7 +555,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         /// Levels up by hierarchy to relation owner of this property
         let ownerLevelsUp: UInt
         /// String path from related object to his relation property
-        let property: RelationMode
+        let property: RelationProperty
 
         // TODO: Don`t control element node, because crash
         public enum Anchor {
@@ -564,7 +564,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
             case levelsUp(UInt)
         }
 
-        public init(anchor: Anchor, ownerLevelsUp: UInt, property: RelationMode) {
+        public init(anchor: Anchor, ownerLevelsUp: UInt, property: RelationProperty) {
             self.anchor = anchor
             self.ownerLevelsUp = ownerLevelsUp
             self.property = property

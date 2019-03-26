@@ -79,7 +79,7 @@ final class ServiceNode: Node {
 }
 
 /// Represents reference to database tree node
-public class Node: Hashable {
+public class Node: Hashable, Comparable {
     /// Root node
     public static let root: Node = Root()
     final class Root: Node {
@@ -324,6 +324,9 @@ public class Node: Hashable {
 
         return lhsAncestor.key == rhsAncestor.key
     }
+    public static func < (lhs: Node, rhs: Node) -> Bool {
+        return lhs.key < rhs.key
+    }
 
     public var description: String { return absolutePath }
     public var debugDescription: String { return description }
@@ -381,6 +384,7 @@ public extension Node {
     ///
     /// - Parameter node: Target node
     func moveTo(_ node: Node) {
+        precondition(node !== self, "Parent cannot be equal child")
         self.parent = node
     }
     /// Slices chain of nodes

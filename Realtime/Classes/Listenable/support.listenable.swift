@@ -35,7 +35,7 @@ extension Optional: _Optional {
 
 public extension Listenable where Out: RealtimeValueActions {
     /// Loads a value is associated with `RealtimeValueActions` value
-    func load(timeout: DispatchTimeInterval = .seconds(10)) -> Preprocessor<Out, Out> {
+    func load(timeout: DispatchTimeInterval = .seconds(10)) -> Preprocessor<Self, Out> {
         return doAsync({ (prop, promise) in
             prop.load(timeout: timeout, completion: <-{ err in
                 if let e = err {
@@ -44,6 +44,14 @@ public extension Listenable where Out: RealtimeValueActions {
                     promise.fulfill()
                 }
             })
+        })
+    }
+}
+
+public extension Listenable {
+    func bind<T>(to property: Property<T>) -> Disposable where T == Out {
+        return listening(onValue: { value in
+            property <== value
         })
     }
 }
@@ -76,6 +84,31 @@ public extension Listenable where Self.Out == UIImage? {
 
 public struct RTime<Base> {
     public let base: Base
+}
+
+public protocol RealtimeListener {
+    associatedtype Listened
+    func take(realtime value: Listened)
+}
+public extension Listenable {
+    func bind<RL: RealtimeListener>(to listener: RL) -> Disposable where RL.Listened == Out {
+        return listening(onValue: listener.take)
+    }
+    func bind<RL: RealtimeListener & AnyObject>(toWeak listener: RL) -> Disposable where RL.Listened == Out {
+        return listening(onValue: { [weak listener] next in
+            listener?.take(realtime: next)
+        })
+    }
+    func bind<RL: RealtimeListener & AnyObject>(toUnowned listener: RL) -> Disposable where RL.Listened == Out {
+        return listening(onValue: { [unowned listener] next in
+            listener.take(realtime: next)
+        })
+    }
+}
+extension Property: RealtimeListener {
+    public func take(realtime value: T) {
+        self <== value
+    }
 }
 
 public protocol RealtimeCompatible {
@@ -150,7 +183,7 @@ public extension RTime where Base: UIControl {
     }
 }
 public extension RTime where Base: UITextField {
-    var text: Preprocessor<(control: Base, event: UIEvent), String?> {
+    var text: Preprocessor<ControlEvent<Base>, String?> {
         return onEvent(.editingChanged).map { $0.0.text }
     }
 }

@@ -30,9 +30,9 @@ class Group: Object {
     lazy var name: Property<String> = "name".property(in: self)
     lazy var users: MutableReferences<User> = "users".references(in: self, elements: Global.rtUsers.node!)
     lazy var conversations: AssociatedValues<User, User> = "conversations".dictionary(in: self, keys: Global.rtUsers.node!)
-    lazy var manager: Relation<User?> = "manager".relation(in: self, .oneToOne("ownedGroup"))
+    lazy var manager: Relation<User?> = "manager".relation(in: self, .one(name: "ownedGroup"))
 
-    lazy var _manager: Relation<User?> = "_manager".relation(in: self, .oneToMany("ownedGroups"))
+    lazy var _manager: Relation<User?> = "_manager".relation(in: self, .many(format: "ownedGroups/%@"))
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -54,8 +54,8 @@ class User: Object {
     lazy var followers: MutableReferences<User> = "followers".references(in: self, elements: Global.rtUsers.node!)
     lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".values(in: self)
 
-    lazy var ownedGroup: Relation<Group?> = "ownedGroup".relation(in: self, .oneToOne("manager"))
-    lazy var ownedGroups: Relations<Group> = "ownedGroups".relations(in: self, .oneToOne("_manager"))
+    lazy var ownedGroup: Relation<Group?> = "ownedGroup".relation(in: self, .one(name: "manager"))
+    lazy var ownedGroups: Relations<Group> = "ownedGroups".relations(in: self, .one(name: "_manager"))
 
     //    override class var keyPaths: [String: AnyKeyPath] {
     //        return super.keyPaths.merging(["name": \RealtimeUser.name, "age": \RealtimeUser.age], uniquingKeysWith: { (_, new) -> AnyKeyPath in

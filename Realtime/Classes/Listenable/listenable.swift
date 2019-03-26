@@ -98,6 +98,12 @@ extension ThrowsClosure {
     func map<U>(_ transform: @escaping (O) throws -> U) -> ThrowsClosure<I, U> {
         return ThrowsClosure<I, U>({ try transform(try self.closure($0)) })
     }
+    func mapIn<U>(_ transform: @escaping (U) throws -> I) -> ThrowsClosure<U, O> {
+        return ThrowsClosure<U, O>({ try self.closure(try transform($0)) })
+    }
+    func mapOut<U>(_ transform: @escaping (O) throws -> U) -> ThrowsClosure<I, U> {
+        return ThrowsClosure<I, U>({ try transform(try self.closure($0)) })
+    }
 }
 extension Closure {
     func `throws`() -> ThrowsClosure<I, O> {
@@ -107,6 +113,12 @@ extension Closure {
         return Closure<U, O>({ self.closure(transform($0)) })
     }
     func map<U>(_ transform: @escaping (O) -> U) -> Closure<I, U> {
+        return Closure<I, U>({ transform(self.closure($0)) })
+    }
+    func mapIn<U>(_ transform: @escaping (U) -> I) -> Closure<U, O> {
+        return Closure<U, O>({ self.closure(transform($0)) })
+    }
+    func mapOut<U>(_ transform: @escaping (O) -> U) -> Closure<I, U> {
         return Closure<I, U>({ transform(self.closure($0)) })
     }
 }
@@ -499,7 +511,7 @@ public extension Listenable {
     /// - Returns: Disposable
     @discardableResult
     func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.Out {
-        return livetime(other).listening(onValue: { [weak other] val in
+        return livetime(of: other).listening(onValue: { [weak other] val in
             other?.value = val
         })
     }
