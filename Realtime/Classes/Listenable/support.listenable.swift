@@ -35,7 +35,7 @@ extension Optional: _Optional {
 
 public extension Listenable where Out: RealtimeValueActions {
     /// Loads a value is associated with `RealtimeValueActions` value
-    func load(timeout: DispatchTimeInterval = .seconds(10)) -> Preprocessor<Out, Out> {
+    func load(timeout: DispatchTimeInterval = .seconds(10)) -> Preprocessor<Self, Out> {
         return doAsync({ (prop, promise) in
             prop.load(timeout: timeout, completion: <-{ err in
                 if let e = err {
@@ -185,7 +185,7 @@ public extension RTime where Base: UIControl {
     }
 }
 public extension RTime where Base: UITextField {
-    var text: Preprocessor<(control: Base, event: UIEvent), String?> {
+    var text: Preprocessor<ControlEvent<Base>, String?> {
         return onEvent(.editingChanged).map { $0.0.text }
     }
 }

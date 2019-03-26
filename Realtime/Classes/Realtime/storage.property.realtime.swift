@@ -142,7 +142,7 @@ class CachedFileDownloadTask: RealtimeStorageTask {
 
     var progress: AnyListenable<Progress> { return _nextTask?.progress ?? Constant(Progress(totalUnitCount: 0)).asAny() }
     let _success: Repeater<RealtimeMetadata?>
-    let _memoizedSuccess: Preprocessor<[RealtimeMetadata?], RealtimeMetadata?>
+    let _memoizedSuccess: Preprocessor<Memoize<Repeater<RealtimeMetadata?>>, RealtimeMetadata?>
     var success: AnyListenable<RealtimeMetadata?> { return _memoizedSuccess.asAny() }
 
     init(nextLevel task: @escaping @autoclosure () -> RealtimeStorageTask,

@@ -221,7 +221,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         get { return _elements }
     }
 
-    var changes: Preprocessor<(RealtimeDataProtocol, DatabaseDataEvent), (data: RealtimeDataProtocol, event: RCEvent)> {
+    var changes: Preprocessor<Preprocessor<Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>, (RealtimeDataProtocol, DatabaseDataEvent)>, (data: RealtimeDataProtocol, event: RCEvent)> {
         return dataObserver
             .filter({ [unowned self] e in
                 if e.1 != .value {
