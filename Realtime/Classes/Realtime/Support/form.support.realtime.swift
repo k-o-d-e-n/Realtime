@@ -590,18 +590,18 @@ open class Form<Model: AnyObject> {
         }
     }
 
-    open func deleteSections(at indexes: IndexSet, with animation: UITableView.RowAnimation) {
+    open func deleteSections(at indexes: IndexSet, with animation: UITableView.RowAnimation = .automatic) {
         indexes.reversed().forEach { removedSections[$0] = sections.remove(at: $0) }
         if performsUpdates { tableView?.deleteSections(indexes, with: animation) }
     }
 
-    open func reloadRows(at indexPaths: [IndexPath], with animation: UITableView.RowAnimation) {
+    open func reloadRows(at indexPaths: [IndexPath], with animation: UITableView.RowAnimation = .automatic) {
         if performsUpdates, let tv = tableView, tv.window != nil {
             tv.reloadRows(at: indexPaths, with: animation)
         }
     }
 
-    open func reloadSections(_ sections: IndexSet, with animation: UITableView.RowAnimation) {
+    open func reloadSections(_ sections: IndexSet, with animation: UITableView.RowAnimation = .automatic) {
         if performsUpdates, let tv = tableView, tv.window != nil {
             tv.reloadSections(sections, with: animation)
         }
@@ -757,6 +757,21 @@ extension Form {
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             form.tableDelegate?.scrollViewDidScroll?(scrollView)
+        }
+    }
+}
+
+public extension Form {
+    func indexPath<Cell: UITableViewCell>(for row: Row<Cell, Model>) -> IndexPath? {
+        if let tv = tableView, let view = row.view {
+            return tv.indexPath(for: view)
+        } else {
+            for (index, section) in enumerated() {
+                if let row = section.firstIndex(where: { $0 === row }) {
+                    return IndexPath(row: row, section: index)
+                }
+            }
+            return nil
         }
     }
 }
