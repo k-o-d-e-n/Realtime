@@ -468,11 +468,25 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
         return items == nil
     }
 
+    func endDisplaySection(_ tableView: UITableView, at index: Int) {
+        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
+    }
+
+    func endDisplaySection(_ collectionView: UICollectionView, at index: Int) {
+        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
+    }
+
+    override func free() {
+        super.free()
+        items = nil
+    }
+}
+extension ReuseSection where View: UIView {
     func willDisplaySection(_ collectionView: UICollectionView, items: AnyRealtimeCollection<Model>, at index: Int) {
         debugFatalError(condition: self.items != nil, "Unbalanced section managing")
         items.changes.listening(
             onValue: { [weak collectionView] e in
-                guard let cv = collectionView else { return }
+                guard self._isVisible, let cv = collectionView else { return }
                 cv.performBatchUpdates({
                     switch e {
                     case .initial:
@@ -493,21 +507,6 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
         ).add(to: disposeStorage)
         self.items = items
     }
-
-    func endDisplaySection(_ tableView: UITableView, at index: Int) {
-        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
-    }
-
-    func endDisplaySection(_ collectionView: UICollectionView, at index: Int) {
-        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
-    }
-
-    override func free() {
-        super.free()
-        items = nil
-    }
-}
-extension ReuseSection where View: UIView {
     func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
         debugFatalError(condition: self.items != nil, "Unbalanced section managing")
         items.changes.listening(
