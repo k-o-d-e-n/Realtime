@@ -38,7 +38,7 @@ internal final class _IndexBox<BaseIndex: Comparable>: _AnyIndexBox {
     }
 }
 internal extension Collection {
-    internal func _unbox(
+    func _unbox(
         _ position: _AnyIndexBox, file: StaticString = #file, line: UInt = #line
         ) -> Index {
         if let i = position._unbox() as Index? {
@@ -57,11 +57,11 @@ public struct RealtimeCollectionIndex {
 
 extension RealtimeCollectionIndex : Comparable {
     public static func == (lhs: RealtimeCollectionIndex, rhs: RealtimeCollectionIndex) -> Bool {
-        _precondition(lhs._typeID == rhs._typeID, "Base index types differ")
+        precondition(lhs._typeID == rhs._typeID, "Base index types differ")
         return lhs._box._isEqual(to: rhs._box)
     }
     public static func < (lhs: RealtimeCollectionIndex, rhs: RealtimeCollectionIndex) -> Bool {
-        _precondition(lhs._typeID == rhs._typeID, "Base index types differ")
+        precondition(lhs._typeID == rhs._typeID, "Base index types differ")
         return lhs._box._isLess(than: rhs._box)
     }
 }
@@ -356,7 +356,7 @@ where Base.View.Element: DatabaseKeyRepresentable, Base.Element: RealtimeCollect
             // When combined, the two conditions above guarantee that both
             // `_outer` indices are `_base.endIndex` and both `_inner` indices
             // are `nil`, since `_inner` is `nil` iff `_outer == base.endIndex`.
-            _precondition(lhs._inner == nil && rhs._inner == nil)
+            precondition(lhs._inner == nil && rhs._inner == nil)
 
             return false
         }
