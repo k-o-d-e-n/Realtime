@@ -662,7 +662,7 @@ public extension Representer where V: UIImage {
         let base = Representer<Data>.any
         return Representer<UIImage>(
             encoding: { img -> Any? in
-                guard let data = UIImagePNGRepresentation(img) else {
+                guard let data = img.pngData() else {
                     throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .png representation")
                 }
                 return data
@@ -680,7 +680,7 @@ public extension Representer where V: UIImage {
         let base = Representer<Data>.any
         return Representer<UIImage>(
             encoding: { img -> Any? in
-                guard let data = UIImageJPEGRepresentation(img, quality) else {
+                guard let data = img.jpegData(compressionQuality: quality) else {
                     throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .jpeg representation with compression quality: \(quality)")
                 }
                 return data
