@@ -181,7 +181,7 @@ extension ReuseController {
 public protocol RealtimeEditingTableDataSource: class {
     func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool
     func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath)
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath)
     func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath)
     func tableView(
         _ tableView: UITableView,
@@ -193,7 +193,7 @@ public extension RealtimeEditingTableDataSource {
     func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool { return tableView.isEditing }
     func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool { return false }
     func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {}
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {}
+    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {}
     func tableView(
         _ tableView: UITableView,
         targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath,
@@ -343,13 +343,13 @@ extension SingleSectionTableViewDelegate {
 
         func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
             return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ??
-                (tableView.rowHeight != UITableViewAutomaticDimension ? tableView.rowHeight : 44.0)
+                (tableView.rowHeight != UITableView.automaticDimension ? tableView.rowHeight : 44.0)
         }
 
         func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
             return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ??
                 delegate.headerView?.frame.height ??
-                (tableView.sectionHeaderHeight != UITableViewAutomaticDimension ? tableView.sectionHeaderHeight : 0.0)
+                (tableView.sectionHeaderHeight != UITableView.automaticDimension ? tableView.sectionHeaderHeight : 0.0)
         }
 
         /// events
@@ -375,11 +375,11 @@ extension SingleSectionTableViewDelegate {
             delegate.tableDelegate?.tableView?(tableView, didSelectRowAt: indexPath)
         }
 
-        func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+        func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
             return delegate.tableDelegate?.tableView?(tableView, editingStyleForRowAt: indexPath) ?? .delete
         }
 
-        func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
             delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
         }
 
@@ -468,11 +468,25 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
         return items == nil
     }
 
+    func endDisplaySection(_ tableView: UITableView, at index: Int) {
+        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
+    }
+
+    func endDisplaySection(_ collectionView: UICollectionView, at index: Int) {
+        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
+    }
+
+    override func free() {
+        super.free()
+        items = nil
+    }
+}
+extension ReuseSection where View: UIView {
     func willDisplaySection(_ collectionView: UICollectionView, items: AnyRealtimeCollection<Model>, at index: Int) {
         debugFatalError(condition: self.items != nil, "Unbalanced section managing")
         items.changes.listening(
             onValue: { [weak collectionView] e in
-                guard let cv = collectionView else { return }
+                guard self._isVisible, let cv = collectionView else { return }
                 cv.performBatchUpdates({
                     switch e {
                     case .initial:
@@ -493,21 +507,6 @@ open class ReuseSection<Model, View: AnyObject>: ReuseItem<View> {
         ).add(to: disposeStorage)
         self.items = items
     }
-
-    func endDisplaySection(_ tableView: UITableView, at index: Int) {
-        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
-    }
-
-    func endDisplaySection(_ collectionView: UICollectionView, at index: Int) {
-        debugFatalError(condition: self.items != nil, "Unbalanced section managing")
-    }
-
-    override func free() {
-        super.free()
-        items = nil
-    }
-}
-extension ReuseSection where View: UIView {
     func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
         debugFatalError(condition: self.items != nil, "Unbalanced section managing")
         items.changes.listening(
@@ -642,12 +641,12 @@ extension SectionedTableViewDelegate {
 
         func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
             return delegate.tableDelegate?.tableView?(tableView, heightForHeaderInSection: section) ??
-                (tableView.sectionHeaderHeight != UITableViewAutomaticDimension ? tableView.sectionHeaderHeight : 35.0)
+                (tableView.sectionHeaderHeight != UITableView.automaticDimension ? tableView.sectionHeaderHeight : 35.0)
         }
 
         func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
             return delegate.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ??
-                (tableView.rowHeight != UITableViewAutomaticDimension ? tableView.rowHeight : 44.0)
+                (tableView.rowHeight != UITableView.automaticDimension ? tableView.rowHeight : 44.0)
         }
 
         func tableView(_ tableView: UITableView, prefetchRowsAt indexPaths: [IndexPath]) {
@@ -732,11 +731,11 @@ extension SectionedTableViewDelegate {
             }
         }
 
-        func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+        func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
             return delegate.tableDelegate?.tableView?(tableView, editingStyleForRowAt: indexPath) ?? .delete
         }
 
-        func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
             delegate.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
         }
 

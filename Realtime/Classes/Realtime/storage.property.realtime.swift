@@ -14,7 +14,7 @@ public extension RawRepresentable where Self.RawValue == String {
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
-                .representer: representer.requiredProperty()
+                .representer: Availability.required(representer)
             ]
         )
     }
@@ -23,7 +23,7 @@ public extension RawRepresentable where Self.RawValue == String {
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
-                .representer: representer.optionalProperty()
+                .representer: Availability.optional(representer)
             ]
         )
     }
@@ -32,7 +32,7 @@ public extension RawRepresentable where Self.RawValue == String {
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
-                .representer: representer.requiredProperty(),
+                .representer: Availability.required(representer),
                 .metadata: metadata
             ]
         )
@@ -42,7 +42,7 @@ public extension RawRepresentable where Self.RawValue == String {
             in: Node(key: rawValue, parent: object.node),
             options: [
                 .database: object.database as Any,
-                .representer: representer.optionalProperty(),
+                .representer: Availability.optional(representer),
                 .metadata: metadata
             ]
         )
@@ -142,7 +142,7 @@ class CachedFileDownloadTask: RealtimeStorageTask {
 
     var progress: AnyListenable<Progress> { return _nextTask?.progress ?? Constant(Progress(totalUnitCount: 0)).asAny() }
     let _success: Repeater<RealtimeMetadata?>
-    let _memoizedSuccess: Preprocessor<[RealtimeMetadata?], RealtimeMetadata?>
+    let _memoizedSuccess: Preprocessor<Memoize<Repeater<RealtimeMetadata?>>, RealtimeMetadata?>
     var success: AnyListenable<RealtimeMetadata?> { return _memoizedSuccess.asAny() }
 
     init(nextLevel task: @escaping @autoclosure () -> RealtimeStorageTask,

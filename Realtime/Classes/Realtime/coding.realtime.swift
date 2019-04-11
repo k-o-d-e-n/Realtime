@@ -159,6 +159,37 @@ extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatabl
     }
 }
 
+public extension KeyedEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T, forKey key: K) throws {
+        try T._isDefaultLiteral(value) ? encodeNil(forKey: key) : encode(value, forKey: key)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T, forKey key: K) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value, forKey: key)
+        }
+    }
+}
+public extension UnkeyedEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        try T._isDefaultLiteral(value) ? encodeNil() : encode(value)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value)
+        }
+    }
+}
+public extension SingleValueEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        try T._isDefaultLiteral(value) ? encodeNil() : encode(value)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value)
+        }
+    }
+}
+
 /// Protocol for values that only valid for Realtime Database, e.g. `(NS)Array`, `(NS)Dictionary` and etc.
 /// You shouldn't apply for some custom values.
 public protocol RealtimeDataValue: RealtimeDataRepresented {}
@@ -631,7 +662,7 @@ public extension Representer where V: UIImage {
         let base = Representer<Data>.any
         return Representer<UIImage>(
             encoding: { img -> Any? in
-                guard let data = UIImagePNGRepresentation(img) else {
+                guard let data = img.pngData() else {
                     throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .png representation")
                 }
                 return data
@@ -649,7 +680,7 @@ public extension Representer where V: UIImage {
         let base = Representer<Data>.any
         return Representer<UIImage>(
             encoding: { img -> Any? in
-                guard let data = UIImageJPEGRepresentation(img, quality) else {
+                guard let data = img.jpegData(compressionQuality: quality) else {
                     throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .jpeg representation with compression quality: \(quality)")
                 }
                 return data

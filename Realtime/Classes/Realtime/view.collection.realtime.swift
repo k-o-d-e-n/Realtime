@@ -221,7 +221,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         get { return _elements }
     }
 
-    var changes: Preprocessor<(RealtimeDataProtocol, DatabaseDataEvent), (data: RealtimeDataProtocol, event: RCEvent)> {
+    var changes: Preprocessor<Preprocessor<Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>, (RealtimeDataProtocol, DatabaseDataEvent)>, (data: RealtimeDataProtocol, event: RCEvent)> {
         return dataObserver
             .filter({ [unowned self] e in
                 if e.1 != .value {
@@ -341,6 +341,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
             } else {
                 let item = try Element(data: data)
                 indexes = [self._elements.insert(item)]
+                debugFatalError(condition: indexes.isEmpty, "Did update collection, but couldn`t recognized indexes. Data: \(value.0), event: \(value.1)")
             }
             return (data, .updated(deleted: [], inserted: indexes, modified: [], moved: []))
         case .child(.removed):
@@ -355,6 +356,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
             } else {
                 let item = try Element(data: data)
                 let indexes: [Int] = self._elements.remove(item).map({ [$0.index] }) ?? []
+                debugFatalError(condition: indexes.isEmpty, "Did update collection, but couldn`t recognized indexes. Data: \(value.0), event: \(value.1)")
                 return (data, .updated(deleted: indexes, inserted: [], modified: [], moved: []))
             }
         case .child(.changed):

@@ -10,7 +10,7 @@ import UIKit
 import Realtime
 
 class TableCell: UITableViewCell {
-    lazy var indicator: UIActivityIndicatorView = UIActivityIndicatorView(activityIndicatorStyle: .gray).add(to: self.contentView) {
+    lazy var indicator: UIActivityIndicatorView = UIActivityIndicatorView(style: .gray).add(to: self.contentView) {
         $0.center = self.contentView.center
     }
     lazy var label: UILabel = UILabel().add(to: self.contentView) {
@@ -45,7 +45,7 @@ class RealtimeTableController: UITableViewController {
         navigationItem.rightBarButtonItems = [UIBarButtonItem(barButtonSystemItem: .edit, target: self, action: #selector(edit)),
                                               UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(addUser))]
 
-        let iView = UIActivityIndicatorView(activityIndicatorStyle: .gray)
+        let iView = UIActivityIndicatorView(style: .gray)
         navigationItem.titleView = iView
         self.activityView = iView
 
@@ -213,11 +213,11 @@ extension RealtimeTableController: RealtimeEditingTableDataSource {
         print("Did select row at \(indexPath)")
     }
 
-    override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+    override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
         return .delete
     }
 
-    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         switch editingStyle {
         case .delete:
             guard Global.rtUsers.isSynced else {

@@ -282,7 +282,7 @@ extension Values {
         }
 
         let index = priority ?? view.count
-        let key = element.node.map { $0.key } ?? String(index)
+        let key = element.node.map { $0.key } ?? Node(parent: nil).key
         storage[key] = element
         var item = RCItem(key: key, value: element)
         item.priority = index
