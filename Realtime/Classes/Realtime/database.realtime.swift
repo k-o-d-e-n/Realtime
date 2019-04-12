@@ -450,13 +450,20 @@ extension StorageReference {
     }
 }
 
-public protocol RealtimeStorageTask {
+public protocol RealtimeTask {
+    var completion: AnyListenable<Void> { get }
+}
+
+public protocol RealtimeStorageTask: RealtimeTask {
     var progress: AnyListenable<Progress> { get }
     var success: AnyListenable<RealtimeMetadata?> { get }
 
     func pause()
     func cancel()
     func resume()
+}
+public extension RealtimeStorageTask {
+    var completion: AnyListenable<Void> { return success.map({ _ in () }).asAny() }
 }
 extension StorageDownloadTask: RealtimeStorageTask {
     public var progress: AnyListenable<Progress> {

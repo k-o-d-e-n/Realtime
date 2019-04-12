@@ -135,13 +135,13 @@ public extension _Promise {
         _resolve(.error(error))
     }
 
-    func _resolve(_ result: ListenEvent<T>) {
-        disposes.forEach { $0.dispose() }
-        disposes.removeAll()
+    internal func _resolve(_ result: ListenEvent<T>) {
         switch _dispatcher {
         case .direct: break
         case .repeater(let lock, let repeater):
             lock.lock()
+            disposes.forEach { $0.dispose() }
+            disposes.removeAll()
             self._result = .some(result)
             self._dispatcher = .direct
             lock.unlock()
@@ -170,7 +170,7 @@ public extension _Promise {
     }
 
     @discardableResult
-    public func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<Result>) -> _Promise<Result> {
+    func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<Result>) -> _Promise<Result> {
         let promise = _Promise<Result>(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
@@ -187,7 +187,7 @@ public extension _Promise {
     }
 
     @discardableResult
-    public func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<_Promise<Result>>) -> _Promise<Result> {
+    func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<_Promise<Result>>) -> _Promise<Result> {
         let promise = _Promise<Result>(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
@@ -221,4 +221,7 @@ public extension _Promise {
         }).add(to: &promise.disposes)
         return promise
     }
+}
+extension _Promise: RealtimeTask {
+    public var completion: AnyListenable<Void> { return AnyListenable(map({ _ in () })) }
 }

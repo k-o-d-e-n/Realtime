@@ -936,8 +936,8 @@ extension RealtimeTests {
             }
         }
 
-        func load(timeout: DispatchTimeInterval, completion: Closure<Error?, Void>?) {
-            value.load(timeout: timeout, completion: completion)
+        func load(timeout: DispatchTimeInterval) -> RealtimeTask {
+            return value.load(timeout: timeout)
         }
 
         func runObserving() -> Bool {
@@ -1099,8 +1099,8 @@ extension RealtimeTests {
                     XCTFail(e.localizedDescription)
                 } else {
                     let restoredObj = TestObject(in: .root, options: [.database: Cache.root])
-                    restoredObj.load(completion: .just { e in
-                        e.map { XCTFail($0.localizedDescription) }
+                    _ = restoredObj.load().completion.listening(.just { e in
+                        e.error.map { XCTFail($0.localizedDescription) }
 
                         XCTAssertEqual(testObject.property, restoredObj.property)
                         XCTAssertEqual(testObject.nestedObject.lazyProperty,
@@ -1372,12 +1372,12 @@ extension RealtimeTests {
                 let copyValues = copyAssocitedValues.values()
                 /// we can use References for readonly access to keys
                 let copyKeys = copyAssocitedValues.keys()
-                copyValues.view.load(.just({ (v_err) in
-                    v_err.map { XCTFail($0.describingErrorDescription) }
-                    copyKeys.view.load(.just({ k_err in
-                        k_err.map { XCTFail($0.describingErrorDescription) }
-                    copyAssocitedValues.view.load(.just({ av_err in
-                        av_err.map { XCTFail($0.describingErrorDescription) }
+                _ = copyValues.view.load().completion.listening(.just({ (v_err) in
+                    v_err.error.map { XCTFail($0.describingErrorDescription) }
+                    _ = copyKeys.view.load().completion.listening(.just({ k_err in
+                        k_err.error.map { XCTFail($0.describingErrorDescription) }
+                    _ = copyAssocitedValues.view.load().completion.listening(.just({ av_err in
+                        av_err.error.map { XCTFail($0.describingErrorDescription) }
 
                         if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first, let copyKey = copyKeys.first {
                             XCTAssertEqual(copyAValue.key, key)
@@ -1425,8 +1425,8 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let prop = ReadonlyProperty<String>(in: Node.root("___tests/prop"), options: [.representer: Availability.required(Representer<String>.any)])
 
-        prop.load(timeout: .seconds(3), completion: .just { err in
-            guard let e = err else { return XCTFail("Must be timout error") }
+        _ = prop.load(timeout: .seconds(3)).completion.listening(.just { err in
+            guard let e = err.error else { return XCTFail("Must be timout error") }
             switch e {
             case let re as RealtimeError:
                 if case .database = re.source {
@@ -1583,14 +1583,15 @@ class VersionableObject: Object {
                     renamedToVariable <== renamedValue
                 } else {
                     transaction.addPrecondition { [unowned self] (promise) in
-                        self.renamedFromVariable.loadValue(
-                            completion: <-{ value in
+                        _ = self.renamedFromVariable.loadValue().listening({ event in
+                            switch event {
+                            case .value(let value):
                                 // updates already added to transaction because add migration changes explicitly
                                 try! self.renamedToVariable.setValue(value, in: transaction)
                                 promise.fulfill()
-                            },
-                            fail: <-promise.reject
-                        )
+                            case .error(let e): promise.reject(e)
+                            }
+                        })
                     }
                 }
                 transaction.removeValue(by: renamedFromVariable.node!)
@@ -1653,14 +1654,15 @@ class VersionableObjectV2: Object {
                         requiredPropertyV2 <== value
                     } else {
                         transaction.addPrecondition { [unowned self] (promise) in
-                            self.requiredPropertyV2.loadValue(
-                                completion: <-{ value in
+                            _ = self.requiredPropertyV2.loadValue().listening({ event in
+                                switch event {
+                                case .value(let value):
                                     // updates already added to transaction because add migration changes explicitly
                                     try! self.requiredPropertyV2.setValue(value, in: transaction)
                                     promise.fulfill()
-                                },
-                                fail: <-promise.reject
-                            )
+                                case .error(let e): promise.reject(e)
+                                }
+                            })
                         }
                     }
                 }
@@ -1716,7 +1718,7 @@ enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeV
     mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try value.apply(data, event: event)
     }
-    func load(timeout: DispatchTimeInterval, completion: Closure<Error?, Void>?) { value.load(timeout: timeout, completion: completion) }
+    func load(timeout: DispatchTimeInterval) -> RealtimeTask { return value.load(timeout: timeout) }
     func runObserving() -> Bool { return value.runObserving() }
     func stopObserving() { value.stopObserving() }
     func willSave(in transaction: Transaction, in parent: Node, by key: String) { value.willSave(in: transaction, in: parent, by: key) }
@@ -1922,6 +1924,20 @@ extension RealtimeTests {
         }
 
         waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+}
+
+extension RealtimeTests {
+    func testLoadTask() {
+        let exp = expectation(description: "")
+        let object = Object(in: .root)
+        _ = object.load().completion.listening(onValue: { _ in
+            exp.fulfill()
+        })
+
+        waitForExpectations(timeout: 2) { (err) in
             err.map({ XCTFail($0.describingErrorDescription) })
         }
     }

@@ -167,7 +167,6 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     public var canObserve: Bool { return isRooted }
 
     internal var observing: [DatabaseDataEvent: (token: UInt, counter: Int)] = [:]
-    let dataObserver: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = .unsafe()
 
     public convenience init(in object: _RealtimeValue, keyedBy key: String, options: [ValueOption: Any] = [:]) {
         self.init(
@@ -194,24 +193,25 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         }
     }
 
-    public func load(timeout: DispatchTimeInterval = .seconds(30), completion: Assign<Error?>?) {
+    public func load(timeout: DispatchTimeInterval = .seconds(30)) -> RealtimeTask {
         guard let node = self.node, let database = self.database else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
 
+        let completion = _Promise<Void>()
         database.load(for: node, timeout: timeout, completion: { d in
             do {
                 try self.apply(d, event: .value)
-                completion?.assign(nil)
-                self.dataObserver.send(.value((d, .value)))
+                completion.fulfill(())
             } catch let e {
-                completion?.assign(e)
-                self.dataObserver.send(.error(e))
+                self._dataApplyingDidThrow(e)
             }
         }, onCancel: { e in
-            completion?.call(e)
-            self.dataObserver.send(.error(e))
+            completion.reject(e)
+            self._dataObserverDidCancel(e)
         })
+
+        return completion
     }
 
     @discardableResult
@@ -270,9 +270,13 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
             return nil
         }
         return database.observe(event, on: node, onUpdate: { d in
-            self.dataObserver.send(.value((d, event)))
+            do {
+                try self.apply(d, event: event)
+            } catch let e {
+                self._dataApplyingDidThrow(e)
+            }
         }, onCancel: { e in
-            self.dataObserver.send(.error(e))
+            self._dataObserverDidCancel(e)
         })
     }
 
@@ -394,6 +398,14 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         try _apply_RealtimeValue(data)
     }
 
+    func _dataApplyingDidThrow(_ error: Error) {
+        debugLog(String(describing: error))
+    }
+
+    func _dataObserverDidCancel(_ error: Error) {
+        debugLog(String(describing: error))
+    }
+
     /// support Versionable
     open func putVersion(into versioner: inout Versioner) {
         // override in subclass
@@ -477,28 +489,6 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         return []
     }
 
-    var changes: AnyListenable<Void>!
-
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        super.init(in: node, options: options)
-        self.changes = self.dataObserver
-            .map { [unowned self] (data, event) -> Void in
-                try self.apply(data, event: event)
-            }
-            .shared(connectionLive: .continuous)
-            .asAny()
-    }
-
-    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        try super.init(data: data, event: event)
-        self.changes = self.dataObserver
-            .map { [unowned self] (data, event) -> Void in
-                try self.apply(data, event: event)
-            }
-            .shared(connectionLive: .continuous)
-            .asAny()
-    }
-
     public convenience init(in object: Object, keyedBy key: String, options: [ValueOption: Any] = [:]) {
         self.init(
             in: Node(key: key, parent: object.node),
@@ -577,8 +567,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             options: [.database: database as Any, .representer: Availability.required(Representer<[SourceLink]>.links)]
         ).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
-            links.loadValue(
-                completion: .just({ refs in
+            _ = links.loadValue().listening({ (event) in
+                switch event {
+                case .value(let refs):
                     refs.flatMap { $0.links.map(Node.root.child) }.forEach { n in
                         if !n.hasAncestor(node: ancestor) {
                             transaction.removeValue(by: n)
@@ -588,9 +579,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
                         transaction.delete(links)
                     }
                     promise.fulfill()
-                }),
-                fail: .just(promise.reject)
-            )
+                case .error(let e): promise.reject(e)
+                }
+            })
         }
     }
     
@@ -866,17 +857,17 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     }
 }
 
-extension RTime: Listenable where Base: Object {
-    public typealias Out = Base
-    /// Disposable listening of value
-    public func listening(_ assign: Assign<ListenEvent<Base>>) -> Disposable {
-        return base.changes.map({ [weak base] _ in base }).compactMap().listening(assign)
-    }
-    /// Listening with possibility to control active state
-    public func listeningItem(_ assign: Assign<ListenEvent<Base>>) -> ListeningItem {
-        return base.changes.map({ [weak base] _ in base }).compactMap().listeningItem(assign)
-    }
-}
+//extension RTime: Listenable where Base: Object {
+//    public typealias Out = Base
+//    /// Disposable listening of value
+//    public func listening(_ assign: Assign<ListenEvent<Base>>) -> Disposable {
+//        return base.dataObserver.map({ [weak base] _ in base }).compactMap().listening(assign)
+//    }
+//    /// Listening with possibility to control active state
+//    public func listeningItem(_ assign: Assign<ListenEvent<Base>>) -> ListeningItem {
+//        return base.dataObserver.map({ [weak base] _ in base }).compactMap().listeningItem(assign)
+//    }
+//}
 extension Object: RealtimeCompatible {}
 
 extension Object: Reverting {

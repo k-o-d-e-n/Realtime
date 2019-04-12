@@ -157,7 +157,7 @@ public struct AnyRealtimeCollectionView: RealtimeCollectionView {
     let _contains: (String, @escaping (Bool, Error?) -> Void) -> Void
     let _view: AnyBidirectionalCollection<String>
 
-    internal(set) var isSynced: Bool = false
+    var isSynced: Bool = false
 
     init<CV: RealtimeCollectionView>(_ view: CV) where CV.Element: DatabaseKeyRepresentable {
         self._value = view
@@ -169,8 +169,8 @@ public struct AnyRealtimeCollectionView: RealtimeCollectionView {
         _contains(key, completion)
     }
 
-    public func load(timeout: DispatchTimeInterval, completion: Closure<Error?, Void>?) {
-        _value.load(timeout: timeout, completion: completion)
+    public func load(timeout: DispatchTimeInterval) -> RealtimeTask {
+        return _value.load(timeout: timeout)
     }
 
     public var canObserve: Bool { return _value.canObserve }
@@ -207,7 +207,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     typealias Source = SortedArray<Element>
     private var _elements: Source = Source()
     private var dataExplorer: ViewDataExplorer = .value(ascending: false)
-    internal(set) var isSynced: Bool = false
+    var isSynced: Bool = false
     override var _hasChanges: Bool { return isStandalone && _elements.count > 0 }
     public override var isObserved: Bool {
         switch dataExplorer {
@@ -215,27 +215,11 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         case .page(let controller): return controller.isStarted
         }
     }
+    let changes: Repeater = Repeater<(data: RealtimeDataProtocol, event: RCEvent)>.unsafe()
 
     var elements: Source {
         set { _elements = newValue }
         get { return _elements }
-    }
-
-    var changes: Preprocessor<Preprocessor<Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>, (RealtimeDataProtocol, DatabaseDataEvent)>, (data: RealtimeDataProtocol, event: RCEvent)> {
-        return dataObserver
-            .filter({ [unowned self] e in
-                if e.1 != .value {
-                    switch self.dataExplorer {
-                    case .value: return self.isSynced
-                    case .page(let controller): return controller.isStarted
-                    }
-                } else {
-                    return true
-                }
-            })
-            .map { [unowned self] (value) -> (data: RealtimeDataProtocol, event: RCEvent) in
-                return try self._apply(value.0, event: value.1)
-            }
     }
 
     public var keepSynced: Bool = false {
@@ -265,11 +249,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
             let changed = _runObserving(.child(.changed))
             if isNeedLoadFull {
                 if isRooted {
-                    load(completion: .just { [weak self] e in
-                        self.map { this in
-                            this.isSynced = this.isObserved && e == nil
-                        }
-                    })
+                    _ = load()
                 } else {
                     isSynced = true
                 }
@@ -319,7 +299,17 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     }
 
     public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        _ = try _apply(data, event: event)
+        changes.send(.value(try _apply(data, event: event)))
+    }
+
+    override func _dataApplyingDidThrow(_ error: Error) {
+        super._dataApplyingDidThrow(error)
+        changes.send(.error(error))
+    }
+
+    override func _dataObserverDidCancel(_ error: Error) {
+        super._dataObserverDidCancel(error)
+        changes.send(.error(error))
     }
 
     func _apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws -> (data: RealtimeDataProtocol, event: RCEvent) {
@@ -331,6 +321,8 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
             case .page(let c):
                 self._elements = try SortedArray(data: data, event: event, sorting: c.ascending ? (<) : (>))
             }
+
+            self.isSynced = self.isObserved
             return (data, .initial)
         case .child(.added):
             let indexes: [Int]
@@ -341,7 +333,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
             } else {
                 let item = try Element(data: data)
                 indexes = [self._elements.insert(item)]
-                debugFatalError(condition: indexes.isEmpty, "Did update collection, but couldn`t recognized indexes. Data: \(value.0), event: \(value.1)")
+                debugFatalError(condition: indexes.isEmpty, "Did update collection, but couldn`t recognized indexes. Data: \(data), event: \(event)")
             }
             return (data, .updated(deleted: [], inserted: indexes, modified: [], moved: []))
         case .child(.removed):
@@ -356,7 +348,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
             } else {
                 let item = try Element(data: data)
                 let indexes: [Int] = self._elements.remove(item).map({ [$0.index] }) ?? []
-                debugFatalError(condition: indexes.isEmpty, "Did update collection, but couldn`t recognized indexes. Data: \(value.0), event: \(value.1)")
+                debugFatalError(condition: indexes.isEmpty, "Did update collection, but couldn`t recognized indexes. Data: \(data), event: \(event)")
                 return (data, .updated(deleted: indexes, inserted: [], modified: [], moved: []))
             }
         case .child(.changed):
@@ -447,11 +439,11 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         _elements.removeAll()
     }
 
-    func load(_ completion: Assign<(Error?)>) {
-        guard !isSynced else { completion.assign(nil); return }
-
-        super.load(completion: completion)
-    }
+//    func load(_ completion: Assign<(Error?)>) {
+//        guard !isSynced else { completion.assign(nil); return }
+//
+//        super.load(completion: completion)
+//    }
 
     func _contains(with key: String, completion: @escaping (Bool, Error?) -> Void) {
         guard let db = database, let node = self.node else {
@@ -500,16 +492,13 @@ extension SortedCollectionView: PagingControllerDelegate {
 
     func pagingControllerDidReceive(data: RealtimeDataProtocol, with event: DatabaseDataEvent) {
         do {
-            if event == .value {
-                try self.apply(data, event: event)
-            }
-            self.dataObserver.send(.value((data, event)))
+            try self.apply(data, event: event)
         } catch let e {
-            self.dataObserver.send(.error(e))
+            _dataApplyingDidThrow(e)
         }
     }
 
     func pagingControllerDidCancel(with error: Error) {
-        self.dataObserver.send(.error(error))
+        _dataObserverDidCancel(error)
     }
 }
