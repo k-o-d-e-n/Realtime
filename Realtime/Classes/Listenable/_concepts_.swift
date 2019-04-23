@@ -223,5 +223,5 @@ public extension _Promise {
     }
 }
 extension _Promise: RealtimeTask {
-    public var completion: AnyListenable<Void> { return AnyListenable(map({ _ in () })) }
+    public var completion: AnyListenable<Void> { return AnyListenable(once().map({ _ in () })) }
 }

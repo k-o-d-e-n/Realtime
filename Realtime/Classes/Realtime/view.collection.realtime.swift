@@ -299,7 +299,15 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     }
 
     public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        changes.send(.value(try _apply(data, event: event)))
+        let event = try _apply(data, event: event)
+        switch dataExplorer {
+        case .value:
+            if isSynced {
+                changes.send(.value(event))
+            }
+        case .page:
+            changes.send(.value(event))
+        }
     }
 
     override func _dataApplyingDidThrow(_ error: Error) {
