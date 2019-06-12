@@ -252,7 +252,7 @@ public protocol RealtimeValueActions: RealtimeValueEvents {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
     /// - Parameter completion: Closure that called on end loading or error
-    func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?)
+    func load(timeout: DispatchTimeInterval) -> RealtimeTask
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
     /// Enables/disables auto downloading of the data and keeping in sync

@@ -92,7 +92,7 @@ internal class _AnyRealtimeCollectionBase<Element>: Collection {
     func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { fatalError() }
     func runObserving() -> Bool { fatalError() }
     func stopObserving() { fatalError() }
-    func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { fatalError() }
+    func load(timeout: DispatchTimeInterval) -> RealtimeTask { fatalError() }
 }
 
 internal final class _AnyRealtimeCollection<C: RealtimeCollection>: _AnyRealtimeCollectionBase<C.Iterator.Element>
@@ -138,7 +138,7 @@ where C.View.Element: DatabaseKeyRepresentable {
     override func runObserving() -> Bool { return base.runObserving() }
     override func stopObserving() { base.stopObserving() }
     override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { try base.apply(data, event: event) }
-    override func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
+    override func load(timeout: DispatchTimeInterval) -> RealtimeTask { return base.load(timeout: timeout) }
 }
 
 /// A type-erased Realtime database collection.
@@ -181,7 +181,7 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     public func index(before i: Index) -> Index { return base.index(before: i) }
     public subscript(position: Index) -> Element { return base[position] }
 
-    public func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
+    public func load(timeout: DispatchTimeInterval) -> RealtimeTask { return base.load(timeout: timeout) }
     @discardableResult
     public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
@@ -285,7 +285,7 @@ where Base.View.Element: DatabaseKeyRepresentable {
     public func index(before i: Index) -> Index { return base.index(before: i) }
     public subscript(position: Index) -> Element { return transform(base[position]) }
 
-    public func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
+    public func load(timeout: DispatchTimeInterval) -> RealtimeTask { return base.load(timeout: timeout) }
     @discardableResult public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
     public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { try base.apply(data, event: event) }
@@ -414,7 +414,7 @@ where Base.View.Element: DatabaseKeyRepresentable, Base.Element: RealtimeCollect
         return base[position._outer][position._inner!]
     }
 
-    public func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?) { base.load(timeout: timeout, completion: completion) }
+    public func load(timeout: DispatchTimeInterval) -> RealtimeTask { return base.load(timeout: timeout) }
     @discardableResult public func runObserving() -> Bool { return base.runObserving() }
     public func stopObserving() { base.stopObserving() }
     public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { try base.apply(data, event: event) }

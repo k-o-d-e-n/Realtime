@@ -28,7 +28,7 @@ public protocol RealtimeCollectionActions {
     /// Single loading of value. Returns error if object hasn't rooted node.
     ///
     /// - Parameter completion: Closure that called on end loading or error
-    func load(timeout: DispatchTimeInterval, completion: Assign<Error?>?)
+    func load(timeout: DispatchTimeInterval) -> RealtimeTask
     /// Indicates that value can observe. It is true when object has rooted node, otherwise false.
     var canObserve: Bool { get }
     /// Enables/disables auto downloading of the data and keeping in sync
@@ -135,70 +135,3 @@ public protocol MutableRealtimeCollection: RealtimeCollection {
     func erase(at index: Int, in transaction: Transaction)
     func erase(at index: Int) -> Transaction
 }
-
-public extension RealtimeCollection {
-    /// RealtimeCollection actions
-
-    func filtered<ValueGetter: Listenable & RealtimeValueActions>(
-        map values: @escaping (Iterator.Element) -> ValueGetter,
-        predicate: @escaping (ValueGetter.Out) -> Bool,
-        onCompleted: @escaping ([Iterator.Element]) -> ()
-    ) {
-        var filteredElements: [Iterator.Element] = []
-        let count = endIndex
-        let completeIfNeeded = { (releasedCount: Index) in
-            if count == releasedCount {
-                onCompleted(filteredElements)
-            }
-        }
-
-        var released = startIndex
-        let current = self
-        current.forEach { element in
-            let value = values(element)
-            let listening = value.once().listening(onValue: <-{ (val) in
-                released = current.index(after: released)
-                guard predicate(val) else {
-                    completeIfNeeded(released)
-                    return
-                }
-
-                filteredElements.append(element)
-                completeIfNeeded(released)
-            })
-
-            value.load(timeout: .seconds(10), completion: .just { err in
-                listening.dispose()
-            })
-        }
-    }
-}
-
-#if os(macOS) || os(iOS)
-
-import FirebaseDatabase
-
-extension RealtimeCollection where Self: AnyObject, Element: RealtimeValue {
-    public mutating func filtered<Node: RawRepresentable>(by value: Any, for node: Node, completion: @escaping ([Element], Error?) -> ()) where Node.RawValue == String {
-        filtered(with: { $0.queryOrdered(byChild: node.rawValue).queryEqual(toValue: value) }, completion: completion)
-    }
-
-    public mutating func filtered(with query: (DatabaseReference) -> DatabaseQuery, completion: @escaping ([Element], Error?) -> ()) {
-        guard let ref = node?.reference() else  {
-            fatalError("Can`t get database reference")
-        }
-
-        var collection = self
-        query(ref).observeSingleEvent(of: .value, with: { (data) in
-            do {
-                try collection.apply(data, event: .child(.added))
-                completion(collection.filter { data.hasChild($0.dbKey) }, nil)
-            } catch let e {
-                completion(collection.filter { data.hasChild($0.dbKey) }, e)
-            }
-        }) { (error) in
-            completion([], error)
-        }
-    }
-}
-#endif

@@ -609,7 +609,6 @@ extension Availability where T: HasDefaultLiteral & _ComparableWithDefaultLitera
 }
 
 /// Defines readonly property with any value
-// @available(*, introduced: 0.4.3)
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate var _value: PropertyState<T>
     fileprivate(set) var representer: Representer<T?>
@@ -674,21 +673,6 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         throw RealtimeError(decoding: type(of: self).self, data, reason: "Unavailable initializer")
         #endif
     }
-    
-    public override func load(timeout: DispatchTimeInterval = .seconds(10), completion: Assign<Error?>?) {
-        super.load(
-            timeout: timeout,
-            completion: Assign.just({ (err) in
-                if let e = err {
-                    switch e {
-                    case _ as RealtimeError: break
-                    default: self._setError(e)
-                    }
-                }
-            })
-            .with(work: completion)
-        )
-    }
 
     @discardableResult
     public func runObserving() -> Bool {
@@ -701,24 +685,17 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         }
     }
 
-    public func loadValue(completion: Assign<T>, fail: Assign<Error>) {
-        load(completion: .just { err in
-            switch self._value {
-            case .error(let e, last: _): fail.assign(e)
-            case .remote(let v): completion.assign(v)
-            default:
-                fail.assign(RealtimeError(source: .value, description: "Undefined error in \(self)"))
+    public func loadValue() -> AnyListenable<T> {
+        return loadState().map({ (state) -> T in
+            switch state {
+            case .none, .removed, .local: throw RealtimeError(source: .value, description: "Unexpected value")
+            case .remote(let v): return v
+            case .error(let e, _): throw e
             }
-        })
+        }).asAny()
     }
-    public func loadState(completion: Assign<PropertyState<T>>, fail: Assign<Error>) {
-        load(completion: .just { err in
-            if let e = err {
-                fail.call(e)
-            } else {
-                completion.call(self._value)
-            }
-        })
+    public func loadState() -> AnyListenable<PropertyState<T>> {
+        return load().completion.map({ self.state }).asAny()
     }
 
     override func _writeChanges(to transaction: Transaction, by node: Node) throws {
@@ -770,6 +747,11 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     internal func _setError(_ error: Error) {
         _value = .error(error, last: _value.lastNonError)
         repeater.send(.error(error))
+    }
+
+    override func _dataObserverDidCancel(_ error: Error) {
+        super._dataObserverDidCancel(error)
+        _setError(error)
     }
 
     public override var debugDescription: String {

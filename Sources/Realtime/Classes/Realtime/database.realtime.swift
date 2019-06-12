@@ -153,15 +153,6 @@ public protocol RealtimeDatabase: class {
     var isConnectionActive: AnyListenable<Bool> { get }
 }
 
-public protocol RealtimeStorageTask {
-    var progress: AnyListenable<Progress> { get }
-    var success: AnyListenable<RealtimeMetadata?> { get }
-
-    func pause()
-    func cancel()
-    func resume()
-}
-
 struct RealtimeData: RealtimeDataProtocol {
     let base: RealtimeDataProtocol
     let excludedKeys: [String]
@@ -225,6 +216,22 @@ public protocol RealtimeStorage {
         onCancel: ((Error) -> Void)?
         ) -> RealtimeStorageTask
     func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void)
+}
+
+public protocol RealtimeTask {
+    var completion: AnyListenable<Void> { get }
+}
+
+public protocol RealtimeStorageTask: RealtimeTask {
+    var progress: AnyListenable<Progress> { get }
+    var success: AnyListenable<RealtimeMetadata?> { get }
+
+    func pause()
+    func cancel()
+    func resume()
+}
+public extension RealtimeStorageTask {
+    var completion: AnyListenable<Void> { return success.map({ _ in () }).asAny() }
 }
 
 // Paging

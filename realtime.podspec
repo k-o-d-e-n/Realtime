@@ -35,6 +35,7 @@ Pod::Spec.new do |s|
   s.dependency 'Firebase/Core'
   s.dependency 'Firebase/Database'
   s.dependency 'Firebase/Storage'
+  s.dependency 'Promise.swift'
   s.xcconfig = {
       "FRAMEWORK_SEARCH_PATHS" => "'$(PODS_ROOT)'"
   }

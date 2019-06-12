@@ -76,37 +76,36 @@ public extension RawRepresentable where Self.RawValue == String {
 
 extension ReadonlyProperty {
     @discardableResult
-    fileprivate func loadFile(timeout: DispatchTimeInterval = .seconds(30), completion: Assign<Error?>?) -> RealtimeStorageTask {
+    fileprivate func loadFile(timeout: DispatchTimeInterval = .seconds(30)) -> RealtimeStorageTask {
         guard let node = self.node, node.isRooted else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
 
         guard let cache = RealtimeApp.app.configuration.storageCache else {
-            return fileTask(for: node, timeout: timeout, completion: completion)
+            return fileTask(for: node, timeout: timeout)
         }
         return CachedFileDownloadTask(
-            nextLevel: self.fileTask(for: node, timeout: timeout, completion: completion),
+            nextLevel: self.fileTask(for: node, timeout: timeout),
             cache: cache,
             node: node,
             completion: { data in
-                self.applyData(data, node: node, needCaching: false, completion: completion)
+                self.applyData(data, node: node, needCaching: false)
             }
         )
     }
-    fileprivate func fileTask(for node: Node, timeout: DispatchTimeInterval, completion: Assign<Error?>?) -> RealtimeStorageTask {
+    fileprivate func fileTask(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask {
         return RealtimeApp.app.storage.load(
             for: node,
             timeout: timeout,
             completion: { (data) in
-                self.applyData(data, node: node, needCaching: true, completion: completion)
+                self.applyData(data, node: node, needCaching: true)
             },
             onCancel: { e in
                 self._setError(e)
-                completion?.call(e)
             }
         )
     }
-    fileprivate func applyData(_ data: Data?, node: Node, needCaching: Bool, completion: Assign<Error?>?) {
+    fileprivate func applyData(_ data: Data?, node: Node, needCaching: Bool) {
         do {
             if let value = try self.representer.decode(FileNode(node: node, value: data)) {
                 self._setValue(.remote(value))
@@ -116,10 +115,8 @@ extension ReadonlyProperty {
             } else {
                 self._setRemoved(isLocal: false)
             }
-            completion?.call(nil)
         } catch let e {
             self._setError(e)
-            completion?.call(e)
         }
     }
 }
@@ -239,8 +236,8 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
         // currently it disabled
     }
 
-    public override func load(timeout: DispatchTimeInterval = .seconds(30), completion: Assign<Error?>?) {
-        loadFile(timeout: timeout, completion: completion)
+    public override func load(timeout: DispatchTimeInterval = .seconds(30)) -> RealtimeTask {
+        return loadFile(timeout: timeout)
     }
 
     public func downloadTask(timeout: DispatchTimeInterval = .seconds(30)) -> RealtimeStorageTask {
@@ -249,7 +246,7 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
             currentTask.resume()
             task = currentTask
         } else {
-            task = FileDownloadTask(loadFile(timeout: timeout, completion: nil))
+            task = FileDownloadTask(loadFile(timeout: timeout))
             _currentDownloadTask = task
             task.dispose = task.success.listening({ (result) in
                 switch result {
@@ -308,8 +305,8 @@ public final class File<T>: Property<T> {
         // currently it disabled
     }
 
-    public override func load(timeout: DispatchTimeInterval = .seconds(30), completion: Assign<Error?>?) {
-        loadFile(timeout: timeout, completion: completion)
+    public override func load(timeout: DispatchTimeInterval = .seconds(30)) -> RealtimeTask {
+        return loadFile(timeout: timeout)
     }
 
     public func downloadTask(timeout: DispatchTimeInterval = .seconds(30)) -> RealtimeStorageTask {
@@ -318,7 +315,7 @@ public final class File<T>: Property<T> {
             currentTask.resume()
             task = currentTask
         } else {
-            task = FileDownloadTask(loadFile(timeout: timeout, completion: nil))
+            task = FileDownloadTask(loadFile(timeout: timeout))
             _currentDownloadTask = task
             task.dispose = task.success.listening({ (result) in
                 switch result {
