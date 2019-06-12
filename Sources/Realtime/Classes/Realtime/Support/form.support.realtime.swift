@@ -7,6 +7,8 @@
 
 import Foundation
 
+#if os(iOS)
+
 public enum CellBuilder {
     case reuseIdentifier(String)
     case `static`(UITableViewCell)
@@ -775,3 +777,4 @@ public extension Form {
         }
     }
 }
+#endif

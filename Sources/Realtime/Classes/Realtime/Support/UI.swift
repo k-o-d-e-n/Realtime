@@ -6,6 +6,7 @@
 //  Copyright © 2017 Denis Koryttsev. All rights reserved.
 //
 
+#if os(iOS)
 import UIKit
 
 struct TypeKey: Hashable {
@@ -146,3 +147,4 @@ internal class _CollectionViewSectionedAdapter: NSObject, UICollectionViewDataSo
     @available(iOS 11.0, *)
     func collectionView(_ collectionView: UICollectionView, shouldSpringLoadItemAt indexPath: IndexPath, with context: UISpringLoadedInteractionContext) -> Bool { return false }
 }
+#endif

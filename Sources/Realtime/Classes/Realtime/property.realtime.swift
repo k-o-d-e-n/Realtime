@@ -78,12 +78,14 @@ public extension RawRepresentable where Self.RawValue == String {
     func url(in object: Object) -> Property<URL?> {
         return property(in: object, representer: Representer<URL>.default)
     }
+    #if os(macOS) || os(iOS)
     func codable<V: Codable>(in object: Object) -> Property<V> {
         return property(in: object, representer: Representer<V>.json())
     }
     func optionalCodable<V: Codable>(in object: Object) -> Property<V?> {
         return property(in: object, representer: Representer<V>.json())
     }
+    #endif
 
     func reference<V: Object>(in object: Object, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V> {
         return Reference(
@@ -1067,6 +1069,7 @@ public extension MutationPoint {
         return transaction
     }
 }
+#if os(macOS) || os(iOS)
 public extension MutationPoint where T: Codable {
     @discardableResult
     func addValue(by key: String? = nil, use value: T, in transaction: Transaction? = nil) throws -> Transaction {
@@ -1079,3 +1082,4 @@ public extension MutationPoint where T: Codable {
         return transaction
     }
 }
+#endif

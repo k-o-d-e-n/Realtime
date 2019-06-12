@@ -75,10 +75,62 @@ public enum RelationProperty {
         switch self {
         case .one(let p): return p
         case .many(let f):
-            return String(format: f, relatedValueNode.key)
+            #if !os(Linux)
+                return String(format: f, relatedValueNode.key)
+            #else
+                return String(format: f, args: [relatedValueNode.key])
+            #endif
         }
     }
 }
+
+#if os(Linux)
+extension String {
+    init(format: String, args: [String]) {
+        var result = ""
+
+		let appendCharacter = { (character: Character) in
+		    result += String(character)
+		}
+		let appendArgument = { (argument: String?) in
+		    result += (argument ?? "")
+		}
+
+		var indices = format.characters.indices
+		var args = Array(args.reversed())
+
+		while indices.count > 0 {
+		    guard let currentIndex = indices.popFirst() else {
+                        continue
+		    }
+		    let currentCharacter = format[currentIndex]
+		    guard currentCharacter == "%" && indices.count > 0 else {
+                        appendCharacter(currentCharacter)
+			continue
+		    }
+
+		    guard let nextIndex = indices.popFirst() else {
+                        continue
+		    }
+		    let nextCharacter = format[nextIndex]
+
+		    guard nextCharacter != "%" else {
+                        appendCharacter("%") // one % instead of %%
+                        continue
+		    }
+
+		    guard nextCharacter == "@" else {
+                        appendCharacter(nextCharacter)
+                        continue
+		    }
+
+		    appendArgument(args.popLast())
+		}
+
+		self = result
+    }
+}
+#endif
 
 public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented {
     /// Path to related object

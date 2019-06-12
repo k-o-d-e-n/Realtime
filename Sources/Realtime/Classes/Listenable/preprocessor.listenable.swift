@@ -789,7 +789,7 @@ public struct OldValue<T: Listenable>: Listenable {
     }
 }
 public extension Listenable {
-    @available(*, deprecated: 0.9, message: "Use memoize preprocessor")
+    @available(*, deprecated, message: "Use memoize preprocessor")
     func oldValue() -> OldValue<Self> {
         return OldValue(base: self)
     }
@@ -857,7 +857,7 @@ public struct Shared<T: Listenable>: Listenable {
         if storage.value.1 == nil {
             storage.value = (1, ListeningDispose(source.bind(to: repeater)))
         } else {
-            storage.value.0 += 1
+            storage.value = (storage.value.0 + 1, storage.value.1)
         }
     }
 

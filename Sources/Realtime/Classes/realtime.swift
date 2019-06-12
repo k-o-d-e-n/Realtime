@@ -6,8 +6,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
-import FirebaseStorage
 
 internal func debugAction(_ action: () -> Void) {
     #if DEBUG
@@ -69,8 +67,8 @@ public final class RealtimeApp {
     ///   - linksNode: Database reference where will be store service data
     /// is related with creation external links.
     public static func initialize(
-        with database: RealtimeDatabase = Database.database(),
-        storage: RealtimeStorage = Storage.storage(),
+        with database: RealtimeDatabase,
+        storage: RealtimeStorage,
         configuration: Configuration = Configuration()
     ) {
         guard !_isInitialized else {
@@ -120,6 +118,21 @@ extension RealtimeApp {
         }
         return app
     }
-    public static var cache: RealtimeDatabase { return Cache.root }
+    public static var cache: RealtimeDatabase & RealtimeStorage { return Cache.root }
     public var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
 }
+
+#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
+import FirebaseDatabase
+import FirebaseStorage
+#endif
+
+#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
+extension RealtimeApp {
+    public static func firebase(
+        configuration: Configuration = Configuration()
+        ) {
+        initialize(with: Database.database(), storage: Storage.storage())
+    }
+}
+#endif

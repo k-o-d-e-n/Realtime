@@ -154,7 +154,7 @@ public class Node: Hashable, Comparable {
         return parent.map { $0.isAnchor ? key : $0.path + "/" + key } ?? key
     }
 
-    @available(*, renamed: "absolutePath", deprecated: 0.8.5, message: "Use `path` or `absolutePath` instead.")
+    @available(*, renamed: "absolutePath", deprecated, message: "Use `path` or `absolutePath` instead.")
     public var rootPath: String { return absolutePath }
 
     /// Returns path from passed node.
@@ -477,14 +477,6 @@ public extension RawRepresentable where Self.RawValue == String {
     }
     func subpath(with path: String) -> String {
         return rawValue + "/" + path
-    }
-
-    func reference() -> DatabaseReference {
-        return .fromRoot(rawValue)
-    }
-
-    func reference(from ref: DatabaseReference) -> DatabaseReference {
-        return ref.child(rawValue)
     }
 }
 

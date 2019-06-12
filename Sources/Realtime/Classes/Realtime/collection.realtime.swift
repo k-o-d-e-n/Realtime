@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseDatabase
 
 extension ValueOption {
     static let elementBuilder = ValueOption("realtime.collection.builder")
@@ -136,4 +135,3 @@ public protocol MutableRealtimeCollection: RealtimeCollection {
     func erase(at index: Int, in transaction: Transaction)
     func erase(at index: Int) -> Transaction
 }
-

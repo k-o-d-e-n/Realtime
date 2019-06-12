@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseStorage
 
 public extension RawRepresentable where Self.RawValue == String {
     func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T> {
@@ -47,6 +46,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
+    #if os(iOS)
     func png(in object: Object) -> File<UIImage> {
         return file(in: object, representer: Representer<UIImage>.png, metadata: ["contentType": "image/png"])
     }
@@ -71,6 +71,7 @@ public extension RawRepresentable where Self.RawValue == String {
     func readonlyJpeg(in object: Object, compressionQuality: CGFloat = 1.0) -> ReadonlyFile<UIImage?> {
         return readonlyFile(in: object, representer: Representer<UIImage>.jpeg(quality: compressionQuality))
     }
+    #endif
 }
 
 extension ReadonlyProperty {

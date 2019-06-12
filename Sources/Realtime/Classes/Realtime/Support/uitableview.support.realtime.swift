@@ -7,8 +7,6 @@
 //  Copyright © 2018 Denis Koryttsev. All rights reserved.
 //
 
-import UIKit
-
 protocol ReuseItemProtocol {
     func free()
 }
@@ -129,9 +127,6 @@ extension ReuseItem {
         bind(value, source, assign, { _, e in error(e) })
     }
 }
-extension ReuseItem where View: UIView {
-    var _isVisible: Bool { return view.map { !$0.isHidden && $0.window != nil } ?? false }
-}
 
 struct ReuseController<Row, Key: Hashable> where Row: ReuseItemProtocol {
     var freeItems: [Row] = []
@@ -175,6 +170,13 @@ extension ReuseController {
         freeItems.append(item)
         return item
     }
+}
+
+#if os(iOS)
+import UIKit
+
+extension ReuseItem where View: UIView {
+    var _isVisible: Bool { return view.map { !$0.isHidden && $0.window != nil } ?? false }
 }
 
 /// A type that responsible for editing of table
@@ -1071,3 +1073,4 @@ extension CollectionViewDelegate {
         }
     }
 }
+#endif

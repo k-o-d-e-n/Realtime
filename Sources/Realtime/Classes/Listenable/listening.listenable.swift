@@ -6,6 +6,46 @@
 //
 
 import Foundation
+#if os(Linux)
+import Atomics
+
+extension AtomicBool {
+    var isTrue: Bool {
+        mutating get { return value }
+    }
+
+    mutating func swapAndResult() -> Bool {
+        guard !load() else { return false }
+        store(true)
+        return true
+    }
+
+    static func initialize(_ value: Bool) -> AtomicBool {
+        var value = AtomicBool()
+        value.initialize(false)
+        return value
+    }
+}
+
+#else
+struct AtomicBool {
+    var _invalidated: Int32
+
+    private init(_ value: Bool) {
+        self._invalidated = value ? 1 : 0
+    }
+
+    static func initialize(_ value: Bool) -> AtomicBool {
+        return AtomicBool(value)
+    }
+
+    var isTrue: Bool { return _invalidated == 1 }
+
+    mutating func swapAndResult() -> Bool {
+        return OSAtomicCompareAndSwap32Barrier(0, 1, &_invalidated)
+    }
+}
+#endif
 
 // MARK: Cancellable listenings
 
@@ -27,13 +67,13 @@ public final class SingleRetainDispose: Disposable {
 
 public final class ListeningDispose: Disposable {
     let _dispose: () -> Void
-    var invalidated: Int32 = 0
-    public var isDisposed: Bool { return invalidated == 1 }
+    var invalidated: AtomicBool = AtomicBool.initialize(false)
+    public var isDisposed: Bool { return invalidated.isTrue }
     public init(_ dispose: @escaping () -> Void) {
         self._dispose = dispose
     }
     public func dispose() {
-        if OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated) {
+        if invalidated.swapAndResult() {
             _dispose()
         }
     }
@@ -55,8 +95,8 @@ public final class ListeningItem {
     private let _isListen: () -> Bool
 
     public var isListen: Bool { return _isListen() }
-    var invalidated: Int32 = 0
-    public var isDisposed: Bool { return invalidated == 1 }
+    var invalidated: AtomicBool = AtomicBool.initialize(false)
+    public var isDisposed: Bool { return invalidated.isTrue }
 
     public init<Token>(resume: @escaping () -> Token?, pause: @escaping (Token) -> Void, dispose: (() -> Void)? = nil, token: Token?) {
         var tkn = token
@@ -97,7 +137,7 @@ public final class ListeningItem {
 }
 extension ListeningItem: Disposable {
     public func dispose() {
-        if OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated) {
+        if invalidated.swapAndResult() {
             if isListen {
                 _pause()
             }
