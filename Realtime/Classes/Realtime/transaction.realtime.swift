@@ -214,7 +214,7 @@ public extension Transaction {
     /// - Parameters:
     ///   - revertOnError: Indicates that all changes will be reverted on error
     ///   - completion: Completion closure with results
-    public func commit(revertOnError: Bool = true,
+    func commit(revertOnError: Bool = true,
                        with completion: ((CommitState, [Error]?) -> Void)?) {
         commit(with: completion, filesCompletion: nil)
     }
@@ -225,7 +225,7 @@ public extension Transaction {
     ///   - revertOnError: Indicates that all changes will be reverted on error
     ///   - completion: Completion closure with results
     ///   - filesCompletion: Completion closure with results
-    public func commit(revertOnError: Bool = true,
+    func commit(revertOnError: Bool = true,
                        with completion: ((CommitState, [Error]?) -> Void)?,
                        filesCompletion: (([FileCompletion]) -> Void)?) {
         runPreconditions { (errors) in
@@ -289,7 +289,7 @@ public extension Transaction {
     }
 
     /// registers new cancelation of made changes
-    public func addReversion(_ reversion: @escaping () -> Void) {
+    func addReversion(_ reversion: @escaping () -> Void) {
         if let merged = mergedToTransaction {
             merged.addReversion(reversion)
         } else {
@@ -300,7 +300,7 @@ public extension Transaction {
     }
 
     /// registers new cancelation of made changes
-    public func addFileReversion(_ node: Node, _ reversion: @escaping () -> Void) {
+    func addFileReversion(_ node: Node, _ reversion: @escaping () -> Void) {
         if let merged = mergedToTransaction {
             merged.addFileReversion(node, reversion)
         } else {
@@ -311,7 +311,7 @@ public extension Transaction {
     }
 
     /// registers new completion handler for transaction
-    public func addCompletion(_ completion: @escaping (Bool) -> Void) {
+    func addCompletion(_ completion: @escaping (Bool) -> Void) {
         if let merged = mergedToTransaction {
             merged.addCompletion(completion)
         } else {
@@ -322,7 +322,7 @@ public extension Transaction {
     }
 
     /// registers new precondition action
-    public func addPrecondition(_ precondition: @escaping (Promise) -> Void) {
+    func addPrecondition(_ precondition: @escaping (Promise) -> Void) {
         if let merged = mergedToTransaction {
             merged.addPrecondition(precondition)
         } else {
@@ -337,7 +337,7 @@ public extension Transaction {
     /// - Parameters:
     ///   - value: `Data` type value
     ///   - node: Target node
-    public func addFile(_ value: Data, metadata: RealtimeMetadata = [:], by node: Realtime.Node) {
+    func addFile(_ value: Data, metadata: RealtimeMetadata = [:], by node: Realtime.Node) {
         if let merged = mergedToTransaction {
             merged.addFile(value, by: node)
         } else {
@@ -349,7 +349,7 @@ public extension Transaction {
         }
     }
 
-    public func addFile<T>(_ file: File<T>, by node: Realtime.Node? = nil) throws {
+    func addFile<T>(_ file: File<T>, by node: Realtime.Node? = nil) throws {
         if let merged = mergedToTransaction {
             try merged.addFile(file, by: node)
         } else {
@@ -363,7 +363,7 @@ public extension Transaction {
     ///
     /// - Parameters:
     ///   - node: Target node
-    public func removeFile(by node: Realtime.Node) {
+    func removeFile(by node: Realtime.Node) {
         if let merged = mergedToTransaction {
             merged.removeFile(by: node)
         } else {
@@ -378,7 +378,7 @@ public extension Transaction {
     /// - Parameters:
     ///   - value: Untyped value
     ///   - node: Target node
-    public func addValue(_ value: Any, by node: Realtime.Node) {
+    func addValue(_ value: Any, by node: Realtime.Node) {
         if let merged = mergedToTransaction {
             merged.addValue(value, by: node)
         } else {
@@ -392,7 +392,7 @@ public extension Transaction {
     ///
     /// - Parameters:
     ///   - node: Target node
-    public func removeValue(by node: Realtime.Node) {
+    func removeValue(by node: Realtime.Node) {
         if let merged = mergedToTransaction {
             merged.removeValue(by: node)
         } else {
@@ -448,7 +448,7 @@ public extension Transaction {
     }
 
     /// adds current revertion action for reverting entity
-    public func reverse<T: Reverting>(_ cancelable: T) {
+    func reverse<T: Reverting>(_ cancelable: T) {
         addReversion(cancelable.currentReversion())
     }
 
@@ -458,7 +458,7 @@ public extension Transaction {
     }
 
     /// method to merge actions of other transaction
-    public func merge(_ other: Transaction, strategy: MergeStrategy = .new) throws {
+    func merge(_ other: Transaction, strategy: MergeStrategy = .new) throws {
         guard other.mergedToTransaction == nil else { fatalError("Transaction already merged to other transaction") }
         try _merge(other, strategy: strategy)
     }
@@ -489,7 +489,7 @@ public extension Transaction {
     }
 
     /// cancels transaction without revertion
-    public func cancel() {
+    func cancel() {
         guard mergedToTransaction == nil else { fatalError("Transaction already merged to other transaction") }
         state = .cancelled
         invalidate(false)

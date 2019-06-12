@@ -167,7 +167,6 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     public var canObserve: Bool { return isRooted }
 
     internal var observing: [DatabaseDataEvent: (token: UInt, counter: Int)] = [:]
-    let dataObserver: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = .unsafe()
 
     public convenience init(in object: _RealtimeValue, keyedBy key: String, options: [ValueOption: Any] = [:]) {
         self.init(
@@ -194,24 +193,27 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         }
     }
 
-    public func load(timeout: DispatchTimeInterval = .seconds(30), completion: Assign<Error?>?) {
+    @discardableResult
+    public func load(timeout: DispatchTimeInterval = .seconds(30)) -> RealtimeTask {
         guard let node = self.node, let database = self.database else {
             fatalError("Can`t get database reference in \(self). Object must be rooted.")
         }
 
+        let completion = _Promise<Void>()
         database.load(for: node, timeout: timeout, completion: { d in
             do {
                 try self.apply(d, event: .value)
-                completion?.assign(nil)
-                self.dataObserver.send(.value((d, .value)))
+                completion.fulfill(())
             } catch let e {
-                completion?.assign(e)
-                self.dataObserver.send(.error(e))
+                completion.reject(e)
+                self._dataApplyingDidThrow(e)
             }
         }, onCancel: { e in
-            completion?.call(e)
-            self.dataObserver.send(.error(e))
+            completion.reject(e)
+            self._dataObserverDidCancel(e)
         })
+
+        return completion
     }
 
     @discardableResult
@@ -272,12 +274,11 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         return database.observe(event, on: node, onUpdate: { d in
             do {
                 try self.apply(d, event: event)
-                self.dataObserver.send(.value((d, event)))
             } catch let e {
-                self.dataObserver.send(.error(e))
+                self._dataApplyingDidThrow(e)
             }
         }, onCancel: { e in
-            self.dataObserver.send(.error(e))
+            self._dataObserverDidCancel(e)
         })
     }
 
@@ -399,6 +400,14 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         try _apply_RealtimeValue(data)
     }
 
+    func _dataApplyingDidThrow(_ error: Error) {
+        debugLog(String(describing: error))
+    }
+
+    func _dataObserverDidCancel(_ error: Error) {
+        debugLog(String(describing: error))
+    }
+
     /// support Versionable
     open func putVersion(into versioner: inout Versioner) {
         // override in subclass
@@ -454,6 +463,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///
 open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Comparable, Versionable {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
+    lazy var repeater: Repeater<Object> = Repeater.unsafe()
 
     public var keepSynced: Bool = false {
         didSet {
@@ -560,8 +570,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             options: [.database: database as Any, .representer: Availability.required(Representer<[SourceLink]>.links)]
         ).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
-            links.loadValue(
-                completion: .just({ refs in
+            _ = links.loadValue().listening({ (event) in
+                switch event {
+                case .value(let refs):
                     refs.flatMap { $0.links.map(Node.root.child) }.forEach { n in
                         if !n.hasAncestor(node: ancestor) {
                             transaction.removeValue(by: n)
@@ -571,9 +582,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
                         transaction.delete(links)
                     }
                     promise.fulfill()
-                }),
-                fail: .just(promise.reject)
-            )
+                case .error(let e): promise.reject(e)
+                }
+            })
         }
     }
     
@@ -590,11 +601,15 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     override open func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try super.apply(data, event: event)
         var errors: [String: Error] = [:]
-        try Reflector(reflecting: self, to: Object.self).forEach { (mirror) in
+        Reflector(reflecting: self, to: Object.self).forEach { (mirror) in
             apply(data, event: event, to: mirror, errorsContainer: &errors)
         }
         if errors.count > 0 {
-            throw RealtimeError(source: .objectCoding(errors), description: "Failed decoding data: \(data) to type: \(type(of: self))")
+            let error = RealtimeError(source: .objectCoding(errors), description: "Failed decoding data: \(data) to type: \(type(of: self))")
+            repeater.send(.error(error))
+            throw error
+        } else {
+            repeater.send(.value(self))
         }
     }
     private func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent, to mirror: Mirror, errorsContainer: inout [String: Error]) {
@@ -853,11 +868,11 @@ extension RTime: Listenable where Base: Object {
     public typealias Out = Base
     /// Disposable listening of value
     public func listening(_ assign: Assign<ListenEvent<Base>>) -> Disposable {
-        return base.dataObserver.map({ [weak base] _ in base }).compactMap().listening(assign)
+        return base.repeater.map({ $0 as! Base }).listening(assign)
     }
     /// Listening with possibility to control active state
     public func listeningItem(_ assign: Assign<ListenEvent<Base>>) -> ListeningItem {
-        return base.dataObserver.map({ [weak base] _ in base }).compactMap().listeningItem(assign)
+        return base.repeater.map({ $0 as! Base }).listeningItem(assign)
     }
 }
 extension Object: RealtimeCompatible {}
@@ -889,7 +904,7 @@ public extension Object {
 public extension Object {
     /// writes Object in transaction like as single value
     @discardableResult
-    public func save(by node: Node, in transaction: Transaction) throws -> Transaction {
+    func save(by node: Node, in transaction: Transaction) throws -> Transaction {
         try transaction.set(self, by: node)
         return transaction
     }
@@ -909,7 +924,7 @@ public extension Object {
 
     /// writes Object in transaction like as single value
     @discardableResult
-    public func save(in parent: Node, in transaction: Transaction) throws -> Transaction {
+    func save(in parent: Node, in transaction: Transaction) throws -> Transaction {
         guard let key = self.dbKey else { fatalError("Object has no key. If you cannot set key manually use Object.save(by:in:) method instead") }
 
         return try save(by: Node(key: key, parent: parent), in: transaction)
@@ -931,12 +946,12 @@ public extension Object {
 
     /// writes changes of Object in transaction as independed values
     @discardableResult
-    public func update(in transaction: Transaction) throws -> Transaction {
+    func update(in transaction: Transaction) throws -> Transaction {
         try transaction.update(self)
         return transaction
     }
 
-    public func update() throws -> Transaction {
+    func update() throws -> Transaction {
         guard let db = database else { fatalError("To create new instance `Transaction` object must has database reference") }
 
         let transaction = Transaction(database: db)
@@ -950,12 +965,12 @@ public extension Object {
 
     /// writes empty value by Object node in transaction
     @discardableResult
-    public func delete(in transaction: Transaction) -> Transaction {
+    func delete(in transaction: Transaction) -> Transaction {
         transaction.delete(self)
         return transaction
     }
 
-    public func delete() -> Transaction {
+    func delete() -> Transaction {
         guard let db = self.database else { fatalError("Object has not database reference, because was not saved") }
 
         let transaction = Transaction(database: db)

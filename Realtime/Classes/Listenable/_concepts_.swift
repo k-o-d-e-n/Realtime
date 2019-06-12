@@ -38,7 +38,7 @@ struct Trivial<T>: Listenable, ValueWrapper {
     }
 }
 
-public final class _Promise<T>: Listenable {
+public final class __Promise<T>: Listenable {
     public typealias Dispatcher = Repeater<T>.Dispatcher
 
     var disposes: [Disposable] = []
@@ -98,8 +98,8 @@ public final class _Promise<T>: Listenable {
     public static func locked(
         lock: NSLocking = NSRecursiveLock(),
         dispatcher: Dispatcher
-        ) -> _Promise {
-        return _Promise(lock: lock, dispatcher: dispatcher)
+        ) -> __Promise {
+        return __Promise(lock: lock, dispatcher: dispatcher)
     }
 
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
@@ -125,7 +125,7 @@ public final class _Promise<T>: Listenable {
         }
     }
 }
-public extension _Promise {
+public extension __Promise {
     func fulfill(_ value: T) {
         _resolve(.value(value))
     }
@@ -133,13 +133,13 @@ public extension _Promise {
         _resolve(.error(error))
     }
 
-    func _resolve(_ result: ListenEvent<T>) {
-        disposes.forEach { $0.dispose() }
-        disposes.removeAll()
+    internal func _resolve(_ result: ListenEvent<T>) {
         switch _dispatcher {
         case .direct: break
         case .repeater(let lock, let repeater):
             lock.lock()
+            disposes.forEach { $0.dispose() }
+            disposes.removeAll()
             self._result = .some(result)
             self._dispatcher = .direct
             repeater.send(result)
@@ -150,8 +150,8 @@ public extension _Promise {
     typealias Then<Result> = (T) throws -> Result
 
     @discardableResult
-    func then(on queue: DispatchQueue = .main, make it: @escaping Then<Void>) -> _Promise {
-        let promise = _Promise(dispatcher: .default)
+    func then(on queue: DispatchQueue = .main, make it: @escaping Then<Void>) -> __Promise {
+        let promise = __Promise(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
             case .error(let e): promise.reject(e)
@@ -168,8 +168,8 @@ public extension _Promise {
     }
 
     @discardableResult
-    func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<Result>) -> _Promise<Result> {
-        let promise = _Promise<Result>(dispatcher: .default)
+    func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<Result>) -> __Promise<Result> {
+        let promise = __Promise<Result>(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
             case .error(let e): promise.reject(e)
@@ -185,8 +185,8 @@ public extension _Promise {
     }
 
     @discardableResult
-    func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<_Promise<Result>>) -> _Promise<Result> {
-        let promise = _Promise<Result>(dispatcher: .default)
+    func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<__Promise<Result>>) -> __Promise<Result> {
+        let promise = __Promise<Result>(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
             case .error(let e): promise.reject(e)
@@ -207,8 +207,8 @@ public extension _Promise {
         return promise
     }
 
-    func `catch`(on queue: DispatchQueue = .main, make it: @escaping (Error) -> Void) -> _Promise {
-        let promise = _Promise(dispatcher: .default)
+    func `catch`(on queue: DispatchQueue = .main, make it: @escaping (Error) -> Void) -> __Promise {
+        let promise = __Promise(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
             case .error(let e):
@@ -219,4 +219,19 @@ public extension _Promise {
         }).add(to: &promise.disposes)
         return promise
     }
+}
+
+import Promise_swift
+
+public typealias _Promise<T> = DispatchPromise<T>
+
+extension DispatchPromise: Listenable {
+    public func listening(_ assign: Closure<ListenEvent<Value>, Void>) -> Disposable {
+        self.do(assign.map({ .value($0) }).call)
+        self.resolve(assign.map({ .error($0) }).call)
+        return EmptyDispose()
+    }
+}
+extension _Promise: RealtimeTask {
+    public var completion: AnyListenable<Void> { return AnyListenable(map({ _ in () })) }
 }

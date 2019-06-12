@@ -33,20 +33,6 @@ extension Optional: _Optional {
     public var wrapped: Wrapped? { return self }
 }
 
-public extension Listenable where Out: RealtimeValueActions {
-    /// Loads a value is associated with `RealtimeValueActions` value
-    func load(timeout: DispatchTimeInterval = .seconds(10)) -> Preprocessor<Self, Out> {
-        return doAsync({ (prop, promise) in
-            prop.load(timeout: timeout, completion: <-{ err in
-                if let e = err {
-                    promise.reject(e)
-                } else {
-                    promise.fulfill()
-                }
-            })
-        })
-    }
-}
 
 public extension Listenable {
     func bind<T>(to property: Property<T>) -> Disposable where T == Out {
