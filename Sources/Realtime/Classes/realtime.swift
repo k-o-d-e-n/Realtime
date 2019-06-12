@@ -6,7 +6,7 @@
 //
 
 import Foundation
-#if os(macOS)
+#if os(macOS) || os(iOS)
 import FirebaseDatabase
 import FirebaseStorage
 #endif
@@ -60,14 +60,6 @@ public final class RealtimeApp {
         self.storage = storage
         self.configuration = configuration
     }
-
-#if os(macOS)
-    public static func firebase(
-        configuration: Configuration = Configuration()
-    ) {
-        initialize(with: Database.database(), storage: Storage.storage())
-    }
-#endif
 
     /// Creates default configuration for Realtime application.
     ///
@@ -130,6 +122,16 @@ extension RealtimeApp {
         }
         return app
     }
-    public static var cache: RealtimeDatabase { return Cache.root }
+    public static var cache: RealtimeDatabase & RealtimeStorage { return Cache.root }
     public var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
 }
+
+#if os(macOS) || os(iOS)
+extension RealtimeApp {
+    public static func firebase(
+        configuration: Configuration = Configuration()
+        ) {
+        initialize(with: Database.database(), storage: Storage.storage())
+    }
+}
+#endif

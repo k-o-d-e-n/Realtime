@@ -105,10 +105,9 @@ public final class _Promise<T>: Listenable {
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         switch _dispatcher {
         case .repeater(let lock, let repeater):
-            lock.lock()
-
             switch _result {
             case .none:
+                lock.lock()
                 let d = repeater.listening(assign)
                 lock.unlock()
                 return ListeningDispose {
@@ -117,7 +116,6 @@ public final class _Promise<T>: Listenable {
                     lock.unlock()
                 }
             case .some(let v):
-                lock.unlock()
                 assign.call(v)
                 return EmptyDispose()
             }
@@ -144,8 +142,8 @@ public extension _Promise {
             lock.lock()
             self._result = .some(result)
             self._dispatcher = .direct
-            lock.unlock()
             repeater.send(result)
+            lock.unlock()
         }
     }
 
@@ -170,7 +168,7 @@ public extension _Promise {
     }
 
     @discardableResult
-    public func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<Result>) -> _Promise<Result> {
+    func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<Result>) -> _Promise<Result> {
         let promise = _Promise<Result>(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {
@@ -187,7 +185,7 @@ public extension _Promise {
     }
 
     @discardableResult
-    public func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<_Promise<Result>>) -> _Promise<Result> {
+    func then<Result>(on queue: DispatchQueue = .main, make it: @escaping Then<_Promise<Result>>) -> _Promise<Result> {
         let promise = _Promise<Result>(dispatcher: .default)
         self.queue(queue).listening({ (event) in
             switch event {

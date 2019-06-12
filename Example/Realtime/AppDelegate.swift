@@ -22,16 +22,28 @@ func currentDatabase() -> RealtimeDatabase {
     #endif
 }
 
+func currentStorage() -> RealtimeStorage {
+    #if DEBUG
+    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+        return RealtimeApp.cache
+    } else {
+        return Storage.storage()
+    }
+    #else
+    return Storage.storage()
+    #endif
+}
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
     let store: ListeningDisposeStore = ListeningDisposeStore()
     var window: UIWindow?
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]?) -> Bool {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         FirebaseApp.configure()
         let configuration = RealtimeApp.Configuration(linksNode: BranchNode(key: "___tests/__links"))
-        RealtimeApp.initialize(with: currentDatabase(), configuration: configuration)
+        RealtimeApp.initialize(with: currentDatabase(), storage: currentStorage(), configuration: configuration)
         RealtimeApp.app.connectionObserver.listening(
             onValue: { (connected) in
                 print("Connection did change to \(connected)")

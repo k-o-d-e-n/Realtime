@@ -102,9 +102,10 @@ public class Node: Hashable, Comparable {
     /// Parent node
     public internal(set) var parent: Node?
 
-    // TODO: Hasher Swift 4.2
-    public var hashValue: Int {
-        return parent?.reduce(into: key.hashValue, { $0 = $0 &- $1.hashValue }) ?? key.hashValue
+    public func hash(into hasher: inout Hasher) {
+        forEach { (node) in
+            hasher.combine(node.key)
+        }
     }
 
     /// Creates new instance with automatically generated key

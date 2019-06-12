@@ -7,7 +7,7 @@
 
 import Foundation
 
-#if os(macOS)
+#if os(macOS) || os(iOS)
 public enum CellBuilder {
     case reuseIdentifier(String)
     case `static`(UITableViewCell)
@@ -45,7 +45,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
 
     let cellBuilder: CellBuilder
 
-    public init(cellBuilder: CellBuilder) {
+    public required init(cellBuilder: CellBuilder) {
         self.cellBuilder = cellBuilder
     }
     deinit {}
@@ -87,7 +87,7 @@ extension Row where View: UITableViewCell {
 }
 public extension Row where View: UIView {
     var isVisible: Bool {
-        return state.contains(.displaying) && view.map { !$0.isHidden && $0.window != nil } ?? false
+        return state.contains(.displaying) && super._isVisible
     }
 }
 extension Row: CustomDebugStringConvertible {
@@ -241,8 +241,12 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, Model> {
     lazy var _rowModel: Repeater<RowModel> = Repeater.unsafe()
 
-    public init() {
+    public required init() {
         super.init(cellBuilder: .custom({ _,_  in fatalError("Reuse form row does not responsible for cell building") }))
+    }
+
+    public required init(cellBuilder: CellBuilder) {
+        fatalError("Use init() initializer instead")
     }
 
     public func onRowModel(_ doit: @escaping (RowModel, ReuseFormRow<View, Model, RowModel>) -> Void) {
@@ -266,7 +270,7 @@ extension UITableView {
         }
     }
 
-    func scheduleOperation(_ operation: Operation, for indexPath: IndexPath, with animation: UITableViewRowAnimation) {
+    func scheduleOperation(_ operation: Operation, for indexPath: IndexPath, with animation: UITableView.RowAnimation) {
         switch operation {
         case .none: break
         case .reload: reloadRows(at: [indexPath], with: animation)
@@ -544,7 +548,7 @@ open class Form<Model: AnyObject> {
     }
 
     open func addRow<Cell: UITableViewCell>(
-        _ row: Row<Cell, Model>, with animation: UITableViewRowAnimation = .automatic
+        _ row: Row<Cell, Model>, with animation: UITableView.RowAnimation = .automatic
         ) {
         guard let last = self.last else { fatalError("Form is empty") }
         let rowIndex = last.numberOfItems
@@ -555,13 +559,13 @@ open class Form<Model: AnyObject> {
     }
 
     open func insertRow<Cell: UITableViewCell>(
-        _ row: Row<Cell, Model>, at indexPath: IndexPath, with animation: UITableViewRowAnimation = .automatic
+        _ row: Row<Cell, Model>, at indexPath: IndexPath, with animation: UITableView.RowAnimation = .automatic
         ) {
         sections[indexPath.section].insertRow(row, at: indexPath.row)
         if performsUpdates { tableView?.insertRows(at: [indexPath], with: animation) }
     }
 
-    open func deleteRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation = .automatic) {
+    open func deleteRows(at indexPaths: [IndexPath], with animation: UITableView.RowAnimation = .automatic) {
         indexPaths.sorted(by: >).forEach { sections[$0.section].deleteRow(at: $0.row) }
         if performsUpdates { tableView?.deleteRows(at: indexPaths, with: animation) }
     }
@@ -576,28 +580,32 @@ open class Form<Model: AnyObject> {
         if performsUpdates { tableView?.moveRow(at: indexPath, to: newIndexPath) }
     }
 
-    open func addSection(_ section: Section<Model>, with animation: UITableViewRowAnimation = .automatic) {
+    open func addSection(_ section: Section<Model>, with animation: UITableView.RowAnimation = .automatic) {
         insertSection(section, at: sections.count, with: animation)
     }
 
-    open func insertSection(_ section: Section<Model>, at index: Int, with animation: UITableViewRowAnimation = .automatic) {
+    open func insertSection(_ section: Section<Model>, at index: Int, with animation: UITableView.RowAnimation = .automatic) {
         sections.insert(section, at: index)
         if let tv = tableView, tv.window != nil {
             tv.insertSections([index], with: animation)
         }
     }
 
-    open func deleteSections(at indexes: IndexSet, with animation: UITableViewRowAnimation) {
+    open func deleteSections(at indexes: IndexSet, with animation: UITableView.RowAnimation = .automatic) {
         indexes.reversed().forEach { removedSections[$0] = sections.remove(at: $0) }
         if performsUpdates { tableView?.deleteSections(indexes, with: animation) }
     }
 
-    open func reloadRows(at indexPaths: [IndexPath], with animation: UITableViewRowAnimation) {
-        if performsUpdates { tableView?.reloadRows(at: indexPaths, with: animation) }
+    open func reloadRows(at indexPaths: [IndexPath], with animation: UITableView.RowAnimation = .automatic) {
+        if performsUpdates, let tv = tableView, tv.window != nil {
+            tv.reloadRows(at: indexPaths, with: animation)
+        }
     }
 
-    open func reloadSections(_ sections: IndexSet, with animation: UITableViewRowAnimation) {
-        if performsUpdates { tableView?.reloadSections(sections, with: animation) }
+    open func reloadSections(_ sections: IndexSet, with animation: UITableView.RowAnimation = .automatic) {
+        if performsUpdates, let tv = tableView, tv.window != nil {
+            tv.reloadSections(sections, with: animation)
+        }
     }
 
     open func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -700,6 +708,7 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+            tableView.endEditing(false)
             form.didSelect(tableView, didSelectRowAt: indexPath)
             form.tableDelegate?.tableView?(tableView, didSelectRowAt: indexPath)
         }
@@ -720,11 +729,11 @@ extension Form {
             return form.tableDelegate.flatMap { $0.tableView?(tableView, shouldIndentWhileEditingRowAt: indexPath) } ?? true
         }
 
-        func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCellEditingStyle {
+        func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
             return form.tableDelegate.flatMap { $0.tableView?(tableView, editingStyleForRowAt: indexPath) } ?? .none
         }
 
-        func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+        func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
             form.editingDataSource?.tableView(tableView, commit: editingStyle, forRowAt: indexPath)
         }
 
@@ -749,6 +758,21 @@ extension Form {
 
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             form.tableDelegate?.scrollViewDidScroll?(scrollView)
+        }
+    }
+}
+
+public extension Form {
+    func indexPath<Cell: UITableViewCell>(for row: Row<Cell, Model>) -> IndexPath? {
+        if let tv = tableView, let view = row.view {
+            return tv.indexPath(for: view)
+        } else {
+            for (index, section) in enumerated() {
+                if let row = section.firstIndex(where: { $0 === row }) {
+                    return IndexPath(row: row, section: index)
+                }
+            }
+            return nil
         }
     }
 }

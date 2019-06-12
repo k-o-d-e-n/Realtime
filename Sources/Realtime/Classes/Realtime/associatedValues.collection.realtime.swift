@@ -47,7 +47,7 @@ public typealias HashableValue = Hashable & RealtimeValue
 /// A Realtime database collection that stores elements in own database node as is,
 /// as full objects, that keyed by database key of `Key` element.
 public final class AssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
+where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
     internal(set) var storage: RCDictionaryStorage<Key, Value>
     internal private(set) var valueBuilder: RealtimeValueBuilder<Value>
@@ -171,7 +171,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue {
         _snapshot = nil
         try view.forEach { key in
             guard data.hasChild(key.dbKey) else {
-                if event == .value, let contained = storage.first(where: { $0.0.dbKey == key.dbKey }) { storage.remove(for: contained.key) }
+                if event == .value, let contained = storage.first(where: { $0.0.dbKey == key.dbKey }) { _ = storage.remove(for: contained.key) }
                 return
             }
             let childData = data.child(forPath: key.dbKey)
@@ -432,7 +432,7 @@ extension AssociatedValues {
         item.priority = count
 
         transaction.addReversion({ [weak self] in
-            self?.storage.remove(for: key)
+            _ = self?.storage.remove(for: key)
         })
         storage.set(value: element, for: key)
 
@@ -479,7 +479,7 @@ extension AssociatedValues {
 }
 
 public final class ExplicitAssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
+where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
     internal(set) var storage: RCDictionaryStorage<Key, Value>
     internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
@@ -566,7 +566,7 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue {
     } // iterator is not safe
     public subscript(position: Int) -> Element {
         if isStandalone {
-            return storage[storage.index(storage.startIndex, offsetBy: position)]
+            return storage[position]
         } else {
             let value = view[position]
             guard let element = storage.element(for: value.dbKey) else {
@@ -662,17 +662,32 @@ extension ExplicitAssociatedValues {
     public func set(_ value: Value, for key: Key) -> Int {
         guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
         storage.set(value: value, for: key)
-        return view.insert(value)
+        guard let index = view.index(of: value) else { return view.insert(value) }
+        return index
     }
     @discardableResult
     public func remove(at index: Int) -> Value {
         guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
-        return view.remove(at: index)
+        let value = view.remove(at: index)
+        // TODO: Method is not correct, need use ordered storage
+        if let node = value.node, let key = storage.element(for: node.key)?.key {
+            _ = storage.remove(for: key)
+        }
+        return value
     }
     @discardableResult
     public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction {
         guard isRooted else { fatalError("Cannot be written, because collection is not rooted") }
         guard let valueNode = view.first(where: { $0.dbKey == key.dbKey }).node else { fatalError("Value is not found") }
+
+        let transaction = transaction ?? Transaction()
+        transaction.removeValue(by: valueNode)
+        return transaction
+    }
+    @discardableResult
+    public func remove(at index: Int, in transaction: Transaction?) -> Transaction {
+        guard isRooted else { fatalError("Cannot be written, because collection is not rooted") }
+        guard let valueNode = view[index].node else { fatalError("Value is not found") }
 
         let transaction = transaction ?? Transaction()
         transaction.removeValue(by: valueNode)

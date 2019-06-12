@@ -6,7 +6,7 @@
 //  Copyright © 2017 Denis Koryttsev. All rights reserved.
 //
 
-#if os(macOS)
+#if os(macOS) || os(iOS)
 import FirebaseDatabase
 import FirebaseStorage
 

@@ -33,6 +33,11 @@ public extension Listenable {
         })
     }
 }
+extension Property: RealtimeListener {
+    public func take(realtime value: T) {
+        self <== value
+    }
+}
 
 public protocol RealtimeCompatible {
     associatedtype Current = Self
@@ -67,7 +72,7 @@ extension Optional: _Optional {
 
 public extension Listenable where Out: RealtimeValueActions {
     /// Loads a value is associated with `RealtimeValueActions` value
-    func load(timeout: DispatchTimeInterval = .seconds(10)) -> Preprocessor<Out, Out> {
+    func load(timeout: DispatchTimeInterval = .seconds(10)) -> Preprocessor<Self, Out> {
         return doAsync({ (prop, promise) in
             prop.load(timeout: timeout, completion: <-{ err in
                 if let e = err {
@@ -90,7 +95,7 @@ public extension Listenable {
 
 // MARK: - UI
 
-#if os(macOS)
+#if os(macOS) || os(iOS)
 
 public extension RTime where Base: URLSession {
     public func dataTask(for request: URLRequest) -> DataTask {
@@ -238,7 +243,7 @@ public extension Listenable where Self.Out == UIImage? {
 
 public struct ControlEvent<C: UIControl>: Listenable {
     unowned var control: C
-    let events: UIControlEvents
+    let events: UIControl.Event
 
     public func listening(_ assign: Assign<ListenEvent<(control: C, event: UIEvent)>>) -> Disposable {
         let controlListening = UIControl.Listening<C>(control, events: events, assign: assign)
@@ -264,10 +269,10 @@ public struct ControlEvent<C: UIControl>: Listenable {
 extension UIControl {
     fileprivate class Listening<C: UIControl>: Disposable, Hashable {
         weak var control: C?
-        let events: UIControlEvents
+        let events: UIControl.Event
         let assign: Assign<ListenEvent<(control: C, event: UIEvent)>>
 
-        init(_ control: C, events: UIControlEvents, assign: Assign<ListenEvent<(control: C, event: UIEvent)>>) {
+        init(_ control: C, events: UIControl.Event, assign: Assign<ListenEvent<(control: C, event: UIEvent)>>) {
             self.control = control
             self.events = events
             self.assign = assign
@@ -289,20 +294,18 @@ extension UIControl {
             onStop()
         }
 
-        var hashValue: Int { return Int(events.rawValue) }
-        static func ==(lhs: Listening, rhs: Listening) -> Bool {
-            return lhs === rhs
-        }
+        public func hash(into hasher: inout Hasher) { hasher.combine(events.rawValue) }
+        static func ==(lhs: Listening, rhs: Listening) -> Bool { return lhs === rhs }
     }
 }
 extension UIControl: RealtimeCompatible {}
 public extension RTime where Base: UIControl {
-    func onEvent(_ controlEvent: UIControlEvents) -> ControlEvent<Base> {
+    func onEvent(_ controlEvent: UIControl.Event) -> ControlEvent<Base> {
         return ControlEvent(control: base, events: controlEvent)
     }
 }
 public extension RTime where Base: UITextField {
-    var text: Preprocessor<(control: Base, event: UIEvent), String?> {
+    var text: Preprocessor<ControlEvent<Base>, String?> {
         return onEvent(.editingChanged).map { $0.0.text }
     }
 }
@@ -358,14 +361,16 @@ extension UIImagePickerController: RealtimeCompatible {
     public struct ImagePicker: Listenable {
         unowned var controller: UIImagePickerController
 
-        public func listening(_ assign: Assign<ListenEvent<(UIImagePickerController, [String: Any])>>) -> Disposable {
+        public typealias Out = (UIImagePickerController, [UIImagePickerController.InfoKey : Any])
+
+        public func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
             let listening = Listening(controller, assign: assign)
             defer {
                 listening.start()
             }
             return listening
         }
-        public func listeningItem(_ assign: Closure<ListenEvent<(UIImagePickerController, [String : Any])>, Void>) -> ListeningItem {
+        public func listeningItem(_ assign: Closure<ListenEvent<Out>, Void>) -> ListeningItem {
             let listening = Listening(controller, assign: assign)
             return ListeningItem(resume: listening.start, pause: listening.stop, dispose: listening.dispose, token: listening.start())
         }
@@ -374,9 +379,11 @@ extension UIImagePickerController: RealtimeCompatible {
     fileprivate class Listening: NSObject, Disposable, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         var _isDisposed: Bool = false
         unowned let controller: UIImagePickerController
-        let assign: Assign<ListenEvent<(UIImagePickerController, [String: Any])>>
+        let assign: Assign<ListenEvent<Out>>
 
-        init(_ controller: UIImagePickerController, assign: Assign<ListenEvent<(UIImagePickerController, [String: Any])>>) {
+        typealias Out = (UIImagePickerController, [UIImagePickerController.InfoKey : Any])
+
+        init(_ controller: UIImagePickerController, assign: Assign<ListenEvent<Out>>) {
             self.controller = controller
             self.assign = assign
         }
@@ -385,7 +392,7 @@ extension UIImagePickerController: RealtimeCompatible {
             dispose()
         }
 
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
             assign.call(.value((picker, info)))
             dispose()
         }

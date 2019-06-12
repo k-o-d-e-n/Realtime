@@ -174,7 +174,7 @@ struct RealtimeData: RealtimeDataProtocol {
     var priority: Any? { return base.priority }
     var childrenCount: UInt {
         return excludedKeys.reduce(into: base.childrenCount) { (res, key) -> Void in
-            if hasChild(key) {
+            if base.hasChild(key) {
                 res -= 1
             }
         }
@@ -191,7 +191,7 @@ struct RealtimeData: RealtimeDataProtocol {
         })
     }
     func exists() -> Bool { return base.exists() }
-    func hasChildren() -> Bool { return base.hasChildren() }
+    func hasChildren() -> Bool { return childrenCount > 0 }
     func hasChild(_ childPathString: String) -> Bool {
         if excludedKeys.contains(where: childPathString.hasPrefix) {
             return false
@@ -206,24 +206,25 @@ struct RealtimeData: RealtimeDataProtocol {
             return base.child(forPath: path)
         }
     }
+    
     var debugDescription: String { return base.debugDescription + "\nexcludes: \(excludedKeys)" }
     var description: String { return base.description + "\nexcludes: \(excludedKeys)" }
 }
 
 public typealias RealtimeMetadata = [String: Any]
+public protocol RealtimeStorageCache {
+    func file(for node: Node, completion: @escaping (Data?) -> Void)
+    func put(_ file: Data, for node: Node, completion: ((Error?) -> Void)?)
+}
+
 public protocol RealtimeStorage {
     func load(
         for node: Node,
         timeout: DispatchTimeInterval,
         completion: @escaping (Data?) -> Void,
         onCancel: ((Error) -> Void)?
-    ) -> RealtimeStorageTask
+        ) -> RealtimeStorageTask
     func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void)
-}
-
-public protocol RealtimeStorageCache {
-    func file(for node: Node, completion: (Data?) -> Void)
-    func put(_ file: Data, for node: Node, completion: ((Error?) -> Void)?)
 }
 
 // Paging
@@ -243,11 +244,11 @@ public class PagingControl {
         controller?.stop()
     }
 
-    public func next() {
-        controller?.next()
+    public func next() -> Bool {
+        return controller?.next() ?? false
     }
-    public func previous() {
-        controller?.previous()
+    public func previous() -> Bool {
+        return controller?.previous() ?? false
     }
 }
 
@@ -269,6 +270,7 @@ class PagingController {
     private var endPage: Disposable?
     private var firstKey: String?
     private var lastKey: String?
+    private var observedNew: Bool = false
     var isStarted: Bool { return startPage != nil }
 
     init(database: RealtimeDatabase, node: Node,
@@ -286,6 +288,7 @@ class PagingController {
         guard startPage == nil else {
             fatalError("Controller already started")
         }
+        self.observedNew = observe
         var disposable: Disposable?
         var completion = completion
         disposable = database.observe(
@@ -301,12 +304,12 @@ class PagingController {
                 if event == .value {
                     self.endPage = data.childrenCount == self.pageSize ? nil : disposable
                     self.startPage = disposable
+                    if let compl = completion {
+                        compl()
+                        completion = nil
+                    }
                 }
                 self.delegate?.pagingControllerDidReceive(data: data, with: event)
-                if let compl = completion {
-                    compl()
-                    completion = nil
-                }
             },
             onCancel: { [weak self] (error) in
                 self?.delegate?.pagingControllerDidCancel(with: error)
@@ -318,16 +321,21 @@ class PagingController {
         startPage?.dispose()
         pages.forEach({ $0.value.dispose() })
         startPage = nil
+        endPage?.dispose()
+        endPage = nil
     }
 
-    func previous() {
-        // replace start page
+    var hasHandleUpdateForPrevious: Bool { return ascending || !observedNew }
+    func previous() -> Bool {
         guard self.startPage != nil else { fatalError("Firstly need call start") }
-        guard let first = delegate?.firstKey(), first != firstKey else { return debugLog("No more data") }
+        guard let first = delegate?.firstKey(), (first != firstKey || hasHandleUpdateForPrevious) else {
+            debugLog("No more data")
+            return false
+        }
 
         var disposable: Disposable?
         disposable = database.observe(
-            .child([]),
+            .child([]), // with .child([]) disposable has no significance
             on: node,
             limit: pageSize,
             before: ascending ? first : nil,
@@ -338,16 +346,19 @@ class PagingController {
                 guard let `self` = self, let delegate = self.delegate else { return }
                 switch event {
                 case .value:
-                    if data.childrenCount == self.pageSize + 1 {
-                        if let old = self.firstKey, let startPage = self.startPage {
-                            self.pages[old] = startPage
-                        }
-                        self.startPage = disposable
-                        self.firstKey = first
-                    }
+                    //                    if data.childrenCount == self.pageSize + 1 {
+                    //                        if let old = self.firstKey, let startPage = self.startPage {
+                    //                            self.pages[old] = startPage
+                    //                        }
+                    //                        self.startPage = disposable
+                    self.firstKey = first /// set previous last key to keep available to next call, or if has no data stop all next loading
+                    //                    }
                     if data.hasChildren() {
-                        delegate.pagingControllerDidReceive(data: RealtimeData(base: data, excludedKeys: [first]),
-                                                            with: .child(.added))
+                        let realtimeData = RealtimeData(base: data, excludedKeys: [first])
+                        if realtimeData.hasChildren() {
+                            delegate.pagingControllerDidReceive(data: realtimeData,
+                                                                with: .child(.added))
+                        }
                     }
                 case .child(.added):
                     if data.key != first {
@@ -361,16 +372,21 @@ class PagingController {
                 self?.delegate?.pagingControllerDidCancel(with: error)
             }
         )
+
+        return true
     }
 
-    func next() {
-        // replace end page
+    var hasHandleUpdateForNext: Bool { return !(ascending && observedNew) }
+    func next() -> Bool {
         guard self.startPage != nil else { fatalError("Firstly need call start") }
-        guard let last = self.delegate?.lastKey(), last != lastKey else { return debugLog("No more data") }
+        guard let last = self.delegate?.lastKey(), (last != lastKey || hasHandleUpdateForNext) else {
+            debugLog("No more data")
+            return false
+        }
 
         var disposable: Disposable?
         disposable = database.observe(
-            .child([]),
+            .child([]), // with .child([]) disposable has no significance
             on: node,
             limit: pageSize,
             before: ascending ? nil : last,
@@ -381,16 +397,19 @@ class PagingController {
                 guard let `self` = self, let delegate = self.delegate else { return }
                 switch event {
                 case .value:
-                    if data.childrenCount == self.pageSize + 1 {
-                        if let oldLast = self.lastKey, let endPage = self.endPage {
-                            self.pages[oldLast] = endPage
-                        }
-                        self.endPage = disposable
-                        self.lastKey = last
-                    }
+                    //                    if data.childrenCount == self.pageSize + 1 {
+                    //                        if let oldLast = self.lastKey, let endPage = self.endPage {
+                    //                            self.pages[oldLast] = endPage
+                    //                        }
+                    //                        self.endPage = disposable
+                    self.lastKey = last /// set previous last key to keep available to next call, or if has no data stop all next loading
+                    //                    }
                     if data.hasChildren() {
-                        delegate.pagingControllerDidReceive(data: RealtimeData(base: data, excludedKeys: [last]),
-                                                            with: .child(.added))
+                        let realtimeData = RealtimeData(base: data, excludedKeys: [last])
+                        if realtimeData.hasChildren() {
+                            delegate.pagingControllerDidReceive(data: realtimeData,
+                                                                with: .child(.added))
+                        }
                     }
                 case .child(.added):
                     if data.key != last {
@@ -404,6 +423,8 @@ class PagingController {
                 self?.delegate?.pagingControllerDidCancel(with: error)
             }
         )
+
+        return true
     }
 
     deinit {
@@ -416,7 +437,7 @@ class PagingController {
 
 // MARK - Firebase
 
-#if os(macOS)
+#if os(macOS) || os(iOS)
 import FirebaseDatabase
 
 extension DatabaseReference {

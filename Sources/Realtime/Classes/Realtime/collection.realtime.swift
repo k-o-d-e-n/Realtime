@@ -174,7 +174,7 @@ public extension RealtimeCollection {
     }
 }
 
-#if os(macOS)
+#if os(macOS) || os(iOS)
 
 import FirebaseDatabase
 

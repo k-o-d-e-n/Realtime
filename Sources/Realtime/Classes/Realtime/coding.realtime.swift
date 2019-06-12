@@ -305,6 +305,37 @@ extension _ComparableWithDefaultLiteral where Self: HasDefaultLiteral & Equatabl
     }
 }
 
+public extension KeyedEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T, forKey key: K) throws {
+        try T._isDefaultLiteral(value) ? encodeNil(forKey: key) : encode(value, forKey: key)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T, forKey key: K) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value, forKey: key)
+        }
+    }
+}
+public extension UnkeyedEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        try T._isDefaultLiteral(value) ? encodeNil() : encode(value)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value)
+        }
+    }
+}
+public extension SingleValueEncodingContainer {
+    mutating func encodeNilIfDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        try T._isDefaultLiteral(value) ? encodeNil() : encode(value)
+    }
+    mutating func encodeIfNotDefault<T: HasDefaultLiteral & _ComparableWithDefaultLiteral & Encodable>(_ value: T) throws {
+        if !T._isDefaultLiteral(value) {
+            try encode(value)
+        }
+    }
+}
+
 /// Protocol for values that only valid for Realtime Database, e.g. `(NS)Array`, `(NS)Dictionary` and etc.
 /// You shouldn't apply for some custom values.
 public protocol RealtimeDataValue: RealtimeDataRepresented {}
@@ -368,7 +399,7 @@ extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral {
         return lhs == nil
     }
 }
-#if os(macOS)
+#if os(macOS) || os(iOS)
 extension NSNull    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
 extension NSValue   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
 extension NSString  : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
@@ -755,7 +786,7 @@ public extension Representer where V == URL {
     }
 }
 
-#if os(macOS)
+#if os(macOS) || os(iOS)
 public extension Representer where V: Codable {
     static func json(
         dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .secondsSince1970,
@@ -765,9 +796,10 @@ public extension Representer where V: Codable {
             encoding: { v -> Any? in
                 let e = JSONEncoder()
                 e.dateEncodingStrategy = dateEncodingStrategy
-                #if os(macOS)
+                #if os(macOS) || os(iOS)
                 e.keyEncodingStrategy = keyEncodingStrategy
                 #endif
+                e.outputFormatting = .prettyPrinted
                 let data = try e.encode(v)
                 return try JSONSerialization.jsonObject(with: data, options: .allowFragments)
             },
@@ -827,7 +859,7 @@ public extension Representer where V == Date {
 
 /// --------------------------- DataSnapshot Decoder ------------------------------
 
-#if os(macOS)
+#if os(macOS) || os(iOS)
 
 import UIKit.UIImage
 
@@ -836,35 +868,35 @@ public extension Representer where V: UIImage {
         let base = Representer<Data>.any
         return Representer<UIImage>(
             encoding: { img -> Any? in
-                guard let data = UIImagePNGRepresentation(img) else {
+                guard let data = img.pngData() else {
                     throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .png representation")
                 }
                 return data
-            },
+        },
             decoding: { d in
                 let data = try base.decode(d)
                 guard let img = UIImage(data: data) else {
                     throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
                 }
                 return img
-            }
+        }
         )
     }
     static func jpeg(quality: CGFloat = 1.0) -> Representer<UIImage> {
         let base = Representer<Data>.any
         return Representer<UIImage>(
             encoding: { img -> Any? in
-                guard let data = UIImageJPEGRepresentation(img, quality) else {
+                guard let data = img.jpegData(compressionQuality: quality) else {
                     throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .jpeg representation with compression quality: \(quality)")
                 }
                 return data
-            },
+        },
             decoding: { d in
                 guard let img = UIImage(data: try base.decode(d)) else {
                     throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
                 }
                 return img
-            }
+        }
         )
     }
 }

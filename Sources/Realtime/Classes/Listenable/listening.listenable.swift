@@ -42,7 +42,7 @@ struct AtomicBool {
     var isTrue: Bool { return _invalidated == 1 }
 
     mutating func swapAndResult() -> Bool {
-        return OSAtomicCompareAndSwap32Barrier(0, 1, &invalidated)
+        return OSAtomicCompareAndSwap32Barrier(0, 1, &_invalidated)
     }
 }
 #endif
@@ -162,7 +162,7 @@ public extension Disposable {
 }
 
 /// Stores connections
-public final class ListeningDisposeStore {
+public final class ListeningDisposeStore: CustomStringConvertible {
     private var disposes = [Disposable]()
     private var listeningItems = [ListeningItem]()
 
@@ -192,10 +192,8 @@ public final class ListeningDisposeStore {
     }
 
     public func dispose() {
-        disposes.forEach { $0.dispose() }
-        disposes.removeAll()
-        listeningItems.forEach { $0.dispose() }
-        listeningItems.removeAll()
+        disposeDisposes()
+        disposeItems()
     }
 
     public func pause() {
@@ -204,5 +202,12 @@ public final class ListeningDisposeStore {
 
     public func resume() {
         listeningItems.forEach { $0.resume() }
+    }
+
+    public var description: String {
+        return """
+        items: \(listeningItems.count),
+        disposes: \(disposes.count)
+        """
     }
 }
