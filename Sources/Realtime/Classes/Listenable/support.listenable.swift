@@ -79,8 +79,6 @@ public extension Listenable {
     }
 }
 
-// MARK: - UI
-
 #if os(macOS) || os(iOS)
 
 public extension RTime where Base: URLSession {
@@ -200,7 +198,11 @@ extension URLSession: RealtimeCompatible {
         }
     }
 }
+#endif
 
+// MARK: - UI
+
+#if os(iOS)
 import UIKit
 
 public extension Listenable where Self.Out == String? {

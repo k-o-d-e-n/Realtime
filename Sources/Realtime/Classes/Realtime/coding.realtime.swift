@@ -812,7 +812,7 @@ public extension Representer where V: Codable {
 public enum DateCodingStrategy {
     case secondsSince1970
     case millisecondsSince1970
-    @available(iOS 10.0, *)
+    @available(iOS 10.0, macOS 10.12, *)
     case iso8601(ISO8601DateFormatter)
     case formatted(DateFormatter)
 }
@@ -857,9 +857,7 @@ public extension Representer where V == Date {
     }
 }
 
-/// --------------------------- DataSnapshot Decoder ------------------------------
-
-#if os(macOS) || os(iOS)
+#if os(iOS)
 
 import UIKit.UIImage
 
@@ -900,7 +898,11 @@ public extension Representer where V: UIImage {
         )
     }
 }
+#endif
 
+/// --------------------------- DataSnapshot Decoder ------------------------------
+
+#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
 import FirebaseDatabase
 
 extension DataSnapshot: RealtimeDataProtocol, Sequence {

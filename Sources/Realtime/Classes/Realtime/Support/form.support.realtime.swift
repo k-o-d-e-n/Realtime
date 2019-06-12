@@ -7,7 +7,8 @@
 
 import Foundation
 
-#if os(macOS) || os(iOS)
+#if os(iOS)
+
 public enum CellBuilder {
     case reuseIdentifier(String)
     case `static`(UITableViewCell)

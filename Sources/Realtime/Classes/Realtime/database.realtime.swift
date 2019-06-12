@@ -444,7 +444,7 @@ class PagingController {
 
 // MARK - Firebase
 
-#if os(macOS) || os(iOS)
+#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
 import FirebaseDatabase
 
 extension DatabaseReference {

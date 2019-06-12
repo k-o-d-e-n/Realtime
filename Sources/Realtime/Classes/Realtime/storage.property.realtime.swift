@@ -46,7 +46,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    #if os(macOS) || os(iOS)
+    #if os(iOS)
     func png(in object: Object) -> File<UIImage> {
         return file(in: object, representer: Representer<UIImage>.png, metadata: ["contentType": "image/png"])
     }

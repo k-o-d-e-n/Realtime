@@ -6,10 +6,6 @@
 //
 
 import Foundation
-#if os(macOS) || os(iOS)
-import FirebaseDatabase
-import FirebaseStorage
-#endif
 
 internal func debugAction(_ action: () -> Void) {
     #if DEBUG
@@ -126,7 +122,12 @@ extension RealtimeApp {
     public var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
 }
 
-#if os(macOS) || os(iOS)
+#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
+import FirebaseDatabase
+import FirebaseStorage
+#endif
+
+#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
 extension RealtimeApp {
     public static func firebase(
         configuration: Configuration = Configuration()

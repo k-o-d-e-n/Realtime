@@ -789,7 +789,7 @@ public struct OldValue<T: Listenable>: Listenable {
     }
 }
 public extension Listenable {
-    @available(*, deprecated: 0.9, message: "Use memoize preprocessor")
+    @available(*, deprecated, message: "Use memoize preprocessor")
     func oldValue() -> OldValue<Self> {
         return OldValue(base: self)
     }
