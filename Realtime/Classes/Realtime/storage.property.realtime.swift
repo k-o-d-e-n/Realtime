@@ -86,7 +86,10 @@ extension ReadonlyProperty {
         return CachedFileDownloadTask(
             nextLevel: self.fileTask(for: node, timeout: timeout),
             cache: cache,
-            node: node
+            node: node,
+            completion: { data in
+                self.applyData(data, node: node, needCaching: false)
+            }
         )
     }
     fileprivate func fileTask(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask {
@@ -128,6 +131,7 @@ class CachedFileDownloadTask: RealtimeStorageTask {
     let nextLevelTask: () -> RealtimeStorageTask
     let cache: RealtimeStorageCache
     let node: Node
+    let completion: (Data) -> Void
     var state: State = .pause
     enum State {
         case run, pause, finish
@@ -140,13 +144,15 @@ class CachedFileDownloadTask: RealtimeStorageTask {
 
     init(nextLevel task: @escaping @autoclosure () -> RealtimeStorageTask,
          cache: RealtimeStorageCache,
-         node: Node) {
+         node: Node,
+         completion: @escaping (Data?) -> Void) {
         let success = Repeater<RealtimeMetadata?>.unsafe()
         self._success = success
         self._memoizedSuccess = success.memoizeOne(sendLast: true)
         self.nextLevelTask = task
         self.cache = cache
         self.node = node
+        self.completion = completion
         resume()
     }
 
@@ -157,9 +163,11 @@ class CachedFileDownloadTask: RealtimeStorageTask {
         if let next = _nextTask {
             next.resume()
         } else {
+            let cacheCompl = self.completion
             cache.file(for: node) { (data) in
-                if let _ = data {
+                if let d = data {
                     self.state = .finish
+                    cacheCompl(d)
                     self._success.send(.value(nil))
                 } else {
                     let task = self.nextLevelTask()
