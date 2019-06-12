@@ -89,7 +89,7 @@ public extension Listenable {
     /// Returns listenable that filters value events
     ///
     /// - Parameter predicate: Closure to evaluate value
-    public func filter(_ predicate: @escaping (Out) -> Bool) -> Preprocessor<Self, Out> {
+    func filter(_ predicate: @escaping (Out) -> Bool) -> Preprocessor<Self, Out> {
         return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(predicate: predicate))
     }
@@ -97,7 +97,7 @@ public extension Listenable {
     /// Returns listenable that transforms value events
     ///
     /// - Parameter transform: Closure to transform value
-    public func map<U>(_ transform: @escaping (Out) throws -> U) -> Preprocessor<Self, U> {
+    func map<U>(_ transform: @escaping (Out) throws -> U) -> Preprocessor<Self, U> {
         return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(transform: transform))
     }
@@ -113,7 +113,7 @@ public extension Listenable {
     /// - Warning: This does not preserve the sequence of events
     ///
     /// - Parameter event: Closure to run async work.
-    public func doAsync(_ event: @escaping (Out, Promise) throws -> Void) -> Preprocessor<Self, Out> {
+    func doAsync(_ event: @escaping (Out, Promise) throws -> Void) -> Preprocessor<Self, Out> {
         return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(event: event))
     }
@@ -121,7 +121,7 @@ public extension Listenable {
     /// and waits when is received signal in `ResultPromise`
     ///
     /// - Parameter event: Closure to run async work.
-    public func mapAsync<Result>(_ event: @escaping (Out, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result> {
+    func mapAsync<Result>(_ event: @escaping (Out, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result> {
         return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(event: event))
     }
@@ -759,7 +759,7 @@ public struct Memoize<T: Listenable>: Listenable {
     }
 }
 
-@available(*, deprecated: 0.9, message: "Use memoize preprocessor")
+@available(*, deprecated, message: "Use memoize preprocessor")
 public struct OldValue<T: Listenable>: Listenable {
     let base: T
 
@@ -1016,7 +1016,7 @@ public extension Listenable where Out: Equatable {
 }
 
 public extension Listenable {
-    public func then<L: Listenable>(_ transform: @escaping (Out) throws -> L) -> Preprocessor<Self, L.Out> {
+    func then<L: Listenable>(_ transform: @escaping (Out) throws -> L) -> Preprocessor<Self, L.Out> {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
@@ -1032,7 +1032,7 @@ public extension Listenable {
     }
 }
 public extension Listenable where Out: _Optional {
-    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L) -> Preprocessor<Self, L.Out?> {
+    func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L) -> Preprocessor<Self, L.Out?> {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
@@ -1046,7 +1046,7 @@ public extension Listenable where Out: _Optional {
             })
         }
     }
-    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Self, L.Out?> {
+    func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Self, L.Out?> {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
@@ -1060,7 +1060,7 @@ public extension Listenable where Out: _Optional {
             })
         }
     }
-    public func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Self, L.Out.Wrapped?> where L.Out: _Optional {
+    func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Self, L.Out.Wrapped?> where L.Out: _Optional {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
@@ -1090,14 +1090,14 @@ public extension Listenable where Out: _Optional {
         return flatMap({ $0 })
     }
 
-    public func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result?> {
+    func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result?> {
         return mapAsync({ (out, promise) in
             guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
             let wrappedPromise = ResultPromise<Result>(receiver: promise.fulfill, error: promise.reject)
             try event(wrapped, wrappedPromise)
         })
     }
-    public func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result?>) throws -> Void) -> Preprocessor<Self, Result?> {
+    func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result?>) throws -> Void) -> Preprocessor<Self, Result?> {
         return mapAsync({ (out, promise) in
             guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
             try event(wrapped, promise)

@@ -137,7 +137,7 @@ extension ListenableTests {
         let source = Repeater<Int>.unsafe()
 
         var value_counter = 0
-        var sharedSource: Shared<UInt32>? = source
+        var sharedSource: Shared<AnyListenable<UInt32>>? = source
             .do(onValue: {
                 if value_counter == 3 {
                     XCTAssertTrue($0 == 0 || $0 == 1000)
@@ -146,6 +146,7 @@ extension ListenableTests {
             .map(UInt32.init)
             .map(getRandomNum)
             .do(onValue: { print($0) })
+            .asAny()
             .shared(connectionLive: .continuous)
         let disposable1 = sharedSource!.listening(onValue: { value in
             value_counter += 1
@@ -181,7 +182,7 @@ extension ListenableTests {
         let source = Repeater<Int>.unsafe()
 
         var value_counter = 0
-        var shareSource: Shared<UInt32>? = source
+        var shareSource: Shared<AnyListenable<UInt32>>? = source
             .do(onValue: {
                 if $0 == 0 {
                     XCTFail("Must not call")
@@ -190,6 +191,7 @@ extension ListenableTests {
             .map(UInt32.init)
             .map(getRandomNum)
             .do(onValue: { print($0) })
+            .asAny()
             .shared(connectionLive: .repeatable)
         let disposable1 = shareSource!.listening(onValue: { value in
             value_counter += 1
@@ -228,7 +230,7 @@ extension ListenableTests {
         let source = Repeater<Int>.unsafe()
 
         var value_counter = 0
-        var shareSource: Share<UInt32>? = source
+        var shareSource: Share<AnyListenable<UInt32>>? = source
             .do(onValue: {
                 if $0 == 0 {
                     XCTFail("Must not call")
@@ -240,6 +242,7 @@ extension ListenableTests {
             .map(UInt32.init)
             .map(getRandomNum)
             .do(onValue: { print($0) })
+            .asAny()
             .share(connectionLive: .repeatable)
         let disposable1 = shareSource!.listening(onValue: { value in
             value_counter += 1
@@ -279,7 +282,7 @@ extension ListenableTests {
         let source = Repeater<Int>.unsafe()
 
         var value_counter = 0
-        var shareSource: Share<UInt32>? = source
+        var shareSource: Share<AnyListenable<UInt32>>? = source
             .do(onValue: {
                 if value_counter == 3 {
                     XCTAssertTrue($0 == 1000 || $0 == 0 || $0 == 10000)
@@ -291,6 +294,7 @@ extension ListenableTests {
             .map(UInt32.init)
             .map(getRandomNum)
             .do(onValue: { print($0) })
+            .asAny()
             .share(connectionLive: .continuous)
         let disposable1 = shareSource!.listening(onValue: { value in
             value_counter += 1

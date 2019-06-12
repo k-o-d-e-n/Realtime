@@ -49,10 +49,10 @@ public enum DatabaseObservingEvent: Hashable, CustomDebugStringConvertible {
     case value
     case child(DatabaseDataChanges)
 
-    public var hashValue: Int {
+    public func hash(into hasher: inout Hasher) {
         switch self {
-        case .value: return 0
-        case .child(let c): return c.rawValue.hashValue
+        case .value: hasher.combine(0)
+        case .child(let c): hasher.combine(c.rawValue)
         }
     }
 

@@ -150,9 +150,9 @@ class RealtimeTableController: UITableViewController {
 
     @objc func refreshData(_ control: UIRefreshControl) {
         if ascending {
-            pagingControl.next()
+            _ = pagingControl.next()
         } else {
-            pagingControl.previous()
+            _ = pagingControl.previous()
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3)) {
             if control.isRefreshing {
@@ -247,7 +247,7 @@ extension RealtimeTableController: RealtimeEditingTableDataSource {
 
     override func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
         if indexPath.row == Global.rtUsers.count - 1, pagingControl.canMakeStep {
-            pagingControl.next()
+            _ = pagingControl.next()
         }
     }
 

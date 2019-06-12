@@ -282,7 +282,7 @@ public final class SingleSectionTableViewDelegate<Model>: TableViewDelegate<UITa
     /// - Parameters:
     ///   - cell: Cell type inherited from `UITableViewCell`.
     ///   - binding: Closure to bind model.
-    open func register<Cell: UITableViewCell>(_ cell: Cell.Type, binding: @escaping Binding<Cell>) {
+    public func register<Cell: UITableViewCell>(_ cell: Cell.Type, binding: @escaping Binding<Cell>) {
         _register(cell, binding: binding)
     }
 
@@ -572,7 +572,7 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
     /// - Parameters:
     ///   - cell: Cell type inherited from `UITableViewCell`.
     ///   - binding: Closure to bind model.
-    open func register<Cell: UITableViewCell>(_ cell: Cell.Type, binding: @escaping Binding<Cell>) {
+    public func register<Cell: UITableViewCell>(_ cell: Cell.Type, binding: @escaping Binding<Cell>) {
         _register(cell, binding: binding)
     }
 
@@ -826,9 +826,9 @@ public final class CollectionViewDelegate<Model, Section>: CollectibleViewDelega
     }
     let models: (Section) -> AnyRealtimeCollection<Model>
 
-    open weak var collectionDelegate: UICollectionViewDelegate?
-    open weak var layoutDelegate: UICollectionViewDelegateFlowLayout?
-    open weak var prefetchingDataSource: UICollectionViewDataSourcePrefetching?
+    public weak var collectionDelegate: UICollectionViewDelegate?
+    public weak var layoutDelegate: UICollectionViewDelegateFlowLayout?
+    public weak var prefetchingDataSource: UICollectionViewDataSourcePrefetching?
 
     public init<C: BidirectionalCollection>(_ sections: C,
                                             _ models: @escaping (Section) -> AnyRealtimeCollection<Model>,
@@ -851,7 +851,7 @@ public final class CollectionViewDelegate<Model, Section>: CollectibleViewDelega
     /// - Parameters:
     ///   - cell: Cell type inherited from `UICollectionViewCell`.
     ///   - binding: Closure to bind model.
-    open func register<Cell: UICollectionViewCell>(_ cell: Cell.Type, binding: @escaping Binding<Cell>) {
+    public func register<Cell: UICollectionViewCell>(_ cell: Cell.Type, binding: @escaping Binding<Cell>) {
         _register(cell, binding: binding)
     }
 

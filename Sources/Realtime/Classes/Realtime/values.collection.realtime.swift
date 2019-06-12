@@ -47,7 +47,7 @@ public extension Values {
 /// A Realtime database collection that stores elements in own database node as is, as full objects.
 public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection where Element: WritableRealtimeValue & RealtimeValueEvents {
     /// Stores collection values and responsible for lazy initialization elements
-    internal(set) var storage: RCKeyValueStorage<Element>
+    var storage: RCKeyValueStorage<Element>
     internal private(set) var builder: RealtimeValueBuilder<Element>
     override var _hasChanges: Bool { return view._hasChanges }
 

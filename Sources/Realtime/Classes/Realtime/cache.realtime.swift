@@ -87,7 +87,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
     }
     func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
         guard case let dict as [String: Any] = value else {
-            return AnyIterator(EmptyIterator())
+            return AnyIterator(EmptyCollection.Iterator())
         }
         return AnyIterator(
             dict.lazy.map { (keyValue) in

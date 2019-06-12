@@ -12,8 +12,8 @@ import UIKit
 struct TypeKey: Hashable {
     fileprivate let type: AnyClass
 
-    var hashValue: Int {
-        return ObjectIdentifier(type).hashValue
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(type))
     }
 
     static func ==(lhs: TypeKey, rhs: TypeKey) -> Bool {

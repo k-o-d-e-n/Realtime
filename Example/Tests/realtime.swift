@@ -1523,10 +1523,10 @@ extension RealtimeTests {
 
 // MARK: Migration
 
-@available(*, deprecated: 0.8)
+@available(*, deprecated)
 class VersionableObject: Object {
     // removed
-    @available(*, deprecated: 0.5)
+    @available(*, deprecated)
     lazy var nullVersionVariable: ReadonlyProperty<String?> = "nullVersionVariable".readonlyProperty(in: self)
 
     // added
@@ -1537,7 +1537,7 @@ class VersionableObject: Object {
     )
 
     // renamed
-    @available(*, deprecated: 0.7)
+    @available(*, deprecated)
     lazy var renamedFromVariable: ReadonlyProperty<String?> = "renamedFromVariable".readonlyProperty(in: self)
     lazy var renamedToVariable: Property<String?> = Property.writeRequired(
         in: Node(key: "renamedToVariable", parent: self.node),

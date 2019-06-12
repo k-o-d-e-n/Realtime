@@ -82,21 +82,21 @@ public extension Listenable {
 #if os(macOS) || os(iOS)
 
 public extension RTime where Base: URLSession {
-    public func dataTask(for request: URLRequest) -> DataTask {
+    func dataTask(for request: URLRequest) -> DataTask {
         return DataTask(session: base, request: request)
     }
-    public func dataTask(for url: URL) -> DataTask {
+    func dataTask(for url: URL) -> DataTask {
         return dataTask(for: URLRequest(url: url))
     }
 
-    public func repeatedDataTask(for request: URLRequest) -> RepeatedDataTask {
+    func repeatedDataTask(for request: URLRequest) -> RepeatedDataTask {
         return RepeatedDataTask(session: base, request: request)
     }
-    public func repeatedDataTask(for url: URL) -> RepeatedDataTask {
+    func repeatedDataTask(for url: URL) -> RepeatedDataTask {
         return RepeatedDataTask(session: base, request: URLRequest(url: url))
     }
 
-    public struct DataTask: Listenable {
+    struct DataTask: Listenable {
         var session: URLSession
         let task: URLSessionDataTask
         let storage: ValueStorage<(Data?, URLResponse?)>
@@ -129,7 +129,7 @@ public extension RTime where Base: URLSession {
         }
     }
 
-    public final class RepeatedDataTask: Listenable {
+    final class RepeatedDataTask {
         var session: URLSession
         let request: URLRequest
         var task: URLSessionDataTask
@@ -340,7 +340,7 @@ extension RTime where Base: UIBarButtonItem {
 
 public extension RTime where Base: UIImagePickerController {
     @available(iOS 9.0, *)
-    public var image: UIImagePickerController.ImagePicker {
+    var image: UIImagePickerController.ImagePicker {
         return UIImagePickerController.ImagePicker(controller: base)
     }
 }

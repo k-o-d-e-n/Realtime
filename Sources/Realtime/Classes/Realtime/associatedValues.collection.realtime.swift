@@ -49,7 +49,7 @@ public typealias HashableValue = Hashable & RealtimeValue
 public final class AssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
 where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
-    internal(set) var storage: RCDictionaryStorage<Key, Value>
+    var storage: RCDictionaryStorage<Key, Value>
     internal private(set) var valueBuilder: RealtimeValueBuilder<Value>
     internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
 
@@ -481,7 +481,7 @@ extension AssociatedValues {
 public final class ExplicitAssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
 where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
-    internal(set) var storage: RCDictionaryStorage<Key, Value>
+    var storage: RCDictionaryStorage<Key, Value>
     internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
 
     public override var raw: RealtimeDataValue? { return nil }

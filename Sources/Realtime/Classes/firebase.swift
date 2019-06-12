@@ -33,7 +33,7 @@ public extension DatabaseReference {
         return self === ref || url == ref.url
     }
 
-    public typealias TransactionCompletion = (Error?, DatabaseReference) -> Void
+    typealias TransactionCompletion = (Error?, DatabaseReference) -> Void
     func update(use keyValuePairs: [String: Any], completion: TransactionCompletion?) {
         if let completion = completion {
             updateChildValues(keyValuePairs, withCompletionBlock: completion)

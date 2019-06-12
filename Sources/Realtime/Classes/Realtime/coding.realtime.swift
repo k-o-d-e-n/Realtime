@@ -258,7 +258,7 @@ public extension RealtimeDataRepresented {
     init(data: RealtimeDataProtocol) throws {
         try self.init(data: data, event: .value)
     }
-    mutating public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+    mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self = try Self.init(data: data, event: event)
     }
     mutating func apply(_ data: RealtimeDataProtocol) throws {
@@ -549,11 +549,11 @@ public struct Representer<V>: RepresenterProtocol {
     }
 }
 public extension Representer {
-    public init<R: RepresenterProtocol>(_ base: R) where V == R.V {
+    init<R: RepresenterProtocol>(_ base: R) where V == R.V {
         self.encoding = base.encode
         self.decoding = base.decode
     }
-    public init<R: RepresenterProtocol>(optional base: R) where V == R.V? {
+    init<R: RepresenterProtocol>(optional base: R) where V == R.V? {
         self.encoding = { (v) -> Any? in
             return try v.map(base.encode)
         }
@@ -562,7 +562,7 @@ public extension Representer {
             return try base.decode(data)
         }
     }
-    public init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleBySequence, V.SequenceElement == V.Element {
+    init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleBySequence, V.SequenceElement == V.Element {
         self.encoding = { (v) -> Any? in
             return try v.map(base.encode)
         }
@@ -570,7 +570,7 @@ public extension Representer {
             return try V(data.map(base.decode))
         }
     }
-    public init<R: RepresenterProtocol>(defaultOnEmpty base: R) where R.V: HasDefaultLiteral & _ComparableWithDefaultLiteral, V == R.V {
+    init<R: RepresenterProtocol>(defaultOnEmpty base: R) where R.V: HasDefaultLiteral & _ComparableWithDefaultLiteral, V == R.V {
         self.encoding = { (v) -> Any? in
             if V._isDefaultLiteral(v) {
                 return nil

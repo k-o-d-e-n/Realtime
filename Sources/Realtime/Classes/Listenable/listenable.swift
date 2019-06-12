@@ -127,34 +127,34 @@ extension Closure {
 public typealias Assign<A> = Closure<A, Void>
 
 public extension Closure where O == Void {
-    public typealias A = I
-    public init(assign: @escaping (A) -> Void) {
+    typealias A = I
+    init(assign: @escaping (A) -> Void) {
         self.closure = assign
     }
     var assign: (A) -> Void { return closure }
 
     /// simple closure without side effects
-    static public func just(_ assign: @escaping (A) -> Void) -> Assign<A> {
+    static func just(_ assign: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: assign)
     }
 
     /// closure associated with object using weak reference
-    static public func weak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
+    static func weak<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner?) -> Void) -> Assign<A> {
         return Assign(assign: { [weak owner] v in assign(v, owner) })
     }
 
     /// closure associated with object using unowned reference
-    static public func unowned<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
+    static func unowned<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
         return Assign(assign: { [unowned owner] v in assign(v, owner) })
     }
 
     /// closure associated with object using weak reference, that called only when object alive
-    static public func guarded<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
+    static func guarded<Owner: AnyObject>(_ owner: Owner, assign: @escaping (A, Owner) -> Void) -> Assign<A> {
         return weak(owner) { if let o = $1 { assign($0, o) } }
     }
 
     /// closure that called on specified dispatch queue
-    static public func on(_ queue: DispatchQueue, assign: @escaping (A) -> Void) -> Assign<A> {
+    static func on(_ queue: DispatchQueue, assign: @escaping (A) -> Void) -> Assign<A> {
         return Assign<A>(assign: { v in
             queue.async {
                 assign(v)
@@ -163,13 +163,13 @@ public extension Closure where O == Void {
     }
 
     /// returns new closure wrapped using queue behavior
-    public func on(queue: DispatchQueue) -> Assign<A> {
+    func on(queue: DispatchQueue) -> Assign<A> {
         return Assign.on(queue, assign: assign)
     }
 
     /// returns new closure with encapsulated work closure
     /// that calls before the call of main closure
-    public func with(work: @escaping (A) -> Void) -> Assign<A> {
+    func with(work: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: { (v) in
             work(v)
             self.assign(v)
@@ -177,7 +177,7 @@ public extension Closure where O == Void {
     }
     /// returns new closure with encapsulated work closure
     /// that calls after the call of main closure
-    public func after(work: @escaping (A) -> Void) -> Assign<A> {
+    func after(work: @escaping (A) -> Void) -> Assign<A> {
         return Assign(assign: { (v) in
             self.assign(v)
             work(v)
@@ -185,33 +185,33 @@ public extension Closure where O == Void {
     }
     /// returns new closure with encapsulated work closure
     /// that calls before the call of main closure
-    public func with(work: Assign<A>) -> Assign<A> {
+    func with(work: Assign<A>) -> Assign<A> {
         return with(work: work.assign)
     }
     /// returns new closure with encapsulated work closure
     /// that calls after the call of main closure
-    public func after(work: Assign<A>) -> Assign<A> {
+    func after(work: Assign<A>) -> Assign<A> {
         return after(work: work.assign)
     }
     /// returns new closure with encapsulated work closure
     /// that calls before the call of main closure
-    public func with(work: Assign<A>?) -> Assign<A> {
+    func with(work: Assign<A>?) -> Assign<A> {
         return work.map(with) ?? self
     }
     /// returns new closure with encapsulated work closure
     /// that calls after the call of main closure
-    public func after(work: Assign<A>?) -> Assign<A> {
+    func after(work: Assign<A>?) -> Assign<A> {
         return work.map(after) ?? self
     }
 
     /// returns new closure with transformed input parameter
-    public func map<U>(_ transform: @escaping (U) -> A) -> Assign<U> {
+    func map<U>(_ transform: @escaping (U) -> A) -> Assign<U> {
         return Assign<U>(assign: { (u) in
             self.assign(transform(u))
         })
     }
     /// returns new closure that filter input values using predicate closure
-    public func filter(_ predicate: @escaping (A) -> Bool) -> Assign<A> {
+    func filter(_ predicate: @escaping (A) -> Bool) -> Assign<A> {
         return Assign(assign: { (a) in
             if predicate(a) {
                 self.assign(a)

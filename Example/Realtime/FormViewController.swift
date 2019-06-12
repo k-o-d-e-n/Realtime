@@ -199,7 +199,7 @@ class FormViewController: UIViewController {
                 }, nil)
             })
             row.onUpdate { (args, row) in
-                let (cell, user) = args
+                // let (cell, user) = args
             }
             row.onSelect({ (ip, row) in
                 if let c = row.view {

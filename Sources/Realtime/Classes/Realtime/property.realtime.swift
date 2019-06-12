@@ -910,16 +910,16 @@ public extension ReadonlyProperty where T: HasDefaultLiteral & _ComparableWithDe
     }
 }
 public extension ReadonlyProperty where T: Comparable {
-    public static func < (lhs: ReadonlyProperty<T>, rhs: T) -> Bool {
+    static func < (lhs: ReadonlyProperty<T>, rhs: T) -> Bool {
         return lhs.mapValue({ $0 < rhs }) ?? false
     }
-    public static func > (lhs: ReadonlyProperty<T>, rhs: T) -> Bool {
+    static func > (lhs: ReadonlyProperty<T>, rhs: T) -> Bool {
         return lhs.mapValue({ $0 > rhs }) ?? false
     }
-    public static func < (lhs: T, rhs: ReadonlyProperty<T>) -> Bool {
+    static func < (lhs: T, rhs: ReadonlyProperty<T>) -> Bool {
         return rhs.mapValue({ $0 > lhs }) ?? false
     }
-    public static func > (lhs: T, rhs: ReadonlyProperty<T>) -> Bool {
+    static func > (lhs: T, rhs: ReadonlyProperty<T>) -> Bool {
         return rhs.mapValue({ $0 < lhs }) ?? false
     }
 }
@@ -989,7 +989,7 @@ extension SharedProperty: Listenable {
 }
 
 public extension SharedProperty {
-    public func change(use updater: @escaping (T) throws -> T) {
+    func change(use updater: @escaping (T) throws -> T) {
         guard let database = self.database, let node = self.node, node.isRooted else  {
             fatalError("Can`t get database reference")
         }
