@@ -499,11 +499,12 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         return UUID().uuidString // can be use function from firebase
     }
 
-    func commit(transaction: Transaction, completion: ((Error?) -> Void)?) {
+    func commit(update: UpdateNode, completion: ((Error?) -> Void)?) {
+        guard case let objNode as ObjectNode = update else { fatalError("Unexpected update object") }
         do {
             var notifications: [Node: (RealtimeDataProtocol, DatabaseDataEvent)] = [:]
             try _mergeWithObject(
-                theSameReference: transaction.updateNode,
+                theSameReference: objNode,
                 conflictResolver: { old, new in
                     if observers.count > 0 {
                         notifications[new.location] = (new.asUpdateNode(), .value)

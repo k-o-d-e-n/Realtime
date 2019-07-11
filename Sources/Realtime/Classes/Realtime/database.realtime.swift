@@ -96,7 +96,7 @@ public protocol RealtimeDatabase: class {
     /// - Parameters:
     ///   - transaction: Write transaction
     ///   - completion: Closure to receive result of operation
-    func commit(transaction: Transaction, completion: ((Error?) -> Void)?)
+    func commit(update: UpdateNode, completion: ((Error?) -> Void)?)
     /// Loads data by database reference
     ///
     /// - Parameters:
@@ -531,19 +531,11 @@ extension Database: RealtimeDatabase {
         return reference().childByAutoId().key!
     }
 
-    public func commit(transaction: Transaction, completion: ((Error?) -> Void)?) {
-        let updateNode = transaction.updateNode
-        guard updateNode.childs.count > 0 else {
-            fatalError("Try commit empty transaction")
-        }
-
-        var nearest = updateNode
-        while nearest.childs.count == 1, case .some(.object(let next)) = nearest.childs.first {
-            nearest = next
-        }
-        let updateValue = nearest.values
+    public func commit(update: UpdateNode, completion: ((Error?) -> Void)?) {
+        var updateValue: [String: Any?] = [:]
+        update.fillValues(referencedFrom: update.location, into: &updateValue)
         if updateValue.count > 0 {
-            let ref = nearest.location.isRoot ? reference() : reference(withPath: nearest.location.absolutePath)
+            let ref = update.location.isRoot ? reference() : reference(withPath: update.location.absolutePath)
             ref.update(use: updateValue, completion: completion)
         } else if let compl = completion {
             compl(nil)

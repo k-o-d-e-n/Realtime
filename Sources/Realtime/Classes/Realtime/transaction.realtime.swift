@@ -130,7 +130,10 @@ extension Transaction {
     }
 
     func performUpdate(_ completion: @escaping (Error?) -> Void) {
-        database.commit(transaction: self, completion: completion)
+        guard updateNode.childs.count > 0 else {
+            fatalError("Try commit empty transaction")
+        }
+        database.commit(update: updateNode, completion: completion)
     }
 
     public enum FileCompletion {
