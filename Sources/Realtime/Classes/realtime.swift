@@ -132,7 +132,7 @@ extension RealtimeApp {
     public static func firebase(
         configuration: Configuration = Configuration()
         ) {
-        initialize(with: Database.database(), storage: Storage.storage())
+        initialize(with: Database.database(), storage: Storage.storage(), configuration: configuration)
     }
 }
 #endif
