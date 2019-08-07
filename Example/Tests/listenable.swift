@@ -921,8 +921,6 @@ extension ListenableTests {
     }
 }
 
-// MARK: Concepts
-
 extension ListenableTests {
     func testAccumulator() {
         let source1 = Repeater<Int>.unsafe()
@@ -1213,5 +1211,38 @@ extension ListenableTests {
         XCTAssertEqual(value_counter, 4)
         disposable3.dispose()
         source.send(.value(0))
+    }
+
+    func testMemoizeOneSendLast() {
+        let source = Repeater<Int>.unsafe()
+
+        var value_counter = 0
+        let memoizedSource = source.memoizeOne(sendLast: true)
+
+        let disposable1 = memoizedSource.listening(onValue: { value in
+            value_counter += value
+        })
+
+        source.send(.value(10))
+        XCTAssertEqual(value_counter, 10)
+
+        var memoizedValueReceived = false
+        _ = memoizedSource.once().listening(onValue: { value in
+            XCTAssertEqual(value, 10)
+            memoizedValueReceived = true
+        })
+        XCTAssertTrue(memoizedValueReceived)
+
+        source.send(.value(20))
+        XCTAssertEqual(value_counter, 30)
+
+        memoizedValueReceived = false
+        _ = memoizedSource.once().listening(onValue: { value in
+            XCTAssertEqual(value, 20)
+            memoizedValueReceived = true
+        })
+        XCTAssertTrue(memoizedValueReceived)
+
+        disposable1.dispose()
     }
 }

@@ -1957,4 +1957,16 @@ extension RealtimeTests {
             err.map({ XCTFail($0.describingErrorDescription) })
         }
     }
+
+    func testLoadFileState() {
+        let exp = expectation(description: "")
+        let object = TestObject(in: .root)
+        _ = object.file.loadState().listening(onValue: { _ in
+            exp.fulfill()
+        })
+
+        waitForExpectations(timeout: 2) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
 }

@@ -745,10 +745,10 @@ extension StorageReference {
 
 extension StorageDownloadTask: RealtimeStorageTask {
     public var progress: AnyListenable<Progress> {
-        return AnyListenable(Status(task: self, status: .progress).compactMap({ $0.progress }))
+        return AnyListenable(Status(task: self, statuses: [.progress]).compactMap({ $0.progress }))
     }
     public var success: AnyListenable<RealtimeMetadata?> {
-        return AnyListenable(Status(task: self, status: .success).map({ snapshot in
+        return AnyListenable(Status(task: self, statuses: [.success, .failure]).map({ snapshot in
             if let e = snapshot.error {
                 if case let nsError as NSError = e, let code = StorageErrorCode(rawValue: nsError.code), code == .objectNotFound {
                     return nil
@@ -764,23 +764,23 @@ extension StorageDownloadTask: RealtimeStorageTask {
 extension StorageDownloadTask {
     struct Status: Listenable {
         let task: StorageDownloadTask
-        let status: StorageTaskStatus
+        let statuses: [StorageTaskStatus]
 
         func listening(_ assign: Closure<ListenEvent<StorageTaskSnapshot>, Void>) -> Disposable {
-            let handle = task.observe(status, handler: assign.map({ .value($0) }).closure)
+            let handles = statuses.map({ task.observe($0, handler: assign.map({ .value($0) }).closure) })
             return ListeningDispose({
-                self.task.removeObserver(withHandle: handle)
+                handles.forEach(self.task.removeObserver)
             })
         }
         func listeningItem(_ assign: Closure<ListenEvent<StorageTaskSnapshot>, Void>) -> ListeningItem {
             let handler = assign.map({ .value($0) }).closure
-            let handle = task.observe(status, handler: handler)
+            let handles = statuses.map({ task.observe($0, handler: handler) })
             return ListeningItem(
-                resume: { () -> String? in
-                    return self.task.observe(self.status, handler: handler)
+                resume: { () -> [String] in
+                    return self.statuses.map({ self.task.observe($0, handler: handler) })
                 },
-                pause: task.removeObserver,
-                token: handle
+                pause: { $0.forEach(self.task.removeObserver) },
+                token: handles
             )
         }
     }

@@ -169,7 +169,7 @@ class CachedFileDownloadTask: RealtimeStorageTask {
                 if let d = data {
                     self.state = .finish
                     cacheCompl(d)
-                    self._success.send(.value(nil))
+                    self._success.send(.value(nil)) // TODO: Metadata in cache unsupported
                 } else {
                     let task = self.nextLevelTask()
                     task.success.bind(to: self._success)
@@ -187,6 +187,15 @@ class CachedFileDownloadTask: RealtimeStorageTask {
         _nextTask?.cancel()
         _nextTask = nil
         state = .finish
+    }
+}
+extension CachedFileDownloadTask: CustomStringConvertible {
+    var description: String {
+        return """
+            node: \(node),
+            cache: \(cache),
+            state: \(state)
+        """
     }
 }
 

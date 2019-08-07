@@ -11,27 +11,19 @@ import Firebase
 import Realtime
 
 func currentDatabase() -> RealtimeDatabase {
-    #if DEBUG
     if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
         return RealtimeApp.cache
     } else {
         return Database.database()
     }
-    #else
-    return Database.database()
-    #endif
 }
 
 func currentStorage() -> RealtimeStorage {
-    #if DEBUG
     if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
         return RealtimeApp.cache
     } else {
         return Storage.storage()
     }
-    #else
-    return Storage.storage()
-    #endif
 }
 
 @UIApplicationMain
@@ -42,7 +34,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         FirebaseApp.configure()
-        let configuration = RealtimeApp.Configuration(linksNode: BranchNode(key: "___tests/__links"))
+        let configuration = RealtimeApp.Configuration.firebase(linksNode: BranchNode(key: "___tests/__links"))
         RealtimeApp.initialize(with: currentDatabase(), storage: currentStorage(), configuration: configuration)
         RealtimeApp.app.connectionObserver.listening(
             onValue: { (connected) in
