@@ -162,7 +162,7 @@ public extension Disposable {
 }
 
 /// Stores connections
-public final class ListeningDisposeStore: CustomStringConvertible {
+public final class ListeningDisposeStore: Disposable, CustomStringConvertible {
     private var disposes = [Disposable]()
     private var listeningItems = [ListeningItem]()
 

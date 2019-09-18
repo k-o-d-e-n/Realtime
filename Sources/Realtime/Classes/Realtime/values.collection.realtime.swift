@@ -405,6 +405,7 @@ extension Values {
         }
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item element
         transaction.removeValue(by: builder.spaceNode.child(with: item.dbKey)) /// remove element
+        // TODO: Why element does not remove through his API? Therefore does not remove 'link_items'. The same in AssociatedValues
         transaction.addCompletion { result in
             if result {
                 element.didRemove()

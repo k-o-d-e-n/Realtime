@@ -206,7 +206,7 @@ enum ViewDataExplorer {
 public final class SortedCollectionView<Element: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollectionView {
     typealias Source = SortedArray<Element>
     private var _elements: Source = Source()
-    private var dataExplorer: ViewDataExplorer = .value(ascending: false)
+    private var dataExplorer: ViewDataExplorer = .value(ascending: false) // TODO: default value may mismatch with default value of collection
     var isSynced: Bool = false
     override var _hasChanges: Bool { return isStandalone && _elements.count > 0 }
     public override var isObserved: Bool {

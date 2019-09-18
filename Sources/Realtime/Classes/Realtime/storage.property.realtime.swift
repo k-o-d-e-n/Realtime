@@ -127,6 +127,7 @@ extension ValueOption {
     public static var metadata: ValueOption = ValueOption("realtime.file.metadata")
 }
 
+// TODO: Avoid completions task must operates data
 class CachedFileDownloadTask: RealtimeStorageTask {
     var _nextTask: RealtimeStorageTask? = nil
     let nextLevelTask: () -> RealtimeStorageTask
@@ -139,8 +140,9 @@ class CachedFileDownloadTask: RealtimeStorageTask {
     }
 
     var progress: AnyListenable<Progress> { return _nextTask?.progress ?? Constant(Progress(totalUnitCount: 0)).asAny() }
+    var currentSource: ValueStorage<AnyListenable<RealtimeMetadata?>?>
     let _success: Repeater<RealtimeMetadata?>
-    let _memoizedSuccess: Preprocessor<Memoize<Repeater<RealtimeMetadata?>>, RealtimeMetadata?>
+    let _memoizedSuccess: Preprocessor<Memoize<Preprocessor<ValueStorage<AnyListenable<RealtimeMetadata?>?>, RealtimeMetadata?>>, RealtimeMetadata?>
     var success: AnyListenable<RealtimeMetadata?> { return _memoizedSuccess.asAny() }
 
     init(nextLevel task: @escaping @autoclosure () -> RealtimeStorageTask,
@@ -149,7 +151,9 @@ class CachedFileDownloadTask: RealtimeStorageTask {
          completion: @escaping (Data?) -> Void) {
         let success = Repeater<RealtimeMetadata?>.unsafe()
         self._success = success
-        self._memoizedSuccess = success.memoizeOne(sendLast: true)
+        let source = ValueStorage<AnyListenable<RealtimeMetadata?>?>.unsafe(strong: nil)
+        self.currentSource = source
+        self._memoizedSuccess = source.then({ $0! }).memoizeOne(sendLast: true)
         self.nextLevelTask = task
         self.cache = cache
         self.node = node
@@ -164,15 +168,15 @@ class CachedFileDownloadTask: RealtimeStorageTask {
         if let next = _nextTask {
             next.resume()
         } else {
-            let cacheCompl = self.completion
             cache.file(for: node) { (data) in
                 if let d = data {
                     self.state = .finish
-                    cacheCompl(d)
+                    self.completion(d)
+                    self.currentSource.value = self._success.asAny()
                     self._success.send(.value(nil)) // TODO: Metadata in cache unsupported
                 } else {
                     let task = self.nextLevelTask()
-                    task.success.bind(to: self._success)
+                    self.currentSource.value = task.success.do({ _ in self.state = .finish }).asAny()
                     self._nextTask = task
                 }
             }

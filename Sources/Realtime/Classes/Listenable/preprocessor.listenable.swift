@@ -261,6 +261,10 @@ public extension Listenable {
             }
         })
     }
+
+    func always(_ doit: @escaping () -> Void) -> Do<Self> {
+        return self.do({ _ in doit() })
+    }
 }
 
 public struct Once<T: Listenable>: Listenable {
@@ -320,6 +324,8 @@ public struct Once<T: Listenable>: Listenable {
 }
 public extension Listenable {
     /// connection to receive single value
+    /// - Warning: can lead to memory leaks
+    @available(*, deprecated: 0.9.2, message: "has unsafe behavior")
     func once() -> Once<Self> {
         return Once(self)
     }
@@ -375,6 +381,8 @@ public struct Deadline<T: Listenable>: Listenable {
 }
 public extension Listenable {
     /// works until time has not reached deadline
+    /// - Warning: can lead to memory leaks
+    @available(*, deprecated: 0.9.2, message: "has unsafe behavior")
     func deadline(_ time: DispatchTime) -> Deadline<Self> {
         return Deadline(self, deadline: time)
     }
@@ -415,6 +423,8 @@ public struct Livetime<T: Listenable>: Listenable {
 }
 public extension Listenable {
     /// works until alive specified object
+    /// - Warning: can lead to memory leaks
+    @available(*, deprecated: 0.9.2, message: "has unsafe behavior")
     func livetime(of object: AnyObject) -> Livetime<Self> {
         return Livetime(self, living: object)
     }
@@ -932,7 +942,7 @@ public struct Share<T: Listenable>: Listenable {
         self.repeater = repeater
         switch liveStrategy {
         case .repeatable:
-            self.liveStrategy = .repeatable(source, ValueStorage.unsafe(weak: nil))
+            self.liveStrategy = .repeatable(source, ValueStorage.unsafe(weak: nil)) // TODO: weak must be lead to missing dispose immediately. Tests are wrong or weak storage works unexpected.
         case .continuous:
             self.liveStrategy = .continuous(ListeningDispose(source.bind(to: repeater)))
         }
@@ -943,7 +953,7 @@ public struct Share<T: Listenable>: Listenable {
         switch self.liveStrategy {
         case .continuous(let d): dispose = d
         case .repeatable(let source, let disposeStorage):
-            if let disp = disposeStorage.value {
+            if let disp = disposeStorage.value, !disp.isDisposed {
                 dispose = disp
             } else {
                 dispose = ListeningDispose(source.bind(to: repeater))

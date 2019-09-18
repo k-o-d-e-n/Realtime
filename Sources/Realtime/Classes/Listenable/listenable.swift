@@ -289,7 +289,7 @@ public protocol Listenable {
     func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable
 
     /// Listening with possibility to control active state
-    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem
+    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem // TODO: Rename to repeatable and separate if available
 }
 public extension Listenable where Self: AnyObject {
     /// Listening with possibility to control active state
@@ -499,7 +499,6 @@ public extension Repeater {
     ///
     /// - Parameter other: Listenable that will be invoke notifications himself listenings
     /// - Returns: Disposable
-    @discardableResult
     func depends<L: Listenable>(on other: L) -> Disposable where L.Out == T {
         return other.listening(self.send)
     }
@@ -509,7 +508,7 @@ public extension Listenable {
     ///
     /// - Parameter other: Value wrapper that will be receive value
     /// - Returns: Disposable
-    @discardableResult
+    @available(*, deprecated: 0.9.2, message: "has unsafe behavior")
     func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.Out {
         return livetime(of: other).listening(onValue: { [weak other] val in
             other?.value = val
@@ -520,7 +519,6 @@ public extension Listenable {
     ///
     /// - Parameter other: Repeater that will be receive value
     /// - Returns: Disposable
-    @discardableResult
     func bind(to other: Repeater<Out>) -> Disposable {
         return other.depends(on: self)
     }
@@ -529,7 +527,6 @@ public extension Listenable {
     ///
     /// - Parameter other: Repeater that will be receive value
     /// - Returns: Disposable
-    @discardableResult
     func bind(to other: ValueStorage<Out>) -> Disposable {
         return listening({ (e) in
             switch e {
