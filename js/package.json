@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "name": "realtime",
+  "version": "0.9.0",
+  "description": "Javascript implementation Realtime library.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Koryttsev Denis",
+  "license": "MIT"
+}
