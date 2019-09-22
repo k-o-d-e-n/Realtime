@@ -507,6 +507,7 @@ where Element: WritableRealtimeValue & Comparable {
     }
 }
 extension ExplicitValues {
+    @discardableResult
     public func insert(_ element: Element) -> Int {
         guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
         return view.insert(element)
