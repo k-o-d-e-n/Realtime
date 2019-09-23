@@ -144,7 +144,10 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     /// Stored value
     public var value: T {
         get { return get() }
-        nonmutating set { set(newValue) }
+        nonmutating set {
+            set(newValue)
+            repeater.send(.value(newValue))
+        }
     }
 
     init(repeater: Repeater<T>,
@@ -175,11 +178,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     init(unsafeStrong value: Default, dispatcher: Dispatcher) {
         let repeater = Repeater(dispatcher: dispatcher)
-        var val: Default = value {
-            didSet {
-                repeater.send(.value(val._unbox()))
-            }
-        }
+        var val: Default = value
 
         self.init(
             repeater: repeater,
@@ -190,11 +189,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
 
     init<Wrapped>(unsafeStrong value: T, dispatcher: Dispatcher) where Optional<Wrapped> == T {
         let repeater = Repeater(dispatcher: dispatcher)
-        var val: T = value {
-            didSet {
-                repeater.send(.value(val))
-            }
-        }
+        var val: T = value
 
         self.init(
             repeater: repeater,
@@ -212,11 +207,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     init(strong value: Default, lock: NSLocking, dispatcher: Dispatcher) {
         let repeater = Repeater(dispatcher: dispatcher)
-        var val: Default = value {
-            didSet {
-                repeater.send(.value(val._unbox()))
-            }
-        }
+        var val: Default = value
 
         self.init(
             repeater: repeater,
@@ -234,11 +225,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     }
     init<Wrapped>(strong value: T, lock: NSLocking, dispatcher: Dispatcher) where Optional<Wrapped> == T {
         let repeater = Repeater(dispatcher: dispatcher)
-        var val: T = value {
-            didSet {
-                repeater.send(.value(val))
-            }
-        }
+        var val: T = value
 
         self.init(
             repeater: repeater,
@@ -262,12 +249,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     init<O: AnyObject>(unsafeWeak value: O?, dispatcher: Dispatcher) where Optional<O> == T {
         let repeater = Repeater(dispatcher: dispatcher)
-        weak var val = value {
-            didSet {
-                repeater.send(.value(val))
-            }
-        }
-
+        weak var val = value
         self.init(
             repeater: repeater,
             get: { val }, set: { val = $0 },
@@ -284,11 +266,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     init<O: AnyObject>(weak value: O?, lock: NSLocking, dispatcher: Dispatcher) where Optional<O> == T {
         let repeater = Repeater(dispatcher: dispatcher)
-        weak var val = value {
-            didSet {
-                repeater.send(.value(val))
-            }
-        }
+        weak var val = value
 
         self.init(
             repeater: repeater,
@@ -388,6 +366,11 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         repeater.sender(.error(error))
     }
 
+    /// Replaces stored value with new value without emitting change event
+    public func replace(with value: T) {
+        set(value)
+    }
+
     public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         switch attachBehavior {
         case .unsafe: return repeater.listening(assign)
@@ -415,11 +398,7 @@ extension ValueStorage where T: AnyObject {
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     init(unsafeUnowned value: T, dispatcher: Dispatcher) {
         let repeater = Repeater(dispatcher: dispatcher)
-        unowned var val = value {
-            didSet {
-                repeater.send(.value(val))
-            }
-        }
+        unowned var val = value
 
         self.init(
             repeater: repeater,
@@ -437,11 +416,7 @@ extension ValueStorage where T: AnyObject {
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     init(unowned value: T, lock: NSLocking, dispatcher: Dispatcher) {
         let repeater = Repeater(dispatcher: dispatcher)
-        unowned var val = value {
-            didSet {
-                repeater.send(.value(val))
-            }
-        }
+        unowned var val = value
 
         self.init(
             repeater: repeater,

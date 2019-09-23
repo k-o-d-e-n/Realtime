@@ -1998,11 +1998,19 @@ extension RealtimeTests {
             }
         }
         class NextLevelTask: RealtimeStorageTask {
+            let _completion: (Data?, Bool) -> Void
+
+            init(_ completion: @escaping (Data?, Bool) -> Void) {
+                self._completion = completion
+            }
+
             func pause() {}
             func cancel() {}
             func resume() {
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
-                    self.delayed.send(.value(["Realtime": "Realtime".data(using: .utf8) as Any]))
+                    let data = "Realtime".data(using: .utf8)
+                    self._completion(data, false)
+                    self.delayed.send(.value(["Realtime": data as Any]))
                 })
             }
 
@@ -2012,11 +2020,11 @@ extension RealtimeTests {
                 return delayed.asAny()
             }
 
-            static func running() -> NextLevelTask { let t = NextLevelTask(); t.resume(); return t }
+            static func running(completion: @escaping (Data?, Bool) -> Void) -> NextLevelTask { let t = NextLevelTask(completion); t.resume(); return t }
         }
 
         let exp = expectation(description: "")
-        let cacheTask = CachedFileDownloadTask(nextLevel: NextLevelTask.running(), cache: RSCache(), node: .root) { (metadata) in
+        let cacheTask = CachedFileDownloadTask(nextLevel: NextLevelTask.running, cache: RSCache(), node: .root) { (data, cached) in
         }
 
         cacheTask.success.listening(onValue: { metadata in

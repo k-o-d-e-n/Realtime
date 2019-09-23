@@ -678,33 +678,33 @@ public extension Listenable {
     /// Creates retained storage that saves last values
     ///
     /// - Parameters:
-    ///   - size: Storage size
-    ///   - sendLast: If true it will be emit existed last
-    /// values on each next listening immediately
+    ///   - buffer: Buffer behavior implementation
+    ///     - continuous: Emits all elements from buffer storage includes new element
+    ///         - bufferSize: Storage size
+    ///         - waitFullness: If true, emits events when all sources sent at least one value.
+    ///         - sendLast: If true it will be emit existed last
+    ///     - portionally: Emits elements when buffer fullness and then clears storage
+    ///         - bufferSize: Storage size
+    ///     - custom: User defined buffer behavior
     /// - Returns: Retained preprocessor object
-    func memoize(_ size: Int, waitFulness: Bool = false, sendLast: Bool) -> Memoize<Self> {
-        debugFatalError(condition: size <= 0, "`size` must be more than 0")
+    func memoize(buffer: Memoize<Self>.Buffer) -> Memoize<Self> {
         return Memoize(
             self,
-            storage: .unsafe(strong: ([], waitFulness && sendLast)),
-            options: Memoize.Options(count: size, waitFullness: waitFulness, sendLast: sendLast)
+            storage: .unsafe(strong: ([], false)),
+            buffer: buffer
         )
     }
     /// See description `func memoize`
     func memoizeOne(sendLast: Bool) -> Preprocessor<Memoize<Self>, Out> {
-        return memoize(1, sendLast: sendLast).map({ $0[0] })
+        return memoize(buffer: .continuous(bufferSize: 1, waitFullness: false, sendLast: sendLast)).map({ $0[0] })
     }
 
-    // TODO: Usage `Memoize` leads to retain both values, but must retains old value only
-//    func oldValue() -> Preprocessor<[Out], (old: Out, new: Out)> {
-//        return memoize(2, waitFulness: true, sendLast: false).map({ (old: $0[0], new: $0[1]) })
-//    }
-    func oldValue(_ default: Out?) -> Preprocessor<Memoize<Self>, (old: Out?, new: Out)> {
-        return memoize(2, waitFulness: false, sendLast: false)
+    func oldValue(_ default: Out? = nil) -> Preprocessor<Memoize<Self>, (old: Out?, new: Out)> {
+        return memoize(buffer: .oldValue())
             .map({ $0.count == 2 ? (old: $0[0], new: $0[1]) : (old: `default`, new: $0[0]) })
     }
     func oldValue(_ default: Out) -> Preprocessor<Memoize<Self>, (old: Out, new: Out)> {
-        return memoize(2, waitFulness: false, sendLast: false)
+        return memoize(buffer: .oldValue())
             .map({ $0.count == 2 ? (old: $0[0], new: $0[1]) : (old: `default`, new: $0[0]) })
     }
 }
@@ -714,22 +714,47 @@ public struct Memoize<T: Listenable>: Listenable {
     let storage: ValueStorage<([T.Out], Bool)>
     let dispose: ListeningDispose
 
-    struct Options {
-        let count: Int
-        let waitFullness: Bool
-        let sendLast: Bool
+    public struct Buffer {
+        let mapper: ([T.Out], T.Out) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool))
 
-        func evaluate(_ current: [T.Out]) -> Bool {
-            guard waitFullness else { return true }
-            return current.count == count
+        public static func continuous(bufferSize: Int, waitFullness: Bool, sendLast: Bool) -> Buffer {
+            debugFatalError(condition: bufferSize <= 0, "`size` must be more than 0")
+            return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
+                let storage = Array((stores + [last]).suffix(bufferSize))
+                return !waitFullness || storage.count == bufferSize ? (storage, (storage, sendLast)) : (nil, (storage, sendLast))
+            })
+        }
+        public static func portionally(bufferSize: Int) -> Buffer {
+            debugFatalError(condition: bufferSize <= 0, "`size` must be more than 0")
+            return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
+                let storage = Array((stores + [last]).suffix(bufferSize))
+                return storage.count == bufferSize ? ([], (storage, false)) : (nil, (storage, false))
+            })
+        }
+        public static func custom(_ mapper: @escaping ([T.Out], T.Out) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool))) -> Buffer {
+            return Buffer(mapper: mapper)
+        }
+
+        static func oldValue() -> Buffer {
+            return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
+                return ([stores[0], last], ([last], false))
+            })
+        }
+        static func distinctUntilChanged(comparer: @escaping (T.Out, T.Out) -> Bool) -> Buffer {
+            return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
+                return comparer(stores[0], last) ? ([last], ([last], false)) : (nil, (stores, true))
+            })
         }
     }
 
-    init(_ base: T, storage: ValueStorage<([T.Out], Bool)>, options: Options) {
+    init(_ base: T, storage: ValueStorage<([T.Out], Bool)>, buffer: Buffer) {
         self.dispose = ListeningDispose(base.listening(
             onValue: { (value) in
-                let value = Array((storage.value.0 + [value]).suffix(options.count))
-                storage.value = (value, options.evaluate(value))
+                let result = buffer.mapper(storage.value.0, value)
+                storage.replace(with: result.toStorage)
+                if let toSend = result.toSend {
+                    storage.repeater.send(.value((toSend, true)))
+                }
             },
             onError: storage.sendError
         ))
@@ -995,6 +1020,7 @@ public extension Listenable {
 // MARK: Conveniences
 
 public extension Listenable {
+    // TODO: Move to memoize
     fileprivate func _distinctUntilChanged(_ def: Out?, comparer: @escaping (Out, Out) -> Bool) -> Preprocessor<Self, Out> {
         var oldValue: Out? = def
         return filter { newValue in
@@ -1179,5 +1205,36 @@ public extension Listenable where Out: _Optional {
 public extension Listenable where Out: _Optional, Out.Wrapped: HasDefaultLiteral {
     func `default`() -> Preprocessor<Self, Out.Wrapped> {
         return map({ $0.wrapped ?? Out.Wrapped() })
+    }
+}
+
+public extension Listenable {
+    /// Creates retained storage that saves last values, but emits result conditionally.
+    ///
+    /// - Warning: Note, storage won't working while controller will send initial `true` or `false` value.
+    ///
+    /// - Parameters:
+    ///   - controller: Source of emitting control
+    ///   - maxBufferSize: Maximum elements that can store in storage
+    /// - Returns: Retained preprocessor object
+    func suspend<L: Listenable>(controller: L, maxBufferSize: Int = .max) -> Preprocessor<Memoize<Combine<(Self.Out, Bool)>>, [Self.Out]> where L.Out == Bool {
+        debugFatalError(condition: maxBufferSize <= 0, "`size` must be more than 0")
+        return combine(with: controller.distinctUntilChanged())
+            .memoize(buffer: .custom({ (stores, last) -> (toSend: [(Self.Out, Bool)]?, toStorage: ([(Self.Out, Bool)], Bool)) in
+                if last.1 {
+                    if stores.count > 1 {
+                        return (stores, ([(stores[stores.count - 1].0, true)], false))
+                    } else {
+                        return ([last], ([last], false))
+                    }
+                } else {
+                    if (stores.isEmpty || !stores[stores.count - 1].1) {
+                        return (nil, (Array((stores + [last]).suffix(maxBufferSize)), false))
+                    } else {
+                        return (nil, ([], false))
+                    }
+                }
+            }))
+            .map({ $0.map({ $0.0 }) })
     }
 }

@@ -1245,4 +1245,34 @@ extension ListenableTests {
 
         disposable1.dispose()
     }
+
+    func testSuspend() {
+        let source = Repeater<Int>.unsafe()
+        let controller = Repeater<Bool>.unsafe()
+
+        var lastReceived: [Int]? = nil
+        let controlSource = source.suspend(controller: controller, maxBufferSize: 2)
+
+        let disposable1 = controlSource.listening(onValue: { value in
+            lastReceived = value
+        })
+
+        source.send(.value(10))
+        XCTAssertEqual(lastReceived, nil)
+        controller.send(.value(true))
+        XCTAssertEqual(lastReceived, [10])
+
+        controller.send(.value(false))
+
+        source.send(.value(20))
+        source.send(.value(30))
+
+        XCTAssertEqual(lastReceived, [10])
+
+        controller.send(.value(true))
+
+        XCTAssertEqual(lastReceived, [20, 30])
+
+        disposable1.dispose()
+    }
 }
