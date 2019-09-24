@@ -1246,6 +1246,30 @@ extension ListenableTests {
         disposable1.dispose()
     }
 
+    func testOldValueBasedOnMemoize() {
+        let source = Repeater<Int>.unsafe()
+
+        var lastReceived: (old: Int?, new: Int)? = nil
+
+        let disposable1 = source.oldValue().listening(onValue: { value in
+            lastReceived = value
+        })
+
+        source.send(.value(10))
+        XCTAssertEqual(lastReceived?.old, nil)
+        XCTAssertEqual(lastReceived?.new, 10)
+
+        source.send(.value(20))
+        XCTAssertEqual(lastReceived?.old, 10)
+        XCTAssertEqual(lastReceived?.new, 20)
+
+        source.send(.value(30))
+        XCTAssertEqual(lastReceived?.old, 20)
+        XCTAssertEqual(lastReceived?.new, 30)
+
+        disposable1.dispose()
+    }
+
     func testSuspend() {
         let source = Repeater<Int>.unsafe()
         let controller = Repeater<Bool>.unsafe()

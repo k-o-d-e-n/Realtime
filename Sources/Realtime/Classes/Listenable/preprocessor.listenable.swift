@@ -737,12 +737,12 @@ public struct Memoize<T: Listenable>: Listenable {
 
         static func oldValue() -> Buffer {
             return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
-                return ([stores[0], last], ([last], false))
+                return stores.isEmpty ? ([last] as [T.Out]?, ([last], false)) : ([stores[0], last], ([last], false))
             })
         }
         static func distinctUntilChanged(comparer: @escaping (T.Out, T.Out) -> Bool) -> Buffer {
             return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
-                return comparer(stores[0], last) ? ([last], ([last], false)) : (nil, (stores, true))
+                return stores.isEmpty || comparer(stores[0], last) ? ([last], ([last], false)) : (nil, (stores, true))
             })
         }
     }
@@ -791,42 +791,6 @@ public struct Memoize<T: Listenable>: Listenable {
             dispose: { item.dispose(); unmanaged.release() },
             token: ()
         )
-    }
-}
-
-@available(*, deprecated, message: "Use memoize preprocessor")
-public struct OldValue<T: Listenable>: Listenable {
-    let base: T
-
-    public func listening(_ assign: Assign<ListenEvent<(new: T.Out, old: T.Out?)>>) -> Disposable {
-        var old: T.Out?
-        var current: T.Out? {
-            didSet { old = oldValue }
-        }
-        return base
-            .map({ (v) -> (T.Out, T.Out?) in
-                current = v
-                return (current!, old)
-            })
-            .listening(assign)
-    }
-    public func listeningItem(_ assign: Closure<ListenEvent<(new: T.Out, old: T.Out?)>, Void>) -> ListeningItem {
-        var old: T.Out?
-        var current: T.Out? {
-            didSet { old = oldValue }
-        }
-        return base
-            .map({ (v) -> (T.Out, T.Out?) in
-                current = v
-                return (current!, old)
-            })
-            .listeningItem(assign)
-    }
-}
-public extension Listenable {
-    @available(*, deprecated, message: "Use memoize preprocessor")
-    func oldValue() -> OldValue<Self> {
-        return OldValue(base: self)
     }
 }
 
