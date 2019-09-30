@@ -350,18 +350,19 @@ export class Property extends RealtimeValue {
 
   write(transaction) {
     if (this.readonly) return;
-    if (this.value === undefined || this.value === null) {
+    const value = this.encode(this.value);
+    if (!this.representer && (value === undefined || value === null)) {
       if (this.optional) return;
       debug(() => {
         console.error("Required property must not be empty", this);
       });
       throw Error("Required property must not be empty");
     }
-    this._write(transaction);
+    this._write(value, transaction);
   }
 
-  _write(transaction) {
-    transaction.addValue(this.path, this.encode(this.value));
+  _write(value, transaction) {
+    transaction.addValue(this.path, value);
   }
 
   encode(value) {
@@ -571,8 +572,8 @@ export class File extends Property {
     return value ? { file: value, metadata: this.metadata } : null;
   }
 
-  _write(transaction) {
-    transaction.addFile(this.path, this.encode(this.val));
+  _write(value, transaction) {
+    transaction.addFile(this.path, value);
   }
 
   getUrl(storage) {
