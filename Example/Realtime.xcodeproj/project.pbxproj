@@ -70,6 +70,7 @@
 		A4AAA57121A1F36B0085C3BA /* Realtime_Tests-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Realtime_Tests-Bridging-Header.h"; sourceTree = "<group>"; };
 		A4AAA57221A1F36C0085C3BA /* DispatchBenchmark.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DispatchBenchmark.m; sourceTree = "<group>"; };
 		A4D56D1C2143FD8200641DF3 /* FormViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormViewController.swift; sourceTree = "<group>"; };
+		A4D60701234296EB003D0BAD /* Package.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Package.swift; path = ../Package.swift; sourceTree = "<group>"; };
 		A4E054512008D3B100E95A49 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A4F0FF772144901800395579 /* TableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableViewController.swift; sourceTree = "<group>"; };
 		AD53591BED0C8A933E06EA00 /* Pods_Realtime_Tests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Realtime_Tests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -102,6 +103,7 @@
 		607FACC71AFB9204008FA782 = {
 			isa = PBXGroup;
 			children = (
+				A4D60701234296EB003D0BAD /* Package.swift */,
 				607FACF51AFB993E008FA782 /* Podspec Metadata */,
 				607FACD21AFB9204008FA782 /* Example for Realtime */,
 				607FACE81AFB9204008FA782 /* Tests */,

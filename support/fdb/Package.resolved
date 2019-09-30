@@ -1,0 +1,70 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "FoundationDB",
+        "repositoryURL": "https://github.com/FoundationDB/fdb-swift-bindings.git",
+        "state": {
+          "branch": "master",
+          "revision": "8c0d9ae835752d0d0408d12c775bd72fec62e014",
+          "version": null
+        }
+      },
+      {
+        "package": "libfdb-swift",
+        "repositoryURL": "https://github.com/FoundationDB/fdb-swift-c-packaging",
+        "state": {
+          "branch": "master",
+          "revision": "46a7f29471ae73aa8f21fb1839703fc62420da23",
+          "version": null
+        }
+      },
+      {
+        "package": "Promise.swift",
+        "repositoryURL": "https://github.com/k-o-d-e-n/promise.swift.git",
+        "state": {
+          "branch": "master",
+          "revision": "60f8961df4b3fc3916a1347067f615f64384718a",
+          "version": null
+        }
+      },
+      {
+        "package": "Realtime",
+        "repositoryURL": "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime",
+        "state": {
+          "branch": "master",
+          "revision": "1a58abae9ce6590d58fc42474dc9a22a0d17fca4",
+          "version": null
+        }
+      },
+      {
+        "package": "Atomics",
+        "repositoryURL": "https://github.com/glessard/swift-atomics.git",
+        "state": {
+          "branch": null,
+          "revision": "ead1c4deb9e1b5487d8d680426f322d57026b015",
+          "version": "4.4.3"
+        }
+      },
+      {
+        "package": "swift-nio",
+        "repositoryURL": "https://github.com/apple/swift-nio",
+        "state": {
+          "branch": null,
+          "revision": "ba7970fe396e8198b84c6c1b44b38a1d4e2eb6bd",
+          "version": "1.14.1"
+        }
+      },
+      {
+        "package": "swift-nio-zlib-support",
+        "repositoryURL": "https://github.com/apple/swift-nio-zlib-support.git",
+        "state": {
+          "branch": null,
+          "revision": "37760e9a52030bb9011972c5213c3350fa9d41fd",
+          "version": "1.0.0"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
