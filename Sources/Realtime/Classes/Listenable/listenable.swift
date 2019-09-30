@@ -437,7 +437,7 @@ public extension Listenable {
     ///
     /// - Parameter other: Value wrapper that will be receive value
     /// - Returns: Disposable
-    @available(*, deprecated: 0.9.2, message: "has unsafe behavior")
+    @available(*, deprecated, message: "has unsafe behavior")
     func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.Out {
         return livetime(of: other).listening(onValue: { [weak other] val in
             other?.value = val
