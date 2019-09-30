@@ -4,6 +4,7 @@ target 'Realtime_Example' do
   pod 'Realtime', :path => '../'
 
   pod 'Firebase/Auth'
+  pod 'Starscream', '~> 3.0.2'
 
   target 'Realtime_Tests' do
     inherit! :search_paths

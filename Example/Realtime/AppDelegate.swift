@@ -35,7 +35,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Override point for customization after application launch.
         FirebaseApp.configure()
         let configuration = RealtimeApp.Configuration.firebase(linksNode: BranchNode(key: "___tests/__links"))
-        RealtimeApp.initialize(with: currentDatabase(), storage: currentStorage(), configuration: configuration)
+        let remoteDatabase = RemoteDatabase(url: URL(string: "ws://localhost:8080")!)
+        remoteDatabase.connect()
+        RealtimeApp.initialize(with: remoteDatabase, storage: currentStorage(), configuration: configuration)
         RealtimeApp.app.connectionObserver.listening(
             onValue: { (connected) in
                 print("Connection did change to \(connected)")
@@ -70,3 +72,119 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
+import Network
+
+@available(iOS 12.0, *)
+class RemoteConnection {
+    let nwConnection: NWConnection
+//    let state: Repeater<NWConnection.State> = Repeater.unsafe()
+//    var currentState: NWConnection.State {
+//        return nwConnection.state
+//    }
+    let host: String
+    let port: NWEndpoint.Port
+
+    init(host: String = "127.0.0.1", port: UInt16 = 8080) {
+        let portValue = NWEndpoint.Port(rawValue: port)!
+        self.host = host
+        self.port = portValue
+        self.nwConnection = NWConnection(to: NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: portValue), using: .tcp)
+    }
+
+    func connect() {
+        nwConnection.stateUpdateHandler = { [weak self] state in
+            print("STATE", state)
+            switch state {
+            case .ready: break
+            default: break
+            }
+//            self?.state.send(.value(state))
+        }
+        nwConnection.receive(minimumIncompleteLength: 2, maximumLength: 4096, completion: { (data, context, complete, err) in
+            print("RECEIVED", data.flatMap({ String(data: $0, encoding: .ascii) }), context, complete, err)
+        })
+
+        nwConnection.start(queue: .main)
+    }
+
+    func establishHandshake() {
+        let req = createHTTPRequest(host: host, port: port, enableCompression: false)
+        nwConnection.send(content: req.httpBody, completion: .contentProcessed({ (err) in
+            print("ERROR", err)
+        }))
+    }
+
+    func disconnect() {
+        nwConnection.cancel()
+    }
+}
+
+enum WebSockets {
+static let headerWSUpgradeName     = "Upgrade"
+static let headerWSUpgradeValue    = "websocket"
+static let headerWSHostName        = "Host"
+static let headerWSConnectionName  = "Connection"
+static let headerWSConnectionValue = "Upgrade"
+static let headerWSProtocolName    = "Sec-WebSocket-Protocol"
+static let headerWSVersionName     = "Sec-WebSocket-Version"
+static let headerWSVersionValue    = "13"
+static let headerWSExtensionName   = "Sec-WebSocket-Extensions"
+static let headerWSKeyName         = "Sec-WebSocket-Key"
+static let headerOriginName        = "Origin"
+static let headerWSAcceptName      = "Sec-WebSocket-Accept"
+static let supportedSSLSchemes     = ["wss", "https"]
+}
+
+@available(iOS 12.0, *)
+private func createHTTPRequest(host: String, port: NWEndpoint.Port, enableCompression: Bool) -> URLRequest {
+    let urlString = "\(host):\(port.rawValue)"
+    let url = URL(string: urlString)!
+    var request = URLRequest(url: url)
+    request.setValue(WebSockets.headerWSUpgradeValue, forHTTPHeaderField: WebSockets.headerWSUpgradeName)
+    request.setValue(WebSockets.headerWSConnectionValue, forHTTPHeaderField: WebSockets.headerWSConnectionName)
+    request.setValue(WebSockets.headerWSVersionValue, forHTTPHeaderField: WebSockets.headerWSVersionName)
+    request.setValue(generateWebSocketKey(), forHTTPHeaderField: WebSockets.headerWSKeyName)
+
+    if enableCompression {
+        let val = "permessage-deflate; client_max_window_bits; server_max_window_bits=15"
+        request.setValue(val, forHTTPHeaderField: WebSockets.headerWSExtensionName)
+    }
+    request.setValue(urlString, forHTTPHeaderField: WebSockets.headerWSHostName)
+
+    var path = url.absoluteString
+    let offset = (url.scheme?.count ?? 2) + 3
+    path = String(path[path.index(path.startIndex, offsetBy: offset)..<path.endIndex])
+    if let range = path.range(of: "/") {
+        path = String(path[range.lowerBound..<path.endIndex])
+    } else {
+        path = "/"
+        if let query = url.query {
+            path += "?" + query
+        }
+    }
+
+    var httpBody = "\(request.httpMethod ?? "GET") \(path) HTTP/1.1\r\n"
+    if let headers = request.allHTTPHeaderFields {
+        for (key, val) in headers {
+            httpBody += "\(key): \(val)\r\n"
+        }
+    }
+    httpBody += "\r\n"
+
+    request.httpBody = httpBody.data(using: .utf8)!
+    return request
+//    initStreamsWithData(, Int(port!))
+//    httpDelegate?.websocketHttpUpgrade(socket: self, request: httpBody)
+}
+
+private func generateWebSocketKey() -> String {
+    var key = ""
+    let seed = 16
+    for _ in 0..<seed {
+        let uni = UnicodeScalar(UInt32(97 + arc4random_uniform(25)))
+        key += "\(Character(uni!))"
+    }
+    let data = key.data(using: String.Encoding.utf8)
+    let baseKey = data?.base64EncodedString(options: NSData.Base64EncodingOptions(rawValue: 0))
+    return baseKey!
+}
