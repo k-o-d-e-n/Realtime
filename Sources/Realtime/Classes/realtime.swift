@@ -89,8 +89,8 @@ public final class RealtimeApp {
 
         /// Default configuration based on Firebase Realtime Database
         public init(linksNode: BranchNode? = nil,
-                    maxNodeDepth: UInt = 32,
-                    unavailableSymbols: CharacterSet = CharacterSet(charactersIn: ".#$][/"),
+                    maxNodeDepth: UInt = .max,
+                    unavailableSymbols: CharacterSet = CharacterSet(),
                     cachePolicy: CachePolicy = .noCache,
                     storageCache: RealtimeStorageCache? = nil
         ) {
@@ -128,11 +128,32 @@ import FirebaseStorage
 #endif
 
 #if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
+public extension RealtimeApp.Configuration {
+    static func firebase(
+        linksNode: BranchNode? = nil,
+        cachePolicy: CachePolicy = .noCache,
+        storageCache: RealtimeStorageCache? = nil
+    ) -> RealtimeApp.Configuration {
+        return RealtimeApp.Configuration(
+            linksNode: linksNode,
+            maxNodeDepth: 32,
+            unavailableSymbols: CharacterSet(charactersIn: ".#$][/"),
+            cachePolicy: cachePolicy,
+            storageCache: storageCache
+        )
+    }
+}
+
 extension RealtimeApp {
     public static func firebase(
-        configuration: Configuration = Configuration()
+        databaseUrl: String? = nil, storageUrl: String? = nil,
+        configuration: Configuration = .firebase()
         ) {
-        initialize(with: Database.database(), storage: Storage.storage())
+        initialize(
+            with: databaseUrl.map(Database.database) ?? Database.database(),
+            storage: storageUrl.map(Storage.storage) ?? Storage.storage(),
+            configuration: configuration
+        )
     }
 }
 #endif

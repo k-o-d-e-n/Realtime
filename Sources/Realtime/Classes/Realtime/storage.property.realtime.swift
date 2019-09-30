@@ -82,24 +82,27 @@ extension ReadonlyProperty {
         }
 
         guard let cache = RealtimeApp.app.configuration.storageCache else {
-            return fileTask(for: node, timeout: timeout)
+            return fileTask(for: node, timeout: timeout, completion: { data, cached in
+                self.applyData(data, node: node, needCaching: !cached)
+            })
         }
         return CachedFileDownloadTask(
-            nextLevel: self.fileTask(for: node, timeout: timeout),
+            nextLevel: { compl in
+                self.fileTask(for: node, timeout: timeout, completion: compl)
+            },
             cache: cache,
             node: node,
-            completion: { data in
-                self.applyData(data, node: node, needCaching: false)
+            completion: { data, cached in
+                self.applyData(data, node: node, needCaching: !cached)
             }
         )
     }
-    fileprivate func fileTask(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask {
+    fileprivate func fileTask(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (Data?, Bool) -> Void) -> RealtimeStorageTask {
+        let compl: (Data?) -> Void = { completion($0, false) }
         return RealtimeApp.app.storage.load(
             for: node,
             timeout: timeout,
-            completion: { (data) in
-                self.applyData(data, node: node, needCaching: true)
-            },
+            completion: compl,
             onCancel: { e in
                 self._setError(e)
             }
@@ -127,33 +130,43 @@ extension ValueOption {
     public static var metadata: ValueOption = ValueOption("realtime.file.metadata")
 }
 
+// TODO: Avoid completions task must operates data
 class CachedFileDownloadTask: RealtimeStorageTask {
     var _nextTask: RealtimeStorageTask? = nil
-    let nextLevelTask: () -> RealtimeStorageTask
+    let nextLevelTask: (@escaping (Data?, Bool) -> Void) -> RealtimeStorageTask
     let cache: RealtimeStorageCache
     let node: Node
-    let completion: (Data) -> Void
+    let completion: (Data?, Bool) -> Void
     var state: State = .pause
     enum State {
         case run, pause, finish
     }
 
+    let successSwitcher: Repeater<Bool>
     var progress: AnyListenable<Progress> { return _nextTask?.progress ?? Constant(Progress(totalUnitCount: 0)).asAny() }
+    var currentSource: ValueStorage<AnyListenable<RealtimeMetadata?>?>
     let _success: Repeater<RealtimeMetadata?>
-    let _memoizedSuccess: Preprocessor<Memoize<Repeater<RealtimeMetadata?>>, RealtimeMetadata?>
+    let _memoizedSuccess: Preprocessor<Preprocessor<Preprocessor<Memoize<Combine<(RealtimeMetadata?, Bool)>>, (RealtimeMetadata?, Bool)>, (RealtimeMetadata?, Bool)>, RealtimeMetadata?>
     var success: AnyListenable<RealtimeMetadata?> { return _memoizedSuccess.asAny() }
 
-    init(nextLevel task: @escaping @autoclosure () -> RealtimeStorageTask,
+    init(nextLevel task: @escaping (@escaping (Data?, Bool) -> Void) -> RealtimeStorageTask,
          cache: RealtimeStorageCache,
          node: Node,
-         completion: @escaping (Data?) -> Void) {
+         completion: @escaping (Data?, Bool) -> Void) {
         let success = Repeater<RealtimeMetadata?>.unsafe()
+        let switcher = Repeater<Bool>.unsafe()
+        self.successSwitcher = switcher
         self._success = success
-        self._memoizedSuccess = success.memoizeOne(sendLast: true)
+        let source = ValueStorage<AnyListenable<RealtimeMetadata?>?>.unsafe(strong: nil)
+        self.currentSource = source
+        let memoizedSuccess = source.then({ $0! }).combine(with: switcher).memoizeOne(sendLast: true).filter({ $1 }).map({ $0.0 })
+        self._memoizedSuccess = memoizedSuccess
         self.nextLevelTask = task
         self.cache = cache
         self.node = node
         self.completion = completion
+
+        switcher.send(.value(true))
         resume()
     }
 
@@ -164,15 +177,21 @@ class CachedFileDownloadTask: RealtimeStorageTask {
         if let next = _nextTask {
             next.resume()
         } else {
-            let cacheCompl = self.completion
             cache.file(for: node) { (data) in
                 if let d = data {
                     self.state = .finish
-                    cacheCompl(d)
-                    self._success.send(.value(nil))
+                    self.completion(d, true)
+                    self.currentSource.value = self._success.asAny()
+                    self._success.send(.value(nil)) // TODO: Metadata in cache unsupported
                 } else {
-                    let task = self.nextLevelTask()
-                    task.success.bind(to: self._success)
+                    let compl = self.completion
+                    let switcher = self.successSwitcher
+                    switcher.send(.value(false))
+                    let task = self.nextLevelTask({ data, cached in
+                        compl(data, cached)
+                        switcher.send(.value(true))
+                    })
+                    self.currentSource.value = task.success.do({ [weak self] _ in self?.state = .finish }).asAny()
                     self._nextTask = task
                 }
             }
@@ -187,6 +206,15 @@ class CachedFileDownloadTask: RealtimeStorageTask {
         _nextTask?.cancel()
         _nextTask = nil
         state = .finish
+    }
+}
+extension CachedFileDownloadTask: CustomStringConvertible {
+    var description: String {
+        return """
+            node: \(node),
+            cache: \(cache),
+            state: \(state)
+        """
     }
 }
 

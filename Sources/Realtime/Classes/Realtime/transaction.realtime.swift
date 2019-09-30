@@ -217,8 +217,10 @@ public extension Transaction {
     /// - Parameters:
     ///   - revertOnError: Indicates that all changes will be reverted on error
     ///   - completion: Completion closure with results
-    func commit(revertOnError: Bool = true,
-                       with completion: ((CommitState, [Error]?) -> Void)?) {
+    func commit(
+        revertOnError: Bool = true,
+        with completion: ((CommitState, [Error]?) -> Void)?
+    ) {
         commit(with: completion, filesCompletion: nil)
     }
 
@@ -228,9 +230,12 @@ public extension Transaction {
     ///   - revertOnError: Indicates that all changes will be reverted on error
     ///   - completion: Completion closure with results
     ///   - filesCompletion: Completion closure with results
-    func commit(revertOnError: Bool = true,
-                       with completion: ((CommitState, [Error]?) -> Void)?,
-                       filesCompletion: (([FileCompletion]) -> Void)?) {
+    func commit(
+        revertOnError: Bool = true,
+        filesConcurrency concurrency: Bool = false,
+        with completion: ((CommitState, [Error]?) -> Void)?,
+        filesCompletion: (([FileCompletion]) -> Void)?
+    ) {
         runPreconditions { (errors) in
             guard errors.isEmpty else {
                 if revertOnError {
@@ -251,26 +256,36 @@ public extension Transaction {
 
                 var error: Error?
                 let group = DispatchGroup()
+
+                func runFiles() {
+                    self.performUpdateFiles({ (res) in
+                        if revertOnError {
+                            res.forEach({ (result) in
+                                switch result {
+                                case .error(let n, let e):
+                                    debugLog(e.localizedDescription)
+                                    self.revertFile(by: n)
+                                default: break
+                                }
+                            })
+                        }
+                        group.leave()
+                        filesCompletion?(res)
+                    })
+                }
+
                 group.enter(); group.enter()
                 self.performUpdate({ (err) in
                     error = err
                     group.leave()
+                    if (!concurrency) {
+                        runFiles()
+                    }
                 })
 
-                self.performUpdateFiles({ (res) in
-                    if revertOnError {
-                        res.forEach({ (result) in
-                            switch result {
-                            case .error(let n, let e):
-                                debugLog(e.localizedDescription)
-                                self.revertFile(by: n)
-                            default: break
-                            }
-                        })
-                    }
-                    group.leave()
-                    filesCompletion?(res)
-                })
+                if (concurrency) {
+                    runFiles()
+                }
 
                 group.notify(queue: .main, execute: {
                     if let e = error {

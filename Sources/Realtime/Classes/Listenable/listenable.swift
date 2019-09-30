@@ -289,7 +289,7 @@ public protocol Listenable {
     func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable
 
     /// Listening with possibility to control active state
-    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem
+    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem // TODO: Rename to repeatable and separate if available
 }
 public extension Listenable where Self: AnyObject {
     /// Listening with possibility to control active state
@@ -389,77 +389,6 @@ public struct AnyListenable<Out>: Listenable {
     }
 }
 
-/// Provides calculated listening value
-public struct ReadonlyValue<Value>: Listenable {
-    let repeater: Repeater<Value>
-    private let store: ListeningDisposeStore
-
-    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), calculation: @escaping (L.Out) -> Value) {
-        let store = ListeningDisposeStore()
-        repeater.depends(on: source.map(calculation)).add(to: store)
-        self.repeater = repeater
-        self.store = store
-    }
-
-    public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
-        return repeater.listening(assign)
-    }
-    public func listeningItem(_ assign: Assign<ListenEvent<Value>>) -> ListeningItem {
-        return repeater.listeningItem(assign)
-    }
-}
-
-/// Provides listening value based on async action
-public struct AsyncReadonlyRepeater<Value>: Listenable {
-    let repeater: Repeater<Value>
-    private let store: ListeningDisposeStore
-    
-    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
-        let store = ListeningDisposeStore()
-        repeater.depends(on: source.mapAsync(fetching)).add(to: store)
-        self.repeater = repeater
-        self.store = store
-    }
-
-    public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
-        return repeater.listening(assign)
-    }
-    public func listeningItem(_ assign: Closure<ListenEvent<Value>, Void>) -> ListeningItem {
-        return repeater.listeningItem(assign)
-    }
-}
-
-/// The same as AsyncReadonlyRepeater but with keeping value
-public struct AsyncReadonlyValue<Value>: Listenable {
-    let storage: ValueStorage<Value>
-    private let store: ListeningDisposeStore
-
-    public init<L: Listenable>(_ source: L, storage: ValueStorage<Value>, fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
-        let store = ListeningDisposeStore()
-
-        let promise = ResultPromise(receiver: storage.set, error: storage.sendError)
-        source.listening({ (e) in
-            switch e {
-            case .value(let v): fetching(v, promise)
-            case .error(let e): storage.sendError(e)
-            }
-        }).add(to: store)
-        self.storage = storage
-        self.store = store
-    }
-
-    public func sendValue() {
-        storage.value = storage.value
-    }
-
-    public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
-        return storage.listening(assign)
-    }
-    public func listeningItem(_ assign: Closure<ListenEvent<Value>, Void>) -> ListeningItem {
-        return storage.listeningItem(assign)
-    }
-}
-
 /// Common protocol for entities that represents some data
 public protocol ValueWrapper {
     associatedtype V
@@ -499,7 +428,6 @@ public extension Repeater {
     ///
     /// - Parameter other: Listenable that will be invoke notifications himself listenings
     /// - Returns: Disposable
-    @discardableResult
     func depends<L: Listenable>(on other: L) -> Disposable where L.Out == T {
         return other.listening(self.send)
     }
@@ -509,7 +437,7 @@ public extension Listenable {
     ///
     /// - Parameter other: Value wrapper that will be receive value
     /// - Returns: Disposable
-    @discardableResult
+    @available(*, deprecated, message: "has unsafe behavior")
     func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.Out {
         return livetime(of: other).listening(onValue: { [weak other] val in
             other?.value = val
@@ -520,7 +448,6 @@ public extension Listenable {
     ///
     /// - Parameter other: Repeater that will be receive value
     /// - Returns: Disposable
-    @discardableResult
     func bind(to other: Repeater<Out>) -> Disposable {
         return other.depends(on: self)
     }
@@ -529,7 +456,6 @@ public extension Listenable {
     ///
     /// - Parameter other: Repeater that will be receive value
     /// - Returns: Disposable
-    @discardableResult
     func bind(to other: ValueStorage<Out>) -> Disposable {
         return listening({ (e) in
             switch e {

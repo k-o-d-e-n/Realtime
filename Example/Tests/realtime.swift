@@ -1116,6 +1116,15 @@ extension RealtimeTests {
     }
 }
 
+// MARK: Node
+
+extension RealtimeTests {
+    func testGetAncestorOnLevelUp() {
+        let node = Node.root("collection/id/otherColl/id");
+        XCTAssertEqual(Node.root("collection/id"), node.ancestor(onLevelUp: 2))
+    }
+}
+
 // MARK: Collections
 
 extension References: Reverting {
@@ -1955,6 +1964,77 @@ extension RealtimeTests {
 
         waitForExpectations(timeout: 2) { (err) in
             err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+
+    func testLoadFileState() {
+        let exp = expectation(description: "")
+        let object = TestObject(in: .root)
+        _ = object.file.loadState().listening(onValue: { _ in
+            exp.fulfill()
+        })
+
+        waitForExpectations(timeout: 2) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+        }
+    }
+}
+
+extension RealtimeTests {
+    func testCacheFileDownloadTask() {
+        struct RSCache: RealtimeStorageCache {
+            let nsCache: NSCache<NSString, NSData> = NSCache()
+
+            init() {}
+
+            public func put(_ file: Data, for node: Node, completion: ((Error?) -> Void)?) {
+                nsCache.setObject(file as NSData, forKey: node.absolutePath as NSString)
+                completion?(nil)
+            }
+
+            public func file(for node: Node, completion: @escaping (Data?) -> Void) {
+                let cached = nsCache.object(forKey: node.absolutePath as NSString)
+                completion(cached as Data?)
+            }
+        }
+        class NextLevelTask: RealtimeStorageTask {
+            let _completion: (Data?, Bool) -> Void
+
+            init(_ completion: @escaping (Data?, Bool) -> Void) {
+                self._completion = completion
+            }
+
+            func pause() {}
+            func cancel() {}
+            func resume() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+                    let data = "Realtime".data(using: .utf8)
+                    self._completion(data, false)
+                    self.delayed.send(.value(["Realtime": data as Any]))
+                })
+            }
+
+            let delayed = Repeater<RealtimeMetadata?>.unsafe()
+            var progress: AnyListenable<Progress> { return Constant(Progress(totalUnitCount: 100)).asAny() }
+            var success: AnyListenable<RealtimeMetadata?> {
+                return delayed.asAny()
+            }
+
+            static func running(completion: @escaping (Data?, Bool) -> Void) -> NextLevelTask { let t = NextLevelTask(completion); t.resume(); return t }
+        }
+
+        let exp = expectation(description: "")
+        let cacheTask = CachedFileDownloadTask(nextLevel: NextLevelTask.running, cache: RSCache(), node: .root) { (data, cached) in
+        }
+
+        cacheTask.success.listening(onValue: { metadata in
+            XCTAssertEqual("Realtime", String(data: metadata!["Realtime"] as! Data, encoding: .utf8))
+            exp.fulfill()
+        }).add(to: self.store)
+
+        waitForExpectations(timeout: 5) { (err) in
+            err.map({ XCTFail($0.describingErrorDescription) })
+            XCTAssertEqual(cacheTask.state, .finish)
         }
     }
 }
