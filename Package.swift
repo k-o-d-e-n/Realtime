@@ -13,7 +13,7 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/glessard/swift-atomics.git", from: "4.4.1"),
+        .package(url: "https://github.com/glessard/swift-atomics.git", from: "5.0.1"),
         .package(url: "https://github.com/k-o-d-e-n/promise.swift.git", ._branchItem("master"))
     ],
     targets: [
@@ -21,7 +21,7 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages which this package depends on.
         .target(
             name: "Realtime",
-            dependencies: ["Atomics", "Promise.swift"]),
+            dependencies: ["CAtomics", "Promise.swift"]),
         .testTarget(
             name: "RealtimeTests",
             dependencies: ["Realtime"]),
