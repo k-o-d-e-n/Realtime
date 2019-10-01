@@ -17,6 +17,7 @@ public protocol UpdateNode: RealtimeDataProtocol {
     ///   - ancestor: An ancestor database reference
     ///   - container: `inout` dictionary container.
     func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?])
+    func enumerateValues(_ loop: (Node, Any?) throws -> Void) rethrows
 }
 extension UpdateNode {
     public var database: RealtimeDatabase? { return Cache.root }
@@ -66,6 +67,10 @@ class ValueNode: UpdateNode {
 
     func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
         container[location.path(from: ancestor)] = value
+    }
+
+    func enumerateValues(_ loop: (Node, Any?) throws -> Void) rethrows {
+        try loop(location, value)
     }
 
     required init(node: Node, value: Any?) {
@@ -200,6 +205,15 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
             switch node {
             case .value(let v): v.fillValues(referencedFrom: ancestor, into: &container)
             case .object(let o): o.fillValues(referencedFrom: ancestor, into: &container)
+            case .file: break
+            }
+        }
+    }
+
+    func enumerateValues(_ loop: (Node, Any?) throws -> Void) rethrows {
+        try childs.forEach { (node) in
+            switch node {
+            case .value(let v as UpdateNode), .object(let v as UpdateNode): try v.enumerateValues(loop)
             case .file: break
             }
         }

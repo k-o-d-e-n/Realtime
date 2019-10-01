@@ -287,7 +287,9 @@ public extension Transaction {
                     runFiles()
                 }
 
-                group.notify(queue: .main, execute: {
+                // quick fix .main not working on macos
+                group.notify(queue: DispatchQueue.global() /* .main */, execute: {
+                    //                    DispatchQueue.main.async {
                     if let e = error {
                         self.state = .failed
                         debugFatalError(e.localizedDescription)
@@ -299,6 +301,7 @@ public extension Transaction {
                     }
                     self.invalidate(self.state != .failed)
                     completion?((self.state, self.substate), error.map { [$0] })
+                    //                    }
                 })
             } catch let e {
                 completion?((self.state, self.substate), [e])
