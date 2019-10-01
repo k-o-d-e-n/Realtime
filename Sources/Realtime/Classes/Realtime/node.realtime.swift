@@ -462,11 +462,11 @@ public extension RawRepresentable where Self.RawValue == String {
         return parent.child(forPath: rawValue)
     }
 
-    func map<Returned>(from parent: RealtimeDataProtocol) throws -> Returned? {
-        guard parent.hasChild(rawValue) else { return nil }
-
-        return try parent.child(forPath: rawValue).unbox(as: Returned.self)
-    }
+//    func map<Returned>(from parent: RealtimeDataProtocol) throws -> Returned? {
+//        guard parent.hasChild(rawValue) else { return nil }
+//
+//        return try parent.child(forPath: rawValue).singleValueContainer().decode(Returned.self)
+//    }
 
     func path(from superpath: String, to subpath: String? = nil) -> String {
         return superpath + "/" + rawValue + (subpath.map { "/" + $0 } ?? "")

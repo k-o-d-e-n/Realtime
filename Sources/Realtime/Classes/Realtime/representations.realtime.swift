@@ -17,7 +17,7 @@ public enum ReferenceMode {
 }
 
 /// Link value describing reference to some location of database.
-struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented {
+struct ReferenceRepresentation: RealtimeDataRepresented {
     let source: String
     let payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?) // TODO: ReferenceRepresentation is not responds to payload (may be)
 
@@ -26,7 +26,7 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
         self.payload = payload
     }
 
-    func defaultRepresentation() throws -> Any {
+    func defaultRepresentation() throws -> [String: RealtimeDataValue] {
         var v: [String: RealtimeDataValue] = [InternalKeys.source.stringValue: source]
         var valuePayload: [String: RealtimeDataValue] = [:]
         if let rw = payload.raw {
@@ -40,12 +40,8 @@ struct ReferenceRepresentation: RealtimeDataRepresented, RealtimeDataValueRepres
     }
 
     init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        guard
-            let ref: String = try InternalKeys.source.stringValue.map(from: data)
-        else
-            { throw RealtimeError(initialization: ReferenceRepresentation.self, data) }
+        self.source = try data.child(forPath: InternalKeys.source.stringValue).unbox(as: String.self)
         let valueData = InternalKeys.value.child(from: data)
-        self.source = ref
         self.payload = (try valueData.rawValue(), try valueData.payload())
     }
 }
@@ -132,7 +128,7 @@ extension String {
 }
 #endif
 
-public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValueRepresented {
+public struct RelationRepresentation: RealtimeDataRepresented {
     /// Path to related object
     let targetPath: String
     /// Property of related object that represented this relation
@@ -150,7 +146,7 @@ public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValue
         case relatedProperty = "r_prop"
     }
 
-    public func defaultRepresentation() throws -> Any {
+    public func defaultRepresentation() throws -> [String: RealtimeDataValue] {
         var v: [String: RealtimeDataValue] = [CodingKeys.targetPath.rawValue: targetPath,
                                               CodingKeys.relatedProperty.rawValue: relatedProperty]
         var valuePayload: [String: RealtimeDataValue] = [:]
@@ -165,14 +161,9 @@ public struct RelationRepresentation: RealtimeDataRepresented, RealtimeDataValue
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        guard
-            let path: String = try CodingKeys.targetPath.map(from: data),
-            let property: String = try CodingKeys.relatedProperty.map(from: data)
-        else { throw RealtimeError(initialization: RelationRepresentation.self, data) }
-
+        self.targetPath = try data.child(forPath: CodingKeys.targetPath.stringValue).unbox(as: String.self)
+        self.relatedProperty = try data.child(forPath: CodingKeys.relatedProperty.stringValue).unbox(as: String.self)
         let valueData = InternalKeys.value.child(from: data)
-        self.targetPath = path
-        self.relatedProperty = property
         self.payload = (try valueData.rawValue(), try valueData.payload())
     }
 }
@@ -187,7 +178,7 @@ extension RelationRepresentation {
     }
 }
 
-struct SourceLink: RealtimeDataRepresented, RealtimeDataValueRepresented, Codable {
+struct SourceLink: RealtimeDataRepresented, Codable {
     let links: [String]
     let id: String
 
@@ -196,7 +187,7 @@ struct SourceLink: RealtimeDataRepresented, RealtimeDataValueRepresented, Codabl
         self.links = links
     }
 
-    func defaultRepresentation() throws -> Any {
+    func defaultRepresentation() throws -> [String] {
         return links
     }
 
@@ -206,19 +197,20 @@ struct SourceLink: RealtimeDataRepresented, RealtimeDataValueRepresented, Codabl
         else { throw RealtimeError(initialization: SourceLink.self, data) }
         
         self.id = id
-        self.links = try data.unbox(as: [String].self)
+        let container = try data.singleValueContainer()
+        self.links = try container.decode([String].self)
     }
 }
 
 extension Representer where V == [SourceLink] {
     static var links: Representer<V> {
         return Representer(
-            encoding: { (items) -> Any? in
-                return try items.reduce([:], { (res, link) -> [String: Any] in
+            encoding: { (items) -> RealtimeDatabaseValue? in
+                return RealtimeDatabaseValue(try items.reduce([:], { (res, link) -> [String: RealtimeDataValue] in
                     var res = res
                     res[link.id] = try link.defaultRepresentation()
                     return res
-                })
+                }))
             },
             decoding: { (data) -> [SourceLink] in
                 return try data.map(SourceLink.init)

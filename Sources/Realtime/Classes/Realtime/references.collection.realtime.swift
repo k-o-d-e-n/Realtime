@@ -420,7 +420,7 @@ public struct RCRef: WritableRealtimeValue, Comparable {
     }
 
     public func write(to transaction: Transaction, by node: Node) throws { transaction.addValue(try defaultRepresentation(), by: node) }
-    private func defaultRepresentation() throws -> Any { return try reference.defaultRepresentation() }
+    private func defaultRepresentation() throws -> [String: RealtimeDataValue] { return try reference.defaultRepresentation() }
     public var hashValue: Int { return dbKey.hashValue }
     public static func ==(lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey == rhs.dbKey }
     public static func < (lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey < rhs.dbKey }
@@ -497,7 +497,7 @@ public struct RelationsItem: WritableRealtimeValue, Comparable {
         transaction.addValue(try defaultRepresentation(), by: node)
     }
 
-    public func defaultRepresentation() throws -> Any {
+    public func defaultRepresentation() throws -> [String: RealtimeDataValue] {
         return try relation.defaultRepresentation()
     }
 

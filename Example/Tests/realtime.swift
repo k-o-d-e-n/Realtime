@@ -804,7 +804,7 @@ extension RealtimeTests {
         do {
             let result = try representer.encode(value)
 
-            XCTAssertEqual(result as? NSDictionary, [
+            XCTAssertEqual(result?.untyped as? NSDictionary, [
                 InternalKeys.source.rawValue: "path/subpath",
                 InternalKeys.value.rawValue: [
                     InternalKeys.raw.rawValue: 1,
@@ -1624,7 +1624,7 @@ extension Representer where V == Date {
         return Representer.init(
             encoding: newBase.encode,
             decoding: { (data) -> Date in
-                guard case let value as String = data.value else {
+                guard case let value as String = data.asSingleValue() else {
                     return try oldBase.decode(data)
                 }
                 guard let date = formatter.date(from: value) else {
@@ -1910,7 +1910,7 @@ extension RealtimeTests {
             var versioner = Versioner()
             versioner.enqueue(Version(2, 0))
             transaction.addValue(versioner.finalize(), by: objNode.child(with: InternalKeys.modelVersion.rawValue))
-            transaction.addValue(try representer.encode(now) as Any, by: Node(key: "requiredPropertyV2", parent: objNode))
+            transaction.addValue(try representer.encode(now), by: Node(key: "requiredPropertyV2", parent: objNode))
             transaction.commit { (state, errs) in
                 errs?.first.map({ XCTFail($0.describingErrorDescription) })
 

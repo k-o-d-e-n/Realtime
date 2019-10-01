@@ -492,7 +492,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
         }
     }
 
-    internal func cacheValue(_ node: Node, value: Any?) -> CacheNode {
+    internal func cacheValue(_ node: Node, value: RealtimeDatabaseValue?) -> CacheNode {
         return .value(ValueNode(node: node, value: value))
     }
 
@@ -1032,16 +1032,16 @@ public final class MutationPoint<T> {
         self.database = database
     }
 }
-public extension MutationPoint where T: RealtimeDataRepresented & RealtimeDataValueRepresented {
-    func set(value: T, in transaction: Transaction? = nil) throws -> Transaction {
+public extension MutationPoint {
+    func set(value: RealtimeDatabaseValue, in transaction: Transaction? = nil) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(try value.defaultRepresentation(), by: node)
+        transaction.addValue(value, by: node)
 
         return transaction
     }
-    func mutate(by key: String? = nil, use value: T, in transaction: Transaction? = nil) throws -> Transaction {
+    func mutate(by key: String? = nil, use value: RealtimeDatabaseValue, in transaction: Transaction? = nil) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(try value.defaultRepresentation(), by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+        transaction.addValue(value, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
 
         return transaction
     }
@@ -1075,8 +1075,10 @@ public extension MutationPoint where T: Codable {
     func addValue(by key: String? = nil, use value: T, in transaction: Transaction? = nil) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         let representer = Representer<T>.json()
-        if let v = try representer.encode(value) {
+        if case let v as [String: RealtimeDataValue] = try representer.encode(value) {
             transaction.addValue(v, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
+        } else {
+            throw RealtimeError(encoding: T.self, reason: "Convertion to json was unsuccessful")
         }
 
         return transaction

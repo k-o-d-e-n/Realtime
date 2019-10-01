@@ -206,7 +206,7 @@ extension OtherTests {
     }
 
     func testDecodingRawValue() {
-        let data: RealtimeDataProtocol = ObjectNode(node: .root, childs: [.value(ValueNode(node: Node(key: InternalKeys.raw, parent: .root), value: 1))])
+        let data: RealtimeDataProtocol = ObjectNode(node: .root, childs: [.value(ValueNode(node: Node(key: InternalKeys.raw, parent: .root), value: RealtimeDatabaseValue(1)))])
 
         do {
             let rawValue = try data.rawValue()

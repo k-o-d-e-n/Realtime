@@ -32,18 +32,19 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         }
 
         let valueData = InternalKeys.value.child(from: data)
+        let dataContainer = try data.container(keyedBy: InternalKeys.self)
         self.node = Node(key: key)
         self.raw = try valueData.rawValue()
-        self.linkID = try InternalKeys.link.map(from: data)
-        self.priority = try InternalKeys.index.map(from: data)
-        self.payload = try InternalKeys.payload.map(from: valueData)
+        self.linkID = try dataContainer.decodeIfPresent(String.self, forKey: .link)
+        self.priority = try dataContainer.decodeIfPresent(Int.self, forKey: .index)
+        self.payload = valueData.exists() ? try valueData.unbox(as: [String: RealtimeDataValue].self) : nil
     }
 
     public func write(to transaction: Transaction, by node: Node) throws {
         transaction.addValue(try defaultRepresentation(), by: node)
     }
 
-    private func defaultRepresentation() throws -> Any {
+    private func defaultRepresentation() throws -> [String: RealtimeDataValue] {
         var representation: [String: RealtimeDataValue] = [:]
         representation[InternalKeys.link.rawValue] = linkID
         representation[InternalKeys.index.rawValue] = priority
@@ -104,14 +105,14 @@ public struct RDItem: WritableRealtimeValue, Comparable {
         self.rcItem = try RCItem(data: data, event: event)
         let keyData = InternalKeys.key.child(from: data)
         self.raw = try keyData.rawValue()
-        self.payload = try InternalKeys.payload.map(from: keyData)
+        self.payload = keyData.exists() ? try keyData.unbox(as: [String: RealtimeDataValue].self) : nil
     }
 
     public func write(to transaction: Transaction, by node: Node) throws {
         transaction.addValue(try defaultRepresentation(), by: node)
     }
 
-    private func defaultRepresentation() throws -> Any {
+    private func defaultRepresentation() throws -> [String: RealtimeDataValue] {
         var representation: [String: RealtimeDataValue] = [:]
         representation[InternalKeys.link.rawValue] = rcItem.linkID
         representation[InternalKeys.index.rawValue] = rcItem.priority

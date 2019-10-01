@@ -161,7 +161,6 @@ struct RealtimeData: RealtimeDataProtocol {
     var storage: RealtimeStorage? { return base.storage }
     var node: Node? { return base.node }
     var key: String? { return base.key }
-    var value: Any? { return base.value }
     var priority: Any? { return base.priority }
     var childrenCount: UInt {
         return excludedKeys.reduce(into: base.childrenCount) { (res, key) -> Void in
@@ -170,6 +169,7 @@ struct RealtimeData: RealtimeDataProtocol {
             }
         }
     }
+    func asSingleValue() -> Any? { return base.asSingleValue() }
     func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
         let baseIterator = base.makeIterator()
         let excludes = excludedKeys
@@ -504,8 +504,7 @@ extension Database: RealtimeDatabase {
     public var isConnectionActive: AnyListenable<Bool> {
         return AnyListenable(
             data(.value, node: ServiceNode(key: ".info/connected"))
-                .map({ $0.value as? Bool })
-                .compactMap()
+                .map({ try $0.singleValueContainer().decode(Bool.self) })
         )
     }
 
@@ -845,7 +844,7 @@ extension Storage: RealtimeStorage {
         files.forEach { (file) in
             let location = file.location
             if let value = file.value {
-                guard case let data as Data = value else {
+                guard case let data as Data = value.untyped else {
                     fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.location)")
                 }
                 reference(withPath: location.absolutePath).put(data, metadata: file.metadata, completion: { (md, err) in

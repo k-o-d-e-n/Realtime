@@ -371,7 +371,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
             }
         }
         if let rw = raw {
-            transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
+            transaction.addValue(RealtimeDatabaseValue(untyped: rw), by: Node(key: InternalKeys.raw, parent: node))
         }
         if let pl = payload {
             transaction.addValue(pl, by: Node(key: InternalKeys.payload, parent: node))
@@ -656,7 +656,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
                 timeout: .seconds(10),
                 completion: { (data) in
                     do {
-                        var currentVersion = data.exists() ? Versioner(version: try data.unbox(as: String.self)) : Versioner(version: "")
+                        var currentVersion = data.exists() ? Versioner(version: try data.singleValueContainer().decode(String.self)) : Versioner(version: "")
                         if !targetVersion.isEmpty, currentVersion < targetVersion {
                             self._performMigration(from: &currentVersion, to: &targetVersion, in: transaction)
                         }

@@ -20,6 +20,8 @@ func currentDatabase() -> RealtimeDatabase {
 
 func currentStorage() -> RealtimeStorage {
     if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+        //        let remoteDatabase = RemoteDatabase(url: URL(string: "ws://localhost:8080")!)
+        //        remoteDatabase.connect()
         return RealtimeApp.cache
     } else {
         return Storage.storage()
@@ -35,9 +37,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Override point for customization after application launch.
         FirebaseApp.configure()
         let configuration = RealtimeApp.Configuration.firebase(linksNode: BranchNode(key: "___tests/__links"))
-        let remoteDatabase = RemoteDatabase(url: URL(string: "ws://localhost:8080")!)
-        remoteDatabase.connect()
-        RealtimeApp.initialize(with: remoteDatabase, storage: currentStorage(), configuration: configuration)
+        RealtimeApp.initialize(with: currentDatabase(), storage: currentStorage(), configuration: configuration)
         RealtimeApp.app.connectionObserver.listening(
             onValue: { (connected) in
                 print("Connection did change to \(connected)")

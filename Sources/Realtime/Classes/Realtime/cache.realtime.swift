@@ -17,7 +17,7 @@ public protocol UpdateNode: RealtimeDataProtocol {
     ///   - ancestor: An ancestor database reference
     ///   - container: `inout` dictionary container.
     func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?])
-    func enumerateValues(_ loop: (Node, Any?) throws -> Void) rethrows
+    func enumerateValues(_ loop: (Node, RealtimeDatabaseValue?) throws -> Void) rethrows
 }
 extension UpdateNode {
     public var database: RealtimeDatabase? { return Cache.root }
@@ -63,17 +63,17 @@ enum CacheNode {
 
 class ValueNode: UpdateNode {
     let location: Node
-    var value: Any?
+    var value: RealtimeDatabaseValue?
 
     func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
-        container[location.path(from: ancestor)] = value
+        container[location.path(from: ancestor)] = value?.untyped
     }
 
-    func enumerateValues(_ loop: (Node, Any?) throws -> Void) rethrows {
+    func enumerateValues(_ loop: (Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
         try loop(location, value)
     }
 
-    required init(node: Node, value: Any?) {
+    required init(node: Node, value: RealtimeDatabaseValue?) {
         debugFatalError(
             condition: RealtimeApp._isInitialized && node.underestimatedCount >= RealtimeApp.app.configuration.maxNodeDepth - 1,
             "Maximum depth limit of child nodes exceeded"
@@ -85,59 +85,60 @@ class ValueNode: UpdateNode {
 extension ValueNode: RealtimeDataProtocol, Sequence {
     var priority: Any? { return nil }
     var childrenCount: UInt {
-        guard case let dict as [String: Any] = value else {
+        guard case let dict as [String: RealtimeDataValue] = value?.untyped else {
             return 0
         }
         return UInt(dict.count)
     }
+    func asSingleValue() -> Any? { return value?.untyped }
     func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        guard case let dict as [String: Any] = value else {
+        guard case let dict as [String: RealtimeDataValue] = value?.untyped else {
             return AnyIterator(EmptyCollection.Iterator())
         }
         return AnyIterator(
             dict.lazy.map { (keyValue) in
-                ValueNode(node: Node(key: keyValue.key, parent: self.location), value: keyValue.value)
+                ValueNode(node: Node(key: keyValue.key, parent: self.location), value: RealtimeDatabaseValue(dbVal: keyValue.value))
                 }.makeIterator()
         )
     }
     func exists() -> Bool { return value != nil }
     func hasChildren() -> Bool {
-        guard case let dict as [String: Any] = value else {
+        guard case let dict as [String: RealtimeDataValue] = value?.untyped else {
             return false
         }
         return dict.count > 0
     }
     func hasChild(_ childPathString: String) -> Bool {
-        guard case let dict as [String: Any] = value else {
+        guard case let dict as [String: RealtimeDataValue] = value?.untyped else {
             return false
         }
         return dict[childPathString] != nil
     }
     func child(forPath path: String) -> RealtimeDataProtocol {
-        guard case let dict as [String: Any] = value else {
+        guard case let dict as [String: RealtimeDataValue] = value?.untyped else {
             return ValueNode(node: Node(key: path, parent: location), value: nil)
         }
 
         let node = Node(key: path, parent: location)
-        return ValueNode(node: node, value: dict[path])
+        return ValueNode(node: node, value: dict[path].map(RealtimeDatabaseValue.init(dbVal:)))
     }
     func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
         return []
     }
     func forEach(_ body: (RealtimeDataProtocol) throws -> Void) rethrows {
-        guard case let dict as [String: Any] = value else {
+        guard case let dict as [String: RealtimeDataValue] = value?.untyped else {
             return
         }
         try dict.forEach { (keyValue) in
-            try body(ValueNode(node: Node(key: keyValue.key, parent: location), value: keyValue.value))
+            try body(ValueNode(node: Node(key: keyValue.key, parent: location), value: RealtimeDatabaseValue(dbVal: keyValue.value)))
         }
     }
     func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
-        guard case let dict as [String: Any] = value else {
+        guard case let dict as [String: RealtimeDataValue] = value?.untyped else {
             return []
         }
         return try dict.map { (keyValue) in
-            try transform(ValueNode(node: Node(key: keyValue.key, parent: location), value: keyValue.value))
+            try transform(ValueNode(node: Node(key: keyValue.key, parent: location), value: RealtimeDatabaseValue(dbVal: keyValue.value)))
         }
     }
     var debugDescription: String { return "\(location.absolutePath): \(value as Any)" }
@@ -152,7 +153,7 @@ class FileNode: ValueNode {
     }
 
     func put(_ data: Data, metadata: [String : Any]?, completion: @escaping ([String : Any]?, Error?) -> Void) {
-        self.value = data
+        self.value = RealtimeDatabaseValue(data)
         if let md = metadata {
             self.metadata = md
         }
@@ -169,7 +170,6 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     let location: Node
     var childs: [CacheNode] = []
     var isCompound: Bool { return true }
-    var value: Any? { return values }
     var values: [String: Any?] {
         var val: [String: Any?] = [:]
         fillValues(referencedFrom: location, into: &val)
@@ -210,7 +210,7 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
         }
     }
 
-    func enumerateValues(_ loop: (Node, Any?) throws -> Void) rethrows {
+    func enumerateValues(_ loop: (Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
         try childs.forEach { (node) in
             switch node {
             case .value(let v as UpdateNode), .object(let v as UpdateNode): try v.enumerateValues(loop)
@@ -292,7 +292,7 @@ extension ObjectNode {
         return .object(self)
     }
 
-    fileprivate func update(dbNode: CacheNode, with value: Any?) throws {
+    fileprivate func update(dbNode: CacheNode, with value: RealtimeDatabaseValue?) throws {
         switch dbNode {
         case .value(let v): v.value = value
         case .file(let f): f.value = value
@@ -434,6 +434,10 @@ extension ObjectNode {
 extension ObjectNode: RealtimeDataProtocol, Sequence {
     public var childrenCount: UInt {
         return UInt(childs.count)
+    }
+
+    func asSingleValue() -> Any? {
+        return values
     }
 
     public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
@@ -602,7 +606,13 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             fatalError("Cannot load file from root")
         } else if let node = child(by: node) {
             switch node {
-            case .file(let file): completion(file.value as? Data)
+            case .file(let file):
+                do {
+                    let data = try file.value?.typed(as: Data.self)
+                    completion(data)
+                } catch let e {
+                    onCancel?(e)
+                }
             default: completion(nil)
             }
         } else {

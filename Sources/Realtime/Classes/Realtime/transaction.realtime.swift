@@ -364,7 +364,7 @@ public extension Transaction {
         } else {
             guard node.isRooted else { fatalError("Node should be rooted") }
 
-            let file = FileNode(node: node, value: value)
+            let file = FileNode(node: node, value: RealtimeDatabaseValue(value))
             file.metadata = metadata
             _addValue(.file(file))
         }
@@ -399,7 +399,7 @@ public extension Transaction {
     /// - Parameters:
     ///   - value: Untyped value
     ///   - node: Target node
-    func addValue(_ value: Any, by node: Realtime.Node) {
+    func addValue(_ value: RealtimeDatabaseValue?, by node: Realtime.Node) {
         if let merged = mergedToTransaction {
             merged.addValue(value, by: node)
         } else {
@@ -407,6 +407,9 @@ public extension Transaction {
 
             _addValue(.value(ValueNode(node: node, value: value)))
         }
+    }
+    func addValue<T: RealtimeDataValue>(_ value: T, by node: Realtime.Node) {
+        addValue(RealtimeDatabaseValue(value: value), by: node)
     }
 
     /// Removes Realtime data by specified node

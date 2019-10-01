@@ -108,16 +108,17 @@ public extension Dictionary where Key == ValueOption {
 }
 public extension RealtimeDataProtocol {
     internal func version() throws -> String? {
-        return try InternalKeys.modelVersion.map(from: self)
+        let modelVersion = child(forPath: InternalKeys.modelVersion.stringValue)
+        return try modelVersion.unboxIfPresent(as: String.self)
     }
     func versioner() throws -> Versioner? {
-        return try InternalKeys.modelVersion.map(from: self).map(Versioner.init(version:))
+        return try version().map(Versioner.init(version:))
     }
     func rawValue() throws -> RealtimeDataValue? {
-        return try InternalKeys.raw.map(from: self)
+        return try child(forPath: InternalKeys.raw.stringValue).unboxIfPresent(as: RealtimeDataValue.self)
     }
     func payload() throws -> [String: RealtimeDataValue]? {
-        return try InternalKeys.payload.map(from: self)
+        return try child(forPath: InternalKeys.payload.stringValue).unboxIfPresent(as: [String: RealtimeDataValue].self)
     }
 }
 
@@ -354,7 +355,7 @@ public protocol WritableRealtimeValue: RealtimeValue {
 extension WritableRealtimeValue {
     func writeSystemValues(to transaction: Transaction, by node: Node) throws {
         if let rw = raw {
-            transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
+            transaction.addValue(RealtimeDatabaseValue(untyped: rw), by: Node(key: InternalKeys.raw, parent: node))
         }
         if let pl = payload {
             transaction.addValue(pl, by: Node(key: InternalKeys.payload, parent: node))
@@ -370,7 +371,7 @@ extension WritableRealtimeValue where Self: Versionable {
             transaction.addValue(finalizedVersion, by: Node(key: InternalKeys.modelVersion, parent: node))
         }
         if let rw = raw {
-            transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
+            transaction.addValue(RealtimeDatabaseValue(untyped: rw), by: Node(key: InternalKeys.raw, parent: node))
         }
         if let pl = payload {
             transaction.addValue(pl, by: Node(key: InternalKeys.payload, parent: node))
