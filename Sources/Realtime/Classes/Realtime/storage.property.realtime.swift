@@ -72,6 +72,19 @@ public extension RawRepresentable where Self.RawValue == String {
         return readonlyFile(in: object, representer: Representer<UIImage>.jpeg(quality: compressionQuality))
     }
     #endif
+
+    func data(in object: Object, contentType: String) -> File<Data> {
+        return file(in: object, representer: Representer.realtimeDataValue, metadata: ["contentType": contentType])
+    }
+    func readonlyData(in object: Object) -> ReadonlyFile<Data> {
+        return readonlyFile(in: object, representer: Representer.realtimeDataValue)
+    }
+    func data(in object: Object, contentType: String) -> File<Data?> {
+        return file(in: object, representer: Representer.realtimeDataValue, metadata: ["contentType": contentType])
+    }
+    func readonlyData(in object: Object) -> ReadonlyFile<Data?> {
+        return readonlyFile(in: object, representer: Representer.realtimeDataValue)
+    }
 }
 
 extension ReadonlyProperty {

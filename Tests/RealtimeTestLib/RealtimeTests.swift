@@ -1,8 +1,6 @@
-import UIKit
 import XCTest
 import SystemConfiguration
 @testable import Realtime
-@testable import Realtime_Example
 
 extension XCTestCase {
     func XCTAssertThrows(block: () throws -> (), catchBlock: (Error?) -> Void) {
@@ -48,19 +46,25 @@ extension Error {
     }
 }
 
-class RealtimeTests: XCTestCase {
+public final class RealtimeTests: XCTestCase {
     var store: ListeningDisposeStore = ListeningDisposeStore()
 
-    override func setUp() {
+    override public func setUp() {
         super.setUp()
         // Put setup code here. This method is called before the invocation of each test method in the class.
     }
-    
-    override func tearDown() {
+
+    override public func tearDown() {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
         super.tearDown()
         Cache.root.clear()
     }
+
+    public static var allTests = [
+        ("testRealtimeDatabaseValue", testRealtimeDatabaseValue),
+        ("testRealtimeDatabaseValueExtractBool", testRealtimeDatabaseValueExtractBool),
+        ("testRealtimeDatabaseValueExtractData", testRealtimeDatabaseValueExtractData),
+    ]
 }
 
 // MARK: Realtime
@@ -72,8 +76,8 @@ class TestObject: Object {
     lazy var array: Values<TestObject> = "array".values(in: self)
     lazy var dictionary: AssociatedValues<TestObject, TestObject> = "dict".dictionary(in: self, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
-    lazy var readonlyFile: ReadonlyFile<UIImage?> = "readonlyFile".readonlyFile(in: self, representer: .png)
-    lazy var file: File<UIImage?> = "file".file(in: self, representer: .jpeg())
+    lazy var readonlyFile: ReadonlyFile<Data?> = "readonlyFile".readonlyData(in: self)
+    lazy var file: File<Data?> = "file".data(in: self, contentType: "text/plain")
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -198,7 +202,7 @@ extension RealtimeTests {
 
         obj.property <== "value"
         XCTAssertTrue(obj.property.hasChanges)
-        obj.file <== #imageLiteral(resourceName: "pw")
+        obj.file <== "file".data(using: .utf8)
         XCTAssertTrue(obj.file.hasChanges)
         obj.nestedObject.usualProperty <== "usual"
         XCTAssertTrue(obj.nestedObject.hasChanges)
@@ -282,7 +286,7 @@ extension RealtimeTests {
         let obj = TestObject()
 
         obj.property <== "value"
-        obj.file <== #imageLiteral(resourceName: "pw")
+        obj.file <== "file".data(using: .utf8)
         obj.nestedObject.usualProperty <== "usual"
         obj.nestedObject.lazyProperty <== "lazy"
 
@@ -300,24 +304,24 @@ extension RealtimeTests {
         checkWillRemove(obj.nestedObject, nested: true)
         checkWillRemove(obj.nestedObject.usualProperty, nested: true)
         checkWillRemove(obj.nestedObject.lazyProperty, nested: true)
-        
-            let save = obj.delete(in: Transaction(database: Cache.root, storage: Cache.root))
-            save.commit(with: { _, errs in
-                errs.map { _ in XCTFail() }
 
-                XCTAssertFalse(obj.hasChanges)
-                checkDidRemove(obj, value: .keyed)
-                checkDidRemove(obj.property, value: .nested(parent: .keyed))
-                checkDidRemove(obj.readonlyProperty, value: .nested(parent: .keyed))
-                checkDidRemove(obj.linkedArray, value: .nested(parent: .keyed))
-                checkDidRemove(obj.array, value: .nested(parent: .keyed))
-                checkDidRemove(obj.dictionary, value: .nested(parent: .keyed))
-                checkDidRemove(obj.file, value: .nested(parent: .keyed))
-                checkDidRemove(obj.readonlyFile, value: .nested(parent: .keyed))
-                checkDidRemove(obj.nestedObject, value: .nested(parent: .keyed))
-                checkDidRemove(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
-                checkDidRemove(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
-            })
+        let save = obj.delete(in: Transaction(database: Cache.root, storage: Cache.root))
+        save.commit(with: { _, errs in
+            errs.map { _ in XCTFail() }
+
+            XCTAssertFalse(obj.hasChanges)
+            checkDidRemove(obj, value: .keyed)
+            checkDidRemove(obj.property, value: .nested(parent: .keyed))
+            checkDidRemove(obj.readonlyProperty, value: .nested(parent: .keyed))
+            checkDidRemove(obj.linkedArray, value: .nested(parent: .keyed))
+            checkDidRemove(obj.array, value: .nested(parent: .keyed))
+            checkDidRemove(obj.dictionary, value: .nested(parent: .keyed))
+            checkDidRemove(obj.file, value: .nested(parent: .keyed))
+            checkDidRemove(obj.readonlyFile, value: .nested(parent: .keyed))
+            checkDidRemove(obj.nestedObject, value: .nested(parent: .keyed))
+            checkDidRemove(obj.nestedObject.usualProperty, value: .nested(parent: .keyed))
+            checkDidRemove(obj.nestedObject.lazyProperty, value: .nested(parent: .keyed))
+        })
     }
 }
 
@@ -385,13 +389,13 @@ extension RealtimeTests {
         XCTAssertNoThrow(try testObject.linkedArray.write(linkedObject, in: transaction))
 
         let object = TestObject(in: Node(key: "elem_1"))
-        object.file <== #imageLiteral(resourceName: "pw")
+        object.file <== "file".data(using: .utf8)
         object.property <== "prop"
         testObject.array.view.isSynced = true
         XCTAssertNoThrow(try testObject.array.write(element: object, in: transaction))
 
         let element = TestObject()
-        element.file <== #imageLiteral(resourceName: "pw")
+        element.file <== "file".data(using: .utf8)
         element.property <== "element #1"
         testObject.dictionary.view.isSynced = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
@@ -407,19 +411,19 @@ extension RealtimeTests {
 
     func testCollectionOnStandaloneObject() {
         let testObject = TestObject(in: Node(key: "test_obj"))
-        testObject.file <== #imageLiteral(resourceName: "pw")
+        testObject.file <== "file".data(using: .utf8)
 
         let linkedObject = TestObject(in: Node.root.child(with: "linked"))
         linkedObject.property <== "#1"
         testObject.linkedArray.insert(element: linkedObject)
 
         let object = TestObject(in: Node(key: "elem_1"))
-        object.file <== #imageLiteral(resourceName: "pw")
+        object.file <== "file".data(using: .utf8)
         object.property <== "prop"
         testObject.array.insert(element: object)
 
         let element = TestObject()
-        element.file <== #imageLiteral(resourceName: "pw")
+        element.file <== "file".data(using: .utf8)
         element.property <== "element #1"
         testObject.dictionary.set(element: element, for: linkedObject)
 
@@ -446,22 +450,23 @@ extension RealtimeTests {
             element.nestedObject.lazyProperty <== "value"
             let child = TestObject()
             child.property <== "element #1"
-            child.file <== #imageLiteral(resourceName: "pw")
+            let fileData = "file".data(using: .utf8)
+            child.file <== fileData
             element.array.view.isSynced = true
             try element.array.write(element: child, in: transaction)
             transaction.removeValue(by: element.readonlyProperty.node!)
-            let imgData = #imageLiteral(resourceName: "pw").pngData()!
-            transaction.addFile(imgData, by: element.readonlyFile.node!)
-            element.file <== #imageLiteral(resourceName: "pw")
+            let rofileData = "readonlyFile".data(using: .utf8)!
+            transaction.addFile(rofileData, by: element.readonlyFile.node!)
+            element.file <== rofileData
 
             let data = try element.update(in: transaction).updateNode
 
             let object = try TestObject(data: data.child(forNode: element.node!), event: .child(.added))
-            
+
             XCTAssertNotNil(object.file.unwrapped)
-//            XCTAssertEqual(object.file.unwrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
+            XCTAssertEqual(object.file.unwrapped, rofileData)
             XCTAssertNotNil(object.readonlyFile.unwrapped)
-            XCTAssertEqual(object.readonlyFile.unwrapped.flatMap { $0.pngData() }, imgData)
+            XCTAssertEqual(object.readonlyFile.unwrapped, rofileData)
             XCTAssertEqual(object.readonlyProperty.wrapped, Int())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
@@ -474,11 +479,11 @@ extension RealtimeTests {
 
     func testRemoveFile() {
         let exp = expectation(description: "")
-        let file: File<UIImage?> = "file.png".file(in: Object(in: .root), representer: .png)
+        let file: File<Data?> = "file.txt".file(in: Object(in: .root), representer: Representer.realtimeDataValue)
 
         let writeTrans = Transaction(storage: Cache.root)
         do {
-            try file.setValue(#imageLiteral(resourceName: "pw"), in: writeTrans).commit { (_, errs) in
+            try file.setValue("text".data(using: .utf8), in: writeTrans).commit { (_, errs) in
                 errs?.forEach({ XCTFail($0.describingErrorDescription) })
 
                 XCTAssertTrue(Cache.root.child(forNode: file.node!).exists())
@@ -511,7 +516,7 @@ extension RealtimeTests {
         group.manager <== user
         user.name <== "name"
         user.age <== 0
-        user.photo <== #imageLiteral(resourceName: "pw")
+        user.photo <== "image".data(using: .utf8)
         user.groups.insert(element: group)
         user.ownedGroup <== group
 
@@ -523,7 +528,7 @@ extension RealtimeTests {
 
                 XCTAssertFalse(user.hasChanges)
 
-                user.photo <== #imageLiteral(resourceName: "pw")
+                user.photo <== "image".data(using: .utf8)
                 do {
                     let update = try user.update(in: Transaction(database: Cache.root, storage: Cache.root))
                     XCTAssertTrue(update.updateNode.values.isEmpty)
@@ -810,7 +815,7 @@ extension RealtimeTests {
                     InternalKeys.raw.rawValue: 1,
                     InternalKeys.payload.rawValue: ["foo": "bar"]
                 ]
-            ])
+                ])
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -980,18 +985,18 @@ extension RealtimeTests {
     func testPayload() {
         let array = Values<ValueWithPayload>(in: Node.root.child(with: "__tests/array"))
         let transaction = Transaction()
-        
+
         do {
             let one = TestObject()
-            one.file <== #imageLiteral(resourceName: "pw")
+            one.file <== "file".data(using: .utf8)
             try array.write(element: .one(one), in: transaction)
             let two = TestObject()
-            two.file <== #imageLiteral(resourceName: "pw")
+            two.file <== "file".data(using: .utf8)
             try array.write(element: .two(two), in: transaction)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
-        
+
         transaction.revert()
     }
 
@@ -1087,13 +1092,13 @@ extension RealtimeTests {
 
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
-        testObject.file <== #imageLiteral(resourceName: "pw")
+        testObject.file <== "file".data(using: .utf8)
 
         do {
             try testObject.update(in: transaction)
 
-            let imgData = #imageLiteral(resourceName: "pw").pngData()!
-            transaction.addFile(imgData, by: testObject.readonlyFile.node!)
+            let textData = "text".data(using: .utf8)!
+            transaction.addFile(textData, by: testObject.readonlyFile.node!)
 
             transaction.commit(with: { (state, errs) in
                 if let e = errs?.first {
@@ -1107,7 +1112,7 @@ extension RealtimeTests {
                         XCTAssertEqual(testObject.property, restoredObj.property, "FAIL \(Cache.root)")
                         XCTAssertEqual(testObject.nestedObject.lazyProperty,
                                        restoredObj.nestedObject.lazyProperty, "FAIL \(Cache.root)")
-                    })
+                        })
                 }
             })
         } catch let e {
@@ -1264,10 +1269,10 @@ extension RealtimeTests {
         let array: Values<TestObject> = Values(in: Node(key: "array"))
 
         let one = TestObject()
-        one.file <== #imageLiteral(resourceName: "pw")
+        one.file <== "file".data(using: .utf8)
         array.insert(element: one)
         let two = TestObject()
-        two.file <== #imageLiteral(resourceName: "pw")
+        two.file <== "file".data(using: .utf8)
         array.insert(element: two)
 
         var counter = 0
@@ -1294,10 +1299,10 @@ extension RealtimeTests {
                                                                               options: [.keysNode: Node.root])
 
         let one = TestObject()
-        one.file <== #imageLiteral(resourceName: "pw")
+        one.file <== "file".data(using: .utf8)
         dict.set(element: one, for: TestObject(in: Node.root.childByAutoId()))
         let two = TestObject()
-        two.file <== #imageLiteral(resourceName: "pw")
+        two.file <== "file".data(using: .utf8)
         dict.set(element: two, for: TestObject(in: Node.root.childByAutoId()))
 
         var counter = 0
@@ -1336,12 +1341,12 @@ extension RealtimeTests {
         }).add(to: store)
         array.changes.listening { err in
             XCTFail(err.localizedDescription)
-        }.add(to: store)
+            }.add(to: store)
 
         let element = User()
         element.name <== "User"
         element.age <== 100
-        element.photo <== #imageLiteral(resourceName: "pw")
+        element.photo <== "photo".data(using: .utf8)
 
         do {
             let transaction = Transaction(database: Cache.root)
@@ -1456,21 +1461,21 @@ extension RealtimeTests {
                     v_err.error.map { XCTFail($0.describingErrorDescription) }
                     _ = copyKeys.view.load().completion.listening(.just({ k_err in
                         k_err.error.map { XCTFail($0.describingErrorDescription) }
-                    _ = copyAssocitedValues.view.load().completion.listening(.just({ av_err in
-                        av_err.error.map { XCTFail($0.describingErrorDescription) }
+                        _ = copyAssocitedValues.view.load().completion.listening(.just({ av_err in
+                            av_err.error.map { XCTFail($0.describingErrorDescription) }
 
-                        if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first, let copyKey = copyKeys.first {
-                            XCTAssertEqual(copyAValue.key, key)
-                            XCTAssertEqual(copyAValue.key.raw as? Int, 2)
-                            XCTAssertEqual(copyValue, value)
-                            XCTAssertEqual(copyValue.raw as? Int, 5)
-                            XCTAssertEqual(copyKey, key)
-                            XCTAssertEqual(copyKey.raw as? Int, 2)
-                        } else {
-                            XCTFail("No element")
-                        }
-                        exp.fulfill()
-                    }))
+                            if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first, let copyKey = copyKeys.first {
+                                XCTAssertEqual(copyAValue.key, key)
+                                XCTAssertEqual(copyAValue.key.raw as? Int, 2)
+                                XCTAssertEqual(copyValue, value)
+                                XCTAssertEqual(copyValue.raw as? Int, 5)
+                                XCTAssertEqual(copyKey, key)
+                                XCTAssertEqual(copyKey.raw as? Int, 2)
+                            } else {
+                                XCTFail("No element")
+                            }
+                            exp.fulfill()
+                        }))
                     }))
                 }))
             }
@@ -1517,7 +1522,7 @@ extension RealtimeTests {
             default:
                 XCTFail("Unexpected error")
             }
-        })
+            })
 
         waitForExpectations(timeout: 10) { (e) in
             e.map { XCTFail($0.describingErrorDescription) }
@@ -1636,9 +1641,9 @@ class VersionableObject: Object {
     }
 
     override func conditionForWrite(of property: _RealtimeValue) -> Bool {
-//        if property === nullVersionVariable {
-//            return false
-//        }
+        //        if property === nullVersionVariable {
+        //            return false
+        //        }
         return super.conditionForWrite(of: property)
     }
 
@@ -1698,7 +1703,7 @@ extension Representer where V == Date {
                     throw NSError(domain: "tests", code: 0, userInfo: nil)
                 }
                 return date
-            }
+        }
         )
     }
 }

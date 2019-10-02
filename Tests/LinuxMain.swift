@@ -1,7 +1,8 @@
 import XCTest
 
-import RealtimeTests
+import RealtimeTestLib
 
 var tests = [XCTestCaseEntry]()
-tests += RealtimeTests.allTests()
+tests += RealtimeTestLib.__allTests()
+
 XCTMain(tests)

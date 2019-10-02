@@ -343,7 +343,7 @@ public extension SingleValueEncodingContainer {
 
 /// Protocol for values that only valid for Realtime Database, e.g. `(NS)Array`, `(NS)Dictionary` and etc.
 /// You shouldn't apply for some custom values.
-public protocol RealtimeDataValue: RealtimeDataRepresented {}
+public protocol RealtimeDataValue: RealtimeDataRepresented {} // TODO: Rename to `ExplicitlyRealtimeDatabaseCompatible`
 extension RealtimeDataValue {
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         let value = data.asSingleValue()
@@ -467,18 +467,20 @@ extension NSDictionary: HasDefaultLiteral, _ComparableWithDefaultLiteral {
 public struct RealtimeDatabaseValue {
     private let backend: Backend
 
-    var untyped: Any {
+    public var untyped: Any {
         switch backend {
         case ._untyped(let v): return v
         case .single(_, let v): return v
+        case .pair(let k, let v): return (k.untyped, v.untyped)
         case .unkeyed(let values): return values.map({ $0.untyped })
         }
     }
 
-    enum Backend {
+    indirect enum Backend {
         @available(*, deprecated, message: "Untyped values no more supported")
         case _untyped(Any)
-        case single(Any.Type, RealtimeDataValue)
+        case single(Any.Type, Any)
+        case pair(RealtimeDatabaseValue, RealtimeDatabaseValue)
         case unkeyed([RealtimeDatabaseValue])
     }
 
@@ -504,9 +506,10 @@ public struct RealtimeDatabaseValue {
     public init(_ value: UInt16) { self.init(value: value) }
     public init(_ value: UInt32) { self.init(value: value) }
     public init(_ value: UInt64) { self.init(value: value) }
-    public init(_ value: CGFloat) { self.init(value: value) }
     public init(_ value: String) { self.init(value: value) }
     public init(_ value: Data) { self.init(value: value) }
+
+    // TODO: Remove both below
     public init<E: RealtimeDataValue>(_ value: Array<E>) {
         self.init(value: value)
     }
@@ -525,6 +528,9 @@ public struct RealtimeDatabaseValue {
     init(_ value: RealtimeDatabaseValue) {
         self.backend = value.backend
     }
+    init(_ value: (RealtimeDatabaseValue, RealtimeDatabaseValue)) {
+        self.backend = .pair(value.0, value.1)
+    }
     init(_ values: [RealtimeDatabaseValue]) {
         self.backend = .unkeyed(values)
     }
@@ -534,15 +540,17 @@ public struct RealtimeDatabaseValue {
         self.backend = ._untyped(val)
     }
 
-    func satisfy<T>(to type: T.Type) -> Bool where T: RealtimeDataValue {
-        switch backend {
-        case ._untyped(let v): return (v as? T) != nil
-        case .single(let t, let v):
-            return type == t || (v as? T) != nil
-        case .unkeyed:
-            return type == NSArray.self || type == Array<Any>.self
-        }
-    }
+//    func satisfy<T>(to type: T.Type) -> Bool where T: RealtimeDataValue {
+//        switch backend {
+//        case ._untyped(let v): return (v as? T) != nil
+//        case .single(let t, let v):
+//            return type == t || (v as? T) != nil
+//        case .pair(let k, let v):
+//            return (k.type, v.type) == type
+//        case .unkeyed:
+//            return type == NSArray.self || type == Array<Any>.self
+//        }
+//    }
 
     func typed<T>(as type: T.Type) throws -> T where T: RealtimeDataValue {
         switch backend {
@@ -556,11 +564,79 @@ public struct RealtimeDatabaseValue {
                 throw RealtimeError(source: .value, description: "Type casting fails")
             }
             return typed
+        case .pair(let k, let v):
+            guard let typed = (k.untyped, v.untyped) as? T else {
+                throw RealtimeError(source: .value, description: "Type casting fails")
+            }
+            return typed
         case .unkeyed(let values):
             guard let typed = values.map({ $0.untyped }) as? T else {
                 throw RealtimeError(source: .value, description: "Type casting fails")
             }
             return typed
+        }
+    }
+
+    public func extract<T>(
+        bool: (Bool) throws -> T,
+        int: (Int) throws -> T,
+        int8: (Int8) throws -> T,
+        int16: (Int16) throws -> T,
+        int32: (Int32) throws -> T,
+        int64: (Int64) throws -> T,
+        uint: (UInt) throws -> T,
+        uint8: (UInt8) throws -> T,
+        uint16: (UInt16) throws -> T,
+        uint32: (UInt32) throws -> T,
+        uint64: (UInt64) throws -> T,
+        double: (Double) throws -> T,
+        float: (Float) throws -> T,
+        string: (String) throws -> T,
+        data: (Data) throws -> T,
+        pair: (RealtimeDatabaseValue, RealtimeDatabaseValue) throws -> T,
+        collection: ([RealtimeDatabaseValue]) throws -> T
+        ) throws -> T {
+        switch backend {
+        case ._untyped: throw RealtimeError(source: .value, description: "Unexpected database value to extract")
+        case .single(let t, let v):
+            func load<T>(_ p: UnsafeRawBufferPointer) -> T { return p.load(as: T.self) }
+            if t == Bool.self {
+                return try bool(withUnsafeBytes(of: v, load))
+            } else if t == Int.self {
+                return try int(withUnsafeBytes(of: v, load))
+            } else if t == Int8.self {
+                return try int8(withUnsafeBytes(of: v, load))
+            } else if t == Int16.self {
+                return try int16(withUnsafeBytes(of: v, load))
+            } else if t == Int32.self {
+                return try int32(withUnsafeBytes(of: v, load))
+            } else if t == Int64.self {
+                return try int64(withUnsafeBytes(of: v, load))
+            } else if t == UInt.self {
+                return try uint(withUnsafeBytes(of: v, load))
+            } else if t == UInt8.self {
+                return try uint8(withUnsafeBytes(of: v, load))
+            } else if t == UInt16.self {
+                return try uint16(withUnsafeBytes(of: v, load))
+            } else if t == UInt32.self {
+                return try uint32(withUnsafeBytes(of: v, load))
+            } else if t == UInt64.self {
+                return try uint64(withUnsafeBytes(of: v, load))
+            } else if t == Double.self {
+                return try double(withUnsafeBytes(of: v, load))
+            } else if t == Float.self {
+                return try float(withUnsafeBytes(of: v, load))
+            } else if t == String.self {
+                return try string(withUnsafeBytes(of: v, load))
+            } else if t == Data.self {
+                return try data(withUnsafeBytes(of: v, load))
+            } else {
+                throw RealtimeError(source: .value, description: "Cannot extract value from database value. Reason: Unexpected type")
+            }
+        case .pair(let k, let v):
+            return try pair(k, v)
+        case .unkeyed(let values):
+            return try collection(values)
         }
     }
 }
@@ -815,6 +891,11 @@ public extension Representer {
 public extension Representer where V: RealtimeDataRepresented & RealtimeDataValueRepresented {
     static var realtimeData: Representer<V> {
         return Representer<V>(encoding: { try $0.defaultRepresentation() }, decoding: V.init)
+    }
+}
+public extension Representer where V: RealtimeDataValue {
+    static var realtimeDataValue: Representer<V> {
+        return Representer<V>(encoding: RealtimeDatabaseValue.init, decoding: V.init)
     }
 }
 

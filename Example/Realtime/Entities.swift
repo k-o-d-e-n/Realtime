@@ -6,6 +6,7 @@
 //  Copyright © 2018 CocoaPods. All rights reserved.
 //
 
+import Foundation
 import Realtime
 
 enum Global {
@@ -49,7 +50,11 @@ class Group: Object {
 class User: Object {
     lazy var name: Property<String> = "name".property(in: self)
     lazy var age: Property<Int> = "age".property(in: self)
+    #if canImport(UIKit)
     lazy var photo: File<UIImage?> = "photo".file(in: self, representer: .png)
+    #else
+    lazy var photo: File<Data?> = "photo".file(in: self, representer: .realtimeDataValue)
+    #endif
     lazy var groups: MutableReferences<Group> = "groups".references(in: self, elements: Global.rtGroups.node!)
     lazy var followers: MutableReferences<User> = "followers".references(in: self, elements: Global.rtUsers.node!)
     lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".values(in: self)

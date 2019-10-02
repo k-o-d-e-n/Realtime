@@ -10,6 +10,10 @@ let package = Package(
         .library(
             name: "Realtime",
             targets: ["Realtime"]),
+        .library(
+            name: "RealtimeTestLib",
+            targets: ["RealtimeTestLib"]
+        )
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -22,8 +26,15 @@ let package = Package(
         .target(
             name: "Realtime",
             dependencies: ["CAtomics", "Promise.swift"]),
+        .target(
+            name: "RealtimeTestLib",
+            dependencies: ["Realtime"],
+            path: "./Tests/RealtimeTestLib",
+            sources: ["./", "../../Example/Realtime/Entities.swift"]
+        ),
         .testTarget(
             name: "RealtimeTests",
-            dependencies: ["Realtime"]),
+            dependencies: ["RealtimeTestLib"]
+        ),
     ]
 )
