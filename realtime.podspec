@@ -30,12 +30,14 @@ Pod::Spec.new do |s|
   s.social_media_url = 'https://twitter.com/K_o_D_e_N'
   s.ios.deployment_target = '9.0'
   s.swift_version = '4.2'
-  s.source_files = 'Sources/Realtime/Classes/**/*'
-  s.static_framework = true
-  s.dependency 'Firebase/Core'
-  s.dependency 'Firebase/Database'
-  s.dependency 'Firebase/Storage'
+  s.source_files = 'Sources/Realtime/**/*'
   s.dependency 'Promise.swift'
+  s.static_framework = true
+  s.subspec 'Firebase' do |firebase|
+      firebase.source_files = 'Sources/Realtime+Firebase/**/*'
+      firebase.dependency 'Firebase/Database'
+      firebase.dependency 'Firebase/Storage'
+  end
   s.xcconfig = {
       "FRAMEWORK_SEARCH_PATHS" => "'$(PODS_ROOT)'"
   }

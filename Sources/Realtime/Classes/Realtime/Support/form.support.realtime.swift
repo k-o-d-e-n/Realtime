@@ -5,9 +5,8 @@
 //  Created by Denis Koryttsev on 11/09/2018.
 //
 
-import Foundation
-
 #if os(iOS)
+import UIKit
 
 public enum CellBuilder {
     case reuseIdentifier(String)

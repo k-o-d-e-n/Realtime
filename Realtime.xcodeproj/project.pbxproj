@@ -184,7 +184,7 @@
 		OBJ_63 /* Package.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; name = Package.swift; path = "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime/.build/checkouts/swift-atomics/Package.swift"; sourceTree = "<group>"; };
 		OBJ_70 /* js */ = {isa = PBXFileReference; lastKnownFileType = folder; path = js; sourceTree = SOURCE_ROOT; };
 		OBJ_71 /* Example */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Example; sourceTree = SOURCE_ROOT; };
-		OBJ_72 /* realtime.podspec */ = {isa = PBXFileReference; lastKnownFileType = text; path = realtime.podspec; sourceTree = "<group>"; };
+		OBJ_72 /* realtime.podspec */ = {isa = PBXFileReference; lastKnownFileType = text; path = realtime.podspec; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
 		OBJ_73 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		OBJ_74 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		OBJ_77 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };

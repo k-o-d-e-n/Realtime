@@ -9,11 +9,16 @@ let package = Package(
         // Products define the executables and libraries produced by a package, and make them visible to other packages.
         .library(
             name: "Realtime",
-            targets: ["Realtime"]),
+            targets: ["Realtime"]
+        ),
         .library(
             name: "RealtimeTestLib",
             targets: ["RealtimeTestLib"]
-        )
+        ),
+        .library(
+            name: "Realtime+Firebase",
+            targets: ["Realtime+Firebase"]
+        ),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -25,7 +30,12 @@ let package = Package(
         // Targets can depend on other targets in this package, and on products in packages which this package depends on.
         .target(
             name: "Realtime",
-            dependencies: ["CAtomics", "Promise.swift"]),
+            dependencies: ["CAtomics", "Promise.swift"]
+        ),
+        .target(
+            name: "Realtime+Firebase",
+            dependencies: ["Realtime"]
+        ),
         .target(
             name: "RealtimeTestLib",
             dependencies: ["Realtime"],

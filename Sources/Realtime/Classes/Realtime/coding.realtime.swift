@@ -277,7 +277,7 @@ public extension RealtimeDataRepresented where Self: Decodable {
 }
 
 /// A type that can represented to an adopted Realtime database value
-public protocol RealtimeDataValueRepresented {
+public protocol RealtimeDataValueRepresented {// TODO: remove
     /// Value adopted for Realtime database
     func defaultRepresentation() throws -> RealtimeDatabaseValue?
 }
@@ -528,10 +528,10 @@ public struct RealtimeDatabaseValue {
     init(_ value: RealtimeDatabaseValue) {
         self.backend = value.backend
     }
-    init(_ value: (RealtimeDatabaseValue, RealtimeDatabaseValue)) {
+    public init(_ value: (RealtimeDatabaseValue, RealtimeDatabaseValue)) {
         self.backend = .pair(value.0, value.1)
     }
-    init(_ values: [RealtimeDatabaseValue]) {
+    public init(_ values: [RealtimeDatabaseValue]) {
         self.backend = .unkeyed(values)
     }
 
@@ -1102,62 +1102,4 @@ public extension Representer where V: UIImage {
         )
     }
 }
-#endif
-
-/// --------------------------- DataSnapshot Decoder ------------------------------
-
-#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
-import FirebaseDatabase
-
-extension DataSnapshot: RealtimeDataProtocol, Sequence {
-    public var key: String? {
-        return self.ref.key
-    }
-
-    public var database: RealtimeDatabase? { return ref.database }
-    public var storage: RealtimeStorage? { return nil }
-    public var node: Node? { return Node.from(ref) }
-
-    public func asSingleValue() -> Any? { return value }
-
-    public func child(forPath path: String) -> RealtimeDataProtocol {
-        return childSnapshot(forPath: path)
-    }
-
-    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        let childs = children
-        return AnyIterator {
-            return childs.nextObject() as? DataSnapshot
-        }
-    }
-}
-extension MutableData: RealtimeDataProtocol, Sequence {
-    public var database: RealtimeDatabase? { return nil }
-    public var storage: RealtimeStorage? { return nil }
-    public var node: Node? { return key.map(Node.init) }
-
-    public func asSingleValue() -> Any? { return value }
-
-    public func exists() -> Bool {
-        return value.map { !($0 is NSNull) } ?? false
-    }
-
-    public func child(forPath path: String) -> RealtimeDataProtocol {
-        return childData(byAppendingPath: path)
-    }
-
-    public func hasChild(_ childPathString: String) -> Bool {
-        return hasChild(atPath: childPathString)
-    }
-
-    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        let childs = children
-        return AnyIterator {
-            return childs.nextObject() as? MutableData
-        }
-    }
-}
-
-extension DataSnapshot: Decoder {}
-extension MutableData: Decoder {}
 #endif
