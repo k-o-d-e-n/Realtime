@@ -16,13 +16,20 @@ public protocol UpdateNode: RealtimeDataProtocol {
     /// - Parameters:
     ///   - ancestor: An ancestor database reference
     ///   - container: `inout` dictionary container.
+    @available(*, deprecated, message: "Use `reduceValues` method instead")
     func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?])
-    func enumerateValues(_ loop: (Node, RealtimeDatabaseValue?) throws -> Void) rethrows
+    func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows
 }
 extension UpdateNode {
     public var database: RealtimeDatabase? { return Cache.root }
     public var storage: RealtimeStorage? { return Cache.root }
     public var node: Node? { return location }
+
+    public func reduceValues<C>(into container: C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows -> C {
+        var container = container
+        try reduceValues(into: &container, reducer)
+        return container
+    }
 }
 extension UpdateNode where Self: RealtimeDataProtocol {
     public var priority: Any? { return nil }
@@ -69,8 +76,8 @@ class ValueNode: UpdateNode {
         container[location.path(from: ancestor)] = value?.untyped
     }
 
-    func enumerateValues(_ loop: (Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
-        try loop(location, value)
+    func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
+        try reducer(&container, location, value)
     }
 
     required init(node: Node, value: RealtimeDatabaseValue?) {
@@ -210,10 +217,10 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
         }
     }
 
-    func enumerateValues(_ loop: (Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
+    func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
         try childs.forEach { (node) in
             switch node {
-            case .value(let v as UpdateNode), .object(let v as UpdateNode): try v.enumerateValues(loop)
+            case .value(let v as UpdateNode), .object(let v as UpdateNode): try v.reduceValues(into: &container, reducer)
             case .file: break
             }
         }

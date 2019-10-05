@@ -9,13 +9,19 @@ target 'Realtime_Example' do
   pod 'Firebase/Core'
 #  pod 'Firebase/Database'
 #  pod 'Firebase/Storage'
-  pod 'Starscream', '~> 3.0.2'
 
   target 'Realtime_Tests' do
     inherit! :search_paths
 
 
   end
+end
+
+target 'Realtime_FDB' do
+  pod 'Starscream', '~> 3.0.2'
+  pod 'ClientServerAPI', :path => '../../Realtime+FoundationDB'
+  pod 'Realtime+FoundationDBModels', :path => '../../Realtime+FoundationDB'
+  pod 'FoundationDBModels', :path => '../../Realtime+FoundationDB'
 end
 
 post_install do |installer|

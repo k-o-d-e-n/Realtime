@@ -9,13 +9,15 @@
 import Foundation
 import Starscream
 import Realtime
+import Realtime_FoundationDBModels
+import ClientServerAPI
 
 class RemoteDatabase {
     let connection: WebSocket
     let connectionState: Repeater<Bool> = Repeater.unsafe()
 
-    var sheduledCommands: [UInt: ClientMessage] = [:]
-    var commandsCounter: UInt = 0
+    var runningOperations: [UInt64: ThrowsClosure<Client.ServerMessage, Void>] = [:]
+    var operationsCounter: UInt64 = 0
 
     init(url: URL) {
         self.connection = WebSocket(url: url)
@@ -43,34 +45,25 @@ extension RemoteDatabase: WebSocketDelegate {
     }
 
     func websocketDidReceiveData(socket: WebSocketClient, data: Data) {
-        print("RECEIVE DATA", String(data: data, encoding: .utf8))
+        do {
+            let response = try Client().read(data)
+            switch response {
+            case .load(let message):
+                try runningOperations.removeValue(forKey: message.operationID)?.call(response)
+            case .write(let message):
+                try runningOperations.removeValue(forKey: message.operationID)?.call(response)
+            case .error(let message):
+                try runningOperations.removeValue(forKey: message.operationID)?.call(response)
+            }
+        } catch let e {
+            print(e)
+        }
     }
 }
 
-struct ClientMessage: Codable {
-    let c: String
-    let cid: String
-    let k: String?
-
-    static func load(node: Node, commandID: UInt, completion: @escaping (Data) -> Void) -> ClientMessage {
-        return ClientMessage(c: "l", cid: "\(commandID)", k: node.absolutePath)
-    }
-
-    func encoded() throws -> Data {
-        return try JSONEncoder().encode(self)
-    }
-}
 extension RemoteDatabase {
-    struct ServerMessage: Codable {
-        let cid: String
-//        let r: NSDictionary
-    }
-    struct Response {
-        let response: ServerMessage?
-        let error: ServerError?
-    }
-    struct ServerError: Error, Codable {
-        let message: String
+    enum DBError: Error {
+        case badServerResponse
     }
 }
 
@@ -85,16 +78,46 @@ extension RemoteDatabase: RealtimeDatabase {
     }
 
     func commit(update: UpdateNode, completion: ((Error?) -> Void)?) {
-
+        let opID = operationsCounter; operationsCounter += 1
+        let writeMessage = WriteMessage.Client(
+            operationID: opID,
+            values: update.reduceValues(into: [], { (res, node, val) in
+                res.append((node, val))
+            })
+        )
+        runningOperations[opID] = ThrowsClosure({ (response) in
+            DispatchQueue.main.async {
+                switch response {
+                case .write: completion?(nil)
+                case .error(let error): completion?(error)
+                default: completion?(DBError.badServerResponse)
+                }
+            }
+        })
+        do {
+            connection.write(data: try writeMessage.packed())
+        } catch let e {
+            completion?(e)
+        }
     }
 
     func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
-        let commandID = commandsCounter; commandsCounter += 1
-        let loadCommand = ClientMessage.load(node: node, commandID: commandID) { (data) in
-            
+        let opID = operationsCounter; operationsCounter += 1
+        let loadMessage = LoadMessage(operationID: opID, node: node)
+        runningOperations[opID] = ThrowsClosure({ [weak self] (response) in
+            DispatchQueue.main.async {
+                switch response {
+                case .load(let message): completion(DatabaseNode(node: node, database: self, rows: message.values))
+                case .error(let error): onCancel?(error)
+                default: onCancel?(DBError.badServerResponse)
+                }
+            }
+        })
+        do {
+            connection.write(data: try loadMessage.packed())
+        } catch let e {
+            onCancel?(e)
         }
-        sheduledCommands[commandID] = loadCommand
-        connection.write(data: try! loadCommand.encoded())
     }
 
     func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {

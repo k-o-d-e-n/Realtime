@@ -91,7 +91,7 @@ public struct ThrowsClosure<I, O> {
         return try closure(arg)
     }
 }
-extension ThrowsClosure {
+public extension ThrowsClosure {
     func map<U>(_ transform: @escaping (U) throws -> I) -> ThrowsClosure<U, O> {
         return ThrowsClosure<U, O>({ try self.closure(try transform($0)) })
     }
@@ -105,7 +105,7 @@ extension ThrowsClosure {
         return ThrowsClosure<I, U>({ try transform(try self.closure($0)) })
     }
 }
-extension Closure {
+public extension Closure {
     func `throws`() -> ThrowsClosure<I, O> {
         return ThrowsClosure(closure)
     }

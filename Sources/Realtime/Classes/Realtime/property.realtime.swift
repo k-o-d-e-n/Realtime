@@ -29,7 +29,7 @@ public extension RawRepresentable where Self.RawValue == String {
         )
     }
 
-    func readonlyProperty<T: RealtimeDataValue>(in object: Object, representer: Representer<T> = .any) -> ReadonlyProperty<T> {
+    func readonlyProperty<T: RealtimeDataValue>(in object: Object, representer: Representer<T> = .realtimeDataValue) -> ReadonlyProperty<T> {
         return ReadonlyProperty(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -38,7 +38,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func readonlyProperty<T: RealtimeDataValue>(in object: Object, representer: Representer<T> = .any) -> ReadonlyProperty<T?> {
+    func readonlyProperty<T: RealtimeDataValue>(in object: Object, representer: Representer<T> = .realtimeDataValue) -> ReadonlyProperty<T?> {
         return ReadonlyProperty(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -48,22 +48,22 @@ public extension RawRepresentable where Self.RawValue == String {
         )
     }
     func property<T: RealtimeDataValue>(in obj: Object) -> Property<T> {
-        return property(in: obj, representer: .any)
+        return property(in: obj, representer: .realtimeDataValue)
     }
     func property<T: RealtimeDataValue>(in obj: Object) -> Property<T?> {
         return Property(
             in: Node(key: rawValue, parent: obj.node),
             options: [
                 .database: obj.database as Any,
-                .representer: Availability<T?>.optional(Representer<T>.any)
+                .representer: Availability<T?>.optional(Representer<T>.realtimeDataValue)
             ]
         )
     }
 
-    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = .any) -> Property<V> {
+    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = .realtimeDataValue) -> Property<V> where V.RawValue: RealtimeDataValue {
         return property(in: object, representer: Representer<V>.default(rawRepresenter))
     }
-    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = .any) -> Property<V?> {
+    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = .realtimeDataValue) -> Property<V?> where V.RawValue: RealtimeDataValue {
         return property(in: object, representer: Representer<V>.default(rawRepresenter))
     }
     func date(in object: Object, strategy: DateCodingStrategy = .secondsSince1970) -> Property<Date> {
@@ -934,7 +934,7 @@ public final class SharedProperty<T>: _RealtimeValue where T: RealtimeDataValue 
         }
     }
     let repeater: Repeater<T> = Repeater.unsafe()
-    let representer: Representer<T> = .any
+    let representer: Representer<T> = .realtimeDataValue
 
     enum State {
         case error(Error, old: T)

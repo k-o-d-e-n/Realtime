@@ -78,6 +78,7 @@ extension ViewController {
                     completion: { (data) in
                         print(data)
                         let alert = UIAlertController(title: "", message: "\(data)", preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: "ok", style: .default, handler: nil))
                         self.present(alert, animated: true, completion: nil)
                 },
                     onCancel: { (err) in

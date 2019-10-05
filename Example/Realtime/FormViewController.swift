@@ -243,7 +243,11 @@ class FormViewController: UIViewController {
         let alert = showWaitingAlert()
         let transaction = Transaction()
         do {
-            try Global.rtUsers.write(element: form.model, in: transaction)
+            #if FIREBASE
+                try Global.rtUsers.write(element: form.model, in: transaction)
+            #else
+                try form.model.save(by: Node.root("___tests/_users").childByAutoId(), in: transaction) // TODO: Remove after resolve problems with untyped error
+            #endif
             transaction.commit { [weak self] (state, errors) in
                 if let err = errors?.first {
                     fatalError(err.localizedDescription)
