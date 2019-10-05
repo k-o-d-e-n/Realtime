@@ -97,6 +97,10 @@
             argument = "REALTIME_CRASH_ON_ERROR"
             isEnabled = "YES">
          </CommandLineArgument>
+         <CommandLineArgument
+            argument = "FIREBASE"
+            isEnabled = "YES">
+         </CommandLineArgument>
       </CommandLineArguments>
       <AdditionalOptions>
       </AdditionalOptions>

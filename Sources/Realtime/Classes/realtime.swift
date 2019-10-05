@@ -33,7 +33,7 @@ internal func debugFatalError(condition: @autoclosure () -> Bool = true,
         if condition() {
             debugLog(message(), file, line)
             if ProcessInfo.processInfo.arguments.contains("REALTIME_CRASH_ON_ERROR") {
-                fatalError(message)
+                fatalError(message())
             }
         }
     }

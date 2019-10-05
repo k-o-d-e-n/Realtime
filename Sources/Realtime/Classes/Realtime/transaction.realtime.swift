@@ -145,7 +145,7 @@ extension Transaction {
         storage.commit(transaction: self, completion: completion)
     }
 
-    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Realtime.Node) throws {
+    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Node) throws {
         guard node.isRooted else { fatalError("Node to set must be rooted") }
 
         try value.write(to: self, by: node)
@@ -159,7 +159,7 @@ extension Transaction {
         removeValue(by: node)
     }
 
-    internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) throws {
+    internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Node) throws {
         guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
         guard value.hasChanges else { return debugFatalError("Value has not changes") }
 
@@ -358,7 +358,7 @@ public extension Transaction {
     /// - Parameters:
     ///   - value: `Data` type value
     ///   - node: Target node
-    func addFile(_ value: Data, metadata: RealtimeMetadata = [:], by node: Realtime.Node) {
+    func addFile(_ value: Data, metadata: RealtimeMetadata = [:], by node: Node) {
         if let merged = mergedToTransaction {
             merged.addFile(value, by: node)
         } else {
@@ -370,7 +370,7 @@ public extension Transaction {
         }
     }
 
-    func addFile<T>(_ file: File<T>, by node: Realtime.Node? = nil) throws {
+    func addFile<T>(_ file: File<T>, by node: Node? = nil) throws {
         if let merged = mergedToTransaction {
             try merged.addFile(file, by: node)
         } else {
@@ -384,7 +384,7 @@ public extension Transaction {
     ///
     /// - Parameters:
     ///   - node: Target node
-    func removeFile(by node: Realtime.Node) {
+    func removeFile(by node: Node) {
         if let merged = mergedToTransaction {
             merged.removeFile(by: node)
         } else {
@@ -399,7 +399,7 @@ public extension Transaction {
     /// - Parameters:
     ///   - value: Untyped value
     ///   - node: Target node
-    func addValue(_ value: RealtimeDatabaseValue?, by node: Realtime.Node) {
+    func addValue(_ value: RealtimeDatabaseValue?, by node: Node) {
         if let merged = mergedToTransaction {
             merged.addValue(value, by: node)
         } else {
@@ -408,7 +408,7 @@ public extension Transaction {
             _addValue(.value(ValueNode(node: node, value: value)))
         }
     }
-    func addValue<T: RealtimeDataValue>(_ value: T, by node: Realtime.Node) {
+    func addValue<T: RealtimeDataValue>(_ value: T, by node: Node) {
         addValue(RealtimeDatabaseValue(value: value), by: node)
     }
 
@@ -416,7 +416,7 @@ public extension Transaction {
     ///
     /// - Parameters:
     ///   - node: Target node
-    func removeValue(by node: Realtime.Node) {
+    func removeValue(by node: Node) {
         if let merged = mergedToTransaction {
             merged.removeValue(by: node)
         } else {
@@ -427,7 +427,7 @@ public extension Transaction {
     }
 
     /// adds operation of save RealtimeValue as single value
-    func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) throws {
+    func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Node) throws {
         if let merged = mergedToTransaction {
             try merged.set(value, by: node)
         } else {

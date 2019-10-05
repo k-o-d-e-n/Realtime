@@ -9,6 +9,10 @@
 import Foundation
 import Realtime
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 enum Global {
     static let rtUsers: Values<User> = Values(in: Node(key: "___tests/_users", parent: .root))
     static let rtGroups: Values<Group> = Values(in: Node(key: "___tests/_groups", parent: .root))

@@ -22,6 +22,7 @@ class ViewController: UITableViewController {
 
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
 
+        #if FIREBASE
         iView.startAnimating()
         tableView.isUserInteractionEnabled = false
         /// for testing implement function `auth(_ completion: @escaping () -> Void)` in Auth.swift
@@ -29,6 +30,7 @@ class ViewController: UITableViewController {
             iView.stopAnimating()
             self.tableView.isUserInteractionEnabled = true
         }
+        #endif
     }
 }
 extension ViewController {
