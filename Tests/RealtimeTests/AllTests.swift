@@ -12,7 +12,9 @@ import Realtime
 final class RunTests: NSObject {
     override init() {
         super.init()
-        let configuration = RealtimeApp.Configuration(linksNode: BranchNode(key: "___tests/__links"))
-        RealtimeApp.initialize(with: RealtimeApp.cache, storage: RealtimeApp.cache, configuration: configuration)
+        RealtimeTests.allTestsSetUp = {
+            let configuration = RealtimeApp.Configuration(linksNode: BranchNode(key: "___tests/__links"))
+            RealtimeApp.initialize(with: RealtimeApp.cache, storage: RealtimeApp.cache, configuration: configuration)
+        }
     }
 }
