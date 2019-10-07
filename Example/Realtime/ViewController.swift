@@ -25,7 +25,7 @@ class ViewController: UITableViewController {
         #if FIREBASE
         iView.startAnimating()
         tableView.isUserInteractionEnabled = false
-        /// for testing implement function `auth(_ completion: @escaping () -> Void)` in Auth.swift
+        // for testing implement function `auth(_ completion: @escaping () -> Void)` in Auth.swift
         auth {
             iView.stopAnimating()
             self.tableView.isUserInteractionEnabled = true
@@ -74,7 +74,7 @@ extension ViewController {
                 node = Node.root(textField.text ?? "")
                 RealtimeApp.app.database.load(
                     for: node,
-                    timeout: .never,
+                    timeout: .seconds(5),
                     completion: { (data) in
                         print(data)
                         let alert = UIAlertController(title: "", message: "\(data)", preferredStyle: .alert)
@@ -83,7 +83,10 @@ extension ViewController {
                 },
                     onCancel: { (err) in
                         print(err)
-                }
+                        let alert = UIAlertController(title: "", message: "\(err)", preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: "ok", style: .default, handler: nil))
+                        self.present(alert, animated: true, completion: nil)
+                    }
                 )
             }))
             present(alert, animated: true, completion: nil)

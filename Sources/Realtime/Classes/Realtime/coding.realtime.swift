@@ -276,12 +276,6 @@ public extension RealtimeDataRepresented where Self: Decodable {
     }
 }
 
-/// A type that can represented to an adopted Realtime database value
-public protocol RealtimeDataValueRepresented {// TODO: remove
-    /// Value adopted for Realtime database
-    func defaultRepresentation() throws -> RealtimeDatabaseValue?
-}
-
 public protocol ExpressibleBySequence {
     associatedtype SequenceElement
     init<S: Sequence>(_ sequence: S) where S.Element == SequenceElement
@@ -471,7 +465,7 @@ public struct RealtimeDatabaseValue {
         switch backend {
         case ._untyped(let v): return v
         case .single(_, let v): return v
-        case .pair(let k, let v): return (k.untyped, v.untyped)
+        case .pair(let k, let v): return (k.untyped, v.untyped) // TODO: Invalid for Firebase
         case .unkeyed(let values): return values.map({ $0.untyped })
         }
     }
@@ -883,16 +877,6 @@ public extension Representer where V: RealtimeValue {
         )
     }
 }
-public extension Representer {
-    static var any: Representer<V> {
-        return Representer<V>(encoding: RealtimeDatabaseValue.init(untyped:), decoding: { try $0.unbox(as: V.self) })
-    }
-}
-public extension Representer where V: RealtimeDataRepresented & RealtimeDataValueRepresented {
-    static var realtimeData: Representer<V> {
-        return Representer<V>(encoding: { try $0.defaultRepresentation() }, decoding: V.init)
-    }
-}
 public extension Representer where V: RealtimeDataValue {
     static var realtimeDataValue: Representer<V> {
         return Representer<V>(encoding: RealtimeDatabaseValue.init, decoding: V.init)
@@ -976,7 +960,7 @@ public extension Representer where V: RawRepresentable {
 }
 public extension Representer where V: RawRepresentable, V.RawValue: RealtimeDataValue {
     static var rawRepresentable: Representer<V> {
-        return self.default(Representer<V.RawValue>.any)
+        return self.default(Representer<V.RawValue>.realtimeDataValue)
     }
 }
 
@@ -1067,7 +1051,7 @@ import UIKit.UIImage
 
 public extension Representer where V: UIImage {
     static var png: Representer<UIImage> {
-        let base = Representer<Data>.any
+        let base = Representer<Data>.realtimeDataValue
         return Representer<UIImage>(
             encoding: { img -> RealtimeDatabaseValue? in
                 guard let data = img.pngData() else {
@@ -1085,7 +1069,7 @@ public extension Representer where V: UIImage {
         )
     }
     static func jpeg(quality: CGFloat = 1.0) -> Representer<UIImage> {
-        let base = Representer<Data>.any
+        let base = Representer<Data>.realtimeDataValue
         return Representer<UIImage>(
             encoding: { img -> RealtimeDatabaseValue? in
                 guard let data = img.jpegData(compressionQuality: quality) else {

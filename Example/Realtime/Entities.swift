@@ -14,8 +14,8 @@ import UIKit
 #endif
 
 enum Global {
-    static let rtUsers: Values<User> = Values(in: Node(key: "___tests/_users", parent: .root))
-    static let rtGroups: Values<Group> = Values(in: Node(key: "___tests/_groups", parent: .root))
+    static let rtUsers: Values<User> = Values(in: Node.root("___tests/_users"))
+    static let rtGroups: Values<Group> = Values(in: Node.root("___tests/_groups"))
 }
 
 class Conversation: Object {

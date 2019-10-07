@@ -9,7 +9,7 @@
 import Foundation
 import Starscream
 import Realtime
-import Realtime_FoundationDBModels
+import RealtimeFoundationDBModels
 import ClientServerAPI
 
 class RemoteDatabase {

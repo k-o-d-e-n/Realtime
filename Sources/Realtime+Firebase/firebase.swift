@@ -259,7 +259,9 @@ extension Database: RealtimeDatabase {
 
     public func commit(update: UpdateNode, completion: ((Error?) -> Void)?) {
         var updateValue: [String: Any?] = [:]
-        update.fillValues(referencedFrom: update.location, into: &updateValue)
+        update.reduceValues(into: &updateValue, { container, node, value in
+            container[node.path(from: update.location)] = value?.untyped
+        })
         if updateValue.count > 0 {
             let ref = update.location.isRoot ? reference() : reference(withPath: update.location.absolutePath)
             ref.update(use: updateValue, completion: completion)
@@ -295,7 +297,7 @@ extension Database: RealtimeDatabase {
                 if invalidate(token) {
                     onCancel?(RealtimeError(external: e, in: .database))
                 }
-        }
+            }
         )
 
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: {

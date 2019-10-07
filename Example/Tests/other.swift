@@ -202,8 +202,8 @@ extension OtherTests {
         let node1 = Node(key: "cjnk/xocm", parent: .root)
         let node2 = Node(key: "mkjmld", parent: .root)
 
-        XCTAssertTrue(node1._hasMultipleLevelNode)
-        XCTAssertFalse(node2._hasMultipleLevelNode)
+        XCTAssertTrue(node1._hasMultiLevelNode)
+        XCTAssertFalse(node2._hasMultiLevelNode)
     }
 
     func testDecodingRawValue() {

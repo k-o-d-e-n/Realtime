@@ -123,7 +123,7 @@ extension Transaction {
     /// registers new single value for specified reference
     func _addValue(_ cacheValue: CacheNode) {
         debugFatalError(
-            condition: cacheValue.location._hasMultipleLevelNode,
+            condition: cacheValue.location._hasMultiLevelNode,
             "Multi level node can use only for readonly operations."
         )
         updateNode._addValueAsInSingleTransaction(cacheValue)
@@ -287,9 +287,13 @@ public extension Transaction {
                     runFiles()
                 }
 
-                // quick fix .main not working on macos
-                group.notify(queue: DispatchQueue.global() /* .main */, execute: {
-                    //                    DispatchQueue.main.async {
+                // quick fix: .main not working on macos
+                #if os(iOS)
+                let queue = DispatchQueue.main
+                #else
+                let queue = DispatchQueue.global()
+                #endif
+                group.notify(queue: queue, execute: {
                     if let e = error {
                         self.state = .failed
                         debugFatalError(e.localizedDescription)
@@ -301,7 +305,6 @@ public extension Transaction {
                     }
                     self.invalidate(self.state != .failed)
                     completion?((self.state, self.substate), error.map { [$0] })
-                    //                    }
                 })
             } catch let e {
                 completion?((self.state, self.substate), [e])
