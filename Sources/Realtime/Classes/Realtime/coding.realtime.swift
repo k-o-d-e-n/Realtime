@@ -702,8 +702,8 @@ public extension Representer {
     ///
     /// - Parameter value: Optional of base value
     /// - Returns: Encoding result
-    func encode<T>(_ value: V) throws -> Any? where V == Optional<T> {
-        return try value.map(encode)
+    func encode<T>(_ value: V) throws -> RealtimeDatabaseValue? where V == Optional<T> {
+        return try value.flatMap(encode)
     }
     /// Decodes a data of Realtime database to defined type.
     /// If data is empty return nil.
