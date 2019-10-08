@@ -71,8 +71,8 @@ extension RealtimeCollectionIndex : Comparable {
 internal class _AnyRealtimeCollectionBase<Element>: Collection {
     typealias Index = RealtimeCollectionIndex
     var node: Node? { fatalError() }
-    var raw: RealtimeDataValue? { fatalError() }
-    var payload: [String : RealtimeDataValue]? { fatalError() }
+    var raw: RealtimeDatabaseValue? { fatalError() }
+    var payload: RealtimeDatabaseValue? { fatalError() }
     var view: AnyRealtimeCollectionView { fatalError() }
     var isSynced: Bool { fatalError() }
     var isObserved: Bool { fatalError() }
@@ -100,7 +100,7 @@ where C.View.Element: DatabaseKeyRepresentable {
     var base: C
 
     override var node: Node? { return base.node }
-    override var payload: [String : RealtimeDataValue]? { return base.payload }
+    override var payload: RealtimeDatabaseValue? { return base.payload }
     override var view: AnyRealtimeCollectionView { return AnyRealtimeCollectionView(base.view) }
     override var isSynced: Bool { return base.isSynced }
     override var isObserved: Bool { return base.isObserved }
@@ -146,8 +146,8 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
     private let base: _AnyRealtimeCollectionBase<Element>
 
     public var node: Node? { return base.node }
-    public var raw: RealtimeDataValue? { return base.raw }
-    public var payload: [String : RealtimeDataValue]? { return base.payload }
+    public var raw: RealtimeDatabaseValue? { return base.raw }
+    public var payload: RealtimeDatabaseValue? { return base.payload }
     public var view: AnyRealtimeCollectionView { return base.view }
     public var isSynced: Bool { return base.isSynced }
     public var isObserved: Bool { return base.isObserved }
@@ -250,8 +250,8 @@ where Base.View.Element: DatabaseKeyRepresentable {
     private let base: _AnyRealtimeCollectionBase<Base.Element>
 
     public var node: Node? { return base.node }
-    public var raw: RealtimeDataValue? { return base.raw }
-    public var payload: [String : RealtimeDataValue]? { return base.payload }
+    public var raw: RealtimeDatabaseValue? { return base.raw }
+    public var payload: RealtimeDatabaseValue? { return base.payload }
     public var view: AnyRealtimeCollectionView { return base.view }
     public var isSynced: Bool { return base.isSynced }
     public var isObserved: Bool { return base.isObserved }
@@ -298,8 +298,8 @@ where Base.View.Element: DatabaseKeyRepresentable, Base.Element: RealtimeCollect
     private let base: _AnyRealtimeCollectionBase<Base.Element>
 
     public var node: Node? { return base.node }
-    public var raw: RealtimeDataValue? { return base.raw }
-    public var payload: [String : RealtimeDataValue]? { return base.payload }
+    public var raw: RealtimeDatabaseValue? { return base.raw }
+    public var payload: RealtimeDatabaseValue? { return base.payload }
     public var view: AnyRealtimeCollectionView { return base.view }
     public var isSynced: Bool { return base.isSynced }
     public var isObserved: Bool { return base.isObserved }

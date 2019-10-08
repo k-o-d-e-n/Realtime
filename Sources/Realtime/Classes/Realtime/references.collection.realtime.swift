@@ -45,8 +45,8 @@ public extension ValueOption {
 public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
     internal var storage: RCKeyValueStorage<Element>
 
-    public override var raw: RealtimeDataValue? { return nil }
-    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public override var raw: RealtimeDatabaseValue? { return nil }
+    public override var payload: RealtimeDatabaseValue? { return nil }
     public let view: SortedCollectionView<Ref>
     public var isSynced: Bool { return view.isSynced }
     public override var isObserved: Bool { return view.isObserved }
@@ -386,8 +386,8 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
 // MARK: DistributedReferences
 
 public struct RCRef: WritableRealtimeValue, Comparable {
-    public var raw: RealtimeDataValue? { return reference?.payload.raw }
-    public var payload: [String : RealtimeDataValue]? { return reference?.payload.user }
+    public var raw: RealtimeDatabaseValue? { return reference?.payload.raw }
+    public var payload: RealtimeDatabaseValue? { return reference?.payload.user }
     public var node: Node?
     public let dbKey: String!
     var reference: ReferenceRepresentation!
@@ -419,8 +419,7 @@ public struct RCRef: WritableRealtimeValue, Comparable {
         self.reference = try ReferenceRepresentation(data: data, event: event)
     }
 
-    public func write(to transaction: Transaction, by node: Node) throws { transaction.addValue(try defaultRepresentation(), by: node) }
-    private func defaultRepresentation() throws -> [String: RealtimeDataValue] { return try reference.defaultRepresentation() }
+    public func write(to transaction: Transaction, by node: Node) throws { transaction.addValue(try reference.defaultRepresentation(), by: node) }
     public var hashValue: Int { return dbKey.hashValue }
     public static func ==(lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey == rhs.dbKey }
     public static func < (lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey < rhs.dbKey }
@@ -468,8 +467,8 @@ public class DistributedReferences<Element: RealtimeValue>: __RepresentableColle
 // MARK: Relations
 
 public struct RelationsItem: WritableRealtimeValue, Comparable {
-    public var raw: RealtimeDataValue?
-    public var payload: [String : RealtimeDataValue]?
+    public var raw: RealtimeDatabaseValue?
+    public var payload: RealtimeDatabaseValue?
     public var node: Node?
 
     public let dbKey: String!
@@ -484,8 +483,8 @@ public struct RelationsItem: WritableRealtimeValue, Comparable {
     public init(in node: Node?, options: [ValueOption : Any]) {
         self.node = node
         self.dbKey = node?.key
-        self.raw = options[.rawValue] as? RealtimeDataValue
-        self.payload = options[.userPayload] as? [String: RealtimeDataValue]
+        self.raw = options[.rawValue] as? RealtimeDatabaseValue
+        self.payload = options[.userPayload] as? RealtimeDatabaseValue
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -494,10 +493,10 @@ public struct RelationsItem: WritableRealtimeValue, Comparable {
     }
 
     public func write(to transaction: Transaction, by node: Node) throws {
-        transaction.addValue(try defaultRepresentation(), by: node)
+        transaction.addValue(try relation.defaultRepresentation(), by: node)
     }
 
-    public func defaultRepresentation() throws -> [String: RealtimeDataValue] {
+    public func defaultRepresentation() throws -> RealtimeDatabaseValue {
         return try relation.defaultRepresentation()
     }
 

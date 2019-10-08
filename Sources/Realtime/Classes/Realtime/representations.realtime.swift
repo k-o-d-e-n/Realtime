@@ -19,24 +19,24 @@ public enum ReferenceMode {
 /// Link value describing reference to some location of database.
 struct ReferenceRepresentation: RealtimeDataRepresented {
     let source: String
-    let payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?) // TODO: ReferenceRepresentation is not responds to payload (may be)
+    let payload: (raw: RealtimeDatabaseValue?, user: RealtimeDatabaseValue?) // TODO: ReferenceRepresentation is not responds to payload (may be)
 
-    init(ref: String, payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)) {
+    init(ref: String, payload: (raw: RealtimeDatabaseValue?, user: RealtimeDatabaseValue?)) {
         self.source = ref
         self.payload = payload
     }
 
-    func defaultRepresentation() throws -> [String: RealtimeDataValue] {
-        var v: [String: RealtimeDataValue] = [InternalKeys.source.stringValue: source]
-        var valuePayload: [String: RealtimeDataValue] = [:]
+    func defaultRepresentation() throws -> RealtimeDatabaseValue {
+        var v: [RealtimeDatabaseValue] = [RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.source.stringValue), RealtimeDatabaseValue(source)))]
+        var valuePayload: [RealtimeDatabaseValue] = []
         if let rw = payload.raw {
-            valuePayload[InternalKeys.raw.rawValue] = rw
+            valuePayload.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.raw.rawValue), RealtimeDatabaseValue(rw))))
         }
         if let pl = payload.user {
-            valuePayload[InternalKeys.payload.rawValue] = pl
+            valuePayload.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.payload.rawValue), RealtimeDatabaseValue(pl))))
         }
-        v[InternalKeys.value.rawValue] = valuePayload
-        return v
+        v.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.value.rawValue), RealtimeDatabaseValue(valuePayload))))
+        return RealtimeDatabaseValue(v)
     }
 
     init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -133,9 +133,9 @@ public struct RelationRepresentation: RealtimeDataRepresented {
     let targetPath: String
     /// Property of related object that represented this relation
     let relatedProperty: String
-    let payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)
+    let payload: (raw: RealtimeDatabaseValue?, user: RealtimeDatabaseValue?)
 
-    init(path: String, property: String, payload: (raw: RealtimeDataValue?, user: [String: RealtimeDataValue]?)) {
+    init(path: String, property: String, payload: (raw: RealtimeDatabaseValue?, user: RealtimeDatabaseValue?)) {
         self.targetPath = path
         self.relatedProperty = property
         self.payload = payload
@@ -146,18 +146,20 @@ public struct RelationRepresentation: RealtimeDataRepresented {
         case relatedProperty = "r_prop"
     }
 
-    public func defaultRepresentation() throws -> [String: RealtimeDataValue] {
-        var v: [String: RealtimeDataValue] = [CodingKeys.targetPath.rawValue: targetPath,
-                                              CodingKeys.relatedProperty.rawValue: relatedProperty]
-        var valuePayload: [String: RealtimeDataValue] = [:]
+    public func defaultRepresentation() throws -> RealtimeDatabaseValue {
+        var v: [RealtimeDatabaseValue] = [
+            RealtimeDatabaseValue((RealtimeDatabaseValue(CodingKeys.targetPath.rawValue), RealtimeDatabaseValue(targetPath))),
+            RealtimeDatabaseValue((RealtimeDatabaseValue(CodingKeys.relatedProperty.rawValue), RealtimeDatabaseValue(relatedProperty)))
+        ]
+        var valuePayload: [RealtimeDatabaseValue] = []
         if let rw = payload.raw {
-            valuePayload[InternalKeys.raw.rawValue] = rw
+            valuePayload.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.raw.rawValue), RealtimeDatabaseValue(rw))))
         }
         if let pl = payload.user {
-            valuePayload[InternalKeys.payload.rawValue] = pl
+            valuePayload.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.payload.rawValue), RealtimeDatabaseValue(pl))))
         }
-        v[InternalKeys.value.rawValue] = valuePayload
-        return v
+        v.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.value.rawValue), RealtimeDatabaseValue(valuePayload))))
+        return RealtimeDatabaseValue(v)
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -187,8 +189,8 @@ struct SourceLink: RealtimeDataRepresented, Codable {
         self.links = links
     }
 
-    func defaultRepresentation() throws -> [String] {
-        return links
+    func defaultRepresentation() throws -> RealtimeDatabaseValue {
+        return RealtimeDatabaseValue(links)
     }
 
     init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -206,10 +208,8 @@ extension Representer where V == [SourceLink] {
     static var links: Representer<V> {
         return Representer(
             encoding: { (items) -> RealtimeDatabaseValue? in
-                return RealtimeDatabaseValue(try items.reduce([:], { (res, link) -> [String: RealtimeDataValue] in
-                    var res = res
-                    res[link.id] = try link.defaultRepresentation()
-                    return res
+                return RealtimeDatabaseValue(try items.reduce(into: [], { (res, link) -> Void in
+                    res.append(RealtimeDatabaseValue((RealtimeDatabaseValue(link.id), try link.defaultRepresentation())))
                 }))
             },
             decoding: { (data) -> [SourceLink] in

@@ -114,11 +114,15 @@ public extension RealtimeDataProtocol {
     func versioner() throws -> Versioner? {
         return try version().map(Versioner.init(version:))
     }
-    func rawValue() throws -> RealtimeDataValue? {
-        return try child(forPath: InternalKeys.raw.stringValue).unboxIfPresent(as: RealtimeDataValue.self)
+    func rawValue() throws -> RealtimeDatabaseValue? {
+        let rawData = child(forPath: InternalKeys.raw.stringValue)
+        guard rawData.exists() else { return nil }
+        return RealtimeDatabaseValue(data: rawData)
     }
-    func payload() throws -> [String: RealtimeDataValue]? {
-        return try child(forPath: InternalKeys.payload.stringValue).unboxIfPresent(as: [String: RealtimeDataValue].self)
+    func payload() throws -> RealtimeDatabaseValue? {
+        let payloadData = child(forPath: InternalKeys.payload.stringValue)
+        guard payloadData.exists() else { return nil }
+        return RealtimeDatabaseValue(data: payloadData)
     }
 }
 
@@ -140,9 +144,9 @@ extension _RealtimeValue: _RealtimeValueUtilities {}
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented {
     /// Indicates specific representation of this value, e.g. subclass or enum associated value
-    var raw: RealtimeDataValue? { get }
+    var raw: RealtimeDatabaseValue? { get }
     /// Some data associated with value
-    var payload: [String: RealtimeDataValue]? { get }
+    var payload: RealtimeDatabaseValue? { get }
     /// Node location in database
     var node: Node? { get }
 
@@ -177,8 +181,8 @@ extension RealtimeValue {
 }
 
 extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
-    public var raw: RealtimeDataValue? { return self?.raw }
-    public var payload: [String : RealtimeDataValue]? { return self?.payload }
+    public var raw: RealtimeDatabaseValue? { return self?.raw }
+    public var payload: RealtimeDatabaseValue? { return self?.payload }
     public var node: Node? { return self?.node }
     public init(in node: Node?, options: [ValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))

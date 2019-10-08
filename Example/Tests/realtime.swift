@@ -700,7 +700,7 @@ extension RealtimeTests {
 
     func testRelationPayload() {
         let exp = expectation(description: "")
-        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: 2, .userPayload: ["key": "value"]])
+        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: RealtimeDatabaseValue(2), .userPayload: RealtimeDatabaseValue(["key": "value"])])
         let relation: Relation<Object> = "relation".relation(in: Object(in: .root), .one(name: "obj"))
         relation <== obj
 
@@ -715,7 +715,7 @@ extension RealtimeTests {
                     try copyRelation.apply(Cache.root.child(by: copyRelation.node!)!.asUpdateNode(), event: .value)
 
                     XCTAssertEqual(copyRelation.wrapped, relation.wrapped)
-                    XCTAssertEqual(copyRelation.wrapped.raw as? Int, relation.wrapped.raw as? Int)
+                    XCTAssertEqual(copyRelation.wrapped.raw?.untyped as? Int, relation.wrapped.raw?.untyped as? Int)
                     XCTAssertEqual(copyRelation.wrapped.payload.map { $0 as NSDictionary },
                                    relation.wrapped.payload.map { $0 as NSDictionary })
                     exp.fulfill()
@@ -883,14 +883,14 @@ extension RealtimeTests {
     }
 
     enum ValueWithPayload: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
-        var raw: RealtimeDataValue? {
+        var raw: RealtimeDatabaseValue? {
             switch self {
-            case .two: return 1
+            case .two: return RealtimeDatabaseValue(1)
             default: return nil
             }
         }
         var node: Node? { return value.node }
-        var payload: [String : RealtimeDataValue]? { return value.payload }
+        var payload: RealtimeDatabaseValue? { return value.payload }
         var canObserve: Bool { return value.canObserve }
         var keepSynced: Bool {
             get { return value.keepSynced }
@@ -917,7 +917,10 @@ extension RealtimeTests {
         }
 
         init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-            let raw: CShort = try data.rawValue() as? CShort ?? 0
+            let raw: CShort = try data.rawValue().map({ val in
+                guard let v = val.untyped as? CShort else { throw RealtimeError(source: .coding, description: "Unexpected raw value") }
+                return v
+            }) ?? 0
 
             switch raw {
             case 1: self = .two(try TestObject(data: data, event: event))
@@ -927,8 +930,10 @@ extension RealtimeTests {
 
         mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             try value.apply(data, event: event)
-            let r = try data.rawValue() as? Int ?? 0
-            if raw as? Int != r {
+            let r = try data.rawValue().map({ val in
+                guard let v = val.untyped as? Int else { throw RealtimeError(source: .coding, description: "Unexpected raw value") }
+            }) ?? 0
+            if raw?.untyped as? Int != r {
                 switch r {
                 case 1: self = .two(value)
                 default: self = .one(value)
@@ -1186,6 +1191,65 @@ extension RealtimeTests {
             )
 
             XCTAssertEqual(extracted, value)
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+    }
+    func testExtractValueFromRealtimeDatabaseValueWithRealtimeDataProtocolBackend() {
+        let value = true
+        let dbValue = RealtimeDatabaseValue(data: ValueNode(node: .root, value: RealtimeDatabaseValue(value)))
+        do {
+            let extracted: Bool? = try dbValue.extract(
+                bool: { $0 },
+                int: { _ in nil },
+                int8: { _ in nil },
+                int16: { _ in nil },
+                int32: { _ in nil },
+                int64: { _ in nil },
+                uint: { _ in nil },
+                uint8: { _ in nil },
+                uint16: { _ in nil },
+                uint32: { _ in nil },
+                uint64: { _ in nil },
+                double: { _ in nil },
+                float: { _ in nil },
+                string: { _ in nil },
+                data: { _ in nil },
+                pair: { (_, _) in nil },
+                collection: { _ in nil }
+            )
+
+            XCTAssertEqual(extracted, value)
+        } catch let e {
+            XCTFail(e.localizedDescription)
+        }
+    }
+    func testExtractNullFromRealtimeDatabaseValueWithRealtimeDataProtocolBackend() {
+        print(#function, "Protected with precondition")
+        return
+        let dbValue = RealtimeDatabaseValue(data: ValueNode(node: .root, value: nil))
+        do {
+            let extracted: Bool? = try dbValue.extract(
+                bool: { $0 },
+                int: { _ in nil },
+                int8: { _ in nil },
+                int16: { _ in nil },
+                int32: { _ in nil },
+                int64: { _ in nil },
+                uint: { _ in nil },
+                uint8: { _ in nil },
+                uint16: { _ in nil },
+                uint32: { _ in nil },
+                uint64: { _ in nil },
+                double: { _ in nil },
+                float: { _ in nil },
+                string: { _ in nil },
+                data: { _ in nil },
+                pair: { (_, _) in nil },
+                collection: { _ in nil }
+            )
+
+            XCTAssertEqual(extracted, nil)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -1759,9 +1823,9 @@ enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeV
     case v1(VersionableObject)
     case v2(VersionableObjectV2)
 
-    var raw: RealtimeDataValue? { return value.raw }
+    var raw: RealtimeDatabaseValue? { return value.raw }
     var node: Node? { return value.node }
-    var payload: [String : RealtimeDataValue]? { return value.payload }
+    var payload: RealtimeDatabaseValue? { return value.payload }
     var canObserve: Bool { return value.canObserve }
     var keepSynced: Bool {
         get { return value.keepSynced }
@@ -2105,3 +2169,4 @@ extension RealtimeTests {
         }
     }
 }
+

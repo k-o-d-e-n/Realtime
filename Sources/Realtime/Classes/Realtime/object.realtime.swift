@@ -158,9 +158,9 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     /// Node of database tree
     public fileprivate(set) var node: Node?
     /// Raw value if Realtime value represented as enumerated type
-    public fileprivate(set) var raw: RealtimeDataValue?
+    public fileprivate(set) var raw: RealtimeDatabaseValue?
     /// User defined payload related with this value
-    public fileprivate(set) var payload: [String : RealtimeDataValue]?
+    public fileprivate(set) var payload: RealtimeDatabaseValue?
     /// Indicates that value already observed
     public var isObserved: Bool { return observing.count > 0 }
     /// Indicates that value can observe
@@ -178,10 +178,10 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     public required init(in node: Node?, options: [ValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
-        if case let pl as [String: RealtimeDataValue] = options[.userPayload] {
+        if case let pl as RealtimeDatabaseValue = options[.userPayload] {
             self.payload = pl
         }
-        if case let ipl as RealtimeDataValue = options[.rawValue] {
+        if case let ipl as RealtimeDatabaseValue = options[.rawValue] {
             self.raw = ipl
         }
     }
@@ -418,7 +418,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.absolutePath ?? "not referred"),
-            raw: \(raw ?? "null"),
+            raw: \(raw.map(String.init(describing:)) ?? "null"),
             hasChanges: \(_hasChanges)
         }
         """
@@ -853,7 +853,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.absolutePath ?? "not referred"),
-            raw: \(raw ?? "no raw"),
+            raw: \(raw.map(String.init(describing:)) ?? "no raw"),
             has changes: \(_hasChanges),
             keepSynced: \(keepSynced),
             values: [

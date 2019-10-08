@@ -149,8 +149,8 @@ public extension ValueOption {
 
 /// Defines read/write property where value is Realtime database reference
 public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities>: Property<Referenced> {
-    public override var raw: RealtimeDataValue? { return super._raw }
-    public override var payload: [String : RealtimeDataValue]? { return super._payload }
+    public override var raw: RealtimeDatabaseValue? { return super._raw }
+    public override var payload: RealtimeDatabaseValue? { return super._payload }
 
     public required init(in node: Node?, options: [ValueOption : Any]) {
         guard case let o as Mode = options[.reference] else { fatalError("Skipped required options") }
@@ -200,8 +200,8 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
 /// Defines read/write property where value is Realtime database relation
 public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: Property<Related> {
     var options: Options
-    public override var raw: RealtimeDataValue? { return super._raw }
-    public override var payload: [String : RealtimeDataValue]? { return super._payload }
+    public override var raw: RealtimeDatabaseValue? { return super._raw }
+    public override var payload: RealtimeDatabaseValue? { return super._payload }
 
     public required init(in node: Node?, options: [ValueOption: Any]) {
         guard case let relation as Relation<Related>.Options = options[.relation] else { fatalError("Skipped required options") }
@@ -614,11 +614,11 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate(set) var representer: Representer<T?>
     fileprivate let repeater: Repeater<PropertyState<T>> = Repeater.unsafe()
 
-    internal var _raw: RealtimeDataValue? { return super.raw }
-    internal var _payload: [String : RealtimeDataValue]? { return super.payload }
+    internal var _raw: RealtimeDatabaseValue? { return super.raw }
+    internal var _payload: RealtimeDatabaseValue? { return super.payload }
 
-    public override var raw: RealtimeDataValue? { return nil }
-    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public override var raw: RealtimeDatabaseValue? { return nil }
+    public override var payload: RealtimeDatabaseValue? { return nil }
 
     public var keepSynced: Bool = false {
         didSet {
@@ -1075,7 +1075,7 @@ public extension MutationPoint where T: Codable {
     func addValue(by key: String? = nil, use value: T, in transaction: Transaction? = nil) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         let representer = Representer<T>.json()
-        if case let v as [String: RealtimeDataValue] = try representer.encode(value) {
+        if let v = try representer.encode(value) {
             transaction.addValue(v, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
         } else {
             throw RealtimeError(encoding: T.self, reason: "Convertion to json was unsuccessful")

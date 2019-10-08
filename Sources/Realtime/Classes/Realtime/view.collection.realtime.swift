@@ -8,8 +8,8 @@
 import Foundation
 
 public struct RCItem: WritableRealtimeValue, Comparable {
-    public var raw: RealtimeDataValue?
-    public var payload: [String : RealtimeDataValue]?
+    public var raw: RealtimeDatabaseValue?
+    public var payload: RealtimeDatabaseValue?
     public let node: Node?
     var priority: Int?
     var linkID: String?
@@ -22,8 +22,8 @@ public struct RCItem: WritableRealtimeValue, Comparable {
 
     public init(in node: Node?, options: [ValueOption : Any]) {
         self.node = node
-        self.raw = options[.rawValue] as? RealtimeDataValue
-        self.payload = options[.userPayload] as? [String: RealtimeDataValue]
+        self.raw = options[.rawValue] as? RealtimeDatabaseValue
+        self.payload = options[.userPayload] as? RealtimeDatabaseValue
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -37,27 +37,31 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         self.raw = try valueData.rawValue()
         self.linkID = try dataContainer.decodeIfPresent(String.self, forKey: .link)
         self.priority = try dataContainer.decodeIfPresent(Int.self, forKey: .index)
-        self.payload = valueData.exists() ? try valueData.unbox(as: [String: RealtimeDataValue].self) : nil
+        self.payload = try valueData.payload()
     }
 
     public func write(to transaction: Transaction, by node: Node) throws {
         transaction.addValue(try defaultRepresentation(), by: node)
     }
 
-    private func defaultRepresentation() throws -> [String: RealtimeDataValue] {
-        var representation: [String: RealtimeDataValue] = [:]
-        representation[InternalKeys.link.rawValue] = linkID
-        representation[InternalKeys.index.rawValue] = priority
-        var value: [String: RealtimeDataValue] = [:]
+    private func defaultRepresentation() throws -> RealtimeDatabaseValue {
+        var representation: [RealtimeDatabaseValue] = []
+        if let l = linkID {
+            representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.link.rawValue), RealtimeDatabaseValue(l))))
+        }
+        if let p = priority {
+            representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.index.rawValue), RealtimeDatabaseValue(p))))
+        }
+        var value: [RealtimeDatabaseValue] = []
         if let p = self.payload {
-            value[InternalKeys.payload.rawValue] = p
+            value.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.payload.rawValue), RealtimeDatabaseValue(p))))
         }
         if let raw = self.raw {
-            value[InternalKeys.raw.rawValue] = raw
+            value.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.raw.rawValue), RealtimeDatabaseValue(raw))))
         }
-        representation[InternalKeys.value.rawValue] = value
+        representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.value.rawValue), RealtimeDatabaseValue(value))))
 
-        return representation
+        return RealtimeDatabaseValue(representation)
     }
 
     public var hashValue: Int { return dbKey.hashValue }
@@ -76,8 +80,8 @@ public struct RCItem: WritableRealtimeValue, Comparable {
 }
 
 public struct RDItem: WritableRealtimeValue, Comparable {
-    public var raw: RealtimeDataValue?
-    public var payload: [String : RealtimeDataValue]?
+    public var raw: RealtimeDatabaseValue?
+    public var payload: RealtimeDatabaseValue?
     public var node: Node? { return rcItem.node }
     var rcItem: RCItem
 
@@ -105,37 +109,41 @@ public struct RDItem: WritableRealtimeValue, Comparable {
         self.rcItem = try RCItem(data: data, event: event)
         let keyData = InternalKeys.key.child(from: data)
         self.raw = try keyData.rawValue()
-        self.payload = keyData.exists() ? try keyData.unbox(as: [String: RealtimeDataValue].self) : nil
+        self.payload = try keyData.payload()
     }
 
     public func write(to transaction: Transaction, by node: Node) throws {
         transaction.addValue(try defaultRepresentation(), by: node)
     }
 
-    private func defaultRepresentation() throws -> [String: RealtimeDataValue] {
-        var representation: [String: RealtimeDataValue] = [:]
-        representation[InternalKeys.link.rawValue] = rcItem.linkID
-        representation[InternalKeys.index.rawValue] = rcItem.priority
+    private func defaultRepresentation() throws -> RealtimeDatabaseValue {
+        var representation: [RealtimeDatabaseValue] = []
 
-        var value: [String: RealtimeDataValue] = [:]
+        if let l = rcItem.linkID {
+            representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.link.rawValue), RealtimeDatabaseValue(l))))
+        }
+        if let p = rcItem.priority {
+            representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.index.rawValue), RealtimeDatabaseValue(p))))
+        }
+        var value: [RealtimeDatabaseValue] = []
         if let p = rcItem.payload {
-            value[InternalKeys.payload.rawValue] = p
+            value.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.payload.rawValue), RealtimeDatabaseValue(p))))
         }
         if let raw = rcItem.raw {
-            value[InternalKeys.raw.rawValue] = raw
+            value.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.raw.rawValue), RealtimeDatabaseValue(raw))))
         }
-        representation[InternalKeys.value.rawValue] = value
+        representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.value.rawValue), RealtimeDatabaseValue(value))))
 
-        var key: [String: RealtimeDataValue] = [:]
+        var key: [RealtimeDatabaseValue] = []
         if let p = self.payload {
-            key[InternalKeys.payload.rawValue] = p
+            key.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.payload.rawValue), RealtimeDatabaseValue(p))))
         }
         if let raw = self.raw {
-            key[InternalKeys.raw.rawValue] = raw
+            key.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.raw.rawValue), RealtimeDatabaseValue(raw))))
         }
-        representation[InternalKeys.key.rawValue] = key
+        representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.key.rawValue), RealtimeDatabaseValue(key))))
 
-        return representation
+        return RealtimeDatabaseValue(representation)
     }
 
     public var hashValue: Int { return dbKey.hashValue }

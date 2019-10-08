@@ -53,8 +53,8 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
     internal private(set) var valueBuilder: RealtimeValueBuilder<Value>
     internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
 
-    public override var raw: RealtimeDataValue? { return nil }
-    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public override var raw: RealtimeDatabaseValue? { return nil }
+    public override var payload: RealtimeDatabaseValue? { return nil }
     public let view: SortedCollectionView<RDItem>
     public var isSynced: Bool { return view.isSynced }
     public override var isObserved: Bool { return view.isObserved }
@@ -484,8 +484,8 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable
     var storage: RCDictionaryStorage<Key, Value>
     internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
 
-    public override var raw: RealtimeDataValue? { return nil }
-    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public override var raw: RealtimeDatabaseValue? { return nil }
+    public override var payload: RealtimeDatabaseValue? { return nil }
     public let view: SortedCollectionView<Value>
     public var isSynced: Bool { return view.isSynced }
     public override var isObserved: Bool { return view.isObserved }
@@ -570,11 +570,12 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable
         } else {
             let value = view[position]
             guard let element = storage.element(for: value.dbKey) else {
-                let keyPayload = value.payload?[InternalKeys.key.rawValue] as? [String: RealtimeDataValue]
-                let key = keyBuilder.build(with: value.dbKey, options: [
-                    .rawValue: keyPayload?[InternalKeys.raw.rawValue] as Any,
-                    .userPayload: keyPayload?[InternalKeys.payload.rawValue] as Any
-                ])
+                // TODO: Payload does not write, and values are not always object
+//                let keyPayload = value.payload?[InternalKeys.key.rawValue] as? [String: RealtimeDataValue]
+                let key = keyBuilder.build(with: value.dbKey, options: [:])
+//                    .rawValue: keyPayload?[InternalKeys.raw.rawValue] as Any,
+//                    .userPayload: keyPayload?[InternalKeys.payload.rawValue] as Any
+//                ])
                 storage.set(value: value, for: key)
                 return (key, value)
             }
@@ -714,8 +715,8 @@ class KeyedCollection<Key, Value>: _RealtimeValue, RealtimeCollection where Key:
     typealias Element = (key: Key, value: Value)
     var storage: RCKeyValueStorage<Value> = [:]
 
-    public override var raw: RealtimeDataValue? { return nil }
-    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public override var raw: RealtimeDatabaseValue? { return nil }
+    public override var payload: RealtimeDatabaseValue? { return nil }
     public let view: View
     public var isSynced: Bool { return view.isSynced }
     public override var isObserved: Bool { return view.isObserved }
