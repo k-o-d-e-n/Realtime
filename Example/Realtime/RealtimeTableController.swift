@@ -179,7 +179,7 @@ class RealtimeTableController: UITableViewController {
                 nameTF.textColor = .red
                 return
             }
-            guard let age = ageTF.text.flatMap(Int.init) else {
+            guard let age = ageTF.text.flatMap(Int8.init) else {
                 ageTF.textColor = .red
                 return
             }

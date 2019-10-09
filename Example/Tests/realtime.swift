@@ -67,7 +67,7 @@ class RealtimeTests: XCTestCase {
 
 class TestObject: Object {
     lazy var property: Property<String?> = "prop".property(in: self)
-    lazy var readonlyProperty: ReadonlyProperty<Int> = "readonlyProp".readonlyProperty(in: self).defaultOnEmpty()
+    lazy var readonlyProperty: ReadonlyProperty<Int64> = "readonlyProp".readonlyProperty(in: self, representer: .realtimeDataValue).defaultOnEmpty()
     lazy var linkedArray: MutableReferences<TestObject> = "linked_array".references(in: self, elements: .root)
     lazy var array: Values<TestObject> = "array".values(in: self)
     lazy var dictionary: AssociatedValues<TestObject, TestObject> = "dict".dictionary(in: self, keys: .root)
@@ -396,9 +396,11 @@ extension RealtimeTests {
         testObject.dictionary.view.isSynced = true
         XCTAssertNoThrow(try testObject.dictionary.write(element: element, for: linkedObject, in: transaction))
 
-        let value = transaction.updateNode.values
+        let value = transaction.updateNode.reduceValues(into: [:]) { (c, node, val) in
+            c[node.absolutePath] = try! val?.extractFirebaseCompatible()
+        }
 
-        let linkedItem = value["linked_array/linked"] as? [String: Any]
+        let linkedItem = value["linked_array/linked"] as? NSDictionary
         XCTAssertTrue(linkedItem != nil)
         XCTAssertTrue(value["array/elem_1/prop"] as? String == "prop")
         XCTAssertTrue(value["dict/linked/prop"] as? String == "element #1")
@@ -425,9 +427,11 @@ extension RealtimeTests {
 
         do {
             let transaction = try testObject.save(in: .root)
-            let value = transaction.updateNode.values
+            let value = transaction.updateNode.reduceValues(into: [:]) { (c, node, val) in
+                c[node.absolutePath] = try! val?.extractFirebaseCompatible()
+            }
 
-            let linkedItem = value["test_obj/linked_array/linked"] as? [String: Any]
+            let linkedItem = value["test_obj/linked_array/linked"] as? NSDictionary
             XCTAssertTrue(linkedItem != nil)
             XCTAssertTrue(value["test_obj/array/elem_1/prop"] as? String == "prop")
             XCTAssertTrue(value["test_obj/dict/linked/prop"] as? String == "element #1")
@@ -462,7 +466,7 @@ extension RealtimeTests {
 //            XCTAssertEqual(object.file.unwrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
             XCTAssertNotNil(object.readonlyFile.unwrapped)
             XCTAssertEqual(object.readonlyFile.unwrapped.flatMap { $0.pngData() }, imgData)
-            XCTAssertEqual(object.readonlyProperty.wrapped, Int())
+            XCTAssertEqual(object.readonlyProperty.wrapped, Int64())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
         } catch let e {
@@ -700,7 +704,8 @@ extension RealtimeTests {
 
     func testRelationPayload() {
         let exp = expectation(description: "")
-        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: RealtimeDatabaseValue(2), .userPayload: RealtimeDatabaseValue(["key": "value"])])
+        let payload = RealtimeDatabaseValue([RealtimeDatabaseValue(("key", "value"))])
+        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: RealtimeDatabaseValue(2), .userPayload: payload])
         let relation: Relation<Object> = "relation".relation(in: Object(in: .root), .one(name: "obj"))
         relation <== obj
 
@@ -716,8 +721,7 @@ extension RealtimeTests {
 
                     XCTAssertEqual(copyRelation.wrapped, relation.wrapped)
                     XCTAssertEqual(copyRelation.wrapped.raw?.untyped as? Int, relation.wrapped.raw?.untyped as? Int)
-                    XCTAssertEqual(copyRelation.wrapped.payload.map { $0 as NSDictionary },
-                                   relation.wrapped.payload.map { $0 as NSDictionary })
+                    XCTAssertEqual(copyRelation.wrapped.payload, relation.wrapped.payload)
                     exp.fulfill()
                 } catch let e {
                     XCTFail(e.describingErrorDescription)
@@ -798,19 +802,20 @@ extension RealtimeTests {
     }
 
     func testReferenceRepresentationPayload() {
-        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.userPayload: ["foo": "bar"]]))
+        let userPayload = RealtimeDatabaseValue([RealtimeDatabaseValue(("foo", "bar"))])
+        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.userPayload: userPayload]))
         let representer = Representer<ValueWithPayload>.reference(.fullPath, options: [:])
 
         do {
             let result = try representer.encode(value)
 
-            XCTAssertEqual(result?.untyped as? NSDictionary, [
-                InternalKeys.source.rawValue: "path/subpath",
-                InternalKeys.value.rawValue: [
-                    InternalKeys.raw.rawValue: 1,
-                    InternalKeys.payload.rawValue: ["foo": "bar"]
-                ]
-            ])
+            var builder = RealtimeDatabaseValue.Dictionary()
+            builder.setValue("path/subpath", forKey: InternalKeys.source.rawValue)
+            builder.setValue(RealtimeDatabaseValue([
+                RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.raw.rawValue), value.raw!)),
+                RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.payload.rawValue), userPayload))
+            ]), forKey: InternalKeys.value.rawValue)
+            XCTAssertEqual(result, builder.build())
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -885,7 +890,7 @@ extension RealtimeTests {
     enum ValueWithPayload: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
         var raw: RealtimeDatabaseValue? {
             switch self {
-            case .two: return RealtimeDatabaseValue(1)
+            case .two: return RealtimeDatabaseValue(UInt8(1))
             default: return nil
             }
         }
@@ -908,7 +913,7 @@ extension RealtimeTests {
         case two(TestObject)
 
         init(in node: Node?, options: [ValueOption : Any]) {
-            let raw = options.rawValue as? Int ?? 0
+            let raw = try? options.rawValue?.typed(as: UInt8.self) ?? 0
 
             switch raw {
             case 1: self = .two(TestObject(in: node, options: options))
@@ -930,9 +935,7 @@ extension RealtimeTests {
 
         mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             try value.apply(data, event: event)
-            let r = try data.rawValue().map({ val in
-                guard let v = val.untyped as? Int else { throw RealtimeError(source: .coding, description: "Unexpected raw value") }
-            }) ?? 0
+            let r = try data.rawValue()?.typed(as: Int.self) ?? 0
             if raw?.untyped as? Int != r {
                 switch r {
                 case 1: self = .two(value)
@@ -1001,30 +1004,30 @@ extension RealtimeTests {
     }
 
     func testInitializeWithPayload() {
-        let value = TestObject(in: .root, options: [.userPayload: ["key": "val"]])
-        XCTAssertTrue((value.payload as NSDictionary?) == ["key": "val"])
-    }
-
-    func testInitializeWithPayload2() {
-        let payload: [String: Any] = ["key": "val"]
+        var payloadBuilder = RealtimeDatabaseValue.Dictionary()
+        payloadBuilder.setValue("val", forKey: "key")
+        let payload = payloadBuilder.build()
         let value = TestObject(in: .root, options: [.userPayload: payload])
-        XCTAssertTrue((value.payload as NSDictionary?) == (payload as NSDictionary))
+        XCTAssertEqual(value.payload, payload)
     }
 
     func testInitializeWithPayload3() {
-        let payload: Any = ["key": "val"]
+        var payloadBuilder = RealtimeDatabaseValue.Dictionary()
+        payloadBuilder.setValue("val", forKey: "key")
+        let payload: Any = payloadBuilder.build()
         let value = TestObject(in: .root, options: [.userPayload: payload])
-        XCTAssertTrue((value.payload as NSDictionary?) == (payload as? NSDictionary))
+        XCTAssertEqual(value.payload, payload as? RealtimeDatabaseValue)
     }
 
     func testInitializeWithPayload4() {
         let exp = expectation(description: "")
-        let user = User2(in: nil, options: [.database: Cache.root, .rawValue: 5])
-        XCTAssertEqual(user.raw as? Int, 5)
+        let rawValue = RealtimeDatabaseValue(5)
+        let user = User2(in: nil, options: [.database: Cache.root, .rawValue: rawValue])
+        XCTAssertEqual(user.raw, rawValue)
 
         user.name <== "User name"
         user.age <== 50
-        user.human <== [:]
+        user.human <== ""
         do {
             let transaction = try user.save(by: .root)
             transaction.commit { (_, errs) in
@@ -1032,7 +1035,7 @@ extension RealtimeTests {
 
                 do {
                     let copyUser = try User2(data: Cache.root, event: .value)
-                    XCTAssertEqual(copyUser.raw as? Int, 5)
+                    XCTAssertEqual(copyUser.raw, rawValue)
                 } catch let e {
                     XCTFail(e.describingErrorDescription)
                 }
@@ -1050,8 +1053,7 @@ extension RealtimeTests {
     func testReferenceFireValue() {
         let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").absolutePath, payload: (nil, nil))
         let fireValue = try? ref.defaultRepresentation()
-        XCTAssertTrue((fireValue as? NSDictionary) == [InternalKeys.source.rawValue: "first/two",
-                                                       InternalKeys.value.rawValue: [:]])
+        XCTAssertEqual((fireValue?.untyped as? [(String, String)])?.reduce(into: [:], { $0[$1.0] = $1.1 }), [InternalKeys.source.rawValue: "first/two"])
     }
 
     func testLocalDatabase() {
@@ -1191,65 +1193,6 @@ extension RealtimeTests {
             )
 
             XCTAssertEqual(extracted, value)
-        } catch let e {
-            XCTFail(e.localizedDescription)
-        }
-    }
-    func testExtractValueFromRealtimeDatabaseValueWithRealtimeDataProtocolBackend() {
-        let value = true
-        let dbValue = RealtimeDatabaseValue(data: ValueNode(node: .root, value: RealtimeDatabaseValue(value)))
-        do {
-            let extracted: Bool? = try dbValue.extract(
-                bool: { $0 },
-                int: { _ in nil },
-                int8: { _ in nil },
-                int16: { _ in nil },
-                int32: { _ in nil },
-                int64: { _ in nil },
-                uint: { _ in nil },
-                uint8: { _ in nil },
-                uint16: { _ in nil },
-                uint32: { _ in nil },
-                uint64: { _ in nil },
-                double: { _ in nil },
-                float: { _ in nil },
-                string: { _ in nil },
-                data: { _ in nil },
-                pair: { (_, _) in nil },
-                collection: { _ in nil }
-            )
-
-            XCTAssertEqual(extracted, value)
-        } catch let e {
-            XCTFail(e.localizedDescription)
-        }
-    }
-    func testExtractNullFromRealtimeDatabaseValueWithRealtimeDataProtocolBackend() {
-        print(#function, "Protected with precondition")
-        return
-        let dbValue = RealtimeDatabaseValue(data: ValueNode(node: .root, value: nil))
-        do {
-            let extracted: Bool? = try dbValue.extract(
-                bool: { $0 },
-                int: { _ in nil },
-                int8: { _ in nil },
-                int16: { _ in nil },
-                int32: { _ in nil },
-                int64: { _ in nil },
-                uint: { _ in nil },
-                uint8: { _ in nil },
-                uint16: { _ in nil },
-                uint32: { _ in nil },
-                uint64: { _ in nil },
-                double: { _ in nil },
-                float: { _ in nil },
-                string: { _ in nil },
-                data: { _ in nil },
-                pair: { (_, _) in nil },
-                collection: { _ in nil }
-            )
-
-            XCTAssertEqual(extracted, nil)
         } catch let e {
             XCTFail(e.localizedDescription)
         }
@@ -1500,8 +1443,10 @@ extension RealtimeTests {
     func testAssociatedValuesWithVersionAndRawValues() {
         let exp = expectation(description: "")
         let assocValues = AssociatedValues<TestObject, TestObject>(in: Node.root("values"), options: [.database: Cache.root, .keysNode: Node.root("keys")])
-        let key = TestObject(in: Node.root("keys").child(with: "key"), options: [.database: Cache.root, .rawValue: 2])
-        let value = TestObject(in: nil, options: [.database: Cache.root, .rawValue: 5])
+        let keyRaw = RealtimeDatabaseValue(2)
+        let key = TestObject(in: Node.root("keys").child(with: "key"), options: [.database: Cache.root, .rawValue: keyRaw])
+        let valueRaw = RealtimeDatabaseValue(5)
+        let value = TestObject(in: nil, options: [.database: Cache.root, .rawValue: valueRaw])
         do {
             let trans = Transaction(database: Cache.root)
             try assocValues.write(element: value, for: key, in: trans)
@@ -1525,11 +1470,11 @@ extension RealtimeTests {
 
                         if let copyValue = copyValues.first, let copyAValue = copyAssocitedValues.first, let copyKey = copyKeys.first {
                             XCTAssertEqual(copyAValue.key, key)
-                            XCTAssertEqual(copyAValue.key.raw as? Int, 2)
+                            XCTAssertEqual(copyAValue.key.raw, keyRaw)
                             XCTAssertEqual(copyValue, value)
-                            XCTAssertEqual(copyValue.raw as? Int, 5)
+                            XCTAssertEqual(copyValue.raw, valueRaw)
                             XCTAssertEqual(copyKey, key)
-                            XCTAssertEqual(copyKey.raw as? Int, 2)
+                            XCTAssertEqual(copyKey.raw, keyRaw)
                         } else {
                             XCTFail("No element")
                         }
@@ -1667,7 +1612,7 @@ extension RealtimeTests {
 class VersionableObject: Object {
     // removed
     @available(*, deprecated)
-    lazy var nullVersionVariable: ReadonlyProperty<String?> = "nullVersionVariable".readonlyProperty(in: self)
+    lazy var nullVersionVariable: ReadonlyProperty<String?> = "nullVersionVariable".readonlyProperty(in: self, representer: Representer.realtimeDataValue)
 
     // added
     lazy var firstMinorVersionVariable: Property<String?> = Property.writeRequired(
@@ -1678,7 +1623,7 @@ class VersionableObject: Object {
 
     // renamed
     @available(*, deprecated)
-    lazy var renamedFromVariable: ReadonlyProperty<String?> = "renamedFromVariable".readonlyProperty(in: self)
+    lazy var renamedFromVariable: ReadonlyProperty<String?> = "renamedFromVariable".readonlyProperty(in: self, representer: Representer.realtimeDataValue)
     lazy var renamedToVariable: Property<String?> = Property.writeRequired(
         in: Node(key: "renamedToVariable", parent: self.node),
         representer: Representer<String>.realtimeDataValue,
@@ -1823,8 +1768,8 @@ enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeV
     case v1(VersionableObject)
     case v2(VersionableObjectV2)
 
-    var raw: RealtimeDatabaseValue? { return value.raw }
     var node: Node? { return value.node }
+    var raw: RealtimeDatabaseValue? { return value.raw }
     var payload: RealtimeDatabaseValue? { return value.payload }
     var canObserve: Bool { return value.canObserve }
     var keepSynced: Bool {
@@ -2040,7 +1985,7 @@ extension RealtimeTests {
         do {
             var versioner = Versioner()
             versioner.enqueue(Version(2, 0))
-            transaction.addValue(versioner.finalize(), by: objNode.child(with: InternalKeys.modelVersion.rawValue))
+            transaction.addValue(RealtimeDatabaseValue(versioner.finalize()), by: objNode.child(with: InternalKeys.modelVersion.rawValue))
             transaction.addValue(try representer.encode(now), by: Node(key: "requiredPropertyV2", parent: objNode))
             transaction.commit { (state, errs) in
                 errs?.first.map({ XCTFail($0.describingErrorDescription) })

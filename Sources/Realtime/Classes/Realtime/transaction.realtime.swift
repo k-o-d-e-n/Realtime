@@ -411,9 +411,6 @@ public extension Transaction {
             _addValue(.value(ValueNode(node: node, value: value)))
         }
     }
-    func addValue<T: RealtimeDataValue>(_ value: T, by node: Node) {
-        addValue(RealtimeDatabaseValue(value: value), by: node)
-    }
 
     /// Removes Realtime data by specified node
     ///

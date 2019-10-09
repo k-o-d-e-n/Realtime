@@ -327,7 +327,7 @@ extension AssociatedValues {
             else { fatalError("Element is referred to incorrect location") }
 
         var item = RDItem(key: key, value: element)
-        item.priority = view.count
+        item.priority = Int64(view.count)
         _ = view.insert(item)
         storage.set(value: element, for: key)
     }
@@ -429,7 +429,7 @@ extension AssociatedValues {
         let itemNode = location.itms.child(with: key.dbKey)
         let elementNode = location.storage.child(with: key.dbKey)
         var item = RDItem(key: key, value: element)
-        item.priority = count
+        item.priority = Int64(count)
 
         transaction.addReversion({ [weak self] in
             _ = self?.storage.remove(for: key)

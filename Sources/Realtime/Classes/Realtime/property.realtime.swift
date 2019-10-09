@@ -10,9 +10,8 @@ import Foundation
 
 public extension RawRepresentable where Self.RawValue == String {
     func property<T>(in object: Object, representer: Representer<T>) -> Property<T> {
-        return Property.required(
+        return Property(
             in: Node(key: rawValue, parent: object.node),
-            representer: representer,
             options: [
                 .database: object.database as Any,
                 .representer: Availability<T>.required(representer)
@@ -29,7 +28,7 @@ public extension RawRepresentable where Self.RawValue == String {
         )
     }
 
-    func readonlyProperty<T: RealtimeDataValue>(in object: Object, representer: Representer<T> = .realtimeDataValue) -> ReadonlyProperty<T> {
+    func readonlyProperty<T>(in object: Object, representer: Representer<T>) -> ReadonlyProperty<T> {
         return ReadonlyProperty(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -38,7 +37,7 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func readonlyProperty<T: RealtimeDataValue>(in object: Object, representer: Representer<T> = .realtimeDataValue) -> ReadonlyProperty<T?> {
+    func readonlyProperty<T>(in object: Object, representer: Representer<T>) -> ReadonlyProperty<Optional<T>> {
         return ReadonlyProperty(
             in: Node(key: rawValue, parent: object.node),
             options: [
@@ -47,23 +46,11 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
-    func property<T: RealtimeDataValue>(in obj: Object) -> Property<T> {
-        return property(in: obj, representer: .realtimeDataValue)
-    }
-    func property<T: RealtimeDataValue>(in obj: Object) -> Property<T?> {
-        return Property(
-            in: Node(key: rawValue, parent: obj.node),
-            options: [
-                .database: obj.database as Any,
-                .representer: Availability<T?>.optional(Representer<T>.realtimeDataValue)
-            ]
-        )
-    }
 
-    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = .realtimeDataValue) -> Property<V> where V.RawValue: RealtimeDataValue {
+    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue>) -> Property<V> {
         return property(in: object, representer: Representer<V>.default(rawRepresenter))
     }
-    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = .realtimeDataValue) -> Property<V?> where V.RawValue: RealtimeDataValue {
+    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue>) -> Property<V?> {
         return property(in: object, representer: Representer<V>.default(rawRepresenter))
     }
     func date(in object: Object, strategy: DateCodingStrategy = .secondsSince1970) -> Property<Date> {
@@ -924,104 +911,6 @@ public extension ReadonlyProperty where T: Comparable {
     }
 }
 
-// TODO: Reconsider usage it. Some RealtimeValue things are not need here.
-public final class SharedProperty<T>: _RealtimeValue where T: RealtimeDataValue & HasDefaultLiteral {
-    private var _value: State
-    public var value: T {
-        switch _value {
-        case .error(_, let old): return old
-        case .value(let v): return v
-        }
-    }
-    let repeater: Repeater<T> = Repeater.unsafe()
-    let representer: Representer<T> = .realtimeDataValue
-
-    enum State {
-        case error(Error, old: T)
-        case value(T)
-    }
-
-    // MARK: Initializers, deinitializer
-
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        self._value = .value(T())
-        super.init(in: node, options: options)
-    }
-
-    // MARK: Events
-
-    override public func didRemove(from ancestor: Node) {
-        super.didRemove(from: ancestor)
-        setState(.value(T()))
-    }
-
-    // MARK: Changeable
-
-    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        self._value = .value(T())
-        try super.init(data: data, event: event)
-    }
-
-    override public func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        try super.apply(data, event: event)
-        setState(.value(try representer.decode(data)))
-    }
-
-    fileprivate func setError(_ error: Error) {
-        setState(.error(error, old: value))
-    }
-
-    fileprivate func setState(_ value: State) {
-        self._value = value
-        switch value {
-        case .error(let e, _): repeater.send(.error(e))
-        case .value(let v): return repeater.send(.value(v))
-        }
-    }
-}
-extension SharedProperty: Listenable {
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        return repeater.listening(assign)
-    }
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
-        return repeater.listeningItem(assign)
-    }
-}
-
-public extension SharedProperty {
-    func change(use updater: @escaping (T) throws -> T) {
-        guard let database = self.database, let node = self.node, node.isRooted else  {
-            fatalError("Can`t get database reference")
-        }
-        let representer = self.representer
-        database.runTransaction(
-            in: node,
-            withLocalEvents: true,
-            { (data) -> ConcurrentIterationResult in
-                do {
-                    let currentValue = data.exists() ? try T.init(data: data) : T()
-                    let newValue = try updater(currentValue)
-                    return .value(try representer.encode(newValue))
-                } catch let e {
-                    debugFatalError(e.localizedDescription)
-                    return .abort
-                }
-            },
-            onComplete: { result in
-                switch result {
-                case .error(let e): self.setError(e)
-                case .data(let data):
-                    do {
-                        self.setState(.value(try self.representer.decode(data)))
-                    } catch let e {
-                        self.setError(e)
-                    }
-                }
-            }
-        )
-    }
-}
-
 public final class MutationPoint<T> {
     let database: RealtimeDatabase
     public let node: Node
@@ -1040,21 +929,6 @@ public extension MutationPoint {
         return transaction
     }
     func mutate(by key: String? = nil, use value: RealtimeDatabaseValue, in transaction: Transaction? = nil) throws -> Transaction {
-        let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(value, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
-
-        return transaction
-    }
-}
-public extension MutationPoint where T: RealtimeDataValue {
-    func set(value: T, in transaction: Transaction? = nil) -> Transaction {
-        let transaction = transaction ?? Transaction(database: database)
-        transaction.addValue(value, by: node)
-
-        return transaction
-    }
-    @discardableResult
-    func mutate(by key: String? = nil, use value: T, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.addValue(value, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
 
