@@ -470,7 +470,7 @@ extension RealtimeTests {
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
         } catch let e {
-            XCTFail(e.localizedDescription)
+            XCTFail(String(describing: e))
         }
 
         transaction.revert()
@@ -1142,12 +1142,10 @@ extension RealtimeTests {
         do {
             let extracted: Bool? = try dbValue.extract(
                 bool: { $0 },
-                int: { _ in nil },
                 int8: { _ in nil },
                 int16: { _ in nil },
                 int32: { _ in nil },
                 int64: { _ in nil },
-                uint: { _ in nil },
                 uint8: { _ in nil },
                 uint16: { _ in nil },
                 uint32: { _ in nil },
@@ -1171,12 +1169,10 @@ extension RealtimeTests {
         do {
             let extracted: Data? = try dbValue.extract(
                 bool: { _ in nil },
-                int: { _ in nil },
                 int8: { _ in nil },
                 int16: { _ in nil },
                 int32: { _ in nil },
                 int64: { _ in nil },
-                uint: { _ in nil },
                 uint8: { _ in nil },
                 uint16: { _ in nil },
                 uint32: { _ in nil },

@@ -631,67 +631,67 @@ public extension RealtimeDatabaseValue {
 
 public extension Representer where V == Bool {
     static var realtimeDataValue: Representer<Bool> {
-        return Representer<Bool>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<Bool>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == Int8 {
     static var realtimeDataValue: Representer<Int8> {
-        return Representer<Int8>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<Int8>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == Int16 {
     static var realtimeDataValue: Representer<Int16> {
-        return Representer<Int16>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<Int16>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == Int32 {
     static var realtimeDataValue: Representer<Int32> {
-        return Representer<Int32>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<Int32>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == Int64 {
     static var realtimeDataValue: Representer<Int64> {
-        return Representer<Int64>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<Int64>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == UInt8 {
     static var realtimeDataValue: Representer<UInt8> {
-        return Representer<UInt8>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<UInt8>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == UInt16 {
     static var realtimeDataValue: Representer<UInt16> {
-        return Representer<UInt16>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<UInt16>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == UInt32 {
     static var realtimeDataValue: Representer<UInt32> {
-        return Representer<UInt32>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<UInt32>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == UInt64 {
     static var realtimeDataValue: Representer<UInt64> {
-        return Representer<UInt64>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<UInt64>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == Double {
     static var realtimeDataValue: Representer<Double> {
-        return Representer<Double>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<Double>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == Float {
     static var realtimeDataValue: Representer<Float> {
-        return Representer<Float>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<Float>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == String {
     static var realtimeDataValue: Representer<String> {
-        return Representer<String>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<String>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 public extension Representer where V == Data {
     static var realtimeDataValue: Representer<Data> {
-        return Representer<Data>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<Data>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 //public extension Representer where V == Int {

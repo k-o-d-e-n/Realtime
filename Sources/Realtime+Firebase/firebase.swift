@@ -231,12 +231,10 @@ extension RealtimeDatabaseValue {
     func extractAsKey() throws -> AnyHashable {
         return try extract(
             bool: { AnyHashable($0) },
-            int: { AnyHashable($0) },
             int8: { AnyHashable($0) },
             int16: { AnyHashable($0) },
             int32: { AnyHashable($0) },
             int64: { AnyHashable($0) },
-            uint: { AnyHashable($0) },
             uint8: { AnyHashable($0) },
             uint16: { AnyHashable($0) },
             uint32: { AnyHashable($0) },
@@ -278,12 +276,10 @@ extension RealtimeDatabaseValue {
         let any: (Any) -> Any = { $0 }
         return try extract(
             bool: any,
-            int: any,
             int8: any,
             int16: any,
             int32: any,
             int64: any,
-            uint: any,
             uint8: any,
             uint16: any,
             uint32: any,

@@ -430,36 +430,28 @@ public extension SingleValueEncodingContainer {
     }
 }
 
-/// Protocol for values that only valid for Realtime Database, e.g. `(NS)Array`, `(NS)Dictionary` and etc.
-/// You shouldn't apply for some custom values.
-public protocol RealtimeDataValue: RealtimeDataRepresented {} // TODO: Rename to `ExplicitlyRealtimeDatabaseCompatible`
-extension RealtimeDataValue {
+extension Bool      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int       : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Double    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Float     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int8      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int16     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int32     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int64     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt8     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt16    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt32    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt64    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension CGFloat   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension String    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Data      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         let value = data.asSingleValue()
-        guard let v = value as? Self else {
-            throw RealtimeError(initialization: Self.self, value as Any)
-        }
-
-        self = v
+        guard case let d as Data = value else { throw RealtimeError(initialization: Data.self, data) }
+        self = d
     }
 }
-
-extension Bool      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int       : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Double    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Float     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int8      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int16     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int32     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int64     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt8     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt16    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt32    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt64    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension CGFloat   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension String    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Data      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
 extension Array     : HasDefaultLiteral, _ComparableWithDefaultLiteral {
     public static func _isDefaultLiteral(_ lhs: Array<Element>) -> Bool {
         return lhs.isEmpty
@@ -477,9 +469,9 @@ extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral {
     }
 }
 #if os(macOS) || os(iOS)
-extension NSNull    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension NSValue   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension NSString  : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension NSNull    : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
+extension NSValue   : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
+extension NSString  : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
 extension NSArray   : HasDefaultLiteral, _ComparableWithDefaultLiteral {
     public static func _isDefaultLiteral(_ lhs: NSArray) -> Bool {
         return lhs.count == 0
@@ -583,12 +575,10 @@ public struct RealtimeDatabaseValue {
 
     public func extract<T>(
         bool: (Bool) throws -> T,
-        int: (Int) throws -> T,
         int8: (Int8) throws -> T,
         int16: (Int16) throws -> T,
         int32: (Int32) throws -> T,
         int64: (Int64) throws -> T,
-        uint: (UInt) throws -> T,
         uint8: (UInt8) throws -> T,
         uint16: (UInt16) throws -> T,
         uint32: (UInt32) throws -> T,
@@ -652,23 +642,21 @@ extension RealtimeDatabaseValue: ExpressibleByStringLiteral {
 }
 extension RealtimeDatabaseValue {
     #if os(iOS) || os(macOS)
-    //    public init(_ value: NSNumber) {
-    //        let numberType = CFNumberGetType(value)
-    //        switch numberType {
-    //        case .charType: self.init(value.boolValue)
-    //        case .sInt8Type: self.init(value.int8Value)
-    //        case .sInt16Type: self.init(value.int16Value)
-    //        case .sInt32Type: self.init(value.int32Value)
-    //        case .sInt64Type: self.init(value.int64Value)
-    //        case .shortType, .intType, .longType, .longLongType, .cfIndexType, .nsIntegerType:
-    //            self.init(value.intValue)
-    //        case .float32Type, .float64Type, .floatType, .doubleType, .cgFloatType:
-    //            self.init(value.floatValue)
-    //        }
-    //    }
+//    public init(_ value: NSNumber) {
+//        let numberType = CFNumberGetType(value)
+//        switch numberType {
+//        case .charType: self.init(value.boolValue)
+//        case .sInt8Type: self.init(value.int8Value)
+//        case .sInt16Type: self.init(value.int16Value)
+//        case .sInt32Type: self.init(value.int32Value)
+//        case .sInt64Type: self.init(value.int64Value)
+//        case .shortType, .intType, .longType, .longLongType, .cfIndexType, .nsIntegerType:
+//            self.init(value.intValue)
+//        case .float32Type, .float64Type, .floatType, .doubleType, .cgFloatType:
+//            self.init(value.floatValue)
+//        }
+//    }
     public init(_ value: NSString) { self.init(value as String) }
-    //    init(_ value: NSArray) { self.init(value: value) }
-    //    init(_ value: NSDictionary) { self.init(value: value) }
     #endif
 }
 extension RealtimeDatabaseValue {
@@ -984,6 +972,12 @@ extension Representer {
 
             return .some(try base.decode(data))
         }
+    }
+}
+
+public extension Representer where V: RealtimeDataRepresented {
+    static func realtimeData(encoding: @escaping (V) throws -> RealtimeDatabaseValue?) -> Representer<V> {
+        return Representer(encoding: encoding, decoding: V.init(data:))
     }
 }
 

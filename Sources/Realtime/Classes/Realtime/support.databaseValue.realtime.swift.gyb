@@ -44,7 +44,7 @@ public extension RealtimeDatabaseValue {
 % for type in support_types:
 public extension Representer where V == ${type} {
     static var realtimeDataValue: Representer<${type}> {
-        return Representer<${type}>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
+        return Representer<${type}>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
     }
 }
 % end
