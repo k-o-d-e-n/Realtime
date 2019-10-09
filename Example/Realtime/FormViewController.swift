@@ -189,9 +189,9 @@ class FormViewController: UIViewController {
 
         let followers = ReuseRowSection<User, User>(
             ReuseRowSectionDataSource(collection: Global.rtUsers),
-            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: textInputCellIdentifier, for: ip) as! TextCell },
-            row: { () -> ReuseFormRow<TextCell, User, User> in
-            let row: ReuseFormRow<TextCell, User, User> = ReuseFormRow()
+            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) },
+            row: { () -> ReuseFormRow<UITableViewCell, User, User> in
+            let row: ReuseFormRow<UITableViewCell, User, User> = ReuseFormRow()
             row.onRowModel({ (user, row) in
                 row.view?.textLabel?.text <== user.name
                 row.bind(user.name, { (cell, name) in
@@ -243,11 +243,7 @@ class FormViewController: UIViewController {
         let alert = showWaitingAlert()
         let transaction = Transaction()
         do {
-            #if FIREBASE
-                try Global.rtUsers.write(element: form.model, in: transaction)
-            #else
-                try form.model.save(by: Node.root("___tests/_users").childByAutoId(), in: transaction) // TODO: Remove after resolve problems with untyped error
-            #endif
+            try Global.rtUsers.write(element: form.model, in: transaction)
             transaction.commit { [weak self] (state, errors) in
                 if let err = errors?.first {
                     fatalError(err.localizedDescription)

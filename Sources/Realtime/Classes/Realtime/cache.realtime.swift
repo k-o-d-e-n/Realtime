@@ -32,7 +32,7 @@ extension UpdateNode {
     @available(*, deprecated, message: "Use `reduceValues` method instead")
     func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
         reduceValues(into: &container) { (c, n, v) in
-            c[n.path(from: ancestor)] = v?.untyped
+            c[n.path(from: ancestor)] = .some(v?.untyped)
         }
     }
 }
