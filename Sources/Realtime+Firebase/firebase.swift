@@ -249,17 +249,28 @@ extension RealtimeDatabaseValue {
             collection: { _ in throw RealtimeError(source: .coding, description: "Collection cannot be represented as key") }
         )
     }
-    static func firebaseCompatible(_ values: [RealtimeDatabaseValue]) throws -> Any {
+    static func firebaseCollectionCompatible(_ values: [RealtimeDatabaseValue]) throws -> Any {
         return try values.reduce(into: [:], { (res, value) in
             switch value.backend {
             case .pair(let k, let v):
                 res[try k.extractAsKey()] = try v.extractFirebaseCompatible()
-            case .single(_, let v):
+            case .bool(let v as Any),
+                .int8(let v as Any),
+                .int16(let v as Any),
+                .int32(let v as Any),
+                .int64(let v as Any),
+                .uint8(let v as Any),
+                .uint16(let v as Any),
+                .uint32(let v as Any),
+                .uint64(let v as Any),
+                .double(let v as Any),
+                .float(let v as Any),
+                .string(let v as Any),
+                .data(let v as Any):
                 res[res.count] = v
             case .unkeyed(let v):
-                res[res.count] = try RealtimeDatabaseValue.firebaseCompatible(v)
+                res[res.count] = try RealtimeDatabaseValue.firebaseCollectionCompatible(v)
             case ._untyped: throw RealtimeError(source: .coding, description: "Untyped values no more supported")
-            case ._realtimeData: throw RealtimeError(source: .coding, description: "Invalid database value. Internal error")
             }
         })
     }
@@ -282,7 +293,7 @@ extension RealtimeDatabaseValue {
             string: any,
             data: any,
             pair: { _, _ in throw RealtimeError(source: .coding, description: "Unsupported value") },
-            collection: RealtimeDatabaseValue.firebaseCompatible
+            collection: RealtimeDatabaseValue.firebaseCollectionCompatible
         )
     }
 }
@@ -319,9 +330,13 @@ extension Database: RealtimeDatabase {
 
     public func commit(update: UpdateNode, completion: ((Error?) -> Void)?) {
         var updateValue: [String: Any?] = [:]
-        update.reduceValues(into: &updateValue, { container, node, value in
-            container[node.path(from: update.location)] = value?.untyped
-        })
+        do {
+            try update.reduceValues(into: &updateValue, { container, node, value in
+                container[node.path(from: update.location)] = try value?.extractFirebaseCompatible()
+            })
+        } catch let e {
+            completion?(e)
+        }
         if updateValue.count > 0 {
             let ref = update.location.isRoot ? reference() : reference(withPath: update.location.absolutePath)
             ref.update(use: updateValue, completion: completion)

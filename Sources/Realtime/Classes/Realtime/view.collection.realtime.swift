@@ -11,7 +11,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue?
     public var payload: RealtimeDatabaseValue?
     public let node: Node?
-    var priority: Int?
+    var priority: Int64?
     var linkID: String?
 
     init(key: String?, value: RealtimeValue) {
@@ -36,7 +36,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         self.node = Node(key: key)
         self.raw = try valueData.rawValue()
         self.linkID = try dataContainer.decodeIfPresent(String.self, forKey: .link)
-        self.priority = try dataContainer.decodeIfPresent(Int.self, forKey: .index)
+        self.priority = try dataContainer.decodeIfPresent(Int64.self, forKey: .index)
         self.payload = try valueData.payload()
     }
 
@@ -86,7 +86,7 @@ public struct RDItem: WritableRealtimeValue, Comparable {
     var rcItem: RCItem
 
     public var dbKey: String! { return rcItem.dbKey }
-    var priority: Int? {
+    var priority: Int64? {
         set { rcItem.priority = newValue }
         get { return rcItem.priority }
     }

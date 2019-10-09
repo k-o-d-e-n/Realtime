@@ -35,8 +35,20 @@ struct ReferenceRepresentation: RealtimeDataRepresented {
         if let pl = payload.user {
             valuePayload.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.payload.rawValue), RealtimeDatabaseValue(pl))))
         }
-        v.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.value.rawValue), RealtimeDatabaseValue(valuePayload))))
+        if valuePayload.count > 0 {
+            v.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.value.rawValue), RealtimeDatabaseValue(valuePayload))))
+        }
         return RealtimeDatabaseValue(v)
+    }
+
+    func write(to transaction: Transaction, by node: Node) throws {
+        transaction.addValue(source, by: node.child(with: InternalKeys.source))
+        if let rw = payload.raw {
+            transaction.addValue(rw, by: node.child(with: InternalKeys.value).child(with: InternalKeys.raw))
+        }
+        if let pl = payload.user {
+            transaction.addValue(pl, by: node.child(with: InternalKeys.value).child(with: InternalKeys.payload))
+        }
     }
 
     init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -162,6 +174,17 @@ public struct RelationRepresentation: RealtimeDataRepresented {
         return RealtimeDatabaseValue(v)
     }
 
+    public func write(to transaction: Transaction, by node: Node) throws {
+        transaction.addValue(targetPath, by: node.child(with: CodingKeys.targetPath))
+        transaction.addValue(relatedProperty, by: node.child(with: CodingKeys.relatedProperty))
+        if let rw = payload.raw {
+            transaction.addValue(rw, by: node.child(with: InternalKeys.value).child(with: InternalKeys.raw))
+        }
+        if let pl = payload.user {
+            transaction.addValue(pl, by: node.child(with: InternalKeys.value).child(with: InternalKeys.payload))
+        }
+    }
+
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.targetPath = try data.child(forPath: CodingKeys.targetPath.stringValue).unbox(as: String.self)
         self.relatedProperty = try data.child(forPath: CodingKeys.relatedProperty.stringValue).unbox(as: String.self)
@@ -190,7 +213,7 @@ struct SourceLink: RealtimeDataRepresented, Codable {
     }
 
     func defaultRepresentation() throws -> RealtimeDatabaseValue {
-        return RealtimeDatabaseValue(links)
+        return RealtimeDatabaseValue(links.map(RealtimeDatabaseValue.init(_:)))
     }
 
     init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

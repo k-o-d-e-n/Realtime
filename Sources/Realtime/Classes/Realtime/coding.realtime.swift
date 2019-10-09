@@ -15,7 +15,7 @@ public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, Cus
     var storage: RealtimeStorage? { get }
     var node: Node? { get }
     var key: String? { get }
-    var priority: Any? { get }
+    var priority: Any? { get } // TODO: Remove
     var childrenCount: UInt { get }
     func makeIterator() -> AnyIterator<RealtimeDataProtocol>
     func exists() -> Bool
@@ -23,6 +23,7 @@ public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, Cus
     func hasChild(_ childPathString: String) -> Bool
     func child(forPath path: String) -> RealtimeDataProtocol
 
+    @available(*, deprecated, message: "Use typed approaches to extract value")
     func asSingleValue() -> Any?
     func satisfy<T>(to type: T.Type) -> Bool
 }
@@ -39,7 +40,7 @@ extension RealtimeDataProtocol {
     public func reduce<Result>(_ initialResult: Result, nextPartialResult: (Result, RealtimeDataProtocol) throws -> Result) rethrows -> Result {
         return try makeIterator().reduce(initialResult, nextPartialResult)
     }
-    public func reduce<Result>(into result: inout Result, updateAccumulatingResult: (inout Result, RealtimeDataProtocol) throws -> Void) rethrows -> Result {
+    public func reduce<Result>(into result: Result, updateAccumulatingResult: (inout Result, RealtimeDataProtocol) throws -> Void) rethrows -> Result {
         return try makeIterator().reduce(into: result, updateAccumulatingResult)
     }
 }
@@ -78,6 +79,17 @@ public extension RealtimeDataProtocol {
         pair: (RealtimeDatabaseValue, RealtimeDatabaseValue) throws -> T,
         collection: ([RealtimeDatabaseValue]) throws -> T
         ) throws -> T {
+        guard childrenCount == 0 else {
+            let result = try reduce(into: (result: [(Node, RealtimeDatabaseValue)](), array: true), updateAccumulatingResult: { (res, data) in
+                guard let node = data.node, let dbValue = try data.asDatabaseValue() else { return }
+                res.array = res.array && data.node.flatMap({ Int($0.key) }) != nil
+                res.result.append((node, dbValue))
+            })
+            
+            return try collection(
+                result.array ? result.result.map({ $1 }) : result.result.map({ RealtimeDatabaseValue((RealtimeDatabaseValue($0.key), $1)) })
+            )
+        }
         let container = try singleValueContainer()
         if satisfy(to: Bool.self) {
             return try bool(try container.decode(Bool.self))
@@ -110,8 +122,31 @@ public extension RealtimeDataProtocol {
         } else if satisfy(to: Data.self) {
             return try data(try container.decode(Data.self))
         } else {
-            throw RealtimeError(source: .coding, description: "Cannot extract value from database value. Reason: Unexpected type")
+            throw RealtimeError(source: .coding, description: "Cannot extract value from database value. Reason: Undefined type")
         }
+    }
+
+    func asDatabaseValue() throws -> RealtimeDatabaseValue? {
+        guard exists() else { return nil }
+        return try extract(
+            bool: { RealtimeDatabaseValue($0) },
+            int: { RealtimeDatabaseValue($0) },
+            int8: { RealtimeDatabaseValue($0) },
+            int16: { RealtimeDatabaseValue($0) },
+            int32: { RealtimeDatabaseValue($0) },
+            int64: { RealtimeDatabaseValue($0) },
+            uint: { RealtimeDatabaseValue($0) },
+            uint8: { RealtimeDatabaseValue($0) },
+            uint16: { RealtimeDatabaseValue($0) },
+            uint32: { RealtimeDatabaseValue($0) },
+            uint64: { RealtimeDatabaseValue($0) },
+            double: { RealtimeDatabaseValue($0) },
+            float: { RealtimeDatabaseValue($0) },
+            string: { RealtimeDatabaseValue($0) },
+            data: { RealtimeDatabaseValue($0) },
+            pair: { RealtimeDatabaseValue(($0, $1)) },
+            collection: { RealtimeDatabaseValue($0) }
+        )
     }
 }
 struct _RealtimeCodingKey: CodingKey {
@@ -468,69 +503,68 @@ extension NSDictionary: HasDefaultLiteral, _ComparableWithDefaultLiteral {
 public struct RealtimeDatabaseValue {
     internal let backend: Backend
 
+    @available(*, deprecated, message: "Use `extract` or similar methods, because value can have unexpected type")
     public var untyped: Any {
         switch backend {
-        case ._realtimeData(let d): return d.asSingleValue() as Any
-        case ._untyped(let v): return v
-        case .single(_, let v): return v
+        case ._untyped(let v),
+            .bool(let v as Any),
+            .int8(let v as Any),
+            .int16(let v as Any),
+            .int32(let v as Any),
+            .int64(let v as Any),
+            .uint8(let v as Any),
+            .uint16(let v as Any),
+            .uint32(let v as Any),
+            .uint64(let v as Any),
+            .double(let v as Any),
+            .float(let v as Any),
+            .string(let v as Any),
+            .data(let v as Any):
+            return v
         case .pair(let k, let v): return (k.untyped, v.untyped)
         case .unkeyed(let values): return values.map({ $0.untyped })
         }
     }
 
     indirect enum Backend {
-        case _realtimeData(RealtimeDataProtocol)
         @available(*, deprecated, message: "Untyped values no more supported")
         case _untyped(Any)
-        case single(Any.Type, Any)
-        case pair(RealtimeDatabaseValue, RealtimeDatabaseValue) // TODO: Invalid for Firebase
+        case bool(Bool)
+        case int8(Int8)
+        case int16(Int16)
+        case int32(Int32)
+        case int64(Int64)
+        case uint8(UInt8)
+        case uint16(UInt16)
+        case uint32(UInt32)
+        case uint64(UInt64)
+        case double(Double)
+        case float(Float)
+        case string(String)
+        case data(Data)
+        case pair(RealtimeDatabaseValue, RealtimeDatabaseValue)
         case unkeyed([RealtimeDatabaseValue])
     }
 
-    internal init<T: RealtimeDataValue>(value: T) {
-        self.backend = .single(T.self, value)
-    }
+    public init(_ value: Bool) { self.backend = .bool(value) }
 
-    // TODO: Remove this invalid initializer, used when access to child node in ValueNode
-    internal init(dbVal: RealtimeDataValue) {
-        self.backend = .single(RealtimeDataValue.self, dbVal)
-    }
-    internal init(data: RealtimeDataProtocol) {
-        precondition(data.exists(), "Data have to contain value")
-        self.backend = ._realtimeData(data)
-    }
+    public init(_ value: Int) { self.backend = .int64(Int64(value)) }
+    public init(_ value: Int8) { self.backend = .int8(value) }
+    public init(_ value: Int16) { self.backend = .int16(value) }
+    public init(_ value: Int32) { self.backend = .int32(value) }
+    public init(_ value: Int64) { self.backend = .int64(value) }
 
-    public init(_ value: Bool) { self.init(value: value) }
-    public init(_ value: Int) { self.init(value: value) }
-    public init(_ value: Double) { self.init(value: value) }
-    public init(_ value: Float) { self.init(value: value) }
-    public init(_ value: Int8) { self.init(value: value) }
-    public init(_ value: Int16) { self.init(value: value) }
-    public init(_ value: Int32) { self.init(value: value) }
-    public init(_ value: Int64) { self.init(value: value) }
-    public init(_ value: UInt) { self.init(value: value) }
-    public init(_ value: UInt8) { self.init(value: value) }
-    public init(_ value: UInt16) { self.init(value: value) }
-    public init(_ value: UInt32) { self.init(value: value) }
-    public init(_ value: UInt64) { self.init(value: value) }
-    public init(_ value: String) { self.init(value: value) }
-    public init(_ value: Data) { self.init(value: value) }
+    public init(_ value: UInt) { self.backend = .uint64(UInt64(value)) }
+    public init(_ value: UInt8) { self.backend = .uint8(value) }
+    public init(_ value: UInt16) { self.backend = .uint16(value) }
+    public init(_ value: UInt32) { self.backend = .uint32(value) }
+    public init(_ value: UInt64) { self.backend = .uint64(value) }
 
-    // TODO: Remove both below
-    public init<E: RealtimeDataValue>(_ value: Array<E>) {
-        self.init(value.map(RealtimeDatabaseValue.init))
-    }
-    public init<K: RealtimeDataValue, V: RealtimeDataValue>(_ value: Dictionary<K, V>) {
-        self.init(value.map({ RealtimeDatabaseValue((RealtimeDatabaseValue(value: $0.key), RealtimeDatabaseValue(value: $0.value))) }))
-    }
-
-    #if os(iOS) || os(macOS)
-    public init(_ value: NSNull) { self.init(value: value) }
-    public init(_ value: NSValue) { self.init(value: value) }
-    public init(_ value: NSString) { self.init(value: value) }
-//    init(_ value: NSArray) { self.init(value: value) }
-//    init(_ value: NSDictionary) { self.init(value: value) }
-    #endif
+    public init(_ value: Double) { self.backend = .double(value) }
+    public init(_ value: Float) { self.backend = .float(value) }
+    
+    public init(_ value: String) { self.backend = .string(value) }
+    public init(_ value: Data) { self.backend = .data(value) }
 
     init(_ value: RealtimeDatabaseValue) {
         self.backend = value.backend
@@ -545,44 +579,6 @@ public struct RealtimeDatabaseValue {
     @available(*, deprecated, message: "Untyped values no more supported")
     init(untyped val: Any) {
         self.backend = ._untyped(val)
-    }
-
-//    func satisfy<T>(to type: T.Type) -> Bool where T: RealtimeDataValue {
-//        switch backend {
-//        case ._untyped(let v): return (v as? T) != nil
-//        case .single(let t, let v):
-//            return type == t || (v as? T) != nil
-//        case .pair(let k, let v):
-//            return (k.type, v.type) == type
-//        case .unkeyed:
-//            return type == NSArray.self || type == Array<Any>.self
-//        }
-//    }
-
-    func typed<T>(as type: T.Type) throws -> T where T: RealtimeDataValue {
-        switch backend {
-        case ._realtimeData(let d): return try d.unbox(as: type)
-        case ._untyped(let v):
-            guard let typed = v as? T else {
-                throw RealtimeError(source: .coding, description: "Type casting fails")
-            }
-            return typed
-        case .single(_, let v):
-            guard let typed = v as? T else {
-                throw RealtimeError(source: .coding, description: "Type casting fails")
-            }
-            return typed
-        case .pair(let k, let v):
-            guard let typed = (k.untyped, v.untyped) as? T else {
-                throw RealtimeError(source: .coding, description: "Type casting fails")
-            }
-            return typed
-        case .unkeyed(let values):
-            guard let typed = values.map({ $0.untyped }) as? T else {
-                throw RealtimeError(source: .coding, description: "Type casting fails")
-            }
-            return typed
-        }
     }
 
     public func extract<T>(
@@ -603,87 +599,89 @@ public struct RealtimeDatabaseValue {
         data: (Data) throws -> T,
         pair: (RealtimeDatabaseValue, RealtimeDatabaseValue) throws -> T,
         collection: ([RealtimeDatabaseValue]) throws -> T
-        ) throws -> T {
+        ) throws -> T { // TODO: rethrows
         switch backend {
-        case ._realtimeData(let d):
-            return try d.extract(
-                bool: bool,
-                int: int,
-                int8: int8,
-                int16: int16,
-                int32: int32,
-                int64: int64,
-                uint: uint,
-                uint8: uint8,
-                uint16: uint16,
-                uint32: uint32,
-                uint64: uint64,
-                double: double,
-                float: float,
-                string: string,
-                data: data,
-                pair: pair,
-                collection: collection
-            )
         case ._untyped: throw RealtimeError(source: .coding, description: "Unexpected database value to extract")
-        case .single(let t, let v):
-            func load<T>(_ p: UnsafeRawBufferPointer) -> T { return p.load(as: T.self) }
-            if t == Bool.self {
-                return try bool(withUnsafeBytes(of: v, load))
-            } else if t == Int.self {
-                return try int(withUnsafeBytes(of: v, load))
-            } else if t == Int8.self {
-                return try int8(withUnsafeBytes(of: v, load))
-            } else if t == Int16.self {
-                return try int16(withUnsafeBytes(of: v, load))
-            } else if t == Int32.self {
-                return try int32(withUnsafeBytes(of: v, load))
-            } else if t == Int64.self {
-                return try int64(withUnsafeBytes(of: v, load))
-            } else if t == UInt.self {
-                return try uint(withUnsafeBytes(of: v, load))
-            } else if t == UInt8.self {
-                return try uint8(withUnsafeBytes(of: v, load))
-            } else if t == UInt16.self {
-                return try uint16(withUnsafeBytes(of: v, load))
-            } else if t == UInt32.self {
-                return try uint32(withUnsafeBytes(of: v, load))
-            } else if t == UInt64.self {
-                return try uint64(withUnsafeBytes(of: v, load))
-            } else if t == Double.self {
-                return try double(withUnsafeBytes(of: v, load))
-            } else if t == Float.self {
-                return try float(withUnsafeBytes(of: v, load))
-            } else if t == String.self {
-                return try string(withUnsafeBytes(of: v, load))
-            } else if t == Data.self {
-                return try data(withUnsafeBytes(of: v, load))
-            } else {
-                throw RealtimeError(source: .coding, description: "Cannot extract value from database value. Reason: Unexpected type")
-            }
+        case .bool(let v): return try bool(v)
+        case .int8(let v): return try int8(v)
+        case .int16(let v): return try int16(v)
+        case .int32(let v): return try int32(v)
+        case .int64(let v): return try int64(v)
+        case .uint8(let v): return try uint8(v)
+        case .uint16(let v): return try uint16(v)
+        case .uint32(let v): return try uint32(v)
+        case .uint64(let v): return try uint64(v)
+        case .double(let v): return try double(v)
+        case .float(let v): return try float(v)
+        case .string(let v): return try string(v)
+        case .data(let v): return try data(v)
         case .pair(let k, let v):
             return try pair(k, v)
         case .unkeyed(let values):
             return try collection(values)
         }
     }
-
-    static func _compare(lhs: RealtimeDatabaseValue, rhs: RealtimeDatabaseValue) -> Bool {
-        
+}
+extension RealtimeDatabaseValue: Equatable {
+    public static func ==(lhs: RealtimeDatabaseValue, rhs: RealtimeDatabaseValue) -> Bool {
+        switch (lhs.backend, rhs.backend) {
+        case (.bool(let v1), .bool(let v2)): return v1 == v2
+        case (.int8(let v1), .int8(let v2)): return v1 == v2
+        case (.int16(let v1), .int16(let v2)): return v1 == v2
+        case (.int32(let v1), .int32(let v2)): return v1 == v2
+        case (.int64(let v1), .int64(let v2)): return v1 == v2
+        case (.uint8(let v1), .uint8(let v2)): return v1 == v2
+        case (.uint16(let v1), .uint16(let v2)): return v1 == v2
+        case (.uint32(let v1), .uint32(let v2)): return v1 == v2
+        case (.uint64(let v1), .uint64(let v2)): return v1 == v2
+        case (.double(let v1), .double(let v2)): return v1 == v2
+        case (.float(let v1), .float(let v2)): return v1 == v2
+        case (.string(let v1), .string(let v2)): return v1 == v2
+        case (.data(let v1), .data(let v2)): return v1 == v2
+        case (.pair(let k1, let v1), .pair(let k2, let v2)): return k1 == k2 && v1 == v2
+        case (.unkeyed(let values1), .unkeyed(let values2)): return values1 == values2
+        default: return false
+        }
     }
 }
-//extension RealtimeDatabaseValue: Equatable {
-//    public static func ==(lhs: RealtimeDatabaseValue, rhs: RealtimeDatabaseValue) -> Bool {
-//        AnyHashable
-//        switch (lhs.backend, rhs.backend) {
-//        case (._realtimeData(let d1), ._realtimeData(let d2)): return false//d.asSingleValue() as Any
-//        case (.single(let t1, let v1), .single(let t2, let v2)): return t1 == t2 && v1 == v2
-//        case (.pair(let k1, let v1), .pair(let k2, let v2)): return k1 == k2 && v1 == v2
-//        case (.unkeyed(let values1), .unkeyed(let values2)): return values1 == values2
-//        default: return false
-//        }
-//    }
-//}
+extension RealtimeDatabaseValue: ExpressibleByStringLiteral {
+    public typealias StringLiteralType = String
+    public init(stringLiteral value: StringLiteralType) {
+        self.init(value)
+    }
+}
+extension RealtimeDatabaseValue {
+    #if os(iOS) || os(macOS)
+    //    public init(_ value: NSNumber) {
+    //        let numberType = CFNumberGetType(value)
+    //        switch numberType {
+    //        case .charType: self.init(value.boolValue)
+    //        case .sInt8Type: self.init(value.int8Value)
+    //        case .sInt16Type: self.init(value.int16Value)
+    //        case .sInt32Type: self.init(value.int32Value)
+    //        case .sInt64Type: self.init(value.int64Value)
+    //        case .shortType, .intType, .longType, .longLongType, .cfIndexType, .nsIntegerType:
+    //            self.init(value.intValue)
+    //        case .float32Type, .float64Type, .floatType, .doubleType, .cgFloatType:
+    //            self.init(value.floatValue)
+    //        }
+    //    }
+    public init(_ value: NSString) { self.init(value as String) }
+    //    init(_ value: NSArray) { self.init(value: value) }
+    //    init(_ value: NSDictionary) { self.init(value: value) }
+    #endif
+}
+extension RealtimeDatabaseValue {
+    public struct Dictionary {
+        var properties: [(RealtimeDatabaseValue, RealtimeDatabaseValue)] = []
+
+        public init() {}
+
+        public func build() -> RealtimeDatabaseValue {
+            return RealtimeDatabaseValue(properties.map(RealtimeDatabaseValue.init))
+        }
+    }
+}
 
 // MARK: Representer --------------------------------------------------------------------------
 
@@ -927,11 +925,6 @@ public extension Representer where V: RealtimeValue {
         )
     }
 }
-public extension Representer where V: RealtimeDataValue {
-    static var realtimeDataValue: Representer<V> {
-        return Representer<V>(encoding: RealtimeDatabaseValue.init, decoding: V.init)
-    }
-}
 
 extension Representer {
     public func requiredProperty() -> Representer<V?> {
@@ -1006,11 +999,6 @@ public extension Representer where V: RawRepresentable {
                 return v
             }
         )
-    }
-}
-public extension Representer where V: RawRepresentable, V.RawValue: RealtimeDataValue {
-    static var rawRepresentable: Representer<V> {
-        return self.default(Representer<V.RawValue>.realtimeDataValue)
     }
 }
 
