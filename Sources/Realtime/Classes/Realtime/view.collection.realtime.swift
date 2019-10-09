@@ -23,7 +23,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
     public init(in node: Node?, options: [ValueOption : Any]) {
         self.node = node
         self.raw = options[.rawValue] as? RealtimeDatabaseValue
-        self.payload = options[.userPayload] as? RealtimeDatabaseValue
+        self.payload = options[.payload] as? RealtimeDatabaseValue
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

@@ -14,10 +14,8 @@ public protocol UpdateNode: RealtimeDataProtocol {
     /// Fills a contained values to container.
     ///
     /// - Parameters:
-    ///   - ancestor: An ancestor database reference
     ///   - container: `inout` dictionary container.
-    @available(*, deprecated, message: "Use `reduceValues` method instead")
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?])
+    ///   - reducer: Closure to reduce
     func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows
 }
 extension UpdateNode {
@@ -29,6 +27,13 @@ extension UpdateNode {
         var container = container
         try reduceValues(into: &container, reducer)
         return container
+    }
+
+    @available(*, deprecated, message: "Use `reduceValues` method instead")
+    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
+        reduceValues(into: &container) { (c, n, v) in
+            c[n.path(from: ancestor)] = v?.untyped
+        }
     }
 }
 extension UpdateNode where Self: RealtimeDataProtocol {
@@ -71,10 +76,6 @@ enum CacheNode {
 class ValueNode: UpdateNode {
     let location: Node
     var value: RealtimeDatabaseValue?
-
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
-        container[location.path(from: ancestor)] = value?.untyped
-    }
 
     func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
         try reducer(&container, location, value)
@@ -175,7 +176,7 @@ class FileNode: ValueNode {
         completion(metadata, nil)
     }
 
-    override func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {}
+    override func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {}
     var database: RealtimeDatabase? { return nil }
 }
 
@@ -213,16 +214,6 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
         )
         self.location = node
         self.childs = childs
-    }
-
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
-        childs.forEach { (node) in
-            switch node {
-            case .value(let v): v.fillValues(referencedFrom: ancestor, into: &container)
-            case .object(let o): o.fillValues(referencedFrom: ancestor, into: &container)
-            case .file: break
-            }
-        }
     }
 
     func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {

@@ -62,7 +62,7 @@ extension ReferenceRepresentation {
         var options = options
         options[.rawValue] = payload.raw
         if let pl = payload.user {
-            options[.userPayload] = pl
+            options[.payload] = pl
         }
         return V(in: node.child(with: source), options: options)
     }
@@ -197,7 +197,7 @@ extension RelationRepresentation {
         var options = options
         options[.rawValue] = payload.raw
         if let pl = payload.user {
-            options[.userPayload] = pl
+            options[.payload] = pl
         }
         return V(in: node.child(with: targetPath), options: options)
     }

@@ -484,7 +484,7 @@ public struct RelationsItem: WritableRealtimeValue, Comparable {
         self.node = node
         self.dbKey = node?.key
         self.raw = options[.rawValue] as? RealtimeDatabaseValue
-        self.payload = options[.userPayload] as? RealtimeDatabaseValue
+        self.payload = options[.payload] as? RealtimeDatabaseValue
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

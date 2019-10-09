@@ -178,7 +178,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     public required init(in node: Node?, options: [ValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
-        if case let pl as RealtimeDatabaseValue = options[.userPayload] {
+        if case let pl as RealtimeDatabaseValue = options[.payload] {
             self.payload = pl
         }
         if case let ipl as RealtimeDatabaseValue = options[.rawValue] {

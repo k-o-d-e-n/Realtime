@@ -92,18 +92,18 @@ public struct ValueOption: Hashable {
 public extension ValueOption {
     /// Key for `RealtimeDatabase` instance
     static let database: ValueOption = ValueOption("realtime.database")
-    /// Key for `[String : RealtimeDataValue]?` value,
+    /// Key for `RealtimeDatabaseValue?` value,
     /// use it only when you need added required information for lazy initialization of `RealtimeValue`
-    static let userPayload: ValueOption = ValueOption("realtime.value.userPayload")
-    /// Key for `SystemPayload` value
-    static let rawValue: ValueOption = ValueOption("realtime.value.systemPayload")
+    static let payload: ValueOption = ValueOption("realtime.value.payload")
+    /// Key for `RealtimeDatabaseValue` value
+    static let rawValue: ValueOption = ValueOption("realtime.value.raw")
 }
 public extension Dictionary where Key == ValueOption {
     var rawValue: RealtimeDatabaseValue? {
         return self[.rawValue] as? RealtimeDatabaseValue
     }
     var userPayload: RealtimeDatabaseValue? {
-        return self[.userPayload] as? RealtimeDatabaseValue
+        return self[.payload] as? RealtimeDatabaseValue
     }
 }
 public extension RealtimeDataProtocol {
@@ -172,7 +172,7 @@ extension RealtimeValue {
             options[.rawValue] = r
         }
         if let upl = self.payload {
-            options[.userPayload] = upl
+            options[.payload] = upl
         }
         return options
     }

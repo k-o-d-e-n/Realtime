@@ -705,7 +705,7 @@ extension RealtimeTests {
     func testRelationPayload() {
         let exp = expectation(description: "")
         let payload = RealtimeDatabaseValue([RealtimeDatabaseValue(("key", "value"))])
-        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: RealtimeDatabaseValue(2), .userPayload: payload])
+        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: RealtimeDatabaseValue(2), .payload: payload])
         let relation: Relation<Object> = "relation".relation(in: Object(in: .root), .one(name: "obj"))
         relation <== obj
 
@@ -803,7 +803,7 @@ extension RealtimeTests {
 
     func testReferenceRepresentationPayload() {
         let userPayload = RealtimeDatabaseValue([RealtimeDatabaseValue(("foo", "bar"))])
-        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.userPayload: userPayload]))
+        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.payload: userPayload]))
         let representer = Representer<ValueWithPayload>.reference(.fullPath, options: [:])
 
         do {
@@ -1004,7 +1004,7 @@ extension RealtimeTests {
         var payloadBuilder = RealtimeDatabaseValue.Dictionary()
         payloadBuilder.setValue("val", forKey: "key")
         let payload = payloadBuilder.build()
-        let value = TestObject(in: .root, options: [.userPayload: payload])
+        let value = TestObject(in: .root, options: [.payload: payload])
         XCTAssertEqual(value.payload, payload)
     }
 
@@ -1012,7 +1012,7 @@ extension RealtimeTests {
         var payloadBuilder = RealtimeDatabaseValue.Dictionary()
         payloadBuilder.setValue("val", forKey: "key")
         let payload: Any = payloadBuilder.build()
-        let value = TestObject(in: .root, options: [.userPayload: payload])
+        let value = TestObject(in: .root, options: [.payload: payload])
         XCTAssertEqual(value.payload, payload as? RealtimeDatabaseValue)
     }
 
