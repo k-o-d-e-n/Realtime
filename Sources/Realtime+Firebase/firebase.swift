@@ -330,9 +330,13 @@ extension Database: RealtimeDatabase {
 
     public func commit(update: UpdateNode, completion: ((Error?) -> Void)?) {
         var updateValue: [String: Any?] = [:]
-        update.reduceValues(into: &updateValue, { container, node, value in
-            container[node.path(from: update.location)] = value?.untyped
-        })
+        do {
+            try update.reduceValues(into: &updateValue, { container, node, value in
+                container[node.path(from: update.location)] = try value?.extractFirebaseCompatible()
+            })
+        } catch let e {
+            completion?(e)
+        }
         if updateValue.count > 0 {
             let ref = update.location.isRoot ? reference() : reference(withPath: update.location.absolutePath)
             ref.update(use: updateValue, completion: completion)

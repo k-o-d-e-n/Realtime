@@ -23,6 +23,7 @@ public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, Cus
     func hasChild(_ childPathString: String) -> Bool
     func child(forPath path: String) -> RealtimeDataProtocol
 
+    @available(*, deprecated, message: "Use typed approaches to extract value")
     func asSingleValue() -> Any?
     func satisfy<T>(to type: T.Type) -> Bool
 }
@@ -502,6 +503,7 @@ extension NSDictionary: HasDefaultLiteral, _ComparableWithDefaultLiteral {
 public struct RealtimeDatabaseValue {
     internal let backend: Backend
 
+    @available(*, deprecated, message: "Use `extract` or similar methods, because value can have unexpected type")
     public var untyped: Any {
         switch backend {
         case ._untyped(let v),

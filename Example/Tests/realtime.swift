@@ -922,10 +922,7 @@ extension RealtimeTests {
         }
 
         init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-            let raw: CShort = try data.rawValue().map({ val in
-                guard let v = val.untyped as? CShort else { throw RealtimeError(source: .coding, description: "Unexpected raw value") }
-                return v
-            }) ?? 0
+            let raw: CShort = try data.rawValue()?.typed(as: CShort.self) ?? 0
 
             switch raw {
             case 1: self = .two(try TestObject(data: data, event: event))
