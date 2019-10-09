@@ -491,7 +491,6 @@ extension NSDictionary: HasDefaultLiteral, _ComparableWithDefaultLiteral {
 //    }
 //}
 
-// TODO: Implement Expressible protocols where if can https://developer.apple.com/documentation/swift/swift_standard_library/initialization_with_literals
 public struct RealtimeDatabaseValue {
     internal let backend: Backend
 
@@ -637,6 +636,18 @@ extension RealtimeDatabaseValue: Equatable {
 extension RealtimeDatabaseValue: ExpressibleByStringLiteral {
     public typealias StringLiteralType = String
     public init(stringLiteral value: StringLiteralType) {
+        self.init(value)
+    }
+}
+extension RealtimeDatabaseValue: ExpressibleByFloatLiteral {
+    public typealias FloatLiteralType = Float
+    public init(floatLiteral value: FloatLiteralType) {
+        self.init(value)
+    }
+}
+extension RealtimeDatabaseValue: ExpressibleByBooleanLiteral {
+    public typealias BooleanLiteralType = Bool
+    public init(booleanLiteral value: BooleanLiteralType) {
         self.init(value)
     }
 }
