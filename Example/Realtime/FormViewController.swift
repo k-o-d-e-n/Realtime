@@ -189,7 +189,7 @@ class FormViewController: UIViewController {
 
         let followers = ReuseRowSection<User, User>(
             ReuseRowSectionDataSource(collection: Global.rtUsers),
-            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) as! TextCell },
+            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: textInputCellIdentifier, for: ip) as! TextCell },
             row: { () -> ReuseFormRow<TextCell, User, User> in
             let row: ReuseFormRow<TextCell, User, User> = ReuseFormRow()
             row.onRowModel({ (user, row) in

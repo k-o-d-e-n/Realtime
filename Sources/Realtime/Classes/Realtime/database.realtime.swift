@@ -215,7 +215,7 @@ public protocol RealtimeStorage {
         completion: @escaping (Data?) -> Void,
         onCancel: ((Error) -> Void)?
         ) -> RealtimeStorageTask
-    func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void)
+    func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) // TODO: Replace transaction parameter with UpdateNode
 }
 
 public protocol RealtimeTask {

@@ -1,4 +1,6 @@
 
+import Foundation
+
 extension RealtimeDatabaseValue.Dictionary {
         mutating func setValue(_ value: Bool, forKey key: Bool) {
             properties.append((RealtimeDatabaseValue(key), RealtimeDatabaseValue(value)))

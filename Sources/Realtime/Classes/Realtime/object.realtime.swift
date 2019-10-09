@@ -838,20 +838,21 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             if values.isEmpty {
                 values.append(
                     """
-                            \(l ?? ""): \(val.debugDescription)
+                    \(l ?? ""): \(val.debugDescription)
                     """
                 )
             } else {
                 values.append(
                     """
-                    \(val.debugDescription)
+                    \t\t\(l ?? ""): \(val.debugDescription)
                     """
                 )
                 values.append(",\n")
             }
+            values.append(",\n")
         }
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.absolutePath ?? "not referred"),
             raw: \(raw.map(String.init(describing:)) ?? "no raw"),
             has changes: \(_hasChanges),
