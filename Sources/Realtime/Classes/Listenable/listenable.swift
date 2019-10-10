@@ -289,7 +289,7 @@ public protocol Listenable {
     func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable
 
     /// Listening with possibility to control active state
-    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem // TODO: Rename to repeatable and separate if available
+    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem // TODO: Remove
 }
 public extension Listenable where Self: AnyObject {
     /// Listening with possibility to control active state

@@ -158,9 +158,9 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     /// Node of database tree
     public fileprivate(set) var node: Node?
     /// Raw value if Realtime value represented as enumerated type
-    public fileprivate(set) var raw: RealtimeDataValue?
+    public fileprivate(set) var raw: RealtimeDatabaseValue?
     /// User defined payload related with this value
-    public fileprivate(set) var payload: [String : RealtimeDataValue]?
+    public fileprivate(set) var payload: RealtimeDatabaseValue?
     /// Indicates that value already observed
     public var isObserved: Bool { return observing.count > 0 }
     /// Indicates that value can observe
@@ -178,10 +178,10 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     public required init(in node: Node?, options: [ValueOption : Any]) {
         self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
         self.node = node
-        if case let pl as [String: RealtimeDataValue] = options[.userPayload] {
+        if case let pl as RealtimeDatabaseValue = options[.payload] {
             self.payload = pl
         }
-        if case let ipl as RealtimeDataValue = options[.rawValue] {
+        if case let ipl as RealtimeDatabaseValue = options[.rawValue] {
             self.raw = ipl
         }
     }
@@ -364,14 +364,14 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         putVersion(into: &versioner)
         if !versioner.isEmpty {
             let finalizedVersion = versioner.finalize()
-            transaction.addValue(finalizedVersion, by: Node(key: InternalKeys.modelVersion, parent: node))
+            transaction.addValue(RealtimeDatabaseValue(finalizedVersion), by: Node(key: InternalKeys.modelVersion, parent: node))
             transaction.addCompletion { [weak self] (result) in
                 guard result, let `self` = self else { return }
                 self._version = finalizedVersion
             }
         }
         if let rw = raw {
-            transaction.addValue(RealtimeDatabaseValue(untyped: rw), by: Node(key: InternalKeys.raw, parent: node))
+            transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
         }
         if let pl = payload {
             transaction.addValue(pl, by: Node(key: InternalKeys.payload, parent: node))
@@ -418,7 +418,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         return """
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.absolutePath ?? "not referred"),
-            raw: \(raw ?? "null"),
+            raw: \(raw.map(String.init(describing:)) ?? "null"),
             hasChanges: \(_hasChanges)
         }
         """
@@ -683,7 +683,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         do {
             try performMigration(from: &oldVersion, to: &newVersion, in: transaction)
             let finalizedVersion = newVersion.finalize()
-            transaction.addValue(finalizedVersion, by: Node(key: InternalKeys.modelVersion, parent: self.node))
+            transaction.addValue(RealtimeDatabaseValue(finalizedVersion), by: Node(key: InternalKeys.modelVersion, parent: self.node))
             transaction.addCompletion { [weak self] (result) in
                 if result {
                     self?._version = finalizedVersion
@@ -838,22 +838,23 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             if values.isEmpty {
                 values.append(
                     """
-                            \(l ?? ""): \(val.debugDescription)
+                    \(l ?? ""): \(val.debugDescription)
                     """
                 )
             } else {
                 values.append(
                     """
-                    \(val.debugDescription)
+                    \t\t\(l ?? ""): \(val.debugDescription)
                     """
                 )
                 values.append(",\n")
             }
+            values.append(",\n")
         }
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.absolutePath ?? "not referred"),
-            raw: \(raw ?? "no raw"),
+            raw: \(raw.map(String.init(describing:)) ?? "no raw"),
             has changes: \(_hasChanges),
             keepSynced: \(keepSynced),
             values: [

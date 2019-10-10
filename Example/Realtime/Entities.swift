@@ -53,7 +53,7 @@ class Group: Object {
 
 class User: Object {
     lazy var name: Property<String> = "name".property(in: self)
-    lazy var age: Property<Int> = "age".property(in: self)
+    lazy var age: Property<Int8> = "age".property(in: self)
     #if canImport(UIKit)
     lazy var photo: File<UIImage?> = "photo".file(in: self, representer: .png)
     #else
@@ -88,7 +88,7 @@ class User: Object {
 }
 
 class User2: User {
-    lazy var human: Property<[String: RealtimeDataValue]> = "human".property(in: self)
+    lazy var human: Property<String> = "human".property(in: self)
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {

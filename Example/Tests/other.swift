@@ -207,11 +207,12 @@ extension OtherTests {
     }
 
     func testDecodingRawValue() {
-        let data: RealtimeDataProtocol = ObjectNode(node: .root, childs: [.value(ValueNode(node: Node(key: InternalKeys.raw, parent: .root), value: RealtimeDatabaseValue(1)))])
+        let value = RealtimeDatabaseValue(1)
+        let data: RealtimeDataProtocol = ObjectNode(node: .root, childs: [.value(ValueNode(node: Node(key: InternalKeys.raw, parent: .root), value: value))])
 
         do {
             let rawValue = try data.rawValue()
-            XCTAssertEqual(rawValue as! Int, 1)
+            XCTAssertEqual(rawValue, value)
         } catch let e {
             XCTFail(e.describingErrorDescription)
         }

@@ -78,7 +78,7 @@ class FormViewController: UIViewController {
     var tableView: UITableView { return view as! UITableView }
 
     var form: Form<User>!
-    var validator: Accumulator<(String?, Int?)>!
+    var validator: Accumulator<(String?, Int8?)>!
 
     deinit {
         print("deinit \(self)")
@@ -122,7 +122,7 @@ class FormViewController: UIViewController {
             args.0.textField.realtime
                 .onEvent(.editingDidEnd)
                 .map({ $0.0.text })
-                .flatMap(Int.init)
+                .flatMap(Int8.init)
                 .map { $0 ?? 0 }
                 .listeningItem(onValue: { (age) in
                     args.1.age <== age
@@ -189,9 +189,9 @@ class FormViewController: UIViewController {
 
         let followers = ReuseRowSection<User, User>(
             ReuseRowSectionDataSource(collection: Global.rtUsers),
-            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) as! TextCell },
-            row: { () -> ReuseFormRow<TextCell, User, User> in
-            let row: ReuseFormRow<TextCell, User, User> = ReuseFormRow()
+            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) },
+            row: { () -> ReuseFormRow<UITableViewCell, User, User> in
+            let row: ReuseFormRow<UITableViewCell, User, User> = ReuseFormRow()
             row.onRowModel({ (user, row) in
                 row.view?.textLabel?.text <== user.name
                 row.bind(user.name, { (cell, name) in
@@ -226,7 +226,7 @@ class FormViewController: UIViewController {
         self.form = Form(model: user, sections: [section, followers])
         form.tableView = tableView
 
-        validator = Accumulator(repeater: .unsafe(), user.name.map { $0.wrapped }, user.age.map { $0.wrapped })
+        validator = Accumulator(repeater: .unsafe(), user.name.flatMap(), user.age.flatMap())
         validator.listening(onValue: { [unowned self] (val) in
             var isEnabled: Bool
             switch val {
@@ -243,11 +243,7 @@ class FormViewController: UIViewController {
         let alert = showWaitingAlert()
         let transaction = Transaction()
         do {
-            #if FIREBASE
-                try Global.rtUsers.write(element: form.model, in: transaction)
-            #else
-                try form.model.save(by: Node.root("___tests/_users").childByAutoId(), in: transaction) // TODO: Remove after resolve problems with untyped error
-            #endif
+            try Global.rtUsers.write(element: form.model, in: transaction)
             transaction.commit { [weak self] (state, errors) in
                 if let err = errors?.first {
                     fatalError(err.localizedDescription)

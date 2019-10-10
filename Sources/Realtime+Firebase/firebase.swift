@@ -10,39 +10,15 @@
 import FirebaseDatabase
 import FirebaseStorage
 
-public typealias StorageMetadata = FirebaseStorage.StorageMetadata
-public typealias DataSnapshot = FirebaseDatabase.DataSnapshot
-public typealias DatabaseReference = FirebaseDatabase.DatabaseReference
-
 public extension DatabaseReference {
-    static func root(of database: Database = Database.database()) -> DatabaseReference { return database.reference() }
     static func fromRoot(_ path: String, of database: Database = Database.database()) -> DatabaseReference {
         return database.reference(withPath: path)
     }
-
     var rootPath: String { return path(from: root) }
-    
     func path(from ref: DatabaseReference) -> String {
         return String(url[ref.url.endIndex...])
     }
-    
-    func isChild(for ref: DatabaseReference) -> Bool {
-        return !isEqual(for: ref) && url.hasPrefix(ref.url)
-    }
-    func isEqual(for ref: DatabaseReference) -> Bool {
-        return self === ref || url == ref.url
-    }
-
-    typealias TransactionCompletion = (Error?, DatabaseReference) -> Void
-    func update(use keyValuePairs: [String: Any], completion: TransactionCompletion?) {
-        if let completion = completion {
-            updateChildValues(keyValuePairs, withCompletionBlock: completion)
-        } else {
-            updateChildValues(keyValuePairs)
-        }
-    }
 }
-
 
 public struct Event: Listenable {
     let database: RealtimeDatabase
@@ -227,6 +203,74 @@ extension DatabaseDataEvent {
     }
 }
 
+extension RealtimeDatabaseValue {
+    func extractAsFirebaseKey() throws -> String {
+        let incompatibleKey: (Any) throws -> String = { v in throw RealtimeError(source: .coding, description: "Non-string keys are not allowed in Firebase database. Received: \(v)") }
+        return try extract(
+            bool: incompatibleKey,
+            int8: incompatibleKey,
+            int16: incompatibleKey,
+            int32: incompatibleKey,
+            int64: incompatibleKey,
+            uint8: incompatibleKey,
+            uint16: incompatibleKey,
+            uint32: incompatibleKey,
+            uint64: incompatibleKey,
+            double: incompatibleKey,
+            float: incompatibleKey,
+            string: { $0 },
+            data: incompatibleKey,
+            pair: { v1, v2 in throw RealtimeError(source: .coding, description: "Non-string keys are not allowed in Firebase database. Received: \((v1, v2))") },
+            collection: incompatibleKey
+        )
+    }
+    static func firebaseCollectionCompatible(_ values: [RealtimeDatabaseValue]) throws -> [String: Any] {
+        return try values.reduce(into: [:], { (res, value) in
+            switch value.backend {
+            case .pair(let k, let v):
+                res[try k.extractAsFirebaseKey()] = try v.extractFirebaseCompatible()
+            case .bool(let v as Any),
+                .int8(let v as Any),
+                .int16(let v as Any),
+                .int32(let v as Any),
+                .int64(let v as Any),
+                .uint8(let v as Any),
+                .uint16(let v as Any),
+                .uint32(let v as Any),
+                .uint64(let v as Any),
+                .double(let v as Any),
+                .float(let v as Any),
+                .string(let v as Any),
+                .data(let v as Any):
+                res["\(res.count)"] = v
+            case .unkeyed(let v):
+                res["\(res.count)"] = try RealtimeDatabaseValue.firebaseCollectionCompatible(v)
+            case ._untyped: throw RealtimeError(source: .coding, description: "Untyped values no more supported")
+            }
+        })
+    }
+    func extractFirebaseCompatible() throws -> Any {
+        let any: (Any) -> Any = { $0 }
+        return try extract(
+            bool: any,
+            int8: any,
+            int16: any,
+            int32: any,
+            int64: any,
+            uint8: any,
+            uint16: any,
+            uint32: any,
+            uint64: any,
+            double: any,
+            float: any,
+            string: any,
+            data: any,
+            pair: { _, _ in throw RealtimeError(source: .coding, description: "Unsupported value") },
+            collection: RealtimeDatabaseValue.firebaseCollectionCompatible
+        )
+    }
+}
+
 extension Database: RealtimeDatabase {
     public var isConnectionActive: AnyListenable<Bool> {
         return AnyListenable(
@@ -259,13 +303,18 @@ extension Database: RealtimeDatabase {
 
     public func commit(update: UpdateNode, completion: ((Error?) -> Void)?) {
         var updateValue: [String: Any?] = [:]
-        update.reduceValues(into: &updateValue, { container, node, value in
-            container[node.path(from: update.location)] = value?.untyped
-        })
+        do {
+            try update.reduceValues(into: &updateValue, { container, node, value in
+                container[node.path(from: update.location)] = .some(try value?.extractFirebaseCompatible())
+            })
+        } catch let e {
+            completion?(e)
+        }
         if updateValue.count > 0 {
             let ref = update.location.isRoot ? reference() : reference(withPath: update.location.absolutePath)
             ref.update(use: updateValue, completion: completion)
         } else if let compl = completion {
+            debugFatalError("Empty transaction commit")
             compl(nil)
         }
     }

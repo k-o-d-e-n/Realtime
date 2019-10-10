@@ -264,6 +264,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 607FACEF1AFB9204008FA782 /* Build configuration list for PBXNativeTarget "Realtime_Example" */;
 			buildPhases = (
+				A4836740234CC35C003352E0 /* GYB */,
 				24EDC93C114A4733D392AF05 /* [CP] Check Pods Manifest.lock */,
 				607FACCC1AFB9204008FA782 /* Sources */,
 				607FACCD1AFB9204008FA782 /* Frameworks */,
@@ -467,6 +468,24 @@
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-Realtime_Example/Pods-Realtime_Example-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
+		};
+		A4836740234CC35C003352E0 /* GYB */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = GYB;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PROJECT_DIR}/../run_gyb.sh\"\n";
 		};
 		D1F1D695074EC4B8C982342B /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
