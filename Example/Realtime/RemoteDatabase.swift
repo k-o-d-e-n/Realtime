@@ -121,7 +121,22 @@ extension RemoteDatabase: RealtimeDatabase {
     }
 
     func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
-        return 0
+        let opID = operationsCounter; operationsCounter += 1
+        let observeMessage = ObserveMessage(operationID: opID, enable: true, event: event, node: node)
+        runningOperations[opID] = ThrowsClosure({ (response) in
+            DispatchQueue.main.async {
+                switch response {
+                case .error(let error): onCancel?(error)
+                default: onCancel?(DBError.badServerResponse)
+                }
+            }
+        })
+        do {
+            connection.write(data: try observeMessage.packed())
+        } catch let e {
+            onCancel?(e)
+        }
+        return UInt(opID)
     }
 
     func observe(_ event: DatabaseDataEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering, completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void, onCancel: ((Error) -> Void)?) -> Disposable {
