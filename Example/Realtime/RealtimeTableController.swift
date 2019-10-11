@@ -70,20 +70,10 @@ class RealtimeTableController: UITableViewController {
         }
         delegate.register(TableCell.self) { (item, cell, user, ip) in
             cell.startIndicatorIfNeeeded()
-            #if FIREBASE
             item.bind(user.name, { (cell, name) in
                 cell.label.text <== name
                 cell.indicator.stopAnimating()
             }, nil)
-            #else
-            item.set(user.name.loadValue(), { (cell, name) in
-                cell.indicator.stopAnimating()
-                cell.label.text = name
-            }, { (cell, err) in
-                print(err)
-                cell.indicator.stopAnimating()
-            })
-            #endif
         }
         delegate.bind(tableView)
         delegate.tableDelegate = self

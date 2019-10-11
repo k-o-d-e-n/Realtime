@@ -52,6 +52,8 @@ extension RemoteDatabase: WebSocketDelegate {
                 try runningOperations.removeValue(forKey: message.operationID)?.call(response)
             case .write(let message):
                 try runningOperations.removeValue(forKey: message.operationID)?.call(response)
+            case .observe(let message):
+                try runningOperations[message.operationID]?.call(response)
             case .error(let message):
                 try runningOperations.removeValue(forKey: message.operationID)?.call(response)
             }
@@ -126,6 +128,12 @@ extension RemoteDatabase: RealtimeDatabase {
         runningOperations[opID] = ThrowsClosure({ (response) in
             DispatchQueue.main.async {
                 switch response {
+                case .observe(let message):
+                    if message.values.count > 0 {
+                        onUpdate(DatabaseNode(node: node, database: self, rows: message.values))
+                    } else {
+                        // just successful response
+                    }
                 case .error(let error): onCancel?(error)
                 default: onCancel?(DBError.badServerResponse)
                 }
