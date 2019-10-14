@@ -361,7 +361,7 @@ extension Database: RealtimeDatabase {
         on node: Node,
         onUpdate: @escaping (RealtimeDataProtocol) -> Void,
         onCancel: ((Error) -> Void)?) -> UInt {
-        return node.reference(for: self).observe(event.firebase.first!, with: onUpdate, withCancel: { e in
+        return node.reference(for: self).observe(event.firebase.first!, with: onUpdate, withCancel: { e in // TODO: Event takes only first, apply observing all events
             onCancel?(RealtimeError(external: e, in: .database))
         })
     }

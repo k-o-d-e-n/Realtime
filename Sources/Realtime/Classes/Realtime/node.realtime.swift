@@ -42,11 +42,11 @@ public final class BranchNode: Node {
         super.init(key: key.rawValue, parent: .root)
     }
     override public var parent: Node? { set { fatalError("Branch node always starts from root node") } get { return .root } }
-    override var isRoot: Bool { return false }
-    override var isAnchor: Bool { return true }
-    override var isRooted: Bool { return true }
-    override var root: Node? { return .root }
-    override var first: Node? { return nil }
+    override public var isRoot: Bool { return false }
+    override public var isAnchor: Bool { return true }
+    override public var isRooted: Bool { return true }
+    override public var root: Node? { return .root }
+    override public var first: Node? { return nil }
     override public func path(from node: Node) -> String { return key }
     override public func hasAncestor(node: Node) -> Bool { return node == .root }
     override func move(toNodeKeyedBy key: String) -> Node { fatalError("Branch node cannot be moved") }
@@ -140,17 +140,17 @@ public class Node: Hashable, Comparable {
     }
 
     /// True if node is instance stored in Node.root
-    var isRoot: Bool { return false }
+    public var isRoot: Bool { return false }
     /// True if node has root ancestor
-    var isRooted: Bool { return root === Node.root }
+    public var isRooted: Bool { return root === Node.root }
     /// Returns the most senior node. It may no equal Node.root
-    var root: Node? { return parent.map { $0.root ?? $0 } }
+    public var root: Node? { return parent.map { $0.root ?? $0 } }
     /// Returns the most senior node excluding Node.root instance or nil if node is not rooted.
-    var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
+    public var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
 
-    var isAnchor: Bool { return false }
+    public var isAnchor: Bool { return false }
     /// Returns current anchor node
-    var branch: Node? { return isAnchor ? self : parent?.branch }
+    public var branch: Node? { return isAnchor ? self : parent?.branch }
 
     /// Returns path from the most senior node.
     public var absolutePath: String {

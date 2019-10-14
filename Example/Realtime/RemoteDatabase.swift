@@ -18,19 +18,32 @@ class RemoteDatabase {
 
     var runningOperations: [UInt64: ThrowsClosure<Client.ServerMessage, Void>] = [:]
     var operationsCounter: UInt64 = 0
+    var observeNodes: [UInt64: DatabaseDataEvent] = [:]
+
+    var reconnector: Timer?
 
     init(url: URL) {
         self.connection = WebSocket(url: url)
     }
 
-    func connect() {
+    deinit {
+        reconnector?.invalidate()
+    }
+
+    @objc func connect() {
         connection.delegate = self
         connection.connect()
+    }
+
+    func tryReconnect(through interval: TimeInterval) {
+        reconnector?.invalidate()
+        reconnector = Timer.scheduledTimer(timeInterval: interval, target: self, selector: #selector(connect), userInfo: nil, repeats: true)
     }
 }
 
 extension RemoteDatabase: WebSocketDelegate {
     func websocketDidConnect(socket: WebSocketClient) {
+        reconnector?.invalidate()
         print("DID CONNECT")
         self.connectionState.send(.value(true))
     }
@@ -38,6 +51,8 @@ extension RemoteDatabase: WebSocketDelegate {
     func websocketDidDisconnect(socket: WebSocketClient, error: Error?) {
         print("DISCONNECT ERROR", error)
         self.connectionState.send(.value(false))
+
+        tryReconnect(through: 10)
     }
 
     func websocketDidReceiveMessage(socket: WebSocketClient, text: String) {
@@ -125,22 +140,36 @@ extension RemoteDatabase: RealtimeDatabase {
     func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
         let opID = operationsCounter; operationsCounter += 1
         let observeMessage = ObserveMessage(operationID: opID, enable: true, event: event, node: node)
-        runningOperations[opID] = ThrowsClosure({ (response) in
+        runningOperations[opID] = ThrowsClosure({ [weak self] (response) in
             DispatchQueue.main.async {
                 switch response {
                 case .observe(let message):
-                    if message.values.count > 0 {
+                    switch (event, message.event) {
+                    case (.value, .value): onUpdate(DatabaseNode(node: node, database: self, rows: message.values))
+                    case (.child(let expectedTypes), .child(.added)) where expectedTypes.contains(.added),
+                         (.child(let expectedTypes), .child(.removed)) where expectedTypes.contains(.removed),
+                         (.child(let expectedTypes), .child(.changed)) where expectedTypes.contains(.changed),
+                         (.child(let expectedTypes), .child(.moved)) where expectedTypes.contains(.moved):
                         onUpdate(DatabaseNode(node: node, database: self, rows: message.values))
-                    } else {
-                        // just successful response
+                    case (.child, .value):
+                        print("Initial value for node:", node, ":", message)
+                        onUpdate(DatabaseNode(node: node, database: self, rows: message.values))
+                    case (.value, .child(let occuredTypes)):
+                        print("Child received", message)
+                    default: break
                     }
-                case .error(let error): onCancel?(error)
-                default: onCancel?(DBError.badServerResponse)
+                case .error(let error):
+                    self?.observeNodes.removeValue(forKey: opID)
+                    onCancel?(error)
+                default:
+                    self?.observeNodes.removeValue(forKey: opID)
+                    onCancel?(DBError.badServerResponse)
                 }
             }
         })
         do {
             connection.write(data: try observeMessage.packed())
+            observeNodes[opID] = event
         } catch let e {
             onCancel?(e)
         }
@@ -160,7 +189,16 @@ extension RemoteDatabase: RealtimeDatabase {
     }
 
     func removeObserver(for node: Node, with token: UInt) {
-
+        let opID = UInt64(token)
+        guard let event = observeNodes[opID] else {
+            return print("Cannot remove observer, because didn't found token")
+        }
+        let observeMessage = ObserveMessage(operationID: opID, enable: false, event: event, node: node)
+        do {
+            connection.write(data: try observeMessage.packed())
+        } catch let e {
+            print(e)
+        }
     }
 
     var isConnectionActive: AnyListenable<Bool> {

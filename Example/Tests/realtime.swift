@@ -2108,3 +2108,32 @@ extension RealtimeTests {
     }
 }
 
+extension RealtimeTests {
+    func testObserveCache() {
+        var handles: [UInt] = []
+        let mutationNode = Node.root("path/to/observed/node")
+
+        let valueExp = expectation(description: "value")
+        handles += [Cache.root.observe(
+            .value, on: mutationNode,
+            onUpdate: { _ in valueExp.fulfill() },
+            onCancel: { _ in valueExp.fulfill() }
+        )]
+        let parentChildExp = expectation(description: "value")
+        handles += [Cache.root.observe(
+            .child(.added), on: mutationNode.parent!,
+            onUpdate: { _ in parentChildExp.fulfill() },
+            onCancel: { _ in parentChildExp.fulfill() }
+        )]
+
+        let transaction = Transaction(database: Cache.root, storage: Cache.root)
+        transaction.addValue(true, by: mutationNode)
+        transaction.commit(with: { (_, errs) in
+            errs?.map({ XCTFail($0.localizedDescription) })
+        })
+
+        waitForExpectations(timeout: 5.0) { (err) in
+            err.map({ XCTFail($0.localizedDescription) })
+        }
+    }
+}
