@@ -400,7 +400,7 @@ public extension Transaction {
     /// Adds Realtime database value
     ///
     /// - Parameters:
-    ///   - value: Untyped value
+    ///   - value: Type erased value
     ///   - node: Target node
     func addValue(_ value: RealtimeDatabaseValue?, by node: Node) {
         if let merged = mergedToTransaction {
@@ -410,6 +410,9 @@ public extension Transaction {
 
             _addValue(.value(ValueNode(node: node, value: value)))
         }
+    }
+    func addValue<T: ExpressibleByRealtimeDatabaseValue>(_ value: T, by node: Node) {
+        addValue(RealtimeDatabaseValue(value), by: node)
     }
 
     /// Removes Realtime data by specified node

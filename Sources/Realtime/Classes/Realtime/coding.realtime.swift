@@ -130,12 +130,12 @@ public extension RealtimeDataProtocol {
         guard exists() else { return nil }
         return try extract(
             bool: { RealtimeDatabaseValue($0) },
-            int: { RealtimeDatabaseValue($0) },
+            int: { RealtimeDatabaseValue(Int64($0)) },
             int8: { RealtimeDatabaseValue($0) },
             int16: { RealtimeDatabaseValue($0) },
             int32: { RealtimeDatabaseValue($0) },
             int64: { RealtimeDatabaseValue($0) },
-            uint: { RealtimeDatabaseValue($0) },
+            uint: { RealtimeDatabaseValue(UInt64($0)) },
             uint8: { RealtimeDatabaseValue($0) },
             uint16: { RealtimeDatabaseValue($0) },
             uint32: { RealtimeDatabaseValue($0) },
@@ -537,26 +537,6 @@ public struct RealtimeDatabaseValue {
         case unkeyed([RealtimeDatabaseValue])
     }
 
-    public init(_ value: Bool) { self.backend = .bool(value) }
-
-    public init(_ value: Int) { self.backend = .int64(Int64(value)) }
-    public init(_ value: Int8) { self.backend = .int8(value) }
-    public init(_ value: Int16) { self.backend = .int16(value) }
-    public init(_ value: Int32) { self.backend = .int32(value) }
-    public init(_ value: Int64) { self.backend = .int64(value) }
-
-    public init(_ value: UInt) { self.backend = .uint64(UInt64(value)) }
-    public init(_ value: UInt8) { self.backend = .uint8(value) }
-    public init(_ value: UInt16) { self.backend = .uint16(value) }
-    public init(_ value: UInt32) { self.backend = .uint32(value) }
-    public init(_ value: UInt64) { self.backend = .uint64(value) }
-
-    public init(_ value: Double) { self.backend = .double(value) }
-    public init(_ value: Float) { self.backend = .float(value) }
-    
-    public init(_ value: String) { self.backend = .string(value) }
-    public init(_ value: Data) { self.backend = .data(value) }
-
     init(_ value: RealtimeDatabaseValue) {
         self.backend = value.backend
     }
@@ -679,6 +659,10 @@ extension RealtimeDatabaseValue {
         public func build() -> RealtimeDatabaseValue {
             return RealtimeDatabaseValue(properties.map(RealtimeDatabaseValue.init))
         }
+    }
+
+    public init<T: ExpressibleByRealtimeDatabaseValue>(_ value: T) {
+        self = T.RDBConvertor.map(value)
     }
 }
 
@@ -992,6 +976,18 @@ public extension Representer where V: RealtimeDataRepresented {
     }
 }
 
+public extension Representer where V: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
+    static var realtimeDataValue: Representer<V> {
+        return Representer<V>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
+    }
+}
+
+public extension Representer where V: RawRepresentable, V.RawValue: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
+    static var rawRepresentable: Representer<V> {
+        return self.default(Representer<V.RawValue>.realtimeDataValue)
+    }
+}
+
 public extension Representer where V: RawRepresentable {
     static func `default`<R: RepresenterProtocol>(_ rawRepresenter: R) -> Representer<V> where R.V == V.RawValue {
         return Representer(
@@ -1018,6 +1014,7 @@ public extension Representer where V == URL {
 
 #if os(macOS) || os(iOS)
 public extension Representer where V: Codable {
+    @available(*, deprecated, message: "Unavailable after move to strong types")
     static func json(
         dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .secondsSince1970,
         keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy = .useDefaultKeys

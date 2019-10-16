@@ -46,11 +46,17 @@ public extension RawRepresentable where Self.RawValue == String {
             ]
         )
     }
+    func readonlyProperty<T>(in object: Object) -> ReadonlyProperty<T> where T: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
+        return readonlyProperty(in: object, representer: Representer.realtimeDataValue)
+    }
+    func readonlyProperty<T>(in object: Object) -> ReadonlyProperty<Optional<T>> where T: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
+        return readonlyProperty(in: object, representer: Representer.realtimeDataValue)
+    }
 
-    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue>) -> Property<V> {
+    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = Representer.realtimeDataValue) -> Property<V> where V.RawValue: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
         return property(in: object, representer: Representer<V>.default(rawRepresenter))
     }
-    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue>) -> Property<V?> {
+    func `enum`<V: RawRepresentable>(in object: Object, rawRepresenter: Representer<V.RawValue> = Representer.realtimeDataValue) -> Property<V?> where V.RawValue: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
         return property(in: object, representer: Representer<V>.default(rawRepresenter))
     }
     func date(in object: Object, strategy: DateCodingStrategy = .secondsSince1970) -> Property<Date> {
@@ -922,13 +928,13 @@ public final class MutationPoint<T> {
     }
 }
 public extension MutationPoint {
-    func set(value: RealtimeDatabaseValue, in transaction: Transaction? = nil) throws -> Transaction {
+    func set(value: RealtimeDatabaseValue, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.addValue(value, by: node)
 
         return transaction
     }
-    func mutate(by key: String? = nil, use value: RealtimeDatabaseValue, in transaction: Transaction? = nil) throws -> Transaction {
+    func mutate(by key: String? = nil, use value: RealtimeDatabaseValue, in transaction: Transaction? = nil) -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
         transaction.addValue(value, by: key.map { node.child(with: $0) } ?? node.childByAutoId())
 

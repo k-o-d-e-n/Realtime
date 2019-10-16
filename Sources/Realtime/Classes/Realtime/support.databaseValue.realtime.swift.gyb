@@ -5,17 +5,41 @@ int_convertible_types = ['Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', '
 
 import Foundation
 
-extension RealtimeDatabaseValue.Dictionary {
-    % for type1 in support_types:
-        % for type2 in support_types:
-        mutating func setValue(_ value: ${type1}, forKey key: ${type2}) {
-            properties.append((RealtimeDatabaseValue(key), RealtimeDatabaseValue(value)))
-        }
-        % end
-        mutating func setValue(_ value: RealtimeDatabaseValue, forKey key: ${type1}) {
-            properties.append((RealtimeDatabaseValue(key), value))
-        }
+internal extension RealtimeDatabaseValue {
+    % for type in support_types:
+    init(${type.lower()} value: ${type}) {
+        self.backend = .${type.lower()}(value)
+    }
     % end
+}
+
+public protocol RealtimeDatabaseValueAdapter {
+    associatedtype Value
+    static func map(_ value: Value) -> RealtimeDatabaseValue
+}
+public protocol ExpressibleByRealtimeDatabaseValue {
+    associatedtype RDBConvertor: RealtimeDatabaseValueAdapter where RDBConvertor.Value == Self
+}
+% for type in support_types:
+extension ${type}: ExpressibleByRealtimeDatabaseValue {
+    public enum RDBConvertor: RealtimeDatabaseValueAdapter {
+        public static func map(_ value: ${type}) -> RealtimeDatabaseValue { return RealtimeDatabaseValue(${type.lower()}: value) }
+    }
+}
+% end
+
+
+extension RealtimeDatabaseValue.Dictionary {
+% for type1 in support_types:
+    % for type2 in support_types:
+    public mutating func setValue(_ value: ${type1}, forKey key: ${type2}) {
+        properties.append((RealtimeDatabaseValue(key), RealtimeDatabaseValue(value)))
+    }
+    % end
+    public mutating func setValue(_ value: RealtimeDatabaseValue, forKey key: ${type1}) {
+        properties.append((RealtimeDatabaseValue(key), value))
+    }
+% end
 }
 
 public extension RealtimeDatabaseValue {
@@ -41,40 +65,6 @@ public extension RealtimeDatabaseValue {
         default: throw RealtimeError(source: .coding, description: "Mismatch type")
         }
     }
-}
-
-% for type in support_types:
-public extension Representer where V == ${type} {
-    static var realtimeDataValue: Representer<${type}> {
-        return Representer<${type}>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
-    }
-}
-% end
-//public extension Representer where V == Int {
-//    static var realtimeDataValue: Representer<Int> {
-//        return Representer<Int>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
-//    }
-//}
-//public extension Representer where V == UInt {
-//    static var realtimeDataValue: Representer<UInt> {
-//        return Representer<UInt>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init)
-//    }
-//}
-
-% for type in support_types:
-public extension Representer where V: RawRepresentable, V.RawValue == ${type} {
-    static var rawRepresentable: Representer<V> {
-        return self.default(Representer<V.RawValue>.realtimeDataValue)
-    }
-}
-% end
-
-public extension Transaction {
-% for type in support_types:
-    func addValue(_ value: ${type}, by node: Node) {
-        addValue(RealtimeDatabaseValue(value), by: node)
-    }
-% end
 }
 
 public extension RawRepresentable where Self.RawValue == String {

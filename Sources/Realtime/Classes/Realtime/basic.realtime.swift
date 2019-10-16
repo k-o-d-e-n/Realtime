@@ -102,7 +102,7 @@ public extension Dictionary where Key == ValueOption {
     var rawValue: RealtimeDatabaseValue? {
         return self[.rawValue] as? RealtimeDatabaseValue
     }
-    var userPayload: RealtimeDatabaseValue? {
+    var payload: RealtimeDatabaseValue? {
         return self[.payload] as? RealtimeDatabaseValue
     }
 }

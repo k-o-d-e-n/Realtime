@@ -256,6 +256,10 @@ open class CollectibleViewDelegate<View, Cell: AnyObject & Hashable, Model, Sect
     open func reload() {
         // TODO: Implement reload as call `func reload()` on each active `ReuseItem`
     }
+
+    open func item(for cell: Cell) -> ReuseItem<Cell>? {
+        return reuseController.active(at: cell)
+    }
 }
 
 open class TableViewDelegate<View, Item: AnyObject & Hashable, Model, Section>: CollectibleViewDelegate<View, Item, Model, Section> {
