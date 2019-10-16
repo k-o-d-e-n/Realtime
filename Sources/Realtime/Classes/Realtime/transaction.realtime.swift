@@ -123,7 +123,7 @@ extension Transaction {
     /// registers new single value for specified reference
     func _addValue(_ cacheValue: CacheNode) {
         debugFatalError(
-            condition: cacheValue.location._hasMultiLevelNode,
+            condition: database !== RealtimeApp.cache && cacheValue.location._hasMultiLevelNode,
             "Multi level node can use only for readonly operations."
         )
         updateNode._addValueAsInSingleTransaction(cacheValue)

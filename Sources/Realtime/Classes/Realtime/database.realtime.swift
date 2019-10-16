@@ -68,6 +68,7 @@ public enum DatabaseObservingEvent: Hashable, CustomDebugStringConvertible {
     }
 }
 
+@available(*, deprecated, renamed: "DatabaseObservingEvent", message: "Use DatabaseObservingEvent instead")
 public typealias DatabaseDataEvent = DatabaseObservingEvent
 
 public enum RealtimeDataOrdering {

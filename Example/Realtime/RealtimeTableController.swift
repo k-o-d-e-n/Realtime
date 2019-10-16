@@ -17,6 +17,14 @@ class TableCell: UITableViewCell {
         $0.numberOfLines = 0
     }
 
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: .value1, reuseIdentifier: reuseIdentifier)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
     func startIndicatorIfNeeeded() {
         guard label.text == nil else {
             return
@@ -74,6 +82,9 @@ class RealtimeTableController: UITableViewController {
                 cell.label.text <== name
                 cell.indicator.stopAnimating()
             }, nil)
+            item.bind(user.age.flatMap(String.init), sources: [user.age], { (cell, age) in
+                cell.detailTextLabel?.text = age
+            }, nil)
         }
         delegate.bind(tableView)
         delegate.tableDelegate = self
@@ -124,7 +135,7 @@ class RealtimeTableController: UITableViewController {
         users.changes
             .listening(
                 onValue: { (e) in
-                    print(e)
+                    print("test", e)
                 },
                 onError: { (err) in
                     print(err)
