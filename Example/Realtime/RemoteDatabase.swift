@@ -145,7 +145,7 @@ extension RemoteDatabase: RealtimeDatabase {
         }
     }
 
-    func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
+    func observe(_ event: DatabaseObservingEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
         let opID = operationsCounter; operationsCounter += 1
 
         do {
@@ -170,7 +170,7 @@ extension RemoteDatabase: RealtimeDatabase {
         return UInt(opID)
     }
 
-    func observe(_ event: DatabaseDataEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering, completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void, onCancel: ((Error) -> Void)?) -> Disposable {
+    func observe(_ event: DatabaseObservingEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering, completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void, onCancel: ((Error) -> Void)?) -> Disposable {
         return EmptyDispose()
     }
 

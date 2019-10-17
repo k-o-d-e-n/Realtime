@@ -664,6 +664,71 @@ extension RealtimeDatabaseValue {
     public init<T: ExpressibleByRealtimeDatabaseValue>(_ value: T) {
         self = T.RDBConvertor.map(value)
     }
+
+    public func losslessMap<T: FixedWidthInteger>(to type: T.Type) -> T? {
+        switch backend {
+        case .int8(let v): return T(exactly: v)
+        case .int16(let v): return T(exactly: v)
+        case .int32(let v): return T(exactly: v)
+        case .int64(let v): return T(exactly: v)
+        case .uint8(let v): return T(exactly: v)
+        case .uint16(let v): return T(exactly: v)
+        case .uint32(let v): return T(exactly: v)
+        case .uint64(let v): return T(exactly: v)
+        case .string(let v): return T(v)
+        default: return nil
+        }
+    }
+    public func losslessMap(to type: String.Type) -> String? {
+        switch backend {
+        case .string(let v): return v
+        case .int8(let v): return String(v)
+        case .int16(let v): return String(v)
+        case .int32(let v): return String(v)
+        case .int64(let v): return String(v)
+        case .uint8(let v): return String(v)
+        case .uint16(let v): return String(v)
+        case .uint32(let v): return String(v)
+        case .uint64(let v): return String(v)
+        case .float(let v): return String(v)
+        case .double(let v): return String(v)
+        default: return nil
+        }
+    }
+    public func lossyMap<T: FixedWidthInteger>(to type: T.Type) -> T? {
+        switch backend {
+        case .int8(let v): return T(truncatingIfNeeded: v)
+        case .int16(let v): return T(truncatingIfNeeded: v)
+        case .int32(let v): return T(truncatingIfNeeded: v)
+        case .int64(let v): return T(truncatingIfNeeded: v)
+        case .uint8(let v): return T(truncatingIfNeeded: v)
+        case .uint16(let v): return T(truncatingIfNeeded: v)
+        case .uint32(let v): return T(truncatingIfNeeded: v)
+        case .uint64(let v): return T(truncatingIfNeeded: v)
+        case .string(let v): return T(v)
+        case .float(let v): return T(v)
+        case .double(let v): return T(v)
+        default: return nil
+        }
+    }
+
+    func lossyMap(to type: Bool.Type) -> Bool? {
+        switch backend {
+        case .string(let v): return !(v.isEmpty || v == "0")
+        case .int8(let v): return v > 0
+        case .int16(let v): return v > 0
+        case .int32(let v): return v > 0
+        case .int64(let v): return v > 0
+        case .uint8(let v): return v > 0
+        case .uint16(let v): return v > 0
+        case .uint32(let v): return v > 0
+        case .uint64(let v): return v > 0
+        case .float(let v): return v > 0
+        case .double(let v): return v > 0
+        case .data(let v): return !v.isEmpty
+        default: return nil
+        }
+    }
 }
 
 // MARK: Representer --------------------------------------------------------------------------
