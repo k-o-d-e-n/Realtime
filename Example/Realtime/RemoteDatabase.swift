@@ -49,7 +49,7 @@ extension RemoteDatabase: WebSocketDelegate {
     }
 
     func websocketDidDisconnect(socket: WebSocketClient, error: Error?) {
-        print("DISCONNECT ERROR", error)
+        print("DISCONNECT ERROR", error as Any)
         self.connectionState.send(.value(false))
 
         tryReconnect(through: 10)
@@ -123,7 +123,7 @@ extension RemoteDatabase: RealtimeDatabase {
             if observer.initialLoadReceived {
                 return RealtimeApp.cache.load(for: node, timeout: timeout, completion: completion, onCancel: onCancel)
             } else {
-                _ = observer.repeater(for: .value).once().listening(onValue: completion, onError: { onCancel?($0) })
+                _ = observer.repeater(for: .value).once().listening(onValue: { d, _ in completion(d) }, onError: { onCancel?($0) })
             }
             return
         }
@@ -145,7 +145,7 @@ extension RemoteDatabase: RealtimeDatabase {
         }
     }
 
-    func observe(_ event: DatabaseObservingEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
+    func observe(_ event: DatabaseObservingEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
         let opID = operationsCounter; operationsCounter += 1
 
         do {
@@ -153,7 +153,7 @@ extension RemoteDatabase: RealtimeDatabase {
             let onEvent = observer.repeater(for: event)
 
             if alreadyObserved && observer.initialLoadReceived {
-                RealtimeApp.cache.load(for: node, timeout: .seconds(30), completion: onUpdate, onCancel: onCancel)
+                RealtimeApp.cache.load(for: node, timeout: .seconds(30), completion: { d in onUpdate(d, .value) }, onCancel: onCancel)
             }
 
             observer.tokens[opID] = onEvent.queue(.main).listening(
@@ -170,7 +170,7 @@ extension RemoteDatabase: RealtimeDatabase {
         return UInt(opID)
     }
 
-    func observe(_ event: DatabaseObservingEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering, completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void, onCancel: ((Error) -> Void)?) -> Disposable {
+    func observe(_ event: DatabaseObservingEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering, completion: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void, onCancel: ((Error) -> Void)?) -> Disposable {
         return EmptyDispose()
     }
 
@@ -209,7 +209,7 @@ extension RemoteDatabase: RealtimeDatabase {
 
 class NodeObserver {
     let operationID: UInt64
-    var observers: [DatabaseObservingEvent: Repeater<RealtimeDataProtocol>] = [:]
+    var observers: [DatabaseObservingEvent: Repeater<(RealtimeDataProtocol, DatabaseObservingEvent)>] = [:]
     var tokens: [UInt64: Disposable] = [:]
     var initialLoadReceived: Bool = false
 
@@ -217,18 +217,18 @@ class NodeObserver {
         self.operationID = operationID
     }
 
-    func repeater(for event: DatabaseObservingEvent) -> AnyListenable<RealtimeDataProtocol> {
+    func repeater(for event: DatabaseObservingEvent) -> AnyListenable<(RealtimeDataProtocol, DatabaseObservingEvent)> {
         let repeater = observers[event] ?? {
-            let repeater = Repeater<RealtimeDataProtocol>.unsafe()
+            let repeater = Repeater<(RealtimeDataProtocol, DatabaseObservingEvent)>.unsafe()
             observers[event] = repeater
             return repeater
         }()
         return AnyListenable(repeater)
     }
 
-    func sendAll(_ data: RealtimeDataProtocol) {
+    func sendInitial(_ data: RealtimeDataProtocol) {
         observers.forEach { (key, value) in
-            value.send(.value(data))
+            value.send(.value((data, .value)))
         }
     }
 
@@ -241,7 +241,7 @@ class NodeObserver {
     func obtain(next message: ObserveResponseMessage, for node: Node, in database: RealtimeDatabase, cache: RealtimeDatabase) {
         if !initialLoadReceived {
             initialLoadReceived = true
-            sendAll(DatabaseNode(node: node, database: database, rows: message.values))
+            sendInitial(DatabaseNode(node: node, database: database, rows: message.values))
 
             message.write(to: cache)
         } else {
@@ -250,22 +250,22 @@ class NodeObserver {
                 completion: { (cachedData: RealtimeDataProtocol) in
                     let analyzedUpdate = try! UpdateEventAnalyzer(node: node).analyze(message, cached: cachedData)
                     switch analyzedUpdate {
-                    case .value(let removed):
+                    case .value(let removed, let implicitly):
                         if let value = self.observers[.value] {
-                            value.send(.value(DatabaseNode(node: node, database: database, rows: message.values)))
+                            value.send(.value((DatabaseNode(node: node, database: database, rows: message.values), .value)))
                         }
-                        if let changed = self.observers[.child(.changed)] {
-                            if removed {
-                                cachedData.forEach({ child in
-                                    changed.send(.value(DatabaseNode(node: child.node!, database: database, result: .single(nil))))
-                                })
-                            } else {
-                                changed.send(.value(DatabaseNode(node: node, database: database, rows: message.values)))
-                            }
-                        }
-                        if let added = self.observers[.child(.added)] {
+//                        if let changed = self.observers[.child(.changed)] {
+//                            if removed {
+//                                cachedData.forEach({ child in
+//                                    changed.send(.value((DatabaseNode(node: child.node!, database: database, result: .single(nil)), .child(.changed))))
+//                                })
+//                            } else {
+//                                changed.send(.value((DatabaseNode(node: implicitly.map(node.child) ?? node, database: database, rows: message.values), .child(.changed))))
+//                            }
+//                        }
+                        if let added = self.observers[.child(.added)], let childKey = implicitly {
                             if !removed {
-                                added.send(.value(DatabaseNode(node: node, database: database, rows: message.values)))
+                                added.send(.value((DatabaseNode(node: node.child(with: childKey), database: database, rows: message.values), .child(.added))))
                             } else {
                                 print("skip event", message)
                             }
@@ -273,23 +273,23 @@ class NodeObserver {
                         if let removedObservers = self.observers[.child(.removed)] {
                             if removed {
                                 cachedData.forEach({ child in
-                                    removedObservers.send(.value(child))
+                                    removedObservers.send(.value((child, .child(.removed))))
                                 })
                             } else {
                                 print("skip event", message)
                             }
                         }
-                    case .child(let change):
+                    case .child(let change, let childKey):
                         if let value = self.observers[.value] {
                             // TODO: mutate cache data
                             let mutated = cachedData
-                            value.send(.value(mutated))
+                            value.send(.value((mutated, .value)))
                         }
                         if let event = self.observers[.child(change)] {
                             if change != .removed {
-                                event.send(.value(DatabaseNode(node: node, database: database, rows: message.values)))
+                                event.send(.value((DatabaseNode(node: node.child(with: childKey), database: database, rows: message.values), .child(change))))
                             } else {
-                                event.send(.value(cachedData.child(forPath: try! message.actionKey.read(at: message.actionKey.count - 1))))
+                                event.send(.value((cachedData.child(forPath: childKey), .child(.removed))))
                             }
                         }
                     }

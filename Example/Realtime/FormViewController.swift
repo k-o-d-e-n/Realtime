@@ -78,7 +78,7 @@ class FormViewController: UIViewController {
     var tableView: UITableView { return view as! UITableView }
 
     var form: Form<User>!
-    var validator: Accumulator<(String?, Int8?)>!
+    var validator: Accumulator<(String?, UInt8?)>!
 
     deinit {
         print("deinit \(self)")
@@ -122,7 +122,7 @@ class FormViewController: UIViewController {
             args.0.textField.realtime
                 .onEvent(.editingDidEnd)
                 .map({ $0.0.text })
-                .flatMap(Int8.init)
+                .flatMap(UInt8.init)
                 .map { $0 ?? 0 }
                 .listeningItem(onValue: { (age) in
                     args.1.age <== age

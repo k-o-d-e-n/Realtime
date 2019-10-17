@@ -487,7 +487,7 @@ extension ObjectNode: RealtimeDataProtocol, Sequence {
 // MARK: Cache
 
 extension CacheNode {
-    func putAdditionNotifications(parent: ObjectNode, to collector: inout [Node: (RealtimeDataProtocol, DatabaseDataEvent)]) {
+    func putAdditionNotifications(parent: ObjectNode, to collector: inout [Node: (RealtimeDataProtocol, DatabaseObservingEvent)]) {
         switch self {
         case .object(let o):
             o.childs.forEach({ $0.putAdditionNotifications(parent: o, to: &collector) })
@@ -502,7 +502,7 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     var isConnectionActive: AnyListenable<Bool> { return AnyListenable(Constant(true)) }
 
     static let root: Cache = Cache(node: .root)
-    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
+    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseObservingEvent)>] = [:]
 
     func clear() {
         childs.removeAll()
@@ -526,7 +526,7 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     func commit(update: UpdateNode, completion: ((Error?) -> Void)?) {
         guard case let objNode as ObjectNode = update else { fatalError("Unexpected update object") }
         do {
-            var notifications: [Node: (RealtimeDataProtocol, DatabaseDataEvent)] = [:]
+            var notifications: [Node: (RealtimeDataProtocol, DatabaseObservingEvent)] = [:]
             try _mergeWithObject(
                 theSameReference: objNode,
                 conflictResolver: { old, new in
@@ -565,22 +565,22 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         }
     }
 
-    private func repeater(for node: Node) -> Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> {
+    private func repeater(for node: Node) -> Repeater<(RealtimeDataProtocol, DatabaseObservingEvent)> {
         guard let rep = observers[node] else {
-            let rep = Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>(dispatcher: .default)
+            let rep = Repeater<(RealtimeDataProtocol, DatabaseObservingEvent)>(dispatcher: .default)
             observers[node] = rep
             return rep
         }
         return rep
     }
 
-    func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
-        let repeater: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
+    func observe(_ event: DatabaseObservingEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
+        let repeater: Repeater<(RealtimeDataProtocol, DatabaseObservingEvent)> = self.repeater(for: node)
 
         return repeater.add(Closure
             .just { e in
                 switch e {
-                case .value(let val): onUpdate(val.0)
+                case .value(let val): onUpdate(val.0, event)
                 case .error(let err): onCancel?(err)
                 }
             }
@@ -595,8 +595,8 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             }))
     }
 
-    func observe(_ event: DatabaseDataEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
-                 completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
+    func observe(_ event: DatabaseObservingEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
+                 completion: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void,
                  onCancel: ((Error) -> Void)?) -> Disposable {
         fatalError("Unimplemented")
     }

@@ -67,11 +67,18 @@ extension ViewController {
             let alert = UIAlertController(title: "PATH", message: "", preferredStyle: .alert)
             var node: Node!
             var textField: UITextField!
+            let useBranchSwitcher = UISwitch(frame: CGRect(x: 180, y: -7, width: 50, height: 20))
+            useBranchSwitcher.backgroundColor = .white
+            useBranchSwitcher.layer.cornerRadius = 5
             alert.addTextField { (tf) in
                 textField = tf
             }
+            alert.addTextField { (tf) in
+                tf.addSubview(useBranchSwitcher)
+                tf.text = "Использовать branch mode"
+            }
             alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { (_) in
-                node = Node.root(textField.text ?? "")
+                node = useBranchSwitcher.isOn ? BranchNode(key: textField.text ?? "") :  Node.root(textField.text ?? "")
                 RealtimeApp.app.database.load(
                     for: node,
                     timeout: .seconds(5),

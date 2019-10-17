@@ -23,10 +23,10 @@ public extension DatabaseReference {
 public struct Event: Listenable {
     let database: RealtimeDatabase
     let node: Node
-    let event: DatabaseDataEvent
+    let event: DatabaseObservingEvent
 
     /// Disposable listening of value
-    public func listening(_ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<(RealtimeDataProtocol, DatabaseObservingEvent)>>) -> Disposable {
         let token = database.listen(node: node, event: event, assign)
         return ListeningDispose({
             self.database.removeObserver(for: self.node, with: token)
@@ -34,7 +34,7 @@ public struct Event: Listenable {
     }
 
     /// Listening with possibility to control active state
-    public func listeningItem(_ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> ListeningItem {
+    public func listeningItem(_ assign: Assign<ListenEvent<(RealtimeDataProtocol, DatabaseObservingEvent)>>) -> ListeningItem {
         let event = self.event
         let token = database.listen(node: node, event: event, assign)
         return ListeningItem(
@@ -46,15 +46,15 @@ public struct Event: Listenable {
 }
 
 extension RealtimeDatabase {
-    public func data(_ event: DatabaseDataEvent, node: Node) -> Event {
+    public func data(_ event: DatabaseObservingEvent, node: Node) -> Event {
         return Event(database: self, node: node, event: event)
     }
 
-    fileprivate func listen(node: Node, event: DatabaseDataEvent, _ assign: Assign<ListenEvent<RealtimeDataProtocol>>) -> UInt {
+    fileprivate func listen(node: Node, event: DatabaseObservingEvent, _ assign: Assign<ListenEvent<(RealtimeDataProtocol, DatabaseObservingEvent)>>) -> UInt {
         let token = observe(
             event,
             on: node,
-            onUpdate: <-assign.map { .value($0) },
+            onUpdate: { d, e in assign.call(.value((d, e))) },
             onCancel: <-assign.map { .error($0) }
         )
         return token
@@ -199,7 +199,7 @@ extension DatabaseReference {
     }
 }
 
-extension DatabaseDataEvent {
+extension DatabaseObservingEvent {
     init(firebase events: [DataEventType]) {
         if events.isEmpty || events.contains(.value) {
             self = .value
@@ -300,7 +300,7 @@ extension Database: RealtimeDatabase {
     public var isConnectionActive: AnyListenable<Bool> {
         return AnyListenable(
             data(.value, node: ServiceNode(key: ".info/connected"))
-                .map({ try $0.singleValueContainer().decode(Bool.self) })
+                .map({ try $0.0.singleValueContainer().decode(Bool.self) })
         )
     }
 
@@ -382,13 +382,18 @@ extension Database: RealtimeDatabase {
     }
 
     public func observe(
-        _ event: DatabaseDataEvent,
+        _ event: DatabaseObservingEvent,
         on node: Node,
-        onUpdate: @escaping (RealtimeDataProtocol) -> Void,
+        onUpdate: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void,
         onCancel: ((Error) -> Void)?) -> UInt {
-        return node.reference(for: self).observe(event.firebase.first!, with: onUpdate, withCancel: { e in // TODO: Event takes only first, apply observing all events
-            onCancel?(RealtimeError(external: e, in: .database))
-        })
+        // TODO: Event takes only first, apply observing all events
+        return node.reference(for: self).observe(
+            event.firebase.first!,
+            with: { d in onUpdate(d, event) },
+            withCancel: { e in
+                onCancel?(RealtimeError(external: e, in: .database))
+            }
+        )
     }
 
     public func removeAllObservers(for node: Node) {
@@ -400,11 +405,11 @@ extension Database: RealtimeDatabase {
     }
 
     public func observe(
-        _ event: DatabaseDataEvent,
+        _ event: DatabaseObservingEvent,
         on node: Node, limit: UInt,
         before: Any?, after: Any?,
         ascending: Bool, ordering: RealtimeDataOrdering,
-        completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
+        completion: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void,
         onCancel: ((Error) -> Void)?
         ) -> Disposable {
         var query: DatabaseQuery = reference(withPath: node.absolutePath)

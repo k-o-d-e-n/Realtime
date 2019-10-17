@@ -271,9 +271,9 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
         guard let node = self.node, let database = self.database else {
             return nil
         }
-        return database.observe(event, on: node, onUpdate: { d in
+        return database.observe(event, on: node, onUpdate: { d, e in
             do {
-                try self.apply(d, event: event)
+                try self.apply(d, event: e)
             } catch let e {
                 self._dataApplyingDidThrow(e)
             }

@@ -119,17 +119,17 @@ public protocol RealtimeDatabase: class {
     ///   - onCancel: Closure to receive cancel event
     /// - Returns: A token that should use to stop the observation
     func observe(
-        _ event: DatabaseDataEvent,
+        _ event: DatabaseObservingEvent,
         on node: Node,
-        onUpdate: @escaping (RealtimeDataProtocol) -> Void,
+        onUpdate: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> UInt
     func observe(
-        _ event: DatabaseDataEvent,
+        _ event: DatabaseObservingEvent,
         on node: Node, limit: UInt,
         before: Any?, after: Any?,
         ascending: Bool, ordering: RealtimeDataOrdering,
-        completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
+        completion: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> Disposable
 
@@ -263,7 +263,7 @@ public class PagingControl {
 protocol PagingControllerDelegate: class {
     func firstKey() -> String?
     func lastKey() -> String?
-    func pagingControllerDidReceive(data: RealtimeDataProtocol, with event: DatabaseDataEvent)
+    func pagingControllerDidReceive(data: RealtimeDataProtocol, with event: DatabaseObservingEvent)
     func pagingControllerDidCancel(with error: Error)
 }
 

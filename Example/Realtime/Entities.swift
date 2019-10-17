@@ -53,7 +53,7 @@ class Group: Object {
 
 class User: Object {
     lazy var name: Property<String> = "name".property(in: self)
-    lazy var age: Property<Int8> = "age".property(in: self)
+    lazy var age: Property<UInt8> = "age".property(in: self)
     #if canImport(UIKit)
     lazy var photo: File<UIImage?> = "photo".file(in: self, representer: .png)
     #else
