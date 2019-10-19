@@ -118,29 +118,40 @@ extension FirebaseDataSnapshot where Self: RealtimeDataProtocol {
     public func decode(_ type: Data.Type) throws -> Data { return try _throwTypeMismatch(Data.self, returns: Data.self) }
     public func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: self) }
 
-    public func satisfy<T>(to type: T.Type) -> Bool {
+    private func _asRealtimeDatabaseValue(_ value: Any) throws -> RealtimeDatabaseValue? {
         switch value {
-        case .some(_ as NSDictionary): return type == NSDictionary.self
-        case .some(_ as NSArray): return type == NSArray.self
-        case .some(_ as NSString): return type == NSString.self || type == String.self
-        case .some(let value as NSNumber):
-            guard type != NSNumber.self else { return true }
+        case let dict as NSDictionary:
+            return RealtimeDatabaseValue(
+                try dict.map({ key, value in
+                    guard let k = try _asRealtimeDatabaseValue(key), let v = try _asRealtimeDatabaseValue(value) else {
+                        throw RealtimeError(decoding: RealtimeDatabaseValue.self, dict, reason: "Cannot find correct value to convert to RealtimeDatabaseValue")
+                    }
+                    return RealtimeDatabaseValue((k, v))
+                })
+            )
+        case let arr as NSArray: return try RealtimeDatabaseValue(arr.compactMap(_asRealtimeDatabaseValue))
+        case let string as NSString: return RealtimeDatabaseValue(string)
+        case let value as NSNumber:
             let numberType = CFNumberGetType(value)
             switch numberType {
-            case .charType: return type == Bool.self
-            case .sInt8Type: return type == Int8.self
-            case .sInt16Type: return type == Int16.self
-            case .sInt32Type: return type == Int32.self
-            case .sInt64Type: return type == Int64.self
+            case .charType: return RealtimeDatabaseValue(value.boolValue)
+            case .sInt8Type: return RealtimeDatabaseValue(value.int8Value)
+            case .sInt16Type: return RealtimeDatabaseValue(value.int16Value)
+            case .sInt32Type: return RealtimeDatabaseValue(value.int32Value)
+            case .sInt64Type: return RealtimeDatabaseValue(value.int64Value)
             case .shortType, .intType, .longType, .longLongType, .cfIndexType, .nsIntegerType:
-                return type == Int.self
-            case .float32Type, .float64Type, .floatType, .doubleType, .cgFloatType:
-                return type == Float.self || type == Double.self || type == CGFloat.self
+                return RealtimeDatabaseValue(value.int64Value)
+            case .float32Type, .floatType: return RealtimeDatabaseValue(value.floatValue)
+            case .float64Type, .doubleType, .cgFloatType:
+                return RealtimeDatabaseValue(value.doubleValue)
             }
-        case .some(_ as NSNull): return type == NSNull.self
-        case .none: return type == NSNull.self
-        default: return value as? T != nil
+        case _ as NSNull: return nil
+        default: return nil
         }
+    }
+
+    public func asDatabaseValue() throws -> RealtimeDatabaseValue? {
+        return try value.flatMap(_asRealtimeDatabaseValue)
     }
 }
 extension DataSnapshot: RealtimeDataProtocol, FirebaseDataSnapshot, Sequence {
