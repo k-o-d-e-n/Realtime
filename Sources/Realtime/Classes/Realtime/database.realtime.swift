@@ -162,7 +162,6 @@ struct RealtimeData: RealtimeDataProtocol {
     var storage: RealtimeStorage? { return base.storage }
     var node: Node? { return base.node }
     var key: String? { return base.key }
-    var priority: Any? { return base.priority }
     var childrenCount: UInt {
         return excludedKeys.reduce(into: base.childrenCount) { (res, key) -> Void in
             if base.hasChild(key) {
@@ -170,7 +169,6 @@ struct RealtimeData: RealtimeDataProtocol {
             }
         }
     }
-    func asSingleValue() -> Any? { return base.asSingleValue() }
     func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
         let baseIterator = base.makeIterator()
         let excludes = excludedKeys
@@ -201,6 +199,26 @@ struct RealtimeData: RealtimeDataProtocol {
     
     var debugDescription: String { return base.debugDescription + "\nexcludes: \(excludedKeys)" }
     var description: String { return base.description + "\nexcludes: \(excludedKeys)" }
+
+    func asDatabaseValue() throws -> RealtimeDatabaseValue? { return try base.asDatabaseValue() }
+
+    func decodeNil() -> Bool { return base.decodeNil() }
+    func decode(_ type: Bool.Type) throws -> Bool { return try base.decode(type) }
+    func decode(_ type: Int.Type) throws -> Int { return try base.decode(type) }
+    func decode(_ type: Int8.Type) throws -> Int8 { return try base.decode(type) }
+    func decode(_ type: Int16.Type) throws -> Int16 { return try base.decode(type) }
+    func decode(_ type: Int32.Type) throws -> Int32 { return try base.decode(type) }
+    func decode(_ type: Int64.Type) throws -> Int64 { return try base.decode(type) }
+    func decode(_ type: UInt.Type) throws -> UInt { return try base.decode(type) }
+    func decode(_ type: UInt8.Type) throws -> UInt8 { return try base.decode(type) }
+    func decode(_ type: UInt16.Type) throws -> UInt16 { return try base.decode(type) }
+    func decode(_ type: UInt32.Type) throws -> UInt32 { return try base.decode(type) }
+    func decode(_ type: UInt64.Type) throws -> UInt64 { return try base.decode(type) }
+    func decode(_ type: Float.Type) throws -> Float { return try base.decode(type) }
+    func decode(_ type: Double.Type) throws -> Double { return try base.decode(type) }
+    func decode(_ type: String.Type) throws -> String { return try base.decode(type) }
+    func decode(_ type: Data.Type) throws -> Data { return try base.decode(type) }
+    func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: self) }
 }
 
 public typealias RealtimeMetadata = [String: Any]
