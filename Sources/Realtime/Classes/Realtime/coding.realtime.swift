@@ -23,7 +23,7 @@ public protocol RealtimeDataProtocol: Decoder, SingleValueDecodingContainer, Cus
     func hasChild(_ childPathString: String) -> Bool
     func child(forPath path: String) -> RealtimeDataProtocol
 
-    func satisfy<T>(to type: T.Type) -> Bool
+    func asDatabaseValue() throws -> RealtimeDatabaseValue?
     func decode(_ type: Data.Type) throws -> Data
 }
 extension RealtimeDataProtocol {
@@ -43,96 +43,7 @@ extension RealtimeDataProtocol {
         return try makeIterator().reduce(into: result, updateAccumulatingResult)
     }
 }
-public extension RealtimeDataProtocol {
-    func extract<T>(
-        bool: (Bool) throws -> T,
-        int: (Int) throws -> T,
-        int8: (Int8) throws -> T,
-        int16: (Int16) throws -> T,
-        int32: (Int32) throws -> T,
-        int64: (Int64) throws -> T,
-        uint: (UInt) throws -> T,
-        uint8: (UInt8) throws -> T,
-        uint16: (UInt16) throws -> T,
-        uint32: (UInt32) throws -> T,
-        uint64: (UInt64) throws -> T,
-        double: (Double) throws -> T,
-        float: (Float) throws -> T,
-        string: (String) throws -> T,
-        data: (Data) throws -> T,
-        pair: (RealtimeDatabaseValue, RealtimeDatabaseValue) throws -> T,
-        collection: ([RealtimeDatabaseValue]) throws -> T
-        ) throws -> T {
-        guard childrenCount == 0 else {
-            let result = try reduce(into: (result: [(Node, RealtimeDatabaseValue)](), array: true), updateAccumulatingResult: { (res, data) in
-                guard let node = data.node, let dbValue = try data.asDatabaseValue() else { return }
-                res.array = res.array && data.node.flatMap({ Int($0.key) }) != nil
-                res.result.append((node, dbValue))
-            })
-            
-            return try collection(
-                result.array ? result.result.map({ $1 }) : result.result.map({ RealtimeDatabaseValue((RealtimeDatabaseValue($0.key), $1)) })
-            )
-        }
-        let container = self
-        if satisfy(to: Bool.self) {
-            return try bool(try container.decode(Bool.self))
-        } else if satisfy(to: Int.self) {
-            return try int(try container.decode(Int.self))
-        } else if satisfy(to: Int8.self) {
-            return try int8(try container.decode(Int8.self))
-        } else if satisfy(to: Int16.self) {
-            return try int16(try container.decode(Int16.self))
-        } else if satisfy(to: Int32.self) {
-            return try int32(try container.decode(Int32.self))
-        } else if satisfy(to: Int64.self) {
-            return try int64(try container.decode(Int64.self))
-        } else if satisfy(to: UInt.self) {
-            return try uint(try container.decode(UInt.self))
-        } else if satisfy(to: UInt8.self) {
-            return try uint8(try container.decode(UInt8.self))
-        } else if satisfy(to: UInt16.self) {
-            return try uint16(try container.decode(UInt16.self))
-        } else if satisfy(to: UInt32.self) {
-            return try uint32(try container.decode(UInt32.self))
-        } else if satisfy(to: UInt64.self) {
-            return try uint64(try container.decode(UInt64.self))
-        } else if satisfy(to: Double.self) {
-            return try double(try container.decode(Double.self))
-        } else if satisfy(to: Float.self) {
-            return try float(try container.decode(Float.self))
-        } else if satisfy(to: String.self) {
-            return try string(try container.decode(String.self))
-        } else if satisfy(to: Data.self) {
-            return try data(try container.decode(Data.self))
-        } else {
-            throw RealtimeError(source: .coding, description: "Cannot extract value from database value. Reason: Undefined type")
-        }
-    }
 
-    func asDatabaseValue() throws -> RealtimeDatabaseValue? {
-        guard exists() else { return nil }
-        return try extract(
-            bool: { RealtimeDatabaseValue($0) },
-            int: { RealtimeDatabaseValue(Int64($0)) },
-            int8: { RealtimeDatabaseValue($0) },
-            int16: { RealtimeDatabaseValue($0) },
-            int32: { RealtimeDatabaseValue($0) },
-            int64: { RealtimeDatabaseValue($0) },
-            uint: { RealtimeDatabaseValue(UInt64($0)) },
-            uint8: { RealtimeDatabaseValue($0) },
-            uint16: { RealtimeDatabaseValue($0) },
-            uint32: { RealtimeDatabaseValue($0) },
-            uint64: { RealtimeDatabaseValue($0) },
-            double: { RealtimeDatabaseValue($0) },
-            float: { RealtimeDatabaseValue($0) },
-            string: { RealtimeDatabaseValue($0) },
-            data: { RealtimeDatabaseValue($0) },
-            pair: { RealtimeDatabaseValue(($0, $1)) },
-            collection: { RealtimeDatabaseValue($0) }
-        )
-    }
-}
 struct _RealtimeCodingKey: CodingKey {
     internal var intValue: Int?
     internal init?(intValue: Int) {
@@ -587,6 +498,7 @@ extension RealtimeDatabaseValue {
 extension RealtimeDatabaseValue {
     public struct Dictionary {
         var properties: [(RealtimeDatabaseValue, RealtimeDatabaseValue)] = []
+        public var isEmpty: Bool { return properties.isEmpty }
 
         public init() {}
 

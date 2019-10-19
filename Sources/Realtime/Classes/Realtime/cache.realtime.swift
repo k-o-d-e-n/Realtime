@@ -150,27 +150,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
     var debugDescription: String { return "\(location.absolutePath): \(value as Any)" }
     var description: String { return debugDescription }
 
-    func satisfy<T>(to type: T.Type) -> Bool {
-        guard let v = value else { return type == NSNull.self }
-        switch v.backend {
-        case ._untyped(let v): return v as? T != nil
-        case .bool: return type == Bool.self
-        case .int8: return type == Int8.self
-        case .int16: return type == Int16.self
-        case .int32: return type == Int32.self
-        case .int64: return type == Int64.self
-        case .uint8: return type == UInt8.self
-        case .uint16: return type == UInt16.self
-        case .uint32: return type == UInt32.self
-        case .uint64: return type == UInt64.self
-        case .double: return type == Double.self
-        case .float: return type == Float.self
-        case .string: return type == String.self || type == NSString.self
-        case .data: return type == Data.self
-        case .pair: return false//type == Dictionary.Element.self
-        case .unkeyed: return type == NSArray.self
-        }
-    }
+    func asDatabaseValue() throws -> RealtimeDatabaseValue? { return value }
 
     private func _decode<T>(_ type: T.Type) throws -> RealtimeDatabaseValue {
         guard let v = value else {
@@ -178,18 +158,24 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
         }
         return v
     }
+    private func _decodeInt<T: FixedWidthInteger>(_ type: T.Type) throws -> T {
+        guard let val = try _decode(type).losslessMap(to: T.self) else {
+            throw DecodingError.typeMismatch(T.self, DecodingError.Context(codingPath: location.map({ _RealtimeCodingKey(stringValue: $0.key)! }), debugDescription: String(describing: value)))
+        }
+        return val
+    }
     func decodeNil() -> Bool { return value == nil }
     func decode(_ type: Bool.Type) throws -> Bool { return try _decode(Bool.self).typed(as: Bool.self) }
-    func decode(_ type: Int.Type) throws -> Int { return try Int(_decode(Int64.self).typed(as: Int64.self)) }
-    func decode(_ type: Int8.Type) throws -> Int8 { return try _decode(Int8.self).typed(as: Int8.self) }
-    func decode(_ type: Int16.Type) throws -> Int16 { return try _decode(Int16.self).typed(as: Int16.self) }
-    func decode(_ type: Int32.Type) throws -> Int32 { return try _decode(Int32.self).typed(as: Int32.self) }
-    func decode(_ type: Int64.Type) throws -> Int64 { return try _decode(Int64.self).typed(as: Int64.self) }
-    func decode(_ type: UInt.Type) throws -> UInt { return try UInt(_decode(UInt64.self).typed(as: UInt64.self)) }
-    func decode(_ type: UInt8.Type) throws -> UInt8 { return try _decode(UInt8.self).typed(as: UInt8.self) }
-    func decode(_ type: UInt16.Type) throws -> UInt16 { return try _decode(UInt16.self).typed(as: UInt16.self) }
-    func decode(_ type: UInt32.Type) throws -> UInt32 { return try _decode(UInt32.self).typed(as: UInt32.self) }
-    func decode(_ type: UInt64.Type) throws -> UInt64 { return try _decode(UInt64.self).typed(as: UInt64.self) }
+    func decode(_ type: Int.Type) throws -> Int { return try Int(_decodeInt(Int64.self)) }
+    func decode(_ type: Int8.Type) throws -> Int8 { return try _decodeInt(Int8.self) }
+    func decode(_ type: Int16.Type) throws -> Int16 { return try _decodeInt(Int16.self) }
+    func decode(_ type: Int32.Type) throws -> Int32 { return try _decodeInt(Int32.self) }
+    func decode(_ type: Int64.Type) throws -> Int64 { return try _decodeInt(Int64.self) }
+    func decode(_ type: UInt.Type) throws -> UInt { return try UInt(_decodeInt(UInt64.self)) }
+    func decode(_ type: UInt8.Type) throws -> UInt8 { return try _decodeInt(UInt8.self) }
+    func decode(_ type: UInt16.Type) throws -> UInt16 { return try _decodeInt(UInt16.self) }
+    func decode(_ type: UInt32.Type) throws -> UInt32 { return try _decodeInt(UInt32.self) }
+    func decode(_ type: UInt64.Type) throws -> UInt64 { return try _decodeInt(UInt64.self) }
     func decode(_ type: Float.Type) throws -> Float { return try _decode(Float.self).typed(as: Float.self) }
     func decode(_ type: Double.Type) throws -> Double { return try _decode(Double.self).typed(as: Double.self) }
     func decode(_ type: String.Type) throws -> String { return try _decode(String.self).typed(as: String.self) }
@@ -507,8 +493,16 @@ extension ObjectNode: RealtimeDataProtocol, Sequence {
     }
     public var debugDescription: String { return description }
 
-    func satisfy<T>(to type: T.Type) -> Bool {
-        return type == NSDictionary.self
+    func asDatabaseValue() throws -> RealtimeDatabaseValue? {
+        let builder = try childs.reduce(into: RealtimeDatabaseValue.Dictionary(), { (container, node) in
+            switch node {
+            case .value(let v), .file(let v as ValueNode):
+                try v.asDatabaseValue().map({ container.setValue($0, forKey: v.location.key) })
+            case .object(let v):
+                try v.asDatabaseValue().map({ container.setValue($0, forKey: v.location.key) })
+            }
+        })
+        return builder.isEmpty ? nil : builder.build()
     }
 
     private func _throwTypeMismatch<T>(_ type: T.Type) throws -> T {

@@ -200,7 +200,7 @@ struct RealtimeData: RealtimeDataProtocol {
     var debugDescription: String { return base.debugDescription + "\nexcludes: \(excludedKeys)" }
     var description: String { return base.description + "\nexcludes: \(excludedKeys)" }
 
-    func satisfy<T>(to type: T.Type) -> Bool { return base.satisfy(to: type) }
+    func asDatabaseValue() throws -> RealtimeDatabaseValue? { return try base.asDatabaseValue() }
 
     func decodeNil() -> Bool { return base.decodeNil() }
     func decode(_ type: Bool.Type) throws -> Bool { return try base.decode(type) }
