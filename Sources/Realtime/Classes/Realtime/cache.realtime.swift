@@ -30,7 +30,6 @@ extension UpdateNode {
     }
 }
 extension UpdateNode where Self: RealtimeDataProtocol {
-    public var priority: Any? { return nil }
     public var key: String? { return location.key }
 }
 
@@ -84,7 +83,6 @@ class ValueNode: UpdateNode {
     }
 }
 extension ValueNode: RealtimeDataProtocol, Sequence {
-    var priority: Any? { return nil }
     var childrenCount: UInt {
         guard let v = value else { return 0 }
         switch v.backend {
@@ -92,7 +90,6 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
         case .unkeyed(let c): return UInt(c.count)
         }
     }
-    func asSingleValue() -> Any? { return value?.untyped }
     func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
         guard let v = value else {
             return AnyIterator(EmptyCollection.Iterator())
@@ -152,6 +149,57 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
     }
     var debugDescription: String { return "\(location.absolutePath): \(value as Any)" }
     var description: String { return debugDescription }
+
+    func satisfy<T>(to type: T.Type) -> Bool {
+        guard let v = value else { return type == NSNull.self }
+        switch v.backend {
+        case ._untyped(let v): return v as? T != nil
+        case .bool: return type == Bool.self
+        case .int8: return type == Int8.self
+        case .int16: return type == Int16.self
+        case .int32: return type == Int32.self
+        case .int64: return type == Int64.self
+        case .uint8: return type == UInt8.self
+        case .uint16: return type == UInt16.self
+        case .uint32: return type == UInt32.self
+        case .uint64: return type == UInt64.self
+        case .double: return type == Double.self
+        case .float: return type == Float.self
+        case .string: return type == String.self || type == NSString.self
+        case .data: return type == Data.self
+        case .pair: return false//type == Dictionary.Element.self
+        case .unkeyed: return type == NSArray.self
+        }
+    }
+
+    private func _decode<T>(_ type: T.Type) throws -> RealtimeDatabaseValue {
+        guard let v = value else {
+            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: location.map({ _RealtimeCodingKey(stringValue: $0.key)! }), debugDescription: String(describing: value)))
+        }
+        return v
+    }
+    func decodeNil() -> Bool { return value == nil }
+    func decode(_ type: Bool.Type) throws -> Bool { return try _decode(Bool.self).typed(as: Bool.self) }
+    func decode(_ type: Int.Type) throws -> Int { return try Int(_decode(Int64.self).typed(as: Int64.self)) }
+    func decode(_ type: Int8.Type) throws -> Int8 { return try _decode(Int8.self).typed(as: Int8.self) }
+    func decode(_ type: Int16.Type) throws -> Int16 { return try _decode(Int16.self).typed(as: Int16.self) }
+    func decode(_ type: Int32.Type) throws -> Int32 { return try _decode(Int32.self).typed(as: Int32.self) }
+    func decode(_ type: Int64.Type) throws -> Int64 { return try _decode(Int64.self).typed(as: Int64.self) }
+    func decode(_ type: UInt.Type) throws -> UInt { return try UInt(_decode(UInt64.self).typed(as: UInt64.self)) }
+    func decode(_ type: UInt8.Type) throws -> UInt8 { return try _decode(UInt8.self).typed(as: UInt8.self) }
+    func decode(_ type: UInt16.Type) throws -> UInt16 { return try _decode(UInt16.self).typed(as: UInt16.self) }
+    func decode(_ type: UInt32.Type) throws -> UInt32 { return try _decode(UInt32.self).typed(as: UInt32.self) }
+    func decode(_ type: UInt64.Type) throws -> UInt64 { return try _decode(UInt64.self).typed(as: UInt64.self) }
+    func decode(_ type: Float.Type) throws -> Float { return try _decode(Float.self).typed(as: Float.self) }
+    func decode(_ type: Double.Type) throws -> Double { return try _decode(Double.self).typed(as: Double.self) }
+    func decode(_ type: String.Type) throws -> String { return try _decode(String.self).typed(as: String.self) }
+    func decode(_ type: Data.Type) throws -> Data { return try _decode(Data.self).typed(as: Data.self) }
+    func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
+        guard type != Data.self else {
+            return try unsafeBitCast(decode(Data.self), to: T.self) 
+        }
+        return try T(from: self)
+    }
 }
 
 class FileNode: ValueNode {
@@ -181,7 +229,9 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     var isCompound: Bool { return true }
     var values: [String: Any?] {
         var val: [String: Any?] = [:]
-        fillValues(referencedFrom: location, into: &val)
+        reduceValues(into: &val) { (c, n, v) in
+            c[n.path(from: location)] = .some(v?.untyped)
+        }
         return val
     }
     var files: [FileNode] {
@@ -431,50 +481,56 @@ extension ObjectNode {
 }
 
 extension ObjectNode: RealtimeDataProtocol, Sequence {
-    public var childrenCount: UInt {
-        return UInt(childs.count)
-    }
-
-    func asSingleValue() -> Any? {
-        return values
-    }
-
+    public var childrenCount: UInt { return UInt(childs.count) }
     public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
         return AnyIterator(childs.lazy.map { $0.asUpdateNode() }.makeIterator())
     }
-
-    public func exists() -> Bool {
-        return true
-    }
-
-    public func hasChildren() -> Bool {
-        return childs.count > 0
-    }
-
+    public func exists() -> Bool { return true }
+    public func hasChildren() -> Bool { return childs.count > 0 }
     public func hasChild(_ childPathString: String) -> Bool {
         return child(by: childPathString.split(separator: "/").lazy.map(String.init)) != nil
     }
-
     public func child(forPath path: String) -> RealtimeDataProtocol {
         return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: location), value: nil)
     }
     public func child(forNode node: Node) -> RealtimeDataProtocol {
         return child(by: node)?.asUpdateNode() ?? ValueNode(node: node, value: nil)
     }
-
     public func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
         return try childs.map({ try transform($0.asUpdateNode()) })
     }
-
     public func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
         return try childs.compactMap({ try transform($0.asUpdateNode()) })
     }
-
     public func forEach(_ body: (RealtimeDataProtocol) throws -> Void) rethrows {
         return try childs.forEach({ try body($0.asUpdateNode()) })
     }
-
     public var debugDescription: String { return description }
+
+    func satisfy<T>(to type: T.Type) -> Bool {
+        return type == NSDictionary.self
+    }
+
+    private func _throwTypeMismatch<T>(_ type: T.Type) throws -> T {
+        throw DecodingError.typeMismatch(type.self, DecodingError.Context(codingPath: location.map({ _RealtimeCodingKey(stringValue: $0.key)! }), debugDescription: debugDescription))
+    }
+    func decodeNil() -> Bool { return false }
+    func decode(_ type: Bool.Type) throws -> Bool { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int.Type) throws -> Int { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int8.Type) throws -> Int8 { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int16.Type) throws -> Int16 { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int32.Type) throws -> Int32 { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int64.Type) throws -> Int64 { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt.Type) throws -> UInt { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt8.Type) throws -> UInt8 { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt16.Type) throws -> UInt16 { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt32.Type) throws -> UInt32 { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt64.Type) throws -> UInt64 { return try _throwTypeMismatch(type) }
+    func decode(_ type: Float.Type) throws -> Float { return try _throwTypeMismatch(type) }
+    func decode(_ type: Double.Type) throws -> Double { return try _throwTypeMismatch(type) }
+    func decode(_ type: String.Type) throws -> String { return try _throwTypeMismatch(type) }
+    func decode(_ type: Data.Type) throws -> Data { return try _throwTypeMismatch(type) }
+    func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: self) }
 }
 
 // MARK: Cache

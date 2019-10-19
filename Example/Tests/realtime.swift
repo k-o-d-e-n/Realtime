@@ -1693,7 +1693,7 @@ extension Representer where V == Date {
         return Representer.init(
             encoding: newBase.encode,
             decoding: { (data) -> Date in
-                guard case let value as String = data.asSingleValue() else {
+                guard let value = try? data.decode(String.self) else {
                     return try oldBase.decode(data)
                 }
                 guard let date = formatter.date(from: value) else {

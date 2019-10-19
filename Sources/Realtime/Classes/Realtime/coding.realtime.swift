@@ -10,21 +10,21 @@ import Foundation
 // MARK: RealtimeDataProtocol ---------------------------------------------------------------
 
 /// A type that contains data associated with database node.
-public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
+public protocol RealtimeDataProtocol: Decoder, SingleValueDecodingContainer, CustomDebugStringConvertible, CustomStringConvertible {
     var database: RealtimeDatabase? { get }
     var storage: RealtimeStorage? { get }
     var node: Node? { get }
     var key: String? { get }
     var childrenCount: UInt { get }
+
     func makeIterator() -> AnyIterator<RealtimeDataProtocol>
     func exists() -> Bool
     func hasChildren() -> Bool
     func hasChild(_ childPathString: String) -> Bool
     func child(forPath path: String) -> RealtimeDataProtocol
 
-    @available(*, deprecated, message: "Use typed approaches to extract value")
-    func asSingleValue() -> Any?
     func satisfy<T>(to type: T.Type) -> Bool
+    func decode(_ type: Data.Type) throws -> Data
 }
 extension RealtimeDataProtocol {
     public func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
@@ -44,10 +44,6 @@ extension RealtimeDataProtocol {
     }
 }
 public extension RealtimeDataProtocol {
-    func satisfy<T>(to type: T.Type) -> Bool {
-        return asSingleValue() as? T != nil
-    }
-
     func extract<T>(
         bool: (Bool) throws -> T,
         int: (Int) throws -> T,
@@ -78,7 +74,7 @@ public extension RealtimeDataProtocol {
                 result.array ? result.result.map({ $1 }) : result.result.map({ RealtimeDatabaseValue((RealtimeDatabaseValue($0.key), $1)) })
             )
         }
-        let container = try singleValueContainer()
+        let container = self
         if satisfy(to: Bool.self) {
             return try bool(try container.decode(Bool.self))
         } else if satisfy(to: Int.self) {
@@ -150,24 +146,23 @@ struct _RealtimeCodingKey: CodingKey {
 }
 extension Decoder where Self: RealtimeDataProtocol {
     public var codingPath: [CodingKey] {
-        return []
+        return node?.map({ _RealtimeCodingKey(stringValue: $0.key)! }) ?? []
     }
-
     public var userInfo: [CodingUserInfoKey : Any] {
-        return [CodingUserInfoKey(rawValue: "node")!: node as Any]
+        return [
+            CodingUserInfoKey(rawValue: "node")!: node as Any,
+            CodingUserInfoKey(rawValue: "database")!: database as Any,
+            CodingUserInfoKey(rawValue: "storage")!: storage as Any
+        ]
     }
 
     public func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
         return KeyedDecodingContainer(DataSnapshotDecodingContainer(snapshot: self))
     }
-
     public func unkeyedContainer() throws -> UnkeyedDecodingContainer {
         return DataSnapshotUnkeyedDecodingContainer(snapshot: self)
     }
-
-    public func singleValueContainer() throws -> SingleValueDecodingContainer {
-        return DataSnapshotSingleValueContainer(snapshot: self)
-    }
+    public func singleValueContainer() throws -> SingleValueDecodingContainer { return self }
 
     fileprivate func childDecoder<Key: CodingKey>(forKey key: Key) throws -> RealtimeDataProtocol {
         guard hasChild(key.stringValue) else {
@@ -175,40 +170,6 @@ extension Decoder where Self: RealtimeDataProtocol {
         }
         return child(forPath: key.stringValue)
     }
-}
-fileprivate struct DataSnapshotSingleValueContainer: SingleValueDecodingContainer {
-    let snapshot: RealtimeDataProtocol
-    var codingPath: [CodingKey] { return snapshot.codingPath }
-
-    func decodeNil() -> Bool {
-        if let v = snapshot.asSingleValue() {
-            return v is NSNull
-        }
-        return true
-    }
-
-    private func _decode<T>(_ type: T.Type) throws -> T {
-        guard case let v as T = snapshot.asSingleValue() else {
-            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: codingPath, debugDescription: snapshot.debugDescription))
-        }
-        return v
-    }
-
-    func decode(_ type: Bool.Type) throws -> Bool { return try _decode(type) }
-    func decode(_ type: Int.Type) throws -> Int { return try _decode(type) }
-    func decode(_ type: Int8.Type) throws -> Int8 { return try _decode(type) }
-    func decode(_ type: Int16.Type) throws -> Int16 { return try _decode(type) }
-    func decode(_ type: Int32.Type) throws -> Int32 { return try _decode(type) }
-    func decode(_ type: Int64.Type) throws -> Int64 { return try _decode(type) }
-    func decode(_ type: UInt.Type) throws -> UInt { return try _decode(type) }
-    func decode(_ type: UInt8.Type) throws -> UInt8 { return try _decode(type) }
-    func decode(_ type: UInt16.Type) throws -> UInt16 { return try _decode(type) }
-    func decode(_ type: UInt32.Type) throws -> UInt32 { return try _decode(type) }
-    func decode(_ type: UInt64.Type) throws -> UInt64 { return try _decode(type) }
-    func decode(_ type: Float.Type) throws -> Float { return try _decode(type) }
-    func decode(_ type: Double.Type) throws -> Double { return try _decode(type) }
-    func decode(_ type: String.Type) throws -> String { return try _decode(type) }
-    func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: snapshot) }
 }
 
 fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContainer {
@@ -227,10 +188,7 @@ fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContaine
     var currentIndex: Int
 
     mutating func decodeNil() throws -> Bool {
-        if let value = try nextDecoder().asSingleValue() {
-            return value is NSNull
-        }
-        return true
+        return try nextDecoder().decodeNil()
     }
 
     private mutating func nextDecoder() throws -> RealtimeDataProtocol {
@@ -241,14 +199,9 @@ fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContaine
         return next
     }
 
-    private mutating func _decode<T>(_ type: T.Type) throws -> T {
-        let next = try nextDecoder()
-        guard case let v as T = next.asSingleValue() else {
-            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: [_RealtimeCodingKey(intValue: currentIndex)!], debugDescription: next.debugDescription))
-        }
-        return v
+    private mutating func _decode<T: Decodable>(_ type: T.Type) throws -> T {
+        return try nextDecoder().decode(T.self)
     }
-
     mutating func decode(_ type: Bool.Type) throws -> Bool { return try _decode(type) }
     mutating func decode(_ type: Int.Type) throws -> Int { return try _decode(type) }
     mutating func decode(_ type: Int8.Type) throws -> Int8 { return try _decode(type) }
@@ -278,22 +231,17 @@ struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtoc
     typealias Key = K
     let snapshot: RealtimeDataProtocol
 
-    var codingPath: [CodingKey] { return [] }
+    var codingPath: [CodingKey] { return snapshot.node?.map({ _RealtimeCodingKey(stringValue: $0.key)! }) ?? [] }
     var allKeys: [Key] { return snapshot.compactMap { $0.node.flatMap { Key(stringValue: $0.key) } } }
 
-    private func _decode<T>(_ type: T.Type, forKey key: Key) throws -> T {
+    private func _decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
         let child = try snapshot.childDecoder(forKey: key)
-        guard case let v as T = child.asSingleValue() else {
-            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: [key], debugDescription: child.debugDescription))
-        }
-        return v
+        return try child.decode(T.self)
     }
 
-    func contains(_ key: Key) -> Bool {
-        return snapshot.hasChild(key.stringValue)
-    }
+    func contains(_ key: Key) -> Bool { return snapshot.hasChild(key.stringValue) }
 
-    func decodeNil(forKey key: Key) throws -> Bool { return try snapshot.childDecoder(forKey: key).asSingleValue() is NSNull }
+    func decodeNil(forKey key: Key) throws -> Bool { return try !snapshot.hasChild(key.stringValue) || snapshot.childDecoder(forKey: key).decodeNil() }
     func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool { return try _decode(type, forKey: key) }
     func decode(_ type: Int.Type, forKey key: Key) throws -> Int { return try _decode(type, forKey: key) }
     func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 { return try _decode(type, forKey: key) }
@@ -435,9 +383,7 @@ extension CGFloat   : HasDefaultLiteral, _ComparableWithDefaultLiteral, Realtime
 extension String    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
 extension Data      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        let value = data.asSingleValue()
-        guard case let d as Data = value else { throw RealtimeError(initialization: Data.self, data) }
-        self = d
+        self = try data.decode(Data.self)
     }
 }
 extension Array     : HasDefaultLiteral, _ComparableWithDefaultLiteral {

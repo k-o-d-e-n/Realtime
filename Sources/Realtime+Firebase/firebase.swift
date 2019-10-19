@@ -75,27 +75,48 @@ extension Node {
 
 /// --------------------------- DataSnapshot Decoder ------------------------------
 
-extension DataSnapshot: RealtimeDataProtocol, Sequence {
-    public var key: String? {
-        return self.ref.key
+public protocol FirebaseDataSnapshot {
+    var value: Any? { get }
+}
+extension FirebaseDataSnapshot where Self: RealtimeDataProtocol {
+    private func _throwTypeMismatch<T, R>(_ t: T.Type, returns: R.Type) throws -> R {
+        throw DecodingError.typeMismatch(
+            t,
+            DecodingError.Context(
+                codingPath: codingPath,
+                debugDescription: String(describing: value)
+            )
+        )
     }
-
-    public var database: RealtimeDatabase? { return ref.database }
-    public var storage: RealtimeStorage? { return nil }
-    public var node: Node? { return Node.from(ref) }
-
-    public func asSingleValue() -> Any? { return value }
-
-    public func child(forPath path: String) -> RealtimeDataProtocol {
-        return childSnapshot(forPath: path)
-    }
-
-    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        let childs = children
-        return AnyIterator {
-            return childs.nextObject() as? DataSnapshot
+    private func _decode<T>(_ type: T.Type) throws -> NSNumber {
+        guard case let v as NSNumber = value else {
+            return try _throwTypeMismatch(type, returns: NSNumber.self)
         }
+        return v
     }
+    private func _decodeString() throws -> String {
+        guard case let v as NSString = value else {
+            return try _throwTypeMismatch(String.self, returns: String.self)
+        }
+        return v as String
+    }
+    public func decodeNil() -> Bool { return value == nil || value is NSNull }
+    public func decode(_ type: Bool.Type) throws -> Bool { return try _decode(Bool.self).boolValue }
+    public func decode(_ type: Int.Type) throws -> Int { return try _decode(Int64.self).intValue }
+    public func decode(_ type: Int8.Type) throws -> Int8 { return try _decode(Int8.self).int8Value }
+    public func decode(_ type: Int16.Type) throws -> Int16 { return try _decode(Int16.self).int16Value }
+    public func decode(_ type: Int32.Type) throws -> Int32 { return try _decode(Int32.self).int32Value }
+    public func decode(_ type: Int64.Type) throws -> Int64 { return try _decode(Int64.self).int64Value }
+    public func decode(_ type: UInt.Type) throws -> UInt { return try _decode(UInt64.self).uintValue }
+    public func decode(_ type: UInt8.Type) throws -> UInt8 { return try _decode(UInt8.self).uint8Value }
+    public func decode(_ type: UInt16.Type) throws -> UInt16 { return try _decode(UInt16.self).uint16Value }
+    public func decode(_ type: UInt32.Type) throws -> UInt32 { return try _decode(UInt32.self).uint32Value }
+    public func decode(_ type: UInt64.Type) throws -> UInt64 { return try _decode(UInt64.self).uint64Value }
+    public func decode(_ type: Float.Type) throws -> Float { return try _decode(Float.self).floatValue }
+    public func decode(_ type: Double.Type) throws -> Double { return try _decode(Double.self).doubleValue }
+    public func decode(_ type: String.Type) throws -> String { return try _decodeString() }
+    public func decode(_ type: Data.Type) throws -> Data { return try _throwTypeMismatch(Data.self, returns: Data.self) }
+    public func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: self) }
 
     public func satisfy<T>(to type: T.Type) -> Bool {
         switch value {
@@ -122,49 +143,28 @@ extension DataSnapshot: RealtimeDataProtocol, Sequence {
         }
     }
 }
-extension MutableData: RealtimeDataProtocol, Sequence {
+extension DataSnapshot: RealtimeDataProtocol, FirebaseDataSnapshot, Sequence {
+    public var database: RealtimeDatabase? { return ref.database }
+    public var storage: RealtimeStorage? { return nil }
+    public var node: Node? { return Node.from(ref) }
+    public var key: String? { return self.ref.key }
+
+    public func child(forPath path: String) -> RealtimeDataProtocol { return childSnapshot(forPath: path) }
+    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
+        let childs = children
+        return AnyIterator {
+            return childs.nextObject() as? DataSnapshot
+        }
+    }
+}
+extension MutableData: RealtimeDataProtocol, FirebaseDataSnapshot, Sequence {
     public var database: RealtimeDatabase? { return nil }
     public var storage: RealtimeStorage? { return nil }
     public var node: Node? { return key.map(Node.init) }
 
-    public func asSingleValue() -> Any? { return value }
-    public func satisfy<T>(to type: T.Type) -> Bool {
-        switch value {
-        case .some(_ as NSDictionary): return type == NSDictionary.self
-        case .some(_ as NSArray): return type == NSArray.self
-        case .some(_ as NSString): return type == NSString.self || type == String.self
-        case .some(let value as NSNumber):
-            guard type != NSNumber.self else { return true }
-            let numberType = CFNumberGetType(value)
-            switch numberType {
-            case .charType: return type == Bool.self
-            case .sInt8Type: return type == Int8.self
-            case .sInt16Type: return type == Int16.self
-            case .sInt32Type: return type == Int32.self
-            case .sInt64Type: return type == Int64.self
-            case .shortType, .intType, .longType, .longLongType, .cfIndexType, .nsIntegerType:
-                return type == Int.self
-            case .float32Type, .float64Type, .floatType, .doubleType, .cgFloatType:
-                return type == Float.self || type == Double.self || type == CGFloat.self
-            }
-        case .some(_ as NSNull): return type == NSNull.self
-        case .none: return type == NSNull.self
-        default: return value as? T != nil
-        }
-    }
-
-    public func exists() -> Bool {
-        return value.map { !($0 is NSNull) } ?? false
-    }
-
-    public func child(forPath path: String) -> RealtimeDataProtocol {
-        return childData(byAppendingPath: path)
-    }
-
-    public func hasChild(_ childPathString: String) -> Bool {
-        return hasChild(atPath: childPathString)
-    }
-
+    public func exists() -> Bool { return value.map { !($0 is NSNull) } ?? false }
+    public func child(forPath path: String) -> RealtimeDataProtocol { return childData(byAppendingPath: path) }
+    public func hasChild(_ childPathString: String) -> Bool { return hasChild(atPath: childPathString) }
     public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
         let childs = children
         return AnyIterator {
