@@ -51,8 +51,8 @@ struct ReferenceRepresentation: RealtimeDataRepresented {
         }
     }
 
-    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        self.source = try data.child(forPath: InternalKeys.source.stringValue).unbox(as: String.self)
+    init(data: RealtimeDataProtocol, event: DatabaseObservingEvent) throws {
+        self.source = try data.child(forPath: InternalKeys.source.stringValue).singleValueContainer().decode(String.self)
         let valueData = InternalKeys.value.child(from: data)
         self.payload = (try valueData.rawValue(), try valueData.payload())
     }
@@ -186,8 +186,8 @@ public struct RelationRepresentation: RealtimeDataRepresented {
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        self.targetPath = try data.child(forPath: CodingKeys.targetPath.stringValue).unbox(as: String.self)
-        self.relatedProperty = try data.child(forPath: CodingKeys.relatedProperty.stringValue).unbox(as: String.self)
+        self.targetPath = try data.child(forPath: CodingKeys.targetPath.stringValue).singleValueContainer().decode(String.self)
+        self.relatedProperty = try data.child(forPath: CodingKeys.relatedProperty.stringValue).singleValueContainer().decode(String.self)
         let valueData = InternalKeys.value.child(from: data)
         self.payload = (try valueData.rawValue(), try valueData.payload())
     }

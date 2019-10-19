@@ -15,7 +15,6 @@ public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, Cus
     var storage: RealtimeStorage? { get }
     var node: Node? { get }
     var key: String? { get }
-    var priority: Any? { get } // TODO: Remove
     var childrenCount: UInt { get }
     func makeIterator() -> AnyIterator<RealtimeDataProtocol>
     func exists() -> Bool
@@ -45,17 +44,6 @@ extension RealtimeDataProtocol {
     }
 }
 public extension RealtimeDataProtocol {
-    func unbox<T>(as type: T.Type) throws -> T {
-        guard case let v as T = asSingleValue() else {
-            throw RealtimeError(decoding: T.self, self, reason: "Mismatch type")
-        }
-        return v
-    }
-    func unboxIfPresent<T>(as type: T.Type) throws -> T? {
-        guard exists() else { return nil }
-        return try unbox(as: type)
-    }
-
     func satisfy<T>(to type: T.Type) -> Bool {
         return asSingleValue() as? T != nil
     }
@@ -570,7 +558,7 @@ public struct RealtimeDatabaseValue {
         collection: ([RealtimeDatabaseValue]) throws -> T
         ) throws -> T { // TODO: rethrows
         switch backend {
-        case ._untyped: throw RealtimeError(source: .coding, description: "Unexpected database value to extract")
+        case ._untyped: throw RealtimeError(source: .coding, description: "Untyped values no more supported")
         case .bool(let v): return try bool(v)
         case .int8(let v): return try int8(v)
         case .int16(let v): return try int16(v)
@@ -655,6 +643,10 @@ extension RealtimeDatabaseValue {
         var properties: [(RealtimeDatabaseValue, RealtimeDatabaseValue)] = []
 
         public init() {}
+
+        public mutating func setValue<T: ExpressibleByRealtimeDatabaseValue>(_ value: T, forKey key: String) {
+            properties.append((RealtimeDatabaseValue(key), RealtimeDatabaseValue(value)))
+        }
 
         public func build() -> RealtimeDatabaseValue {
             return RealtimeDatabaseValue(properties.map(RealtimeDatabaseValue.init))

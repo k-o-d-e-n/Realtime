@@ -108,8 +108,8 @@ public extension Dictionary where Key == ValueOption {
 }
 public extension RealtimeDataProtocol {
     internal func version() throws -> String? {
-        let modelVersion = child(forPath: InternalKeys.modelVersion.stringValue)
-        return try modelVersion.unboxIfPresent(as: String.self)
+        let container = try self.container(keyedBy: InternalKeys.self)
+        return try container.decodeIfPresent(String.self, forKey: .modelVersion)
     }
     func versioner() throws -> Versioner? {
         return try version().map(Versioner.init(version:))

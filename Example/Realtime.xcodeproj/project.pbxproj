@@ -89,7 +89,7 @@
 		A4F0FF772144901800395579 /* TableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableViewController.swift; sourceTree = "<group>"; };
 		A4FF2176234799160093C109 /* Realtime_FoundationDB.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realtime_FoundationDB.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A4FF237F2347A3EB0093C109 /* Realtime_FoundationDBModels.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realtime_FoundationDBModels.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		A4FF24412347BDEC0093C109 /* Realtime.podspec */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Realtime.podspec; path = ../Realtime.podspec; sourceTree = "<group>"; };
+		A4FF24412347BDEC0093C109 /* Realtime.podspec */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; name = Realtime.podspec; path = ../Realtime.podspec; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
 		A4FF24472347C4C70093C109 /* Realtime_FDB.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Realtime_FDB.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A4FF24492347C4C70093C109 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A4FF24502347C4CA0093C109 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };

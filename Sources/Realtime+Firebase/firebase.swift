@@ -128,6 +128,30 @@ extension MutableData: RealtimeDataProtocol, Sequence {
     public var node: Node? { return key.map(Node.init) }
 
     public func asSingleValue() -> Any? { return value }
+    public func satisfy<T>(to type: T.Type) -> Bool {
+        switch value {
+        case .some(_ as NSDictionary): return type == NSDictionary.self
+        case .some(_ as NSArray): return type == NSArray.self
+        case .some(_ as NSString): return type == NSString.self || type == String.self
+        case .some(let value as NSNumber):
+            guard type != NSNumber.self else { return true }
+            let numberType = CFNumberGetType(value)
+            switch numberType {
+            case .charType: return type == Bool.self
+            case .sInt8Type: return type == Int8.self
+            case .sInt16Type: return type == Int16.self
+            case .sInt32Type: return type == Int32.self
+            case .sInt64Type: return type == Int64.self
+            case .shortType, .intType, .longType, .longLongType, .cfIndexType, .nsIntegerType:
+                return type == Int.self
+            case .float32Type, .float64Type, .floatType, .doubleType, .cgFloatType:
+                return type == Float.self || type == Double.self || type == CGFloat.self
+            }
+        case .some(_ as NSNull): return type == NSNull.self
+        case .none: return type == NSNull.self
+        default: return value as? T != nil
+        }
+    }
 
     public func exists() -> Bool {
         return value.map { !($0 is NSNull) } ?? false

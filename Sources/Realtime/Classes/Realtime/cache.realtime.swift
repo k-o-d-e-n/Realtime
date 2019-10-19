@@ -28,13 +28,6 @@ extension UpdateNode {
         try reduceValues(into: &container, reducer)
         return container
     }
-
-    @available(*, deprecated, message: "Use `reduceValues` method instead")
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
-        reduceValues(into: &container) { (c, n, v) in
-            c[n.path(from: ancestor)] = .some(v?.untyped)
-        }
-    }
 }
 extension UpdateNode where Self: RealtimeDataProtocol {
     public var priority: Any? { return nil }

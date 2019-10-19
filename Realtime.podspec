@@ -34,6 +34,8 @@ Pod::Spec.new do |s|
   s.source_files = 'Sources/Realtime/**/*'
   s.dependency 'Promise.swift'
   s.static_framework = true
+  s.default_subspec = 'Core'
+  s.subspec 'Core'
   s.subspec 'Firebase' do |firebase|
       firebase.source_files = 'Sources/Realtime+Firebase/**/*'
       firebase.dependency 'Firebase/Database'

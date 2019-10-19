@@ -2116,13 +2116,13 @@ extension RealtimeTests {
         let valueExp = expectation(description: "value")
         handles += [Cache.root.observe(
             .value, on: mutationNode,
-            onUpdate: { _ in valueExp.fulfill() },
+            onUpdate: { _, _ in valueExp.fulfill() },
             onCancel: { _ in valueExp.fulfill() }
         )]
         let parentChildExp = expectation(description: "value")
         handles += [Cache.root.observe(
             .child(.added), on: mutationNode.parent!,
-            onUpdate: { _ in parentChildExp.fulfill() },
+            onUpdate: { _, _ in parentChildExp.fulfill() },
             onCancel: { _ in parentChildExp.fulfill() }
         )]
 
