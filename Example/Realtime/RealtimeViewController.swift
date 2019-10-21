@@ -394,7 +394,7 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
             return
         }
 
-        u.photo <== originalImage
+        u.photo <== originalImage.pngData()
 
         let update = try! u.update()
         update.commit(with: { _,_  in }, filesCompletion: { (results) in

@@ -133,14 +133,14 @@ class FormViewController: UIViewController {
         photo.onUpdate { [weak self] (args, row) in
             let (cell, user) = args
             cell.textLabel?.text = "Pick image"
-            cell.imageView?.image = args.1.photo.unwrapped
+            cell.imageView?.image = args.1.photo.unwrapped.flatMap(UIImage.init)
             row.onSelect({ (ip, row) in
                 let picker = UIImagePickerController()
                 picker.realtime.image.listening(onValue: { [unowned row] (args) in
                     guard case let originalImage as UIImage = args.1[.originalImage] else {
                         fatalError()
                     }
-                    user.photo <== originalImage
+                    user.photo <== originalImage.pngData()
                     row.view?.imageView?.image = originalImage
                     row.view?.setNeedsLayout()
                 }).add(to: row.disposeStorage)

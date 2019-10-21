@@ -51,7 +51,7 @@ struct ReferenceRepresentation: RealtimeDataRepresented {
         }
     }
 
-    init(data: RealtimeDataProtocol, event: DatabaseObservingEvent) throws {
+    init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.source = try data.child(forPath: InternalKeys.source.stringValue).singleValueContainer().decode(String.self)
         let valueData = InternalKeys.value.child(from: data)
         self.payload = (try valueData.rawValue(), try valueData.payload())

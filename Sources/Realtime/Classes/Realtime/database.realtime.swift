@@ -45,7 +45,7 @@ public extension DatabaseDataChanges {
 ///
 /// - value: Any data changes at a location or, recursively, at any child node.
 /// - child: Any data change is related some child node.
-public enum DatabaseObservingEvent: Hashable, CustomDebugStringConvertible {
+public enum DatabaseDataEvent: Hashable, CustomDebugStringConvertible {
     case value
     case child(DatabaseDataChanges)
 
@@ -68,8 +68,8 @@ public enum DatabaseObservingEvent: Hashable, CustomDebugStringConvertible {
     }
 }
 
-@available(*, deprecated, renamed: "DatabaseObservingEvent", message: "Use DatabaseObservingEvent instead")
-public typealias DatabaseDataEvent = DatabaseObservingEvent
+@available(*, deprecated, renamed: "DatabaseDataEvent", message: "Use DatabaseDataEvent instead")
+public typealias DatabaseObservingEvent = DatabaseDataEvent
 
 public enum RealtimeDataOrdering {
     case key
@@ -119,17 +119,17 @@ public protocol RealtimeDatabase: class {
     ///   - onCancel: Closure to receive cancel event
     /// - Returns: A token that should use to stop the observation
     func observe(
-        _ event: DatabaseObservingEvent,
+        _ event: DatabaseDataEvent,
         on node: Node,
-        onUpdate: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void,
+        onUpdate: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> UInt
     func observe(
-        _ event: DatabaseObservingEvent,
+        _ event: DatabaseDataEvent,
         on node: Node, limit: UInt,
         before: Any?, after: Any?,
         ascending: Bool, ordering: RealtimeDataOrdering,
-        completion: @escaping (RealtimeDataProtocol, DatabaseObservingEvent) -> Void,
+        completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> Disposable
 
@@ -281,7 +281,7 @@ public class PagingControl {
 protocol PagingControllerDelegate: class {
     func firstKey() -> String?
     func lastKey() -> String?
-    func pagingControllerDidReceive(data: RealtimeDataProtocol, with event: DatabaseObservingEvent)
+    func pagingControllerDidReceive(data: RealtimeDataProtocol, with event: DatabaseDataEvent)
     func pagingControllerDidCancel(with error: Error)
 }
 
