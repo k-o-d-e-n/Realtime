@@ -86,7 +86,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
     var childrenCount: UInt {
         guard let v = value else { return 0 }
         switch v.backend {
-        case ._untyped,.bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return 0
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return 0
         case .unkeyed(let c): return UInt(c.count)
         }
     }
@@ -95,7 +95,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
             return AnyIterator(EmptyCollection.Iterator())
         }
         switch v.backend {
-        case ._untyped,.bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return AnyIterator(EmptyCollection.Iterator())
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return AnyIterator(EmptyCollection.Iterator())
         case .unkeyed(let c):
             guard let iterator = (try? c.enumerated().map { (i, dbValue) -> RealtimeDataProtocol in
                 switch dbValue.backend {
@@ -111,14 +111,14 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
     func hasChildren() -> Bool {
         guard let v = value else { return false }
         switch v.backend {
-        case ._untyped,.bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return false
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return false
         case .unkeyed(let c): return c.count > 0
         }
     }
     func hasChild(_ childPathString: String) -> Bool {
         guard let v = value else { return false }
         switch v.backend {
-        case ._untyped,.bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return false
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return false
         case .unkeyed(let c): return (try? c.enumerated().contains(where: { (i, dbValue) in
             switch dbValue.backend {
             case .pair(let k, _): return try k.typed(as: String.self) == childPathString
@@ -131,7 +131,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
         let childNode = location.child(with: path)
         guard let v = value else { return ValueNode(node: childNode, value: nil) }
         switch v.backend {
-        case ._untyped,.bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return ValueNode(node: childNode, value: nil)
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return ValueNode(node: childNode, value: nil)
         case .unkeyed(let c):
             return (try? c.enumerated().first(where: { (i, dbValue) in
                 switch dbValue.backend {
@@ -190,6 +190,15 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
 
 class FileNode: ValueNode {
     var metadata: [String: Any] = [:]
+
+    required init(node: Node, value: RealtimeDatabaseValue?) {
+        precondition(value.map({ rdbv in
+            guard case .data = rdbv.backend else { return false }
+            return true
+        }) ?? true, "Unexpected file data")
+        super.init(node: node, value: value)
+    }
+
     func delete(completion: ((Error?) -> Void)?) {
         self.value = nil
         self.metadata.removeAll()
@@ -213,13 +222,6 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     let location: Node
     var childs: [CacheNode] = []
     var isCompound: Bool { return true }
-    var values: [String: Any?] {
-        var val: [String: Any?] = [:]
-        reduceValues(into: &val) { (c, n, v) in
-            c[n.path(from: location)] = .some(v?.untyped)
-        }
-        return val
-    }
     var files: [FileNode] {
         return childs.reduce(into: [], { (res, node) in
             switch node {
@@ -231,9 +233,16 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     }
     var description: String {
         return """
-        values: \(values),
+        values: \(debugValue),
         files: \(files)
         """
+    }
+    var debugValue: [String: Any?] {
+        var val: [String: Any?] = [:]
+        reduceValues(into: &val) { (c, n, v) in
+            c[n.path(from: location)] = .some(v?.debug)
+        }
+        return val
     }
 
     init(node: Node, childs: [CacheNode] = []) {

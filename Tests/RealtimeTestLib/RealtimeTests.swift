@@ -334,7 +334,7 @@ extension RealtimeTests {
 
         do {
             let trans = try testObject.save(in: .root)
-            let value = trans.updateNode.values
+            let value = trans.updateNode.debugValue
             let expectedValue = ["t_obj/prop":"string", "t_obj/nestedObject/lazyprop":"nested_string"] as [String: Any?]
 
             XCTAssertTrue((value as NSDictionary) == (expectedValue as NSDictionary))
@@ -362,7 +362,7 @@ extension RealtimeTests {
 
             elementTransaction.commit { (_, err) in
                 err?.forEach { XCTFail($0.describingErrorDescription) }
-                let value = Cache.root.values
+                let value = Cache.root.debugValue
                 let expectedValue = ["prop":"string", "nestedObject/lazyprop":"nested_string",
                                      "element_1/prop":"element #1", "element_1/nestedObject/lazyprop":"value"] as [String: Any?]
 
@@ -526,7 +526,7 @@ extension RealtimeTests {
                 user.photo <== "image".data(using: .utf8)
                 do {
                     let update = try user.update(in: Transaction(database: Cache.root, storage: Cache.root))
-                    XCTAssertTrue(update.updateNode.values.isEmpty)
+                    XCTAssertTrue(update.updateNode.debugValue.isEmpty)
                     update.commit(with: { _, errors in
                         errors.map { _ in XCTFail() }
 
@@ -716,7 +716,7 @@ extension RealtimeTests {
                     try copyRelation.apply(Cache.root.child(by: copyRelation.node!)!.asUpdateNode(), event: .value)
 
                     XCTAssertEqual(copyRelation.wrapped, relation.wrapped)
-                    XCTAssertEqual(copyRelation.wrapped.raw?.untyped as? Int, relation.wrapped.raw?.untyped as? Int)
+                    XCTAssertEqual(copyRelation.wrapped.raw?.debug as? Int, relation.wrapped.raw?.debug as? Int)
                     XCTAssertEqual(copyRelation.wrapped.payload, relation.wrapped.payload)
                     exp.fulfill()
                 } catch let e {
@@ -929,7 +929,7 @@ extension RealtimeTests {
         mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             try value.apply(data, event: event)
             let r = try data.rawValue()?.typed(as: Int.self) ?? 0
-            if raw?.untyped as? Int != r {
+            if raw?.debug as? Int != r {
                 switch r {
                 case 1: self = .two(value)
                 default: self = .one(value)
@@ -1046,7 +1046,7 @@ extension RealtimeTests {
     func testReferenceFireValue() {
         let ref = ReferenceRepresentation(ref: Node.root.child(with: "first/two").absolutePath, payload: (nil, nil))
         let fireValue = try? ref.defaultRepresentation()
-        XCTAssertEqual((fireValue?.untyped as? [(String, String)])?.reduce(into: [:], { $0[$1.0] = $1.1 }), [InternalKeys.source.rawValue: "first/two"])
+        XCTAssertEqual((fireValue?.debug as? [(String, String)])?.reduce(into: [:], { $0[$1.0] = $1.1 }), [InternalKeys.source.rawValue: "first/two"])
     }
 
     func testLocalDatabase() {

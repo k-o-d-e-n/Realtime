@@ -180,6 +180,206 @@ struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtoc
     func superDecoder(forKey key: Key) throws -> Decoder { return snapshot }
 }
 
+protocol TransactionEncoderProtocol: Encoder {
+    func boxNil()
+    func box<T: ExpressibleByRealtimeDatabaseValue>(_ value: T)
+    func boxNil(for key: String)
+    func box<T: ExpressibleByRealtimeDatabaseValue>(_ value: T, key: String)
+    func child(for key: String) -> TransactionEncoderProtocol
+}
+class DatabaseValueEncoder: TransactionEncoderProtocol {
+    var codingPath: [CodingKey] { return [] }
+    var userInfo: [CodingUserInfoKey : Any] { return [:] }
+
+    var single: RealtimeDatabaseValue?
+    var builder: RealtimeDatabaseValue.Dictionary = .init()
+    var children: [String: DatabaseValueEncoder] = [:]
+
+    init() {}
+
+    func boxNil(for key: String) {}
+    func boxNil() {}
+    func box<T>(_ value: T) where T : ExpressibleByRealtimeDatabaseValue {
+        self.single = RealtimeDatabaseValue(value)
+    }
+    func box<T>(_ value: T, key: String) where T : ExpressibleByRealtimeDatabaseValue {
+        builder.setValue(value, forKey: key)
+    }
+    func child(for key: String) -> TransactionEncoderProtocol {
+        let childStorage = DatabaseValueEncoder()
+        children[key] = childStorage
+        return childStorage
+    }
+
+    func container<Key>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> where Key : CodingKey {
+        return KeyedEncodingContainer<Key>(TransactionEncoder.KeyedContainer(storage: self))
+    }
+    func unkeyedContainer() -> UnkeyedEncodingContainer {
+        return TransactionEncoder.UnkeyedContainer(storage: self, count: 0)
+    }
+    func singleValueContainer() -> SingleValueEncodingContainer {
+        return TransactionEncoder.SingleValueContainer(storage: self)
+    }
+
+    func build() -> RealtimeDatabaseValue {
+        guard let single = self.single else {
+            children.forEach { (key, child) in
+                builder.setValue(child.build(), forKey: key)
+            }
+            return builder.build()
+        }
+        return single
+    }
+}
+struct TransactionEncoder: TransactionEncoderProtocol {
+    let node: Node
+    let transaction: Transaction
+    public var codingPath: [CodingKey] { return [] }
+
+    public var userInfo: [CodingUserInfoKey : Any] {
+        return [CodingUserInfoKey(rawValue: "transaction")!: transaction]
+    }
+
+    public func container<Key>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> where Key : CodingKey {
+        return KeyedEncodingContainer(KeyedContainer(storage: self))
+    }
+
+    public func unkeyedContainer() -> UnkeyedEncodingContainer {
+        return UnkeyedContainer(storage: self, count: 0)
+    }
+
+    public func singleValueContainer() -> SingleValueEncodingContainer {
+        return SingleValueContainer(storage: self)
+    }
+
+    func boxNil() {
+        transaction.removeValue(by: node)
+    }
+
+    func box<T>(_ value: T) where T : ExpressibleByRealtimeDatabaseValue {
+        transaction.addValue(value, by: node)
+    }
+
+    func boxNil(for key: String) {
+        transaction.removeValue(by: node.child(with: key))
+    }
+
+    func box<T>(_ value: T, key: String) where T : ExpressibleByRealtimeDatabaseValue {
+        transaction.addValue(value, by: node.child(with: key))
+    }
+
+    func child(for key: String) -> TransactionEncoderProtocol {
+        return TransactionEncoder(node: node.child(with: key), transaction: transaction)
+    }
+
+    struct SingleValueContainer: SingleValueEncodingContainer {
+        typealias Encode<T: ExpressibleByRealtimeDatabaseValue> = (T) throws -> Void
+        var storage: TransactionEncoderProtocol
+        var codingPath: [CodingKey] { return [] }
+
+        init(storage: TransactionEncoderProtocol) {
+            self.storage = storage
+        }
+
+        mutating func encodeNil() throws { storage.boxNil() }
+        mutating func encode(_ value: Bool) throws { storage.box(value) }
+        mutating func encode(_ value: String) throws { storage.box(value) }
+        mutating func encode(_ value: Double) throws { storage.box(value) }
+        mutating func encode(_ value: Float) throws { storage.box(value) }
+        mutating func encode(_ value: Int) throws { storage.box(Int64(value)) }
+        mutating func encode(_ value: Int8) throws { storage.box(value) }
+        mutating func encode(_ value: Int16) throws { storage.box(value) }
+        mutating func encode(_ value: Int32) throws { storage.box(value) }
+        mutating func encode(_ value: Int64) throws { storage.box(value) }
+        mutating func encode(_ value: UInt) throws { storage.box(UInt64(value)) }
+        mutating func encode(_ value: UInt8) throws { storage.box(value) }
+        mutating func encode(_ value: UInt16) throws { storage.box(value) }
+        mutating func encode(_ value: UInt32) throws { storage.box(value) }
+        mutating func encode(_ value: UInt64) throws { storage.box(value) }
+        mutating func encode<T>(_ value: T) throws where T : Encodable {
+            try value.encode(to: storage)
+        }
+    }
+
+    struct UnkeyedContainer: UnkeyedEncodingContainer {
+        var storage: TransactionEncoderProtocol
+
+        var codingPath: [CodingKey] { return [] }
+        var count: Int = 0
+
+        mutating func _encode<T: ExpressibleByRealtimeDatabaseValue>(_ value: T) {
+            storage.box(value, key: String(count))
+            count += 1
+        }
+        mutating func encodeNil() throws {
+            storage.boxNil(for: String(count))
+            count += 1
+        }
+        mutating func encode(_ value: Bool) throws { _encode(value) }
+        mutating func encode(_ value: Int) throws { _encode(Int64(value)) }
+        mutating func encode(_ value: String) throws { _encode(value) }
+        mutating func encode(_ value: Double) throws { _encode(value) }
+        mutating func encode(_ value: Float) throws { _encode(value) }
+        mutating func encode(_ value: Int8) throws { _encode(value) }
+        mutating func encode(_ value: Int16) throws { _encode(value) }
+        mutating func encode(_ value: Int32) throws { _encode(value) }
+        mutating func encode(_ value: Int64) throws { _encode(value) }
+        mutating func encode(_ value: UInt) throws { _encode(UInt64(value)) }
+        mutating func encode(_ value: UInt8) throws { _encode(value) }
+        mutating func encode(_ value: UInt16) throws { _encode(value) }
+        mutating func encode(_ value: UInt32) throws { _encode(value) }
+        mutating func encode(_ value: UInt64) throws { _encode(value) }
+        mutating func encode<T>(_ value: T) throws where T : Encodable {
+            try value.encode(to: storage.child(for: String(count)))
+        }
+        mutating func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type) -> KeyedEncodingContainer<NestedKey> where NestedKey : CodingKey {
+            return KeyedEncodingContainer(KeyedContainer(storage: storage.child(for: String(count))))
+        }
+        mutating func nestedUnkeyedContainer() -> UnkeyedEncodingContainer {
+            return UnkeyedContainer(storage: storage.child(for: String(count)), count: 0)
+        }
+        mutating func superEncoder() -> Encoder {
+            return storage
+        }
+    }
+
+    struct KeyedContainer<Key: CodingKey>: KeyedEncodingContainerProtocol {
+        var storage: TransactionEncoderProtocol
+        var codingPath: [CodingKey] { return [] }
+
+        mutating func encodeNil(forKey key: Key) throws { storage.boxNil(for: key.stringValue) }
+        mutating func encode(_ value: Bool, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: String, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Double, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Float, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Int, forKey key: Key) throws { storage.box(Int64(value), key: key.stringValue) }
+        mutating func encode(_ value: Int8, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Int16, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Int32, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Int64, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: UInt, forKey key: Key) throws { storage.box(UInt64(value), key: key.stringValue) }
+        mutating func encode(_ value: UInt8, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: UInt16, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: UInt32, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: UInt64, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode<T>(_ value: T, forKey key: Key) throws where T : Encodable {
+            try value.encode(to: storage.child(for: key.stringValue))
+        }
+        mutating func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type, forKey key: Key) -> KeyedEncodingContainer<NestedKey> where NestedKey : CodingKey {
+            return KeyedEncodingContainer(KeyedContainer<NestedKey>(storage: storage.child(for: key.stringValue)))
+        }
+        mutating func nestedUnkeyedContainer(forKey key: Key) -> UnkeyedEncodingContainer {
+            return UnkeyedContainer(storage: storage.child(for: key.stringValue), count: 0)
+        }
+        mutating func superEncoder() -> Encoder {
+            return storage
+        }
+        mutating func superEncoder(forKey key: Key) -> Encoder {
+            return storage
+        }
+    }
+}
+
 
 /// A type that represented someone value of Realtime database
 public protocol RealtimeDataRepresented {
@@ -339,11 +539,9 @@ extension NSDictionary: HasDefaultLiteral, _ComparableWithDefaultLiteral {
 public struct RealtimeDatabaseValue {
     internal let backend: Backend
 
-    @available(*, deprecated, message: "Use `extract` or similar methods, because value can have unexpected type")
-    public var untyped: Any {
+    public var debug: Any {
         switch backend {
-        case ._untyped(let v),
-            .bool(let v as Any),
+        case .bool(let v as Any),
             .int8(let v as Any),
             .int16(let v as Any),
             .int32(let v as Any),
@@ -357,14 +555,12 @@ public struct RealtimeDatabaseValue {
             .string(let v as Any),
             .data(let v as Any):
             return v
-        case .pair(let k, let v): return (k.untyped, v.untyped)
-        case .unkeyed(let values): return values.map({ $0.untyped })
+        case .pair(let k, let v): return (k.debug, v.debug)
+        case .unkeyed(let values): return values.map({ $0.debug })
         }
     }
 
     indirect enum Backend {
-        @available(*, deprecated, message: "Untyped values no more supported")
-        case _untyped(Any)
         case bool(Bool)
         case int8(Int8)
         case int16(Int16)
@@ -392,11 +588,6 @@ public struct RealtimeDatabaseValue {
         self.backend = .unkeyed(values)
     }
 
-    @available(*, deprecated, message: "Untyped values no more supported")
-    init(untyped val: Any) {
-        self.backend = ._untyped(val)
-    }
-
     public func extract<T>(
         bool: (Bool) throws -> T,
         int8: (Int8) throws -> T,
@@ -413,9 +604,8 @@ public struct RealtimeDatabaseValue {
         data: (Data) throws -> T,
         pair: (RealtimeDatabaseValue, RealtimeDatabaseValue) throws -> T,
         collection: ([RealtimeDatabaseValue]) throws -> T
-        ) throws -> T { // TODO: rethrows
+        ) rethrows -> T {
         switch backend {
-        case ._untyped: throw RealtimeError(source: .coding, description: "Untyped values no more supported")
         case .bool(let v): return try bool(v)
         case .int8(let v): return try int8(v)
         case .int16(let v): return try int16(v)
@@ -478,20 +668,6 @@ extension RealtimeDatabaseValue: ExpressibleByBooleanLiteral {
 }
 extension RealtimeDatabaseValue {
     #if os(iOS) || os(macOS)
-//    public init(_ value: NSNumber) {
-//        let numberType = CFNumberGetType(value)
-//        switch numberType {
-//        case .charType: self.init(value.boolValue)
-//        case .sInt8Type: self.init(value.int8Value)
-//        case .sInt16Type: self.init(value.int16Value)
-//        case .sInt32Type: self.init(value.int32Value)
-//        case .sInt64Type: self.init(value.int64Value)
-//        case .shortType, .intType, .longType, .longLongType, .cfIndexType, .nsIntegerType:
-//            self.init(value.intValue)
-//        case .float32Type, .float64Type, .floatType, .doubleType, .cgFloatType:
-//            self.init(value.floatValue)
-//        }
-//    }
     public init(_ value: NSString) { self.init(value as String) }
     #endif
 }
@@ -927,29 +1103,18 @@ public extension Representer where V == URL {
     }
 }
 
-#if os(macOS) || os(iOS)
 public extension Representer where V: Codable {
-    @available(*, deprecated, message: "Unavailable after move to strong types")
-    static func json(
-        dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .secondsSince1970,
-        keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy = .useDefaultKeys
-    ) -> Representer<V> {
+    static var codable: Representer<V> {
         return Representer(
-            encoding: { v -> RealtimeDatabaseValue? in
-                let e = JSONEncoder()
-                e.dateEncodingStrategy = dateEncodingStrategy
-                #if os(macOS) || os(iOS)
-                e.keyEncodingStrategy = keyEncodingStrategy
-                #endif
-                e.outputFormatting = .prettyPrinted
-                let data = try e.encode(v)
-                return RealtimeDatabaseValue(untyped: try JSONSerialization.jsonObject(with: data, options: .allowFragments))
+            encoding: { (v) -> RealtimeDatabaseValue? in
+                let encoder = DatabaseValueEncoder()
+                try v.encode(to: encoder)
+                return encoder.build()
             },
             decoding: V.init
         )
     }
 }
-#endif
 
 public enum DateCodingStrategy {
     case secondsSince1970

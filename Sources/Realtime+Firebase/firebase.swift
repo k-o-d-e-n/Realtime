@@ -305,7 +305,6 @@ extension RealtimeDatabaseValue {
                 res["\(res.count)"] = v
             case .unkeyed(let v):
                 res["\(res.count)"] = try RealtimeDatabaseValue.firebaseCollectionCompatible(v)
-            case ._untyped: throw RealtimeError(source: .coding, description: "Untyped values no more supported")
             }
         })
     }
@@ -687,12 +686,14 @@ extension Storage: RealtimeStorage {
         files.forEach { (file) in
             let location = file.location
             if let value = file.value {
-                guard case let data as Data = value.untyped else {
-                    fatalError("Unexpected type of value \(file.value as Any) for file by node: \(file.location)")
+                do {
+                    let data = try value.typed(as: Data.self)
+                    reference(withPath: location.absolutePath).put(data, metadata: file.metadata, completion: { (md, err) in
+                        addCompletion(location, md, err)
+                    })
+                } catch {
+                    addCompletion(location, nil, RealtimeError(source: .storage, description: "Internal error: Cannot get file data."))
                 }
-                reference(withPath: location.absolutePath).put(data, metadata: file.metadata, completion: { (md, err) in
-                    addCompletion(location, md, err)
-                })
             } else {
                 reference(withPath: location.absolutePath).delete(completion: { (err) in
                     addCompletion(location, nil, err.map({ RealtimeError(external: $0, in: .value) }))

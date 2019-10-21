@@ -522,3 +522,10 @@ public extension Transaction {
         invalidate(false)
     }
 }
+
+
+public extension Transaction {
+    func encode<T: Encodable>(_ value: T, by node: Node) throws {
+        try value.encode(to: TransactionEncoder(node: node, transaction: self))
+    }
+}
