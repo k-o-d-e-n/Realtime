@@ -22,13 +22,15 @@ class ViewController: UITableViewController {
 
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
 
+        #if FIREBASE
         iView.startAnimating()
         tableView.isUserInteractionEnabled = false
-        /// for testing implement function `auth(_ completion: @escaping () -> Void)` in Auth.swift
+        // for testing implement function `auth(_ completion: @escaping () -> Void)` in Auth.swift
         auth {
             iView.stopAnimating()
             self.tableView.isUserInteractionEnabled = true
         }
+        #endif
     }
 }
 extension ViewController {
@@ -36,7 +38,7 @@ extension ViewController {
         return 1
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 3
+        return 4
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
@@ -51,6 +53,8 @@ extension ViewController {
             cell.textLabel?.text = "Table"
         case 2:
             cell.textLabel?.text = "Form"
+        case 3:
+            cell.textLabel?.text = "Load"
         default: break
         }
     }
@@ -59,6 +63,40 @@ extension ViewController {
         case 0: navigationController?.pushViewController(RealtimeViewController(), animated: true)
         case 1: navigationController?.pushViewController(RealtimeTableController(), animated: true)
         case 2: navigationController?.pushViewController(FormViewController(), animated: true)
+        case 3:
+            let alert = UIAlertController(title: "PATH", message: "", preferredStyle: .alert)
+            var node: Node!
+            var textField: UITextField!
+            let useBranchSwitcher = UISwitch(frame: CGRect(x: 180, y: -7, width: 50, height: 20))
+            useBranchSwitcher.backgroundColor = .white
+            useBranchSwitcher.layer.cornerRadius = 5
+            alert.addTextField { (tf) in
+                textField = tf
+            }
+            alert.addTextField { (tf) in
+                tf.addSubview(useBranchSwitcher)
+                tf.text = "Использовать branch mode"
+            }
+            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: { (_) in
+                node = useBranchSwitcher.isOn ? BranchNode(key: textField.text ?? "") :  Node.root(textField.text ?? "")
+                RealtimeApp.app.database.load(
+                    for: node,
+                    timeout: .seconds(5),
+                    completion: { (data) in
+                        print(data)
+                        let alert = UIAlertController(title: "", message: "\(data)", preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: "ok", style: .default, handler: nil))
+                        self.present(alert, animated: true, completion: nil)
+                },
+                    onCancel: { (err) in
+                        print(err)
+                        let alert = UIAlertController(title: "", message: "\(err)", preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: "ok", style: .default, handler: nil))
+                        self.present(alert, animated: true, completion: nil)
+                    }
+                )
+            }))
+            present(alert, animated: true, completion: nil)
         default: break
         }
     }

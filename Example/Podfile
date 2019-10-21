@@ -1,13 +1,37 @@
 use_frameworks!
+platform :ios, '9.0'
 
 target 'Realtime_Example' do
   pod 'Realtime', :path => '../'
+  pod 'Realtime/Firebase', :path => '../'
 
   pod 'Firebase/Auth'
+  pod 'Firebase/Core'
+#  pod 'Firebase/Database'
+#  pod 'Firebase/Storage'
 
   target 'Realtime_Tests' do
     inherit! :search_paths
 
-    
+
+  end
+end
+
+target 'Realtime_FDB' do
+  pod 'Starscream', '~> 3.0.2'
+  pod 'ClientServerAPI', :path => '../../Realtime+FoundationDB'
+  pod 'Realtime+FoundationDBModels', :path => '../../Realtime+FoundationDB'
+  pod 'FoundationDBModels', :path => '../../Realtime+FoundationDB'
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    if (['Realtime'].include? target.name)
+      target.build_configurations.each do |config|
+        if config.name == 'Release'
+          config.build_settings['ENABLE_TESTABILITY'] = 'YES'
+        end
+      end
+    end
   end
 end

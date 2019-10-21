@@ -41,14 +41,19 @@ public final class BranchNode: Node {
     public init<T: RawRepresentable>(key: T) where T.RawValue == String {
         super.init(key: key.rawValue, parent: .root)
     }
-    override public var parent: Node? { set {} get { return .root } }
-    override var isRoot: Bool { return false }
-    override var isAnchor: Bool { return true }
-    override var isRooted: Bool { return true }
-    override var root: Node? { return .root }
-    override var first: Node? { return nil }
+    override public var parent: Node? { set { fatalError("Branch node always starts from root node") } get { return .root } }
+    override public var isRoot: Bool { return false }
+    override public var isAnchor: Bool { return true }
+    override public var isRooted: Bool { return true }
+    override public var root: Node? { return .root }
+    override public var first: Node? { return nil }
     override public func path(from node: Node) -> String { return key }
     override public func hasAncestor(node: Node) -> Bool { return node == .root }
+    override func move(toNodeKeyedBy key: String) -> Node { fatalError("Branch node cannot be moved") }
+    override func copy() -> Node {
+        /// branch node unchangeable therefore we can return self
+        return self
+    }
     override func _validate() {
         debugFatalError(
             condition: RealtimeApp._isInitialized && key.split(separator: "/")
@@ -66,7 +71,7 @@ final class ServiceNode: Node {
     public init<T: RawRepresentable>(key: T) where T.RawValue == String {
         super.init(key: key.rawValue, parent: .root)
     }
-    override public var parent: Node? { set {} get { return .root } }
+    override public var parent: Node? { set { fatalError("Service node always starts from root node") } get { return .root } }
     override var isRoot: Bool { return false }
     override var isAnchor: Bool { return true }
     override var isRooted: Bool { return true }
@@ -74,6 +79,8 @@ final class ServiceNode: Node {
     override var first: Node? { return nil }
     override func path(from node: Node) -> String { return key }
     override func hasAncestor(node: Node) -> Bool { return node == .root }
+    override func move(toNodeKeyedBy key: String) -> Node { fatalError("Service node cannot be moved") }
+    override func copy() -> Node { return ServiceNode(key: key) }
     override func _validate() {}
     override public var description: String { return "service: \(key)" }
 }
@@ -84,7 +91,7 @@ public class Node: Hashable, Comparable {
     public static let root: Node = Root()
     final class Root: Node {
         init() { super.init(key: "", parent: nil) }
-        override var parent: Node? { set {} get { return nil } }
+        override var parent: Node? { set { fatalError("Root node has no parent") } get { return nil } }
         override var isRoot: Bool { return true }
         override var isAnchor: Bool { return true }
         override var isRooted: Bool { return true }
@@ -93,6 +100,8 @@ public class Node: Hashable, Comparable {
         override var rootPath: String { return "" }
         override func path(from node: Node) -> String { fatalError("Root node cannot have parent nodes") }
         override func hasAncestor(node: Node) -> Bool { return false }
+        override func move(toNodeKeyedBy key: String) -> Node { fatalError("Root node cannot be moved") }
+        override func copy() -> Node { return Node.root }
         override func _validate() {}
         override var description: String { return "root" }
     }
@@ -131,17 +140,17 @@ public class Node: Hashable, Comparable {
     }
 
     /// True if node is instance stored in Node.root
-    var isRoot: Bool { return false }
+    public var isRoot: Bool { return false }
     /// True if node has root ancestor
-    var isRooted: Bool { return root === Node.root }
+    public var isRooted: Bool { return root === Node.root }
     /// Returns the most senior node. It may no equal Node.root
-    var root: Node? { return parent.map { $0.root ?? $0 } }
+    public var root: Node? { return parent.map { $0.root ?? $0 } }
     /// Returns the most senior node excluding Node.root instance or nil if node is not rooted.
-    var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
+    public var first: Node? { return parent.flatMap { $0.isRoot ? self : $0.first } }
 
-    var isAnchor: Bool { return false }
+    public var isAnchor: Bool { return false }
     /// Returns current anchor node
-    var branch: Node? { return isAnchor ? self : parent?.branch }
+    public var branch: Node? { return isAnchor ? self : parent?.branch }
 
     /// Returns path from the most senior node.
     public var absolutePath: String {
@@ -301,10 +310,21 @@ public class Node: Hashable, Comparable {
         )
     }
 
-    internal func movedToNode(keyedBy key: String) -> Node {
+    /// Creates node and set it as parent
+    /// - Parameters:
+    ///   - key: Key of parent node
+    /// - Returns: Parent node
+    internal func move(toNodeKeyedBy key: String) -> Node {
         let parent = Node(key: key)
         self.parent = parent
         return parent
+    }
+
+    /// Creates copy of node without explicit referencing.
+    /// Regular node has no parent reference.
+    /// Special node that has attached to root node also will have reference to root.
+    internal func copy() -> Node {
+        return Node(key: key)
     }
 
     public static func ==(lhs: Node, rhs: Node) -> Bool {
@@ -375,7 +395,7 @@ public extension Node {
         let copied = current
         while let next = copying.parent, !next.isRoot {
             copying = next
-            current = current.movedToNode(keyedBy: next.key)
+            current = current.move(toNodeKeyedBy: next.key)
         }
         current.moveTo(node)
         return copied
@@ -462,11 +482,11 @@ public extension RawRepresentable where Self.RawValue == String {
         return parent.child(forPath: rawValue)
     }
 
-    func map<Returned>(from parent: RealtimeDataProtocol) throws -> Returned? {
-        guard parent.hasChild(rawValue) else { return nil }
-
-        return try parent.child(forPath: rawValue).unbox(as: Returned.self)
-    }
+//    func map<Returned>(from parent: RealtimeDataProtocol) throws -> Returned? {
+//        guard parent.hasChild(rawValue) else { return nil }
+//
+//        return try parent.child(forPath: rawValue).singleValueContainer().decode(Returned.self)
+//    }
 
     func path(from superpath: String, to subpath: String? = nil) -> String {
         return superpath + "/" + rawValue + (subpath.map { "/" + $0 } ?? "")
@@ -488,7 +508,7 @@ extension String: RawRepresentable {
 }
 
 extension Node {
-    var _hasMultipleLevelNode: Bool {
+    var _hasMultiLevelNode: Bool {
         return contains(where: { $0.key.split(separator: "/").count > 1 && type(of: $0) != BranchNode.self })
     }
 }

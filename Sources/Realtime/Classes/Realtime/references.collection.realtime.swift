@@ -45,8 +45,8 @@ public extension ValueOption {
 public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
     internal var storage: RCKeyValueStorage<Element>
 
-    public override var raw: RealtimeDataValue? { return nil }
-    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public override var raw: RealtimeDatabaseValue? { return nil }
+    public override var payload: RealtimeDatabaseValue? { return nil }
     public let view: SortedCollectionView<Ref>
     public var isSynced: Bool { return view.isSynced }
     public override var isObserved: Bool { return view.isObserved }
@@ -194,10 +194,10 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     override var _hasChanges: Bool { return view._hasChanges }
 
     public func write(_ element: Element, in transaction: Transaction) throws {
-        try write(element: element, with: count, in: transaction)
+        try write(element: element, with: Int64(count), in: transaction)
     }
     public func write(_ element: Element) throws -> Transaction {
-        return try write(element: element, with: count, in: nil)
+        return try write(element: element, with: Int64(count), in: nil)
     }
 
     public func erase(at index: Int, in transaction: Transaction) {
@@ -218,7 +218,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     ///   - transaction: Write transaction to keep the changes
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    func write(element: Element, with priority: Int? = nil,
+    func write(element: Element, with priority: Int64? = nil,
                 in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
         guard element.node?.parent == builder.spaceNode else { fatalError("Element must be located in elements node") }
@@ -263,7 +263,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     /// - Parameters:
     ///   - element: The element to write
     ///   - index: Priority value or `nil` if you want to add to end of collection.
-    public func insert(element: Element, with priority: Int? = nil) {
+    public func insert(element: Element, with priority: Int64? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard element.node?.parent == builder.spaceNode else { fatalError("Element must be located in elements node") }
         let contains = element.node.map { n in storage[n.key] != nil } ?? false
@@ -271,7 +271,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
             fatalError("Element with such key already exists")
         }
 
-        let index = priority ?? view.count
+        let index = priority ?? Int64(view.count)
         var item = RCItem(key: nil, value: element)
         item.priority = index
         storage.set(value: element, for: item.dbKey)
@@ -345,7 +345,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
 
     @discardableResult
     internal func _write(
-        _ element: Element, with priority: Int?,
+        _ element: Element, with priority: Int64?,
         in database: RealtimeDatabase, in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
@@ -353,7 +353,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
         return transaction
     }
 
-    internal func _write(_ element: Element, with priority: Int,
+    internal func _write(_ element: Element, with priority: Int64,
                          by location: Node, in transaction: Transaction) throws {
         let itemNode = location.child(with: element.dbKey)
         var item = RCItem(key: itemNode.key, value: element)
@@ -386,8 +386,8 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
 // MARK: DistributedReferences
 
 public struct RCRef: WritableRealtimeValue, Comparable {
-    public var raw: RealtimeDataValue? { return reference?.payload.raw }
-    public var payload: [String : RealtimeDataValue]? { return reference?.payload.user }
+    public var raw: RealtimeDatabaseValue? { return reference?.payload.raw }
+    public var payload: RealtimeDatabaseValue? { return reference?.payload.user }
     public var node: Node?
     public let dbKey: String!
     var reference: ReferenceRepresentation!
@@ -419,8 +419,7 @@ public struct RCRef: WritableRealtimeValue, Comparable {
         self.reference = try ReferenceRepresentation(data: data, event: event)
     }
 
-    public func write(to transaction: Transaction, by node: Node) throws { transaction.addValue(try defaultRepresentation(), by: node) }
-    private func defaultRepresentation() throws -> Any { return try reference.defaultRepresentation() }
+    public func write(to transaction: Transaction, by node: Node) throws { transaction.addValue(try reference.defaultRepresentation(), by: node) }
     public var hashValue: Int { return dbKey.hashValue }
     public static func ==(lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey == rhs.dbKey }
     public static func < (lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey < rhs.dbKey }
@@ -468,8 +467,8 @@ public class DistributedReferences<Element: RealtimeValue>: __RepresentableColle
 // MARK: Relations
 
 public struct RelationsItem: WritableRealtimeValue, Comparable {
-    public var raw: RealtimeDataValue?
-    public var payload: [String : RealtimeDataValue]?
+    public var raw: RealtimeDatabaseValue?
+    public var payload: RealtimeDatabaseValue?
     public var node: Node?
 
     public let dbKey: String!
@@ -484,8 +483,8 @@ public struct RelationsItem: WritableRealtimeValue, Comparable {
     public init(in node: Node?, options: [ValueOption : Any]) {
         self.node = node
         self.dbKey = node?.key
-        self.raw = options[.rawValue] as? RealtimeDataValue
-        self.payload = options[.userPayload] as? [String: RealtimeDataValue]
+        self.raw = options[.rawValue] as? RealtimeDatabaseValue
+        self.payload = options[.payload] as? RealtimeDatabaseValue
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -494,10 +493,10 @@ public struct RelationsItem: WritableRealtimeValue, Comparable {
     }
 
     public func write(to transaction: Transaction, by node: Node) throws {
-        transaction.addValue(try defaultRepresentation(), by: node)
+        transaction.addValue(try relation.defaultRepresentation(), by: node)
     }
 
-    public func defaultRepresentation() throws -> Any {
+    public func defaultRepresentation() throws -> RealtimeDatabaseValue {
         return try relation.defaultRepresentation()
     }
 

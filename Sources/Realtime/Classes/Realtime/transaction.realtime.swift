@@ -123,14 +123,17 @@ extension Transaction {
     /// registers new single value for specified reference
     func _addValue(_ cacheValue: CacheNode) {
         debugFatalError(
-            condition: cacheValue.location._hasMultipleLevelNode,
+            condition: database !== RealtimeApp.cache && cacheValue.location._hasMultiLevelNode,
             "Multi level node can use only for readonly operations."
         )
         updateNode._addValueAsInSingleTransaction(cacheValue)
     }
 
     func performUpdate(_ completion: @escaping (Error?) -> Void) {
-        database.commit(transaction: self, completion: completion)
+        guard updateNode.childs.count > 0 else {
+            fatalError("Try commit empty transaction")
+        }
+        database.commit(update: updateNode, completion: completion)
     }
 
     public enum FileCompletion {
@@ -142,7 +145,7 @@ extension Transaction {
         storage.commit(transaction: self, completion: completion)
     }
 
-    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Realtime.Node) throws {
+    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Node) throws {
         guard node.isRooted else { fatalError("Node to set must be rooted") }
 
         try value.write(to: self, by: node)
@@ -156,7 +159,7 @@ extension Transaction {
         removeValue(by: node)
     }
 
-    internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Realtime.Node) throws {
+    internal func _update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T, by updatedNode: Node) throws {
         guard updatedNode.isRooted else { fatalError("Node to update must be rooted") }
         guard value.hasChanges else { return debugFatalError("Value has not changes") }
 
@@ -284,7 +287,13 @@ public extension Transaction {
                     runFiles()
                 }
 
-                group.notify(queue: .main, execute: {
+                // quick fix: .main not working on macos
+                #if os(iOS)
+                let queue = DispatchQueue.main
+                #else
+                let queue = DispatchQueue.global()
+                #endif
+                group.notify(queue: queue, execute: {
                     if let e = error {
                         self.state = .failed
                         debugFatalError(e.localizedDescription)
@@ -352,19 +361,19 @@ public extension Transaction {
     /// - Parameters:
     ///   - value: `Data` type value
     ///   - node: Target node
-    func addFile(_ value: Data, metadata: RealtimeMetadata = [:], by node: Realtime.Node) {
+    func addFile(_ value: Data, metadata: RealtimeMetadata = [:], by node: Node) {
         if let merged = mergedToTransaction {
             merged.addFile(value, by: node)
         } else {
             guard node.isRooted else { fatalError("Node should be rooted") }
 
-            let file = FileNode(node: node, value: value)
+            let file = FileNode(node: node, value: RealtimeDatabaseValue(value))
             file.metadata = metadata
             _addValue(.file(file))
         }
     }
 
-    func addFile<T>(_ file: File<T>, by node: Realtime.Node? = nil) throws {
+    func addFile<T>(_ file: File<T>, by node: Node? = nil) throws {
         if let merged = mergedToTransaction {
             try merged.addFile(file, by: node)
         } else {
@@ -378,7 +387,7 @@ public extension Transaction {
     ///
     /// - Parameters:
     ///   - node: Target node
-    func removeFile(by node: Realtime.Node) {
+    func removeFile(by node: Node) {
         if let merged = mergedToTransaction {
             merged.removeFile(by: node)
         } else {
@@ -391,9 +400,9 @@ public extension Transaction {
     /// Adds Realtime database value
     ///
     /// - Parameters:
-    ///   - value: Untyped value
+    ///   - value: Type erased value
     ///   - node: Target node
-    func addValue(_ value: Any, by node: Realtime.Node) {
+    func addValue(_ value: RealtimeDatabaseValue?, by node: Node) {
         if let merged = mergedToTransaction {
             merged.addValue(value, by: node)
         } else {
@@ -402,12 +411,15 @@ public extension Transaction {
             _addValue(.value(ValueNode(node: node, value: value)))
         }
     }
+    func addValue<T: ExpressibleByRealtimeDatabaseValue>(_ value: T, by node: Node) {
+        addValue(RealtimeDatabaseValue(value), by: node)
+    }
 
     /// Removes Realtime data by specified node
     ///
     /// - Parameters:
     ///   - node: Target node
-    func removeValue(by node: Realtime.Node) {
+    func removeValue(by node: Node) {
         if let merged = mergedToTransaction {
             merged.removeValue(by: node)
         } else {
@@ -418,7 +430,7 @@ public extension Transaction {
     }
 
     /// adds operation of save RealtimeValue as single value
-    func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Realtime.Node) throws {
+    func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Node) throws {
         if let merged = mergedToTransaction {
             try merged.set(value, by: node)
         } else {
@@ -508,5 +520,12 @@ public extension Transaction {
         guard mergedToTransaction == nil else { fatalError("Transaction already merged to other transaction") }
         state = .cancelled
         invalidate(false)
+    }
+}
+
+
+public extension Transaction {
+    func encode<T: Encodable>(_ value: T, by node: Node) throws {
+        try value.encode(to: TransactionEncoder(node: node, transaction: self))
     }
 }

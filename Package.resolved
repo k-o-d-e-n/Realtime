@@ -11,12 +11,12 @@
         }
       },
       {
-        "package": "Atomics",
+        "package": "SwiftAtomics",
         "repositoryURL": "https://github.com/glessard/swift-atomics.git",
         "state": {
           "branch": null,
-          "revision": "ead1c4deb9e1b5487d8d680426f322d57026b015",
-          "version": "4.4.3"
+          "revision": "c0628620f3636f2abcfbfaaf871edfa619b4db1b",
+          "version": "5.0.1"
         }
       }
     ]

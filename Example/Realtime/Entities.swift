@@ -6,11 +6,16 @@
 //  Copyright © 2018 CocoaPods. All rights reserved.
 //
 
+import Foundation
 import Realtime
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 enum Global {
-    static let rtUsers: Values<User> = Values(in: Node(key: "___tests/_users", parent: .root))
-    static let rtGroups: Values<Group> = Values(in: Node(key: "___tests/_groups", parent: .root))
+    static let rtUsers: Values<User> = Values(in: Node.root("___tests/_users"))
+    static let rtGroups: Values<Group> = Values(in: Node.root("___tests/_groups"))
 }
 
 class Conversation: Object {
@@ -48,8 +53,8 @@ class Group: Object {
 
 class User: Object {
     lazy var name: Property<String> = "name".property(in: self)
-    lazy var age: Property<Int> = "age".property(in: self)
-    lazy var photo: File<UIImage?> = "photo".file(in: self, representer: .png)
+    lazy var age: Property<UInt8> = "age".property(in: self)
+    lazy var photo: File<Data?> = "photo".file(in: self, representer: .realtimeDataValue)
     lazy var groups: MutableReferences<Group> = "groups".references(in: self, elements: Global.rtGroups.node!)
     lazy var followers: MutableReferences<User> = "followers".references(in: self, elements: Global.rtUsers.node!)
     lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".values(in: self)
@@ -79,7 +84,7 @@ class User: Object {
 }
 
 class User2: User {
-    lazy var human: Property<[String: RealtimeDataValue]> = "human".property(in: self)
+    lazy var human: Property<String> = "human".property(in: self)
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {

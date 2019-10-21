@@ -17,7 +17,7 @@ extension ValueOption {
 /// - initial: Event for start data
 /// - updated: Any update event
 public enum RCEvent {
-    case initial
+    case initial // TODO: Rename to `value` or `full` or `reload`
     case updated(deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)]) // may be [Int] replace to IndexSet?
 }
 

@@ -116,6 +116,7 @@ class RealtimeViewController: UIViewController {
         let free = Transaction()
         let testsNode = Node(key: "___tests", parent: .root)
         free.removeValue(by: testsNode)
+        free.removeValue(by: BranchNode(key: "___tests/__links"))
 
         freeze()
         free.commit(with: { _, error in
@@ -393,7 +394,7 @@ extension RealtimeViewController: UIImagePickerControllerDelegate, UINavigationC
             return
         }
 
-        u.photo <== originalImage
+        u.photo <== originalImage.pngData()
 
         let update = try! u.update()
         update.commit(with: { _,_  in }, filesCompletion: { (results) in

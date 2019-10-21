@@ -14,17 +14,22 @@ public protocol UpdateNode: RealtimeDataProtocol {
     /// Fills a contained values to container.
     ///
     /// - Parameters:
-    ///   - ancestor: An ancestor database reference
     ///   - container: `inout` dictionary container.
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?])
+    ///   - reducer: Closure to reduce
+    func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows
 }
 extension UpdateNode {
     public var database: RealtimeDatabase? { return Cache.root }
     public var storage: RealtimeStorage? { return Cache.root }
     public var node: Node? { return location }
+
+    public func reduceValues<C>(into container: C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows -> C {
+        var container = container
+        try reduceValues(into: &container, reducer)
+        return container
+    }
 }
 extension UpdateNode where Self: RealtimeDataProtocol {
-    public var priority: Any? { return nil }
     public var key: String? { return location.key }
 }
 
@@ -62,13 +67,13 @@ enum CacheNode {
 
 class ValueNode: UpdateNode {
     let location: Node
-    var value: Any?
+    var value: RealtimeDatabaseValue?
 
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
-        container[location.path(from: ancestor)] = value
+    func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
+        try reducer(&container, location, value)
     }
 
-    required init(node: Node, value: Any?) {
+    required init(node: Node, value: RealtimeDatabaseValue?) {
         debugFatalError(
             condition: RealtimeApp._isInitialized && node.underestimatedCount >= RealtimeApp.app.configuration.maxNodeDepth - 1,
             "Maximum depth limit of child nodes exceeded"
@@ -78,83 +83,136 @@ class ValueNode: UpdateNode {
     }
 }
 extension ValueNode: RealtimeDataProtocol, Sequence {
-    var priority: Any? { return nil }
     var childrenCount: UInt {
-        guard case let dict as [String: Any] = value else {
-            return 0
+        guard let v = value else { return 0 }
+        switch v.backend {
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return 0
+        case .unkeyed(let c): return UInt(c.count)
         }
-        return UInt(dict.count)
     }
     func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        guard case let dict as [String: Any] = value else {
+        guard let v = value else {
             return AnyIterator(EmptyCollection.Iterator())
         }
-        return AnyIterator(
-            dict.lazy.map { (keyValue) in
-                ValueNode(node: Node(key: keyValue.key, parent: self.location), value: keyValue.value)
-                }.makeIterator()
-        )
+        switch v.backend {
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return AnyIterator(EmptyCollection.Iterator())
+        case .unkeyed(let c):
+            guard let iterator = (try? c.enumerated().map { (i, dbValue) -> RealtimeDataProtocol in
+                switch dbValue.backend {
+                case .pair(let k, let v): return ValueNode(node: Node(key: try k.typed(as: String.self), parent: self.location), value: v)
+                default: return ValueNode(node: Node(key: "\(i)", parent: self.location), value: dbValue)
+                }
+                }.makeIterator())
+                else { return AnyIterator(EmptyCollection.Iterator()) }
+            return AnyIterator(iterator)
+        }
     }
     func exists() -> Bool { return value != nil }
     func hasChildren() -> Bool {
-        guard case let dict as [String: Any] = value else {
-            return false
+        guard let v = value else { return false }
+        switch v.backend {
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return false
+        case .unkeyed(let c): return c.count > 0
         }
-        return dict.count > 0
     }
     func hasChild(_ childPathString: String) -> Bool {
-        guard case let dict as [String: Any] = value else {
-            return false
+        guard let v = value else { return false }
+        switch v.backend {
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return false
+        case .unkeyed(let c): return (try? c.enumerated().contains(where: { (i, dbValue) in
+            switch dbValue.backend {
+            case .pair(let k, _): return try k.typed(as: String.self) == childPathString
+            default: return "\(i)" == childPathString
+            }
+        })) ?? false
         }
-        return dict[childPathString] != nil
     }
     func child(forPath path: String) -> RealtimeDataProtocol {
-        guard case let dict as [String: Any] = value else {
-            return ValueNode(node: Node(key: path, parent: location), value: nil)
-        }
-
-        let node = Node(key: path, parent: location)
-        return ValueNode(node: node, value: dict[path])
-    }
-    func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
-        return []
-    }
-    func forEach(_ body: (RealtimeDataProtocol) throws -> Void) rethrows {
-        guard case let dict as [String: Any] = value else {
-            return
-        }
-        try dict.forEach { (keyValue) in
-            try body(ValueNode(node: Node(key: keyValue.key, parent: location), value: keyValue.value))
-        }
-    }
-    func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
-        guard case let dict as [String: Any] = value else {
-            return []
-        }
-        return try dict.map { (keyValue) in
-            try transform(ValueNode(node: Node(key: keyValue.key, parent: location), value: keyValue.value))
+        let childNode = location.child(with: path)
+        guard let v = value else { return ValueNode(node: childNode, value: nil) }
+        switch v.backend {
+        case .bool,.int8,.int16,.int32,.int64,.uint8,.uint16,.uint32,.uint64,.double,.float,.string,.data, .pair: return ValueNode(node: childNode, value: nil)
+        case .unkeyed(let c):
+            return (try? c.enumerated().first(where: { (i, dbValue) in
+                switch dbValue.backend {
+                case .pair(let k, _): return try k.typed(as: String.self) == path
+                default: return "\(i)" == path
+                }
+            }))?.map({ val in
+                switch val.element.backend {
+                case .pair(_, let v): return ValueNode(node: childNode, value: v)
+                default: return ValueNode(node: childNode, value: val.element)
+                }
+            })
+                ?? ValueNode(node: childNode, value: nil)
         }
     }
     var debugDescription: String { return "\(location.absolutePath): \(value as Any)" }
     var description: String { return debugDescription }
+
+    func asDatabaseValue() throws -> RealtimeDatabaseValue? { return value }
+
+    private func _decode<T>(_ type: T.Type) throws -> RealtimeDatabaseValue {
+        guard let v = value else {
+            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: location.map({ _RealtimeCodingKey(stringValue: $0.key)! }), debugDescription: String(describing: value)))
+        }
+        return v
+    }
+    private func _decodeInt<T: FixedWidthInteger>(_ type: T.Type) throws -> T {
+        guard let val = try _decode(type).losslessMap(to: T.self) else {
+            throw DecodingError.typeMismatch(T.self, DecodingError.Context(codingPath: location.map({ _RealtimeCodingKey(stringValue: $0.key)! }), debugDescription: String(describing: value)))
+        }
+        return val
+    }
+    func decodeNil() -> Bool { return value == nil }
+    func decode(_ type: Bool.Type) throws -> Bool { return try _decode(Bool.self).typed(as: Bool.self) }
+    func decode(_ type: Int.Type) throws -> Int { return try Int(_decodeInt(Int64.self)) }
+    func decode(_ type: Int8.Type) throws -> Int8 { return try _decodeInt(Int8.self) }
+    func decode(_ type: Int16.Type) throws -> Int16 { return try _decodeInt(Int16.self) }
+    func decode(_ type: Int32.Type) throws -> Int32 { return try _decodeInt(Int32.self) }
+    func decode(_ type: Int64.Type) throws -> Int64 { return try _decodeInt(Int64.self) }
+    func decode(_ type: UInt.Type) throws -> UInt { return try UInt(_decodeInt(UInt64.self)) }
+    func decode(_ type: UInt8.Type) throws -> UInt8 { return try _decodeInt(UInt8.self) }
+    func decode(_ type: UInt16.Type) throws -> UInt16 { return try _decodeInt(UInt16.self) }
+    func decode(_ type: UInt32.Type) throws -> UInt32 { return try _decodeInt(UInt32.self) }
+    func decode(_ type: UInt64.Type) throws -> UInt64 { return try _decodeInt(UInt64.self) }
+    func decode(_ type: Float.Type) throws -> Float { return try _decode(Float.self).typed(as: Float.self) }
+    func decode(_ type: Double.Type) throws -> Double { return try _decode(Double.self).typed(as: Double.self) }
+    func decode(_ type: String.Type) throws -> String { return try _decode(String.self).typed(as: String.self) }
+    func decode(_ type: Data.Type) throws -> Data { return try _decode(Data.self).typed(as: Data.self) }
+    func decode<T>(_ type: T.Type) throws -> T where T : Decodable {
+        guard type != Data.self else {
+            return try unsafeBitCast(decode(Data.self), to: T.self) 
+        }
+        return try T(from: self)
+    }
 }
 
 class FileNode: ValueNode {
     var metadata: [String: Any] = [:]
+
+    required init(node: Node, value: RealtimeDatabaseValue?) {
+        precondition(value.map({ rdbv in
+            guard case .data = rdbv.backend else { return false }
+            return true
+        }) ?? true, "Unexpected file data")
+        super.init(node: node, value: value)
+    }
+
     func delete(completion: ((Error?) -> Void)?) {
         self.value = nil
         self.metadata.removeAll()
     }
 
     func put(_ data: Data, metadata: [String : Any]?, completion: @escaping ([String : Any]?, Error?) -> Void) {
-        self.value = data
+        self.value = RealtimeDatabaseValue(data)
         if let md = metadata {
             self.metadata = md
         }
         completion(metadata, nil)
     }
 
-    override func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {}
+    override func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {}
     var database: RealtimeDatabase? { return nil }
 }
 
@@ -164,12 +222,6 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     let location: Node
     var childs: [CacheNode] = []
     var isCompound: Bool { return true }
-    var value: Any? { return values }
-    var values: [String: Any?] {
-        var val: [String: Any?] = [:]
-        fillValues(referencedFrom: location, into: &val)
-        return val
-    }
     var files: [FileNode] {
         return childs.reduce(into: [], { (res, node) in
             switch node {
@@ -181,9 +233,16 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
     }
     var description: String {
         return """
-        values: \(values),
+        values: \(debugValue),
         files: \(files)
         """
+    }
+    var debugValue: [String: Any?] {
+        var val: [String: Any?] = [:]
+        reduceValues(into: &val) { (c, n, v) in
+            c[n.path(from: location)] = .some(v?.debug)
+        }
+        return val
     }
 
     init(node: Node, childs: [CacheNode] = []) {
@@ -195,11 +254,10 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
         self.childs = childs
     }
 
-    func fillValues(referencedFrom ancestor: Node, into container: inout [String: Any?]) {
-        childs.forEach { (node) in
+    func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
+        try childs.forEach { (node) in
             switch node {
-            case .value(let v): v.fillValues(referencedFrom: ancestor, into: &container)
-            case .object(let o): o.fillValues(referencedFrom: ancestor, into: &container)
+            case .value(let v as UpdateNode), .object(let v as UpdateNode): try v.reduceValues(into: &container, reducer)
             case .file: break
             }
         }
@@ -278,7 +336,7 @@ extension ObjectNode {
         return .object(self)
     }
 
-    fileprivate func update(dbNode: CacheNode, with value: Any?) throws {
+    fileprivate func update(dbNode: CacheNode, with value: RealtimeDatabaseValue?) throws {
         switch dbNode {
         case .value(let v): v.value = value
         case .file(let f): f.value = value
@@ -418,46 +476,64 @@ extension ObjectNode {
 }
 
 extension ObjectNode: RealtimeDataProtocol, Sequence {
-    public var childrenCount: UInt {
-        return UInt(childs.count)
-    }
-
+    public var childrenCount: UInt { return UInt(childs.count) }
     public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
         return AnyIterator(childs.lazy.map { $0.asUpdateNode() }.makeIterator())
     }
-
-    public func exists() -> Bool {
-        return true
-    }
-
-    public func hasChildren() -> Bool {
-        return childs.count > 0
-    }
-
+    public func exists() -> Bool { return true }
+    public func hasChildren() -> Bool { return childs.count > 0 }
     public func hasChild(_ childPathString: String) -> Bool {
         return child(by: childPathString.split(separator: "/").lazy.map(String.init)) != nil
     }
-
     public func child(forPath path: String) -> RealtimeDataProtocol {
         return child(by: path.split(separator: "/").lazy.map(String.init)) ?? ValueNode(node: Node(key: path, parent: location), value: nil)
     }
     public func child(forNode node: Node) -> RealtimeDataProtocol {
         return child(by: node)?.asUpdateNode() ?? ValueNode(node: node, value: nil)
     }
-
     public func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
         return try childs.map({ try transform($0.asUpdateNode()) })
     }
-
     public func compactMap<ElementOfResult>(_ transform: (RealtimeDataProtocol) throws -> ElementOfResult?) rethrows -> [ElementOfResult] {
         return try childs.compactMap({ try transform($0.asUpdateNode()) })
     }
-
     public func forEach(_ body: (RealtimeDataProtocol) throws -> Void) rethrows {
         return try childs.forEach({ try body($0.asUpdateNode()) })
     }
-
     public var debugDescription: String { return description }
+
+    func asDatabaseValue() throws -> RealtimeDatabaseValue? {
+        let builder = try childs.reduce(into: RealtimeDatabaseValue.Dictionary(), { (container, node) in
+            switch node {
+            case .value(let v), .file(let v as ValueNode):
+                try v.asDatabaseValue().map({ container.setValue($0, forKey: v.location.key) })
+            case .object(let v):
+                try v.asDatabaseValue().map({ container.setValue($0, forKey: v.location.key) })
+            }
+        })
+        return builder.isEmpty ? nil : builder.build()
+    }
+
+    private func _throwTypeMismatch<T>(_ type: T.Type) throws -> T {
+        throw DecodingError.typeMismatch(type.self, DecodingError.Context(codingPath: location.map({ _RealtimeCodingKey(stringValue: $0.key)! }), debugDescription: debugDescription))
+    }
+    func decodeNil() -> Bool { return false }
+    func decode(_ type: Bool.Type) throws -> Bool { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int.Type) throws -> Int { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int8.Type) throws -> Int8 { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int16.Type) throws -> Int16 { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int32.Type) throws -> Int32 { return try _throwTypeMismatch(type) }
+    func decode(_ type: Int64.Type) throws -> Int64 { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt.Type) throws -> UInt { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt8.Type) throws -> UInt8 { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt16.Type) throws -> UInt16 { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt32.Type) throws -> UInt32 { return try _throwTypeMismatch(type) }
+    func decode(_ type: UInt64.Type) throws -> UInt64 { return try _throwTypeMismatch(type) }
+    func decode(_ type: Float.Type) throws -> Float { return try _throwTypeMismatch(type) }
+    func decode(_ type: Double.Type) throws -> Double { return try _throwTypeMismatch(type) }
+    func decode(_ type: String.Type) throws -> String { return try _throwTypeMismatch(type) }
+    func decode(_ type: Data.Type) throws -> Data { return try _throwTypeMismatch(type) }
+    func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: self) }
 }
 
 // MARK: Cache
@@ -499,11 +575,12 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         return UUID().uuidString // can be use function from firebase
     }
 
-    func commit(transaction: Transaction, completion: ((Error?) -> Void)?) {
+    func commit(update: UpdateNode, completion: ((Error?) -> Void)?) {
+        guard case let objNode as ObjectNode = update else { fatalError("Unexpected update object") }
         do {
             var notifications: [Node: (RealtimeDataProtocol, DatabaseDataEvent)] = [:]
             try _mergeWithObject(
-                theSameReference: transaction.updateNode,
+                theSameReference: objNode,
                 conflictResolver: { old, new in
                     if observers.count > 0 {
                         notifications[new.location] = (new.asUpdateNode(), .value)
@@ -549,13 +626,13 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         return rep
     }
 
-    func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
+    func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
         let repeater: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
 
         return repeater.add(Closure
             .just { e in
                 switch e {
-                case .value(let val): onUpdate(val.0)
+                case .value(let val): onUpdate(val.0, event)
                 case .error(let err): onCancel?(err)
                 }
             }
@@ -587,7 +664,13 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             fatalError("Cannot load file from root")
         } else if let node = child(by: node) {
             switch node {
-            case .file(let file): completion(file.value as? Data)
+            case .file(let file):
+                do {
+                    let data = try file.value?.typed(as: Data.self)
+                    completion(data)
+                } catch let e {
+                    onCancel?(e)
+                }
             default: completion(nil)
             }
         } else {

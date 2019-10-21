@@ -1,18 +1,37 @@
 //
-//  listenable.swift
-//  Realtime_Tests
+//  ListenableTests.swift
+//  Realtime
 //
-//  Created by Denis Koryttsev on 11/08/2018.
-//  Copyright © 2018 CocoaPods. All rights reserved.
+//  Created by Denis Koryttsev on 02/10/2019.
 //
 
 import XCTest
 @testable import Realtime
 
-class ListenableTests: XCTestCase {
+func getRandomNum(_ value: UInt32) -> UInt32 {
+    #if os(Linux)
+    return UInt32(random())
+    #else
+    return arc4random_uniform(value)
+    #endif
+}
+
+class View {
+    var backgroundColor: Color?
+
+    enum Color: Equatable {
+        case white
+        case black
+        case red
+        case green
+        case yellow
+    }
+}
+
+public final class ListenableTests: XCTestCase {
     var store: ListeningDisposeStore = ListeningDisposeStore()
 
-    override func tearDown() {
+    override public func tearDown() {
         super.tearDown()
         store.dispose()
     }
@@ -58,7 +77,7 @@ class ListenableTests: XCTestCase {
         let exp = expectation(description: "")
         exp.expectedFulfillmentCount = 4
 
-        var backgroundProperty = ValueStorage<UIColor>.unsafe(strong: .white)
+        var backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white)
         var counter = 0
         let bgToken = backgroundProperty.listening(onValue: { color in
             defer { counter += 1; exp.fulfill() }
@@ -71,7 +90,7 @@ class ListenableTests: XCTestCase {
             }
         })
 
-        var weakowner: UIView? = UIView()
+        var weakowner: View? = View()
         _ = backgroundProperty.listening(.weak(weakowner!) { (color, owner) in
             print(color, owner ?? "nil")
             if color.value == .yellow {
@@ -79,7 +98,7 @@ class ListenableTests: XCTestCase {
             }
             })
 
-        let unownedOwner: UIView? = UIView()
+        let unownedOwner: View? = View()
         _ = backgroundProperty.listening(.unowned(unownedOwner!) { (color, owner) in
             owner.backgroundColor = color.value
             })
@@ -159,8 +178,8 @@ class ListenableTests: XCTestCase {
 
     func testOnce() {
         let exp = expectation(description: "")
-        let view = UIView()
-        var backgroundProperty = ValueStorage<UIColor>.unsafe(strong: .white)
+        let view = View()
+        var backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white)
 
         _ = backgroundProperty.once().listening(onValue: {
             view.backgroundColor = $0
@@ -179,8 +198,8 @@ class ListenableTests: XCTestCase {
     }
 
     func testOnFire() {
-        let view = UIView()
-        var backgroundProperty = ValueStorage<UIColor>.unsafe(strong: .white)
+        let view = View()
+        var backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white)
 
         backgroundProperty
             .onFire({
@@ -298,7 +317,7 @@ class ListenableTests: XCTestCase {
         })
 
         let timer: Timer
-        if #available(iOS 10.0, *) {
+        if #available(iOS 10.0, OSX 10.12, *) {
             timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { (_) in
                 counter.value += 1
             }
@@ -453,7 +472,7 @@ class ListenableTests: XCTestCase {
             .listening(onValue: .weak(self) { (v, owner) in
                 print(owner ?? "nil")
                 value = v
-            })
+                })
             .add(to: store)
 
         propertyDouble.value = "Test #1"
@@ -674,8 +693,8 @@ class ListenableTests: XCTestCase {
     }
 
     func testBindProperty() {
-        var backgroundProperty = ValueStorage<UIColor>.unsafe(strong: .white)
-        let otherBackgroundProperty = ValueStorage<UIColor>.unsafe(strong: .black)
+        var backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white)
+        let otherBackgroundProperty = ValueStorage<View.Color>.unsafe(strong: .black)
         backgroundProperty.bind(to: otherBackgroundProperty).add(to: store)
 
         backgroundProperty <== .red
@@ -689,7 +708,7 @@ extension ListenableTests {
         let exp = expectation(description: "")
         exp.expectedFulfillmentCount = 4
 
-        var backgroundProperty = Repeater<UIColor>.unsafe()
+        var backgroundProperty = Repeater<View.Color>.unsafe()
         var counter = 0
         let bgToken = backgroundProperty.listening(onValue: { color in
             defer { counter += 1; exp.fulfill() }
@@ -702,18 +721,18 @@ extension ListenableTests {
             }
         })
 
-        var weakowner: UIView? = UIView()
+        var weakowner: View? = View()
         _ = backgroundProperty.listening(.weak(weakowner!) { (color, owner) in
             print(color, owner ?? "nil")
             if color.value == .yellow {
                 XCTAssertNil(owner)
             }
-        })
+            })
 
-        let unownedOwner: UIView? = UIView()
+        let unownedOwner: View? = View()
         _ = backgroundProperty.listening(.unowned(unownedOwner!) { (color, owner) in
             owner.backgroundColor = color.value
-        })
+            })
 
         backgroundProperty.send(.value(.red))
         backgroundProperty.send(.value(.green))
@@ -736,7 +755,7 @@ extension ListenableTests {
         let exp = expectation(description: "")
         exp.expectedFulfillmentCount = 4
 
-        var backgroundProperty = Trivial<UIColor>(.white)
+        var backgroundProperty = Trivial<View.Color>(.white)
         var counter = 0
         let bgToken = backgroundProperty.listening(onValue: { color in
             defer { counter += 1; exp.fulfill() }
@@ -749,7 +768,7 @@ extension ListenableTests {
             }
         })
 
-        var weakowner: UIView? = UIView()
+        var weakowner: View? = View()
         _ = backgroundProperty.listening(.weak(weakowner!) { (color, owner) in
             print(color, owner ?? "nil")
             if color.value == .yellow {
@@ -757,7 +776,7 @@ extension ListenableTests {
             }
             })
 
-        let unownedOwner: UIView? = UIView()
+        let unownedOwner: View? = View()
         _ = backgroundProperty.listening(.unowned(unownedOwner!) { (color, owner) in
             owner.backgroundColor = color.value
             })
@@ -825,7 +844,7 @@ extension ListenableTests {
     }
 
     func testAvoidSimultaneousAccessInP() {
-        let backgroundProperty = ValueStorage<UIColor>.unsafe(strong: .white)
+        let backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white)
         _ = backgroundProperty.listening { val in
             XCTAssertEqual(val, backgroundProperty.value)
         }
@@ -833,7 +852,7 @@ extension ListenableTests {
         backgroundProperty.value = .red // backgroundProperty <== .red will be crash with simultaneous access error, because inout parameter
     }
 
-    @available(iOS 10.0, *)
+    @available(iOS 10.0, OSX 10.12, *)
     func testRepeaterOnQueue() {
         let exp = expectation(description: "")
         exp.expectedFulfillmentCount = 20
@@ -863,7 +882,7 @@ extension ListenableTests {
         }
     }
 
-    @available(iOS 10.0, *)
+    @available(iOS 10.0, OSX 10.12, *)
     func testRepeaterLocked() {
         let exp = expectation(description: "")
         exp.expectedFulfillmentCount = 20
@@ -896,7 +915,7 @@ extension ListenableTests {
         }
     }
 
-    @available(iOS 10.0, *)
+    @available(iOS 10.0, OSX 10.12, *)
     func testRepeaterOnRunloop() {
         let exp = expectation(description: "")
         var value: Int?
@@ -961,9 +980,9 @@ extension ListenableTests {
 
         let accumulator = Accumulator<(Int, String)>(repeater: Repeater.unsafe(), source1, source2)
 
-//        var value_counter = 0
+        //        var value_counter = 0
         accumulator.listening(onValue: { v in
-//            defer { value_counter += 1 }
+            //            defer { value_counter += 1 }
             switch v {
             case (5, "199"): print("true")
             default: XCTFail()

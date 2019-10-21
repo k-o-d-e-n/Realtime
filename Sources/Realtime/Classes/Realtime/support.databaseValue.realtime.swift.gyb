@@ -1,0 +1,91 @@
+%{
+support_types = ['Bool', 'Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64', 'Double', 'Float', 'String', 'Data']
+int_convertible_types = ['Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64']
+}%
+
+import Foundation
+
+internal extension RealtimeDatabaseValue {
+    % for type in support_types:
+    init(${type.lower()} value: ${type}) {
+        self.backend = .${type.lower()}(value)
+    }
+    % end
+}
+
+public protocol RealtimeDatabaseValueAdapter {
+    associatedtype Value
+    static func map(_ value: Value) -> RealtimeDatabaseValue
+}
+public protocol ExpressibleByRealtimeDatabaseValue {
+    associatedtype RDBConvertor: RealtimeDatabaseValueAdapter where RDBConvertor.Value == Self
+}
+% for type in support_types:
+extension ${type}: ExpressibleByRealtimeDatabaseValue {
+    public enum RDBConvertor: RealtimeDatabaseValueAdapter {
+        public static func map(_ value: ${type}) -> RealtimeDatabaseValue { return RealtimeDatabaseValue(${type.lower()}: value) }
+    }
+}
+% end
+
+
+extension RealtimeDatabaseValue.Dictionary {
+% for type1 in support_types:
+    % for type2 in support_types:
+    public mutating func setValue(_ value: ${type1}, forKey key: ${type2}) {
+        properties.append((RealtimeDatabaseValue(key), RealtimeDatabaseValue(value)))
+    }
+    % end
+    public mutating func setValue(_ value: RealtimeDatabaseValue, forKey key: ${type1}) {
+        properties.append((RealtimeDatabaseValue(key), value))
+    }
+% end
+}
+
+public extension RealtimeDatabaseValue {
+% for type in support_types:
+    func typed(as type: ${type}.Type) throws -> ${type} {
+        guard case let .${type.lower()}(v) = backend else { throw RealtimeError(source: .coding, description: "Mismatch type") }
+        return v
+    }
+% end
+    func typed(as type: Int.Type) throws -> Int {
+        switch backend {
+        % for type in int_convertible_types:
+        case .${type.lower()}(let v): return Int(v)
+        % end
+        default: throw RealtimeError(source: .coding, description: "Mismatch type")
+        }
+    }
+    func typed(as type: UInt.Type) throws -> UInt {
+        switch backend {
+        % for type in int_convertible_types:
+        case .${type.lower()}(let v): return UInt(v)
+        % end
+        default: throw RealtimeError(source: .coding, description: "Mismatch type")
+        }
+    }
+}
+
+public extension RawRepresentable where Self.RawValue == String {
+% for type in support_types:
+    func property(in obj: Object) -> Property<${type}> {
+        return property(in: obj, representer: .realtimeDataValue)
+    }
+    func property(in obj: Object) -> Property<${type}?> {
+        return property(in: obj, representer: .realtimeDataValue)
+    }
+% end
+//    func property(in obj: Object) -> Property<Int> {
+//        return property(in: obj, representer: .realtimeDataValue)
+//    }
+//    func property(in obj: Object) -> Property<Int?> {
+//        return property(in: obj, representer: .realtimeDataValue)
+//    }
+//    func property(in obj: Object) -> Property<UInt> {
+//        return property(in: obj, representer: .realtimeDataValue)
+//    }
+//    func property(in obj: Object) -> Property<UInt?> {
+//        return property(in: obj, representer: .realtimeDataValue)
+//    }
+}

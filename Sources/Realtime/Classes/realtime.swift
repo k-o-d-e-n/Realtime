@@ -33,7 +33,7 @@ internal func debugFatalError(condition: @autoclosure () -> Bool = true,
         if condition() {
             debugLog(message(), file, line)
             if ProcessInfo.processInfo.arguments.contains("REALTIME_CRASH_ON_ERROR") {
-                fatalError(message)
+                fatalError(message())
             }
         }
     }
@@ -121,39 +121,3 @@ extension RealtimeApp {
     public static var cache: RealtimeDatabase & RealtimeStorage { return Cache.root }
     public var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
 }
-
-#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
-import FirebaseDatabase
-import FirebaseStorage
-#endif
-
-#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
-public extension RealtimeApp.Configuration {
-    static func firebase(
-        linksNode: BranchNode? = nil,
-        cachePolicy: CachePolicy = .noCache,
-        storageCache: RealtimeStorageCache? = nil
-    ) -> RealtimeApp.Configuration {
-        return RealtimeApp.Configuration(
-            linksNode: linksNode,
-            maxNodeDepth: 32,
-            unavailableSymbols: CharacterSet(charactersIn: ".#$][/"),
-            cachePolicy: cachePolicy,
-            storageCache: storageCache
-        )
-    }
-}
-
-extension RealtimeApp {
-    public static func firebase(
-        databaseUrl: String? = nil, storageUrl: String? = nil,
-        configuration: Configuration = .firebase()
-        ) {
-        initialize(
-            with: databaseUrl.map(Database.database) ?? Database.database(),
-            storage: storageUrl.map(Storage.storage) ?? Storage.storage(),
-            configuration: configuration
-        )
-    }
-}
-#endif

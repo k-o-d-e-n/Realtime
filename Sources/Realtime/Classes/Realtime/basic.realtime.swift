@@ -92,32 +92,35 @@ public struct ValueOption: Hashable {
 public extension ValueOption {
     /// Key for `RealtimeDatabase` instance
     static let database: ValueOption = ValueOption("realtime.database")
-    /// Key for `[String : RealtimeDataValue]?` value,
+    /// Key for `RealtimeDatabaseValue?` value,
     /// use it only when you need added required information for lazy initialization of `RealtimeValue`
-    static let userPayload: ValueOption = ValueOption("realtime.value.userPayload")
-    /// Key for `SystemPayload` value
-    static let rawValue: ValueOption = ValueOption("realtime.value.systemPayload")
+    static let payload: ValueOption = ValueOption("realtime.value.payload")
+    /// Key for `RealtimeDatabaseValue` value
+    static let rawValue: ValueOption = ValueOption("realtime.value.raw")
 }
 public extension Dictionary where Key == ValueOption {
-    var rawValue: RealtimeDataValue? {
-        return self[.rawValue] as? RealtimeDataValue
+    var rawValue: RealtimeDatabaseValue? {
+        return self[.rawValue] as? RealtimeDatabaseValue
     }
-    var userPayload: [String: RealtimeDataValue]? {
-        return self[.userPayload] as? [String: RealtimeDataValue]
+    var payload: RealtimeDatabaseValue? {
+        return self[.payload] as? RealtimeDatabaseValue
     }
 }
 public extension RealtimeDataProtocol {
     internal func version() throws -> String? {
-        return try InternalKeys.modelVersion.map(from: self)
+        let container = try self.container(keyedBy: InternalKeys.self)
+        return try container.decodeIfPresent(String.self, forKey: .modelVersion)
     }
     func versioner() throws -> Versioner? {
-        return try InternalKeys.modelVersion.map(from: self).map(Versioner.init(version:))
+        return try version().map(Versioner.init(version:))
     }
-    func rawValue() throws -> RealtimeDataValue? {
-        return try InternalKeys.raw.map(from: self)
+    func rawValue() throws -> RealtimeDatabaseValue? {
+        let rawData = child(forPath: InternalKeys.raw.stringValue)
+        return try rawData.asDatabaseValue()
     }
-    func payload() throws -> [String: RealtimeDataValue]? {
-        return try InternalKeys.payload.map(from: self)
+    func payload() throws -> RealtimeDatabaseValue? {
+        let payloadData = child(forPath: InternalKeys.payload.stringValue)
+        return try payloadData.asDatabaseValue()
     }
 }
 
@@ -139,9 +142,9 @@ extension _RealtimeValue: _RealtimeValueUtilities {}
 /// Base protocol for all database entities
 public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented {
     /// Indicates specific representation of this value, e.g. subclass or enum associated value
-    var raw: RealtimeDataValue? { get }
+    var raw: RealtimeDatabaseValue? { get }
     /// Some data associated with value
-    var payload: [String: RealtimeDataValue]? { get }
+    var payload: RealtimeDatabaseValue? { get }
     /// Node location in database
     var node: Node? { get }
 
@@ -169,15 +172,15 @@ extension RealtimeValue {
             options[.rawValue] = r
         }
         if let upl = self.payload {
-            options[.userPayload] = upl
+            options[.payload] = upl
         }
         return options
     }
 }
 
 extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
-    public var raw: RealtimeDataValue? { return self?.raw }
-    public var payload: [String : RealtimeDataValue]? { return self?.payload }
+    public var raw: RealtimeDatabaseValue? { return self?.raw }
+    public var payload: RealtimeDatabaseValue? { return self?.payload }
     public var node: Node? { return self?.node }
     public init(in node: Node?, options: [ValueOption : Any]) {
         self = .some(Wrapped(in: node, options: options))
@@ -367,7 +370,7 @@ extension WritableRealtimeValue where Self: Versionable {
         putVersion(into: &versioner)
         if !versioner.isEmpty {
             let finalizedVersion = versioner.finalize()
-            transaction.addValue(finalizedVersion, by: Node(key: InternalKeys.modelVersion, parent: node))
+            transaction.addValue(RealtimeDatabaseValue(finalizedVersion), by: Node(key: InternalKeys.modelVersion, parent: node))
         }
         if let rw = raw {
             transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))

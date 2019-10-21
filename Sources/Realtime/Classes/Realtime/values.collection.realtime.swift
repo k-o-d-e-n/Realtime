@@ -51,8 +51,8 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     internal private(set) var builder: RealtimeValueBuilder<Element>
     override var _hasChanges: Bool { return view._hasChanges }
 
-    public override var raw: RealtimeDataValue? { return nil }
-    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public override var raw: RealtimeDatabaseValue? { return nil }
+    public override var payload: RealtimeDatabaseValue? { return nil }
     /// Stores an abstract elements
     public let view: SortedCollectionView<RCItem> 
     public var isSynced: Bool { return view.isSynced }
@@ -227,7 +227,7 @@ extension Values {
     ///   - transaction: Write transaction to keep the changes
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    public func write(element: Element, with priority: Int? = nil, in transaction: Transaction? = nil) throws -> Transaction {
+    public func write(element: Element, with priority: Int64? = nil, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
         guard !element.isReferred || element.node!.parent == builder.spaceNode
             else { fatalError("Element must not be referred in other location") }
@@ -272,7 +272,7 @@ extension Values {
     /// - Parameters:
     ///   - element: The element to write
     ///   - priority: Priority value or `nil` if you want to add to end of collection.
-    public func insert(element: Element, with priority: Int? = nil) {
+    public func insert(element: Element, with priority: Int64? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard !element.isReferred || element.node!.parent == builder.spaceNode
             else { fatalError("Element must not be referred in other location") }
@@ -281,7 +281,7 @@ extension Values {
             fatalError("Element with such key already exists")
         }
 
-        let index = priority ?? view.count
+        let index = priority ?? Int64(view.count)
         let key = element.node.map { $0.key } ?? Node(parent: nil).key
         storage[key] = element
         var item = RCItem(key: key, value: element)
@@ -355,7 +355,7 @@ extension Values {
 
     @discardableResult
     func _insert(
-        _ element: Element, with priority: Int? = nil,
+        _ element: Element, with priority: Int64? = nil,
         in database: RealtimeDatabase, in transaction: Transaction? = nil
         ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
@@ -364,7 +364,7 @@ extension Values {
         return transaction
     }
 
-    func _write(_ element: Element, with priority: Int,
+    func _write(_ element: Element, with priority: Int64,
                 by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
         let elementNode = element.node.map { $0.moveTo(location.storage); return $0 } ?? location.storage.childByAutoId()
         let itemNode = location.itms.child(with: elementNode.key)
@@ -418,8 +418,8 @@ public final class ExplicitValues<Element>: _RealtimeValue, ChangeableRealtimeVa
 where Element: WritableRealtimeValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
 
-    public override var raw: RealtimeDataValue? { return nil }
-    public override var payload: [String : RealtimeDataValue]? { return nil }
+    public override var raw: RealtimeDatabaseValue? { return nil }
+    public override var payload: RealtimeDatabaseValue? { return nil }
     public let view: SortedCollectionView<Element>
     public var isSynced: Bool { return view.isSynced }
     public override var isObserved: Bool { return view.isObserved }

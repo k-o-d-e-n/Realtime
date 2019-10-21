@@ -6,7 +6,7 @@
 //  Copyright © 2018 CocoaPods. All rights reserved.
 //
 
-import Foundation
+import UIKit
 import Realtime
 
 class Label: UILabel {
@@ -78,7 +78,7 @@ class FormViewController: UIViewController {
     var tableView: UITableView { return view as! UITableView }
 
     var form: Form<User>!
-    var validator: Accumulator<(String?, Int?)>!
+    var validator: Accumulator<(String?, UInt8?)>!
 
     deinit {
         print("deinit \(self)")
@@ -122,7 +122,7 @@ class FormViewController: UIViewController {
             args.0.textField.realtime
                 .onEvent(.editingDidEnd)
                 .map({ $0.0.text })
-                .flatMap(Int.init)
+                .flatMap(UInt8.init)
                 .map { $0 ?? 0 }
                 .listeningItem(onValue: { (age) in
                     args.1.age <== age
@@ -133,14 +133,14 @@ class FormViewController: UIViewController {
         photo.onUpdate { [weak self] (args, row) in
             let (cell, user) = args
             cell.textLabel?.text = "Pick image"
-            cell.imageView?.image = args.1.photo.unwrapped
+            cell.imageView?.image = args.1.photo.unwrapped.flatMap(UIImage.init)
             row.onSelect({ (ip, row) in
                 let picker = UIImagePickerController()
                 picker.realtime.image.listening(onValue: { [unowned row] (args) in
                     guard case let originalImage as UIImage = args.1[.originalImage] else {
                         fatalError()
                     }
-                    user.photo <== originalImage
+                    user.photo <== originalImage.pngData()
                     row.view?.imageView?.image = originalImage
                     row.view?.setNeedsLayout()
                 }).add(to: row.disposeStorage)
@@ -189,9 +189,9 @@ class FormViewController: UIViewController {
 
         let followers = ReuseRowSection<User, User>(
             ReuseRowSectionDataSource(collection: Global.rtUsers),
-            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) as! TextCell },
-            row: { () -> ReuseFormRow<TextCell, User, User> in
-            let row: ReuseFormRow<TextCell, User, User> = ReuseFormRow()
+            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) },
+            row: { () -> ReuseFormRow<UITableViewCell, User, User> in
+            let row: ReuseFormRow<UITableViewCell, User, User> = ReuseFormRow()
             row.onRowModel({ (user, row) in
                 row.view?.textLabel?.text <== user.name
                 row.bind(user.name, { (cell, name) in
@@ -226,7 +226,7 @@ class FormViewController: UIViewController {
         self.form = Form(model: user, sections: [section, followers])
         form.tableView = tableView
 
-        validator = Accumulator(repeater: .unsafe(), user.name.map { $0.wrapped }, user.age.map { $0.wrapped })
+        validator = Accumulator(repeater: .unsafe(), user.name.flatMap(), user.age.flatMap())
         validator.listening(onValue: { [unowned self] (val) in
             var isEnabled: Bool
             switch val {

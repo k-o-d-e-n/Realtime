@@ -10,19 +10,21 @@ import Foundation
 // MARK: RealtimeDataProtocol ---------------------------------------------------------------
 
 /// A type that contains data associated with database node.
-public protocol RealtimeDataProtocol: Decoder, CustomDebugStringConvertible, CustomStringConvertible {
+public protocol RealtimeDataProtocol: Decoder, SingleValueDecodingContainer, CustomDebugStringConvertible, CustomStringConvertible {
     var database: RealtimeDatabase? { get }
     var storage: RealtimeStorage? { get }
     var node: Node? { get }
     var key: String? { get }
-    var value: Any? { get }
-    var priority: Any? { get }
     var childrenCount: UInt { get }
+
     func makeIterator() -> AnyIterator<RealtimeDataProtocol>
     func exists() -> Bool
     func hasChildren() -> Bool
     func hasChild(_ childPathString: String) -> Bool
     func child(forPath path: String) -> RealtimeDataProtocol
+
+    func asDatabaseValue() throws -> RealtimeDatabaseValue?
+    func decode(_ type: Data.Type) throws -> Data
 }
 extension RealtimeDataProtocol {
     public func map<T>(_ transform: (RealtimeDataProtocol) throws -> T) rethrows -> [T] {
@@ -37,18 +39,11 @@ extension RealtimeDataProtocol {
     public func reduce<Result>(_ initialResult: Result, nextPartialResult: (Result, RealtimeDataProtocol) throws -> Result) rethrows -> Result {
         return try makeIterator().reduce(initialResult, nextPartialResult)
     }
-    public func reduce<Result>(into result: inout Result, updateAccumulatingResult: (inout Result, RealtimeDataProtocol) throws -> Void) rethrows -> Result {
+    public func reduce<Result>(into result: Result, updateAccumulatingResult: (inout Result, RealtimeDataProtocol) throws -> Void) rethrows -> Result {
         return try makeIterator().reduce(into: result, updateAccumulatingResult)
     }
 }
-public extension RealtimeDataProtocol {
-    func unbox<T>(as type: T.Type) throws -> T {
-        guard case let v as T = value else {
-            throw RealtimeError(decoding: T.self, self, reason: "Mismatch type")
-        }
-        return v
-    }
-}
+
 struct _RealtimeCodingKey: CodingKey {
     internal var intValue: Int?
     internal init?(intValue: Int) {
@@ -62,24 +57,23 @@ struct _RealtimeCodingKey: CodingKey {
 }
 extension Decoder where Self: RealtimeDataProtocol {
     public var codingPath: [CodingKey] {
-        return []
+        return node?.map({ _RealtimeCodingKey(stringValue: $0.key)! }) ?? []
     }
-
     public var userInfo: [CodingUserInfoKey : Any] {
-        return [CodingUserInfoKey(rawValue: "node")!: node as Any]
+        return [
+            CodingUserInfoKey(rawValue: "node")!: node as Any,
+            CodingUserInfoKey(rawValue: "database")!: database as Any,
+            CodingUserInfoKey(rawValue: "storage")!: storage as Any
+        ]
     }
 
     public func container<Key>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> where Key : CodingKey {
         return KeyedDecodingContainer(DataSnapshotDecodingContainer(snapshot: self))
     }
-
     public func unkeyedContainer() throws -> UnkeyedDecodingContainer {
         return DataSnapshotUnkeyedDecodingContainer(snapshot: self)
     }
-
-    public func singleValueContainer() throws -> SingleValueDecodingContainer {
-        return DataSnapshotSingleValueContainer(snapshot: self)
-    }
+    public func singleValueContainer() throws -> SingleValueDecodingContainer { return self }
 
     fileprivate func childDecoder<Key: CodingKey>(forKey key: Key) throws -> RealtimeDataProtocol {
         guard hasChild(key.stringValue) else {
@@ -87,40 +81,6 @@ extension Decoder where Self: RealtimeDataProtocol {
         }
         return child(forPath: key.stringValue)
     }
-}
-fileprivate struct DataSnapshotSingleValueContainer: SingleValueDecodingContainer {
-    let snapshot: RealtimeDataProtocol
-    var codingPath: [CodingKey] { return snapshot.codingPath }
-
-    func decodeNil() -> Bool {
-        if let v = snapshot.value {
-            return v is NSNull
-        }
-        return true
-    }
-
-    private func _decode<T>(_ type: T.Type) throws -> T {
-        guard case let v as T = snapshot.value else {
-            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: codingPath, debugDescription: snapshot.debugDescription))
-        }
-        return v
-    }
-
-    func decode(_ type: Bool.Type) throws -> Bool { return try _decode(type) }
-    func decode(_ type: Int.Type) throws -> Int { return try _decode(type) }
-    func decode(_ type: Int8.Type) throws -> Int8 { return try _decode(type) }
-    func decode(_ type: Int16.Type) throws -> Int16 { return try _decode(type) }
-    func decode(_ type: Int32.Type) throws -> Int32 { return try _decode(type) }
-    func decode(_ type: Int64.Type) throws -> Int64 { return try _decode(type) }
-    func decode(_ type: UInt.Type) throws -> UInt { return try _decode(type) }
-    func decode(_ type: UInt8.Type) throws -> UInt8 { return try _decode(type) }
-    func decode(_ type: UInt16.Type) throws -> UInt16 { return try _decode(type) }
-    func decode(_ type: UInt32.Type) throws -> UInt32 { return try _decode(type) }
-    func decode(_ type: UInt64.Type) throws -> UInt64 { return try _decode(type) }
-    func decode(_ type: Float.Type) throws -> Float { return try _decode(type) }
-    func decode(_ type: Double.Type) throws -> Double { return try _decode(type) }
-    func decode(_ type: String.Type) throws -> String { return try _decode(type) }
-    func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: snapshot) }
 }
 
 fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContainer {
@@ -139,10 +99,7 @@ fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContaine
     var currentIndex: Int
 
     mutating func decodeNil() throws -> Bool {
-        if let value = try nextDecoder().value {
-            return value is NSNull
-        }
-        return true
+        return try nextDecoder().decodeNil()
     }
 
     private mutating func nextDecoder() throws -> RealtimeDataProtocol {
@@ -153,14 +110,9 @@ fileprivate struct DataSnapshotUnkeyedDecodingContainer: UnkeyedDecodingContaine
         return next
     }
 
-    private mutating func _decode<T>(_ type: T.Type) throws -> T {
-        let next = try nextDecoder()
-        guard case let v as T = next.value else {
-            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: [_RealtimeCodingKey(intValue: currentIndex)!], debugDescription: next.debugDescription))
-        }
-        return v
+    private mutating func _decode<T: Decodable>(_ type: T.Type) throws -> T {
+        return try nextDecoder().decode(T.self)
     }
-
     mutating func decode(_ type: Bool.Type) throws -> Bool { return try _decode(type) }
     mutating func decode(_ type: Int.Type) throws -> Int { return try _decode(type) }
     mutating func decode(_ type: Int8.Type) throws -> Int8 { return try _decode(type) }
@@ -190,22 +142,17 @@ struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtoc
     typealias Key = K
     let snapshot: RealtimeDataProtocol
 
-    var codingPath: [CodingKey] { return [] }
+    var codingPath: [CodingKey] { return snapshot.node?.map({ _RealtimeCodingKey(stringValue: $0.key)! }) ?? [] }
     var allKeys: [Key] { return snapshot.compactMap { $0.node.flatMap { Key(stringValue: $0.key) } } }
 
-    private func _decode<T>(_ type: T.Type, forKey key: Key) throws -> T {
+    private func _decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
         let child = try snapshot.childDecoder(forKey: key)
-        guard case let v as T = child.value else {
-            throw DecodingError.valueNotFound(T.self, DecodingError.Context(codingPath: [key], debugDescription: child.debugDescription))
-        }
-        return v
+        return try child.decode(T.self)
     }
 
-    func contains(_ key: Key) -> Bool {
-        return snapshot.hasChild(key.stringValue)
-    }
+    func contains(_ key: Key) -> Bool { return snapshot.hasChild(key.stringValue) }
 
-    func decodeNil(forKey key: Key) throws -> Bool { return try snapshot.childDecoder(forKey: key).value is NSNull }
+    func decodeNil(forKey key: Key) throws -> Bool { return try !snapshot.hasChild(key.stringValue) || snapshot.childDecoder(forKey: key).decodeNil() }
     func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool { return try _decode(type, forKey: key) }
     func decode(_ type: Int.Type, forKey key: Key) throws -> Int { return try _decode(type, forKey: key) }
     func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 { return try _decode(type, forKey: key) }
@@ -231,6 +178,206 @@ struct DataSnapshotDecodingContainer<K: CodingKey>: KeyedDecodingContainerProtoc
     }
     func superDecoder() throws -> Decoder { return snapshot }
     func superDecoder(forKey key: Key) throws -> Decoder { return snapshot }
+}
+
+protocol TransactionEncoderProtocol: Encoder {
+    func boxNil()
+    func box<T: ExpressibleByRealtimeDatabaseValue>(_ value: T)
+    func boxNil(for key: String)
+    func box<T: ExpressibleByRealtimeDatabaseValue>(_ value: T, key: String)
+    func child(for key: String) -> TransactionEncoderProtocol
+}
+class DatabaseValueEncoder: TransactionEncoderProtocol {
+    var codingPath: [CodingKey] { return [] }
+    var userInfo: [CodingUserInfoKey : Any] { return [:] }
+
+    var single: RealtimeDatabaseValue?
+    var builder: RealtimeDatabaseValue.Dictionary = .init()
+    var children: [String: DatabaseValueEncoder] = [:]
+
+    init() {}
+
+    func boxNil(for key: String) {}
+    func boxNil() {}
+    func box<T>(_ value: T) where T : ExpressibleByRealtimeDatabaseValue {
+        self.single = RealtimeDatabaseValue(value)
+    }
+    func box<T>(_ value: T, key: String) where T : ExpressibleByRealtimeDatabaseValue {
+        builder.setValue(value, forKey: key)
+    }
+    func child(for key: String) -> TransactionEncoderProtocol {
+        let childStorage = DatabaseValueEncoder()
+        children[key] = childStorage
+        return childStorage
+    }
+
+    func container<Key>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> where Key : CodingKey {
+        return KeyedEncodingContainer<Key>(TransactionEncoder.KeyedContainer(storage: self))
+    }
+    func unkeyedContainer() -> UnkeyedEncodingContainer {
+        return TransactionEncoder.UnkeyedContainer(storage: self, count: 0)
+    }
+    func singleValueContainer() -> SingleValueEncodingContainer {
+        return TransactionEncoder.SingleValueContainer(storage: self)
+    }
+
+    func build() -> RealtimeDatabaseValue {
+        guard let single = self.single else {
+            children.forEach { (key, child) in
+                builder.setValue(child.build(), forKey: key)
+            }
+            return builder.build()
+        }
+        return single
+    }
+}
+struct TransactionEncoder: TransactionEncoderProtocol {
+    let node: Node
+    let transaction: Transaction
+    public var codingPath: [CodingKey] { return [] }
+
+    public var userInfo: [CodingUserInfoKey : Any] {
+        return [CodingUserInfoKey(rawValue: "transaction")!: transaction]
+    }
+
+    public func container<Key>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> where Key : CodingKey {
+        return KeyedEncodingContainer(KeyedContainer(storage: self))
+    }
+
+    public func unkeyedContainer() -> UnkeyedEncodingContainer {
+        return UnkeyedContainer(storage: self, count: 0)
+    }
+
+    public func singleValueContainer() -> SingleValueEncodingContainer {
+        return SingleValueContainer(storage: self)
+    }
+
+    func boxNil() {
+        transaction.removeValue(by: node)
+    }
+
+    func box<T>(_ value: T) where T : ExpressibleByRealtimeDatabaseValue {
+        transaction.addValue(value, by: node)
+    }
+
+    func boxNil(for key: String) {
+        transaction.removeValue(by: node.child(with: key))
+    }
+
+    func box<T>(_ value: T, key: String) where T : ExpressibleByRealtimeDatabaseValue {
+        transaction.addValue(value, by: node.child(with: key))
+    }
+
+    func child(for key: String) -> TransactionEncoderProtocol {
+        return TransactionEncoder(node: node.child(with: key), transaction: transaction)
+    }
+
+    struct SingleValueContainer: SingleValueEncodingContainer {
+        typealias Encode<T: ExpressibleByRealtimeDatabaseValue> = (T) throws -> Void
+        var storage: TransactionEncoderProtocol
+        var codingPath: [CodingKey] { return [] }
+
+        init(storage: TransactionEncoderProtocol) {
+            self.storage = storage
+        }
+
+        mutating func encodeNil() throws { storage.boxNil() }
+        mutating func encode(_ value: Bool) throws { storage.box(value) }
+        mutating func encode(_ value: String) throws { storage.box(value) }
+        mutating func encode(_ value: Double) throws { storage.box(value) }
+        mutating func encode(_ value: Float) throws { storage.box(value) }
+        mutating func encode(_ value: Int) throws { storage.box(Int64(value)) }
+        mutating func encode(_ value: Int8) throws { storage.box(value) }
+        mutating func encode(_ value: Int16) throws { storage.box(value) }
+        mutating func encode(_ value: Int32) throws { storage.box(value) }
+        mutating func encode(_ value: Int64) throws { storage.box(value) }
+        mutating func encode(_ value: UInt) throws { storage.box(UInt64(value)) }
+        mutating func encode(_ value: UInt8) throws { storage.box(value) }
+        mutating func encode(_ value: UInt16) throws { storage.box(value) }
+        mutating func encode(_ value: UInt32) throws { storage.box(value) }
+        mutating func encode(_ value: UInt64) throws { storage.box(value) }
+        mutating func encode<T>(_ value: T) throws where T : Encodable {
+            try value.encode(to: storage)
+        }
+    }
+
+    struct UnkeyedContainer: UnkeyedEncodingContainer {
+        var storage: TransactionEncoderProtocol
+
+        var codingPath: [CodingKey] { return [] }
+        var count: Int = 0
+
+        mutating func _encode<T: ExpressibleByRealtimeDatabaseValue>(_ value: T) {
+            storage.box(value, key: String(count))
+            count += 1
+        }
+        mutating func encodeNil() throws {
+            storage.boxNil(for: String(count))
+            count += 1
+        }
+        mutating func encode(_ value: Bool) throws { _encode(value) }
+        mutating func encode(_ value: Int) throws { _encode(Int64(value)) }
+        mutating func encode(_ value: String) throws { _encode(value) }
+        mutating func encode(_ value: Double) throws { _encode(value) }
+        mutating func encode(_ value: Float) throws { _encode(value) }
+        mutating func encode(_ value: Int8) throws { _encode(value) }
+        mutating func encode(_ value: Int16) throws { _encode(value) }
+        mutating func encode(_ value: Int32) throws { _encode(value) }
+        mutating func encode(_ value: Int64) throws { _encode(value) }
+        mutating func encode(_ value: UInt) throws { _encode(UInt64(value)) }
+        mutating func encode(_ value: UInt8) throws { _encode(value) }
+        mutating func encode(_ value: UInt16) throws { _encode(value) }
+        mutating func encode(_ value: UInt32) throws { _encode(value) }
+        mutating func encode(_ value: UInt64) throws { _encode(value) }
+        mutating func encode<T>(_ value: T) throws where T : Encodable {
+            try value.encode(to: storage.child(for: String(count)))
+        }
+        mutating func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type) -> KeyedEncodingContainer<NestedKey> where NestedKey : CodingKey {
+            return KeyedEncodingContainer(KeyedContainer(storage: storage.child(for: String(count))))
+        }
+        mutating func nestedUnkeyedContainer() -> UnkeyedEncodingContainer {
+            return UnkeyedContainer(storage: storage.child(for: String(count)), count: 0)
+        }
+        mutating func superEncoder() -> Encoder {
+            return storage
+        }
+    }
+
+    struct KeyedContainer<Key: CodingKey>: KeyedEncodingContainerProtocol {
+        var storage: TransactionEncoderProtocol
+        var codingPath: [CodingKey] { return [] }
+
+        mutating func encodeNil(forKey key: Key) throws { storage.boxNil(for: key.stringValue) }
+        mutating func encode(_ value: Bool, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: String, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Double, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Float, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Int, forKey key: Key) throws { storage.box(Int64(value), key: key.stringValue) }
+        mutating func encode(_ value: Int8, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Int16, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Int32, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: Int64, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: UInt, forKey key: Key) throws { storage.box(UInt64(value), key: key.stringValue) }
+        mutating func encode(_ value: UInt8, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: UInt16, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: UInt32, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode(_ value: UInt64, forKey key: Key) throws { storage.box(value, key: key.stringValue) }
+        mutating func encode<T>(_ value: T, forKey key: Key) throws where T : Encodable {
+            try value.encode(to: storage.child(for: key.stringValue))
+        }
+        mutating func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type, forKey key: Key) -> KeyedEncodingContainer<NestedKey> where NestedKey : CodingKey {
+            return KeyedEncodingContainer(KeyedContainer<NestedKey>(storage: storage.child(for: key.stringValue)))
+        }
+        mutating func nestedUnkeyedContainer(forKey key: Key) -> UnkeyedEncodingContainer {
+            return UnkeyedContainer(storage: storage.child(for: key.stringValue), count: 0)
+        }
+        mutating func superEncoder() -> Encoder {
+            return storage
+        }
+        mutating func superEncoder(forKey key: Key) -> Encoder {
+            return storage
+        }
+    }
 }
 
 
@@ -269,12 +416,6 @@ public extension RealtimeDataRepresented where Self: Decodable {
     init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try self.init(from: data)
     }
-}
-
-/// A type that can represented to an adopted Realtime database value
-public protocol RealtimeDataValueRepresented {
-    /// Value adopted for Realtime database
-    func defaultRepresentation() throws -> Any
 }
 
 public protocol ExpressibleBySequence {
@@ -336,61 +477,34 @@ public extension SingleValueEncodingContainer {
     }
 }
 
-/// Protocol for values that only valid for Realtime Database, e.g. `(NS)Array`, `(NS)Dictionary` and etc.
-/// You shouldn't apply for some custom values.
-public protocol RealtimeDataValue: RealtimeDataRepresented {}
-extension RealtimeDataValue {
+extension Bool      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int       : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Double    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Float     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int8      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int16     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int32     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Int64     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt8     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt16    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt32    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension UInt64    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension CGFloat   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension String    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {}
+extension Data      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataRepresented {
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        guard let v = data.value as? Self else {
-            throw RealtimeError(initialization: Self.self, data.value as Any)
-        }
-
-        self = v
+        self = try data.decode(Data.self)
     }
 }
-
-extension Bool      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int       : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Double    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Float     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int8      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int16     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int32     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Int64     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt      : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt8     : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt16    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt32    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension UInt64    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension CGFloat   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension String    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension Data      : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
 extension Array     : HasDefaultLiteral, _ComparableWithDefaultLiteral {
     public static func _isDefaultLiteral(_ lhs: Array<Element>) -> Bool {
         return lhs.isEmpty
     }
 }
-extension Array: RealtimeDataValue, RealtimeDataRepresented where Element: RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        guard let v = data.value as? Array<Element> else {
-            throw RealtimeError(initialization: Array<Element>.self, data.value as Any)
-        }
-
-        self = v
-    }
-}
 extension Dictionary: HasDefaultLiteral, _ComparableWithDefaultLiteral {
     public static func _isDefaultLiteral(_ lhs: Dictionary<Key, Value>) -> Bool {
         return lhs.isEmpty
-    }
-}
-extension Dictionary: RealtimeDataValue, RealtimeDataRepresented where Key: RealtimeDataValue, Value == RealtimeDataValue {
-    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        guard let v = data.value as? [Key: Value] else {
-            throw RealtimeError(initialization: [Key: Value].self, data.value as Any)
-        }
-
-        self = v
     }
 }
 extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral {
@@ -400,9 +514,9 @@ extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral {
     }
 }
 #if os(macOS) || os(iOS)
-extension NSNull    : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension NSValue   : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
-extension NSString  : HasDefaultLiteral, _ComparableWithDefaultLiteral, RealtimeDataValue {}
+extension NSNull    : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
+extension NSValue   : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
+extension NSString  : HasDefaultLiteral, _ComparableWithDefaultLiteral {}
 extension NSArray   : HasDefaultLiteral, _ComparableWithDefaultLiteral {
     public static func _isDefaultLiteral(_ lhs: NSArray) -> Bool {
         return lhs.count == 0
@@ -415,33 +529,233 @@ extension NSDictionary: HasDefaultLiteral, _ComparableWithDefaultLiteral {
 }
 #endif
 
-//extension Optional: RealtimeDataValue where Wrapped: RealtimeDataValue {
-//    public init(data: RealtimeDataProtocol) throws {
-//        if data.exists() {
-//            self = try Wrapped(data: data)
-//        } else {
-//            self = .none
-//        }
-//    }
-//}
-
-// TODO: Swift 4.2
-//extension Dictionary: RealtimeDataValue, FireDataRepresented where Key: RealtimeDataValue, Value: RealtimeDataValue {
-//    public init(data: RealtimeDataProtocol) throws {
-//        guard let v = data.value as? [Key: Value] else {
-//            throw RealtimeError("Failed data for type: \([Key: Value].self)")
-//        }
-//
-//        self = v
-//    }
-//}
-
 //extension Optional  : HasDefaultLiteral, _ComparableWithDefaultLiteral where Wrapped: HasDefaultLiteral & _ComparableWithDefaultLiteral {
 //    public init() { self = .none }
 //    public static func _isDefaultLiteral(_ lhs: Optional<Wrapped>) -> Bool {
 //        return lhs.map(Wrapped._isDefaultLiteral) ?? lhs == nil
 //    }
 //}
+
+public struct RealtimeDatabaseValue {
+    internal let backend: Backend
+
+    public var debug: Any {
+        switch backend {
+        case .bool(let v as Any),
+            .int8(let v as Any),
+            .int16(let v as Any),
+            .int32(let v as Any),
+            .int64(let v as Any),
+            .uint8(let v as Any),
+            .uint16(let v as Any),
+            .uint32(let v as Any),
+            .uint64(let v as Any),
+            .double(let v as Any),
+            .float(let v as Any),
+            .string(let v as Any),
+            .data(let v as Any):
+            return v
+        case .pair(let k, let v): return (k.debug, v.debug)
+        case .unkeyed(let values): return values.map({ $0.debug })
+        }
+    }
+
+    indirect enum Backend {
+        case bool(Bool)
+        case int8(Int8)
+        case int16(Int16)
+        case int32(Int32)
+        case int64(Int64)
+        case uint8(UInt8)
+        case uint16(UInt16)
+        case uint32(UInt32)
+        case uint64(UInt64)
+        case double(Double)
+        case float(Float)
+        case string(String)
+        case data(Data)
+        case pair(RealtimeDatabaseValue, RealtimeDatabaseValue)
+        case unkeyed([RealtimeDatabaseValue])
+    }
+
+    init(_ value: RealtimeDatabaseValue) {
+        self.backend = value.backend
+    }
+    public init(_ value: (RealtimeDatabaseValue, RealtimeDatabaseValue)) {
+        self.backend = .pair(value.0, value.1)
+    }
+    public init(_ values: [RealtimeDatabaseValue]) {
+        self.backend = .unkeyed(values)
+    }
+
+    public func extract<T>(
+        bool: (Bool) throws -> T,
+        int8: (Int8) throws -> T,
+        int16: (Int16) throws -> T,
+        int32: (Int32) throws -> T,
+        int64: (Int64) throws -> T,
+        uint8: (UInt8) throws -> T,
+        uint16: (UInt16) throws -> T,
+        uint32: (UInt32) throws -> T,
+        uint64: (UInt64) throws -> T,
+        double: (Double) throws -> T,
+        float: (Float) throws -> T,
+        string: (String) throws -> T,
+        data: (Data) throws -> T,
+        pair: (RealtimeDatabaseValue, RealtimeDatabaseValue) throws -> T,
+        collection: ([RealtimeDatabaseValue]) throws -> T
+        ) rethrows -> T {
+        switch backend {
+        case .bool(let v): return try bool(v)
+        case .int8(let v): return try int8(v)
+        case .int16(let v): return try int16(v)
+        case .int32(let v): return try int32(v)
+        case .int64(let v): return try int64(v)
+        case .uint8(let v): return try uint8(v)
+        case .uint16(let v): return try uint16(v)
+        case .uint32(let v): return try uint32(v)
+        case .uint64(let v): return try uint64(v)
+        case .double(let v): return try double(v)
+        case .float(let v): return try float(v)
+        case .string(let v): return try string(v)
+        case .data(let v): return try data(v)
+        case .pair(let k, let v):
+            return try pair(k, v)
+        case .unkeyed(let values):
+            return try collection(values)
+        }
+    }
+}
+extension RealtimeDatabaseValue: Equatable {
+    public static func ==(lhs: RealtimeDatabaseValue, rhs: RealtimeDatabaseValue) -> Bool {
+        switch (lhs.backend, rhs.backend) {
+        case (.bool(let v1), .bool(let v2)): return v1 == v2
+        case (.int8(let v1), .int8(let v2)): return v1 == v2
+        case (.int16(let v1), .int16(let v2)): return v1 == v2
+        case (.int32(let v1), .int32(let v2)): return v1 == v2
+        case (.int64(let v1), .int64(let v2)): return v1 == v2
+        case (.uint8(let v1), .uint8(let v2)): return v1 == v2
+        case (.uint16(let v1), .uint16(let v2)): return v1 == v2
+        case (.uint32(let v1), .uint32(let v2)): return v1 == v2
+        case (.uint64(let v1), .uint64(let v2)): return v1 == v2
+        case (.double(let v1), .double(let v2)): return v1 == v2
+        case (.float(let v1), .float(let v2)): return v1 == v2
+        case (.string(let v1), .string(let v2)): return v1 == v2
+        case (.data(let v1), .data(let v2)): return v1 == v2
+        case (.pair(let k1, let v1), .pair(let k2, let v2)): return k1 == k2 && v1 == v2
+        case (.unkeyed(let values1), .unkeyed(let values2)): return values1 == values2
+        default: return false
+        }
+    }
+}
+extension RealtimeDatabaseValue: ExpressibleByStringLiteral {
+    public typealias StringLiteralType = String
+    public init(stringLiteral value: StringLiteralType) {
+        self.init(value)
+    }
+}
+extension RealtimeDatabaseValue: ExpressibleByFloatLiteral {
+    public typealias FloatLiteralType = Float
+    public init(floatLiteral value: FloatLiteralType) {
+        self.init(value)
+    }
+}
+extension RealtimeDatabaseValue: ExpressibleByBooleanLiteral {
+    public typealias BooleanLiteralType = Bool
+    public init(booleanLiteral value: BooleanLiteralType) {
+        self.init(value)
+    }
+}
+extension RealtimeDatabaseValue {
+    #if os(iOS) || os(macOS)
+    public init(_ value: NSString) { self.init(value as String) }
+    #endif
+}
+extension RealtimeDatabaseValue {
+    public struct Dictionary {
+        var properties: [(RealtimeDatabaseValue, RealtimeDatabaseValue)] = []
+        public var isEmpty: Bool { return properties.isEmpty }
+
+        public init() {}
+
+        public mutating func setValue<T: ExpressibleByRealtimeDatabaseValue>(_ value: T, forKey key: String) {
+            properties.append((RealtimeDatabaseValue(key), RealtimeDatabaseValue(value)))
+        }
+
+        public func build() -> RealtimeDatabaseValue {
+            return RealtimeDatabaseValue(properties.map(RealtimeDatabaseValue.init))
+        }
+    }
+
+    public init<T: ExpressibleByRealtimeDatabaseValue>(_ value: T) {
+        self = T.RDBConvertor.map(value)
+    }
+
+    public func losslessMap<T: FixedWidthInteger>(to type: T.Type) -> T? {
+        switch backend {
+        case .int8(let v): return T(exactly: v)
+        case .int16(let v): return T(exactly: v)
+        case .int32(let v): return T(exactly: v)
+        case .int64(let v): return T(exactly: v)
+        case .uint8(let v): return T(exactly: v)
+        case .uint16(let v): return T(exactly: v)
+        case .uint32(let v): return T(exactly: v)
+        case .uint64(let v): return T(exactly: v)
+        case .string(let v): return T(v)
+        default: return nil
+        }
+    }
+    public func losslessMap(to type: String.Type) -> String? {
+        switch backend {
+        case .string(let v): return v
+        case .int8(let v): return String(v)
+        case .int16(let v): return String(v)
+        case .int32(let v): return String(v)
+        case .int64(let v): return String(v)
+        case .uint8(let v): return String(v)
+        case .uint16(let v): return String(v)
+        case .uint32(let v): return String(v)
+        case .uint64(let v): return String(v)
+        case .float(let v): return String(v)
+        case .double(let v): return String(v)
+        default: return nil
+        }
+    }
+    public func lossyMap<T: FixedWidthInteger>(to type: T.Type) -> T? {
+        switch backend {
+        case .int8(let v): return T(truncatingIfNeeded: v)
+        case .int16(let v): return T(truncatingIfNeeded: v)
+        case .int32(let v): return T(truncatingIfNeeded: v)
+        case .int64(let v): return T(truncatingIfNeeded: v)
+        case .uint8(let v): return T(truncatingIfNeeded: v)
+        case .uint16(let v): return T(truncatingIfNeeded: v)
+        case .uint32(let v): return T(truncatingIfNeeded: v)
+        case .uint64(let v): return T(truncatingIfNeeded: v)
+        case .string(let v): return T(v)
+        case .float(let v): return T(v)
+        case .double(let v): return T(v)
+        default: return nil
+        }
+    }
+
+    func lossyMap(to type: Bool.Type) -> Bool? {
+        switch backend {
+        case .string(let v): return !(v.isEmpty || v == "0")
+        case .int8(let v): return v > 0
+        case .int16(let v): return v > 0
+        case .int32(let v): return v > 0
+        case .int64(let v): return v > 0
+        case .uint8(let v): return v > 0
+        case .uint16(let v): return v > 0
+        case .uint32(let v): return v > 0
+        case .uint64(let v): return v > 0
+        case .float(let v): return v > 0
+        case .double(let v): return v > 0
+        case .data(let v): return !v.isEmpty
+        default: return nil
+        }
+    }
+}
 
 // MARK: Representer --------------------------------------------------------------------------
 
@@ -467,7 +781,7 @@ public protocol RepresenterProtocol {
     ///
     /// - Parameter value:
     /// - Returns: Untyped value
-    func encode(_ value: V) throws -> Any?
+    func encode(_ value: V) throws -> RealtimeDatabaseValue?
     /// Decodes a data of Realtime database to defined type.
     ///
     /// - Parameter data: A data of database.
@@ -510,8 +824,8 @@ public extension Representer {
     ///
     /// - Parameter value: Optional of base value
     /// - Returns: Encoding result
-    func encode<T>(_ value: V) throws -> Any? where V == Optional<T> {
-        return try value.map(encode)
+    func encode<T>(_ value: V) throws -> RealtimeDatabaseValue? where V == Optional<T> {
+        return try value.flatMap(encode)
     }
     /// Decodes a data of Realtime database to defined type.
     /// If data is empty return nil.
@@ -526,21 +840,21 @@ public extension Representer {
 
 /// Any representer
 public struct Representer<V>: RepresenterProtocol {
-    fileprivate let encoding: (V) throws -> Any?
+    fileprivate let encoding: (V) throws -> RealtimeDatabaseValue?
     fileprivate let decoding: (RealtimeDataProtocol) throws -> V
     public func decode(_ data: RealtimeDataProtocol) throws -> V {
         return try decoding(data)
     }
-    public func encode(_ value: V) throws -> Any? {
+    public func encode(_ value: V) throws -> RealtimeDatabaseValue? {
         return try encoding(value)
     }
-    public init(encoding: @escaping (V) throws -> Any?, decoding: @escaping (RealtimeDataProtocol) throws -> V) {
+    public init(encoding: @escaping (V) throws -> RealtimeDatabaseValue?, decoding: @escaping (RealtimeDataProtocol) throws -> V) {
         self.encoding = encoding
         self.decoding = decoding
     }
-    public init<T>(encoding: @escaping (T) throws -> Any?, decoding: @escaping (RealtimeDataProtocol) throws -> T) where V == Optional<T> {
-        self.encoding = { v -> Any? in
-            return try v.map(encoding)
+    public init<T>(encoding: @escaping (T) throws -> RealtimeDatabaseValue?, decoding: @escaping (RealtimeDataProtocol) throws -> T) where V == Optional<T> {
+        self.encoding = { v -> RealtimeDatabaseValue? in
+            return try v.flatMap(encoding)
         }
         self.decoding = { d -> V.Wrapped? in
             guard d.exists() else { return nil }
@@ -554,8 +868,8 @@ public extension Representer {
         self.decoding = base.decode
     }
     init<R: RepresenterProtocol>(optional base: R) where V == R.V? {
-        self.encoding = { (v) -> Any? in
-            return try v.map(base.encode)
+        self.encoding = { (v) -> RealtimeDatabaseValue? in
+            return try v.flatMap(base.encode)
         }
         self.decoding = { (data) in
             guard data.exists() else { return nil }
@@ -563,15 +877,15 @@ public extension Representer {
         }
     }
     init<R: RepresenterProtocol>(collection base: R) where V: Collection, V.Element == R.V, V: ExpressibleBySequence, V.SequenceElement == V.Element {
-        self.encoding = { (v) -> Any? in
-            return try v.map(base.encode)
+        self.encoding = { (v) -> RealtimeDatabaseValue? in
+            return RealtimeDatabaseValue(try v.compactMap(base.encode))
         }
         self.decoding = { (data) -> V in
             return try V(data.map(base.decode))
         }
     }
     init<R: RepresenterProtocol>(defaultOnEmpty base: R) where R.V: HasDefaultLiteral & _ComparableWithDefaultLiteral, V == R.V {
-        self.encoding = { (v) -> Any? in
+        self.encoding = { (v) -> RealtimeDatabaseValue? in
             if V._isDefaultLiteral(v) {
                 return nil
             } else {
@@ -584,7 +898,7 @@ public extension Representer {
         }
     }
     init<R: RepresenterProtocol, T>(defaultOnEmpty base: R) where T: HasDefaultLiteral & _ComparableWithDefaultLiteral, Optional<T> == R.V, Optional<T> == V {
-        self.encoding = { (v) -> Any? in
+        self.encoding = { (v) -> RealtimeDatabaseValue? in
             if v.map(T._isDefaultLiteral) ?? true {
                 return nil
             } else {
@@ -603,7 +917,7 @@ public extension Representer where V: Collection {
     }
     init<E>(collection base: Representer<[E]>, sorting: @escaping (E, E) throws -> Bool) where V == [E] {
         self.init(
-            encoding: { (collection) -> Any? in
+            encoding: { (collection) -> RealtimeDatabaseValue? in
                 return try base.encode(collection.sorted(by: sorting))
             },
             decoding: { (data) -> [E] in
@@ -633,11 +947,11 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
 
-                return try RelationRepresentation(
+                return RealtimeDatabaseValue(try RelationRepresentation(
                     path: node.path(from: anchorNode ?? .root),
                     property: mode.path(for: owner),
                     payload: (v.raw, v.payload)
-                ).defaultRepresentation()
+                ).defaultRepresentation())
             },
             decoding: { d in
                 guard let owner = ownerNode.value
@@ -670,10 +984,10 @@ public extension Representer where V: RealtimeValue {
                 case .fullPath: ref = node.absolutePath
                 case .path(from: let n): ref = node.path(from: n)
                 }
-                return try ReferenceRepresentation(
+                return RealtimeDatabaseValue(try ReferenceRepresentation(
                     ref: ref,
                     payload: (raw: v.raw, user: v.payload)
-                ).defaultRepresentation()
+                ).defaultRepresentation())
             },
             decoding: { (data) in
                 let reference = try ReferenceRepresentation(data: data)
@@ -685,16 +999,6 @@ public extension Representer where V: RealtimeValue {
         )
     }
 }
-public extension Representer {
-    static var any: Representer<V> {
-        return Representer<V>(encoding: { $0 }, decoding: { try $0.unbox(as: V.self) })
-    }
-}
-public extension Representer where V: RealtimeDataRepresented & RealtimeDataValueRepresented {
-    static var realtimeData: Representer<V> {
-        return Representer<V>(encoding: { try $0.defaultRepresentation() }, decoding: V.init)
-    }
-}
 
 extension Representer {
     public func requiredProperty() -> Representer<V?> {
@@ -702,7 +1006,7 @@ extension Representer {
     }
 
     init<R: RepresenterProtocol>(required base: R) where V == R.V? {
-        self.encoding = { (value) -> Any? in
+        self.encoding = { (value) -> RealtimeDatabaseValue? in
             switch value {
             case .none: throw RealtimeError(encoding: R.V.self, reason: "Required property has not been set")
             case .some(let v): return try base.encode(v)
@@ -721,7 +1025,7 @@ extension Representer {
     }
 
     init<R: RepresenterProtocol>(optionalProperty base: R) where V == R.V?? {
-        self.encoding = { (value) -> Any? in
+        self.encoding = { (value) -> RealtimeDatabaseValue? in
             switch value {
             case .none, .some(nil): return nil
             case .some(.some(let v)): return try base.encode(v)
@@ -741,7 +1045,7 @@ extension Representer {
     }
 
     init<R: RepresenterProtocol>(writeRequiredProperty base: R) where V == R.V!? {
-        self.encoding = { (value) -> Any? in
+        self.encoding = { (value) -> RealtimeDatabaseValue? in
             switch value {
             case .none, .some(nil): throw RealtimeError(encoding: R.V.self, reason: "Required property has not been set")
             case .some(.some(let v)): return try base.encode(v)
@@ -754,6 +1058,24 @@ extension Representer {
 
             return .some(try base.decode(data))
         }
+    }
+}
+
+public extension Representer where V: RealtimeDataRepresented {
+    static func realtimeData(encoding: @escaping (V) throws -> RealtimeDatabaseValue?) -> Representer<V> {
+        return Representer(encoding: encoding, decoding: V.init(data:))
+    }
+}
+
+public extension Representer where V: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
+    static var realtimeDataValue: Representer<V> {
+        return Representer<V>(encoding: RealtimeDatabaseValue.init(_:), decoding: V.init(data:))
+    }
+}
+
+public extension Representer where V: RawRepresentable, V.RawValue: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
+    static var rawRepresentable: Representer<V> {
+        return self.default(Representer<V.RawValue>.realtimeDataValue)
     }
 }
 
@@ -771,43 +1093,28 @@ public extension Representer where V: RawRepresentable {
         )
     }
 }
-public extension Representer where V: RawRepresentable, V.RawValue: RealtimeDataValue {
-    static var rawRepresentable: Representer<V> {
-        return self.default(Representer<V.RawValue>.any)
-    }
-}
 
 public extension Representer where V == URL {
     static var `default`: Representer<URL> {
         return Representer(
-            encoding: { $0.absoluteString },
+            encoding: { RealtimeDatabaseValue($0.absoluteString) },
             decoding: URL.init
         )
     }
 }
 
-#if os(macOS) || os(iOS)
 public extension Representer where V: Codable {
-    static func json(
-        dateEncodingStrategy: JSONEncoder.DateEncodingStrategy = .secondsSince1970,
-        keyEncodingStrategy: JSONEncoder.KeyEncodingStrategy = .useDefaultKeys
-    ) -> Representer<V> {
+    static var codable: Representer<V> {
         return Representer(
-            encoding: { v -> Any? in
-                let e = JSONEncoder()
-                e.dateEncodingStrategy = dateEncodingStrategy
-                #if os(macOS) || os(iOS)
-                e.keyEncodingStrategy = keyEncodingStrategy
-                #endif
-                e.outputFormatting = .prettyPrinted
-                let data = try e.encode(v)
-                return try JSONSerialization.jsonObject(with: data, options: .allowFragments)
+            encoding: { (v) -> RealtimeDatabaseValue? in
+                let encoder = DatabaseValueEncoder()
+                try v.encode(to: encoder)
+                return encoder.build()
             },
             decoding: V.init
         )
     }
 }
-#endif
 
 public enum DateCodingStrategy {
     case secondsSince1970
@@ -819,40 +1126,41 @@ public enum DateCodingStrategy {
 public extension Representer where V == Date {
     static func date(_ strategy: DateCodingStrategy) -> Representer<Date> {
         return Representer<Date>(
-            encoding: { date -> Any? in
+            encoding: { date -> RealtimeDatabaseValue? in
                 switch strategy {
                 case .secondsSince1970:
-                    return date.timeIntervalSince1970
+                    return RealtimeDatabaseValue(date.timeIntervalSince1970)
                 case .millisecondsSince1970:
-                    return 1000.0 * date.timeIntervalSince1970
+                    return RealtimeDatabaseValue(1000.0 * date.timeIntervalSince1970)
                 case .iso8601(let formatter):
-                    return formatter.string(from: date)
+                    return RealtimeDatabaseValue(formatter.string(from: date))
                 case .formatted(let formatter):
-                    return formatter.string(from: date)
+                    return RealtimeDatabaseValue(formatter.string(from: date))
                 }
-        },
+            },
             decoding: { (data) in
+                let container = try data.singleValueContainer()
                 switch strategy {
                 case .secondsSince1970:
-                    let double = try data.unbox(as: TimeInterval.self)
+                    let double = try container.decode(TimeInterval.self)
                     return Date(timeIntervalSince1970: double)
                 case .millisecondsSince1970:
-                    let double = try data.unbox(as: Double.self)
+                    let double = try container.decode(Double.self)
                     return Date(timeIntervalSince1970: double / 1000.0)
                 case .iso8601(let formatter):
-                    let string = try data.unbox(as: String.self)
+                    let string = try container.decode(String.self)
                     guard let date = formatter.date(from: string) else {
                         throw RealtimeError(decoding: V.self, string, reason: "Expected date string to be ISO8601-formatted.")
                     }
                     return date
                 case .formatted(let formatter):
-                    let string = try data.unbox(as: String.self)
+                    let string = try container.decode(String.self)
                     guard let date = formatter.date(from: string) else {
                         throw RealtimeError(decoding: V.self, string, reason: "Date string does not match format expected by formatter.")
                     }
                     return date
                 }
-        }
+            }
         )
     }
 }
@@ -863,93 +1171,39 @@ import UIKit.UIImage
 
 public extension Representer where V: UIImage {
     static var png: Representer<UIImage> {
-        let base = Representer<Data>.any
+        let base = Representer<Data>.realtimeDataValue
         return Representer<UIImage>(
-            encoding: { img -> Any? in
+            encoding: { img -> RealtimeDatabaseValue? in
                 guard let data = img.pngData() else {
                     throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .png representation")
                 }
-                return data
-        },
+                return RealtimeDatabaseValue(data)
+            },
             decoding: { d in
                 let data = try base.decode(d)
                 guard let img = UIImage(data: data) else {
                     throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
                 }
                 return img
-        }
+            }
         )
     }
     static func jpeg(quality: CGFloat = 1.0) -> Representer<UIImage> {
-        let base = Representer<Data>.any
+        let base = Representer<Data>.realtimeDataValue
         return Representer<UIImage>(
-            encoding: { img -> Any? in
+            encoding: { img -> RealtimeDatabaseValue? in
                 guard let data = img.jpegData(compressionQuality: quality) else {
                     throw RealtimeError(encoding: V.self, reason: "Can`t get image data in .jpeg representation with compression quality: \(quality)")
                 }
-                return data
-        },
+                return RealtimeDatabaseValue(data)
+            },
             decoding: { d in
                 guard let img = UIImage(data: try base.decode(d)) else {
                     throw RealtimeError(decoding: V.self, d, reason: "Can`t get UIImage object, using initializer .init(data:)")
                 }
                 return img
-        }
+            }
         )
     }
 }
-#endif
-
-/// --------------------------- DataSnapshot Decoder ------------------------------
-
-#if canImport(FirebaseDatabase) && (os(macOS) || os(iOS))
-import FirebaseDatabase
-
-extension DataSnapshot: RealtimeDataProtocol, Sequence {
-    public var key: String? {
-        return self.ref.key
-    }
-
-    public var database: RealtimeDatabase? { return ref.database }
-    public var storage: RealtimeStorage? { return nil }
-    public var node: Node? { return Node.from(ref) }
-
-    public func child(forPath path: String) -> RealtimeDataProtocol {
-        return childSnapshot(forPath: path)
-    }
-
-    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        let childs = children
-        return AnyIterator {
-            return childs.nextObject() as? DataSnapshot
-        }
-    }
-}
-extension MutableData: RealtimeDataProtocol, Sequence {
-    public var database: RealtimeDatabase? { return nil }
-    public var storage: RealtimeStorage? { return nil }
-    public var node: Node? { return key.map(Node.init) }
-
-    public func exists() -> Bool {
-        return value.map { !($0 is NSNull) } ?? false
-    }
-
-    public func child(forPath path: String) -> RealtimeDataProtocol {
-        return childData(byAppendingPath: path)
-    }
-
-    public func hasChild(_ childPathString: String) -> Bool {
-        return hasChild(atPath: childPathString)
-    }
-
-    public func makeIterator() -> AnyIterator<RealtimeDataProtocol> {
-        let childs = children
-        return AnyIterator {
-            return childs.nextObject() as? MutableData
-        }
-    }
-}
-
-extension DataSnapshot: Decoder {}
-extension MutableData: Decoder {}
 #endif

@@ -17,6 +17,14 @@ class TableCell: UITableViewCell {
         $0.numberOfLines = 0
     }
 
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: .value1, reuseIdentifier: reuseIdentifier)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
     func startIndicatorIfNeeeded() {
         guard label.text == nil else {
             return
@@ -74,6 +82,9 @@ class RealtimeTableController: UITableViewController {
                 cell.label.text <== name
                 cell.indicator.stopAnimating()
             }, nil)
+            item.bind(user.age.flatMap(String.init), sources: [user.age], { (cell, age) in
+                cell.detailTextLabel?.text = age
+            }, nil)
         }
         delegate.bind(tableView)
         delegate.tableDelegate = self
@@ -124,7 +135,7 @@ class RealtimeTableController: UITableViewController {
         users.changes
             .listening(
                 onValue: { (e) in
-                    print(e)
+                    print("test", e)
                 },
                 onError: { (err) in
                     print(err)
@@ -136,7 +147,9 @@ class RealtimeTableController: UITableViewController {
     let pagingControl: PagingControl = PagingControl()
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        #if FIREBASE
         Global.rtUsers.dataExplorer = .viewByPages(control: pagingControl, size: 2, ascending: ascending)
+        #endif
         store.resume()
         Global.rtUsers.runObserving()
     }
@@ -179,7 +192,7 @@ class RealtimeTableController: UITableViewController {
                 nameTF.textColor = .red
                 return
             }
-            guard let age = ageTF.text.flatMap(Int.init) else {
+            guard let age = ageTF.text.flatMap(UInt8.init) else {
                 ageTF.textColor = .red
                 return
             }

@@ -7,6 +7,10 @@
 
 import Foundation
 
+#if os(iOS)
+import UIKit
+#endif
+
 public extension RawRepresentable where Self.RawValue == String {
     func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T> {
         return ReadonlyFile(
@@ -110,7 +114,7 @@ extension ReadonlyProperty {
     }
     fileprivate func applyData(_ data: Data?, node: Node, needCaching: Bool) {
         do {
-            if let value = try self.representer.decode(FileNode(node: node, value: data)) {
+            if let value = try self.representer.decode(FileNode(node: node, value: data.map(RealtimeDatabaseValue.init))) {
                 self._setValue(.remote(value))
                 if needCaching, let data = data, let cache = RealtimeApp.app.configuration.storageCache {
                     cache.put(data, for: node, completion: nil)
@@ -318,7 +322,7 @@ public final class File<T>: Property<T> {
         try super.init(data: data, event: event)
     }
 
-    override func cacheValue(_ node: Node, value: Any?) -> CacheNode {
+    override func cacheValue(_ node: Node, value: RealtimeDatabaseValue?) -> CacheNode {
         let file = FileNode(node: node, value: value)
         file.metadata = metadata ?? [:]
         return .file(file)
