@@ -35,7 +35,6 @@
 		A4FF24612347C5D30093C109 /* FormViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4D56D1C2143FD8200641DF3 /* FormViewController.swift */; };
 		A4FF24622347C5D80093C109 /* TableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4F0FF772144901800395579 /* TableViewController.swift */; };
 		A4FF24632347C5DC0093C109 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A491423E21D0F535006F6858 /* Entities.swift */; };
-		A4FF24642347C5DF0093C109 /* RemoteDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = A427FE7723420D0A001F1F05 /* RemoteDatabase.swift */; };
 		A4FF24662347C8300093C109 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FACD71AFB9204008FA782 /* ViewController.swift */; };
 		A4FF24672347C8350093C109 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
 		A4FF24682347C8810093C109 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4FF24492347C4C70093C109 /* AppDelegate.swift */; };
@@ -75,7 +74,6 @@
 		A416BD6E2007DED6008A4741 /* nanopb.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = nanopb.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A41BC0122040098800D1A9E8 /* RealtimeViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RealtimeViewController.swift; sourceTree = "<group>"; };
 		A41FD588211EF890006DC3F7 /* other.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = other.swift; sourceTree = "<group>"; };
-		A427FE7723420D0A001F1F05 /* RemoteDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteDatabase.swift; sourceTree = "<group>"; };
 		A44331B52020E9E900BA2FDE /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTableController.swift; sourceTree = "<group>"; };
 		A491423E21D0F535006F6858 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
@@ -170,7 +168,6 @@
 				A4D56D1C2143FD8200641DF3 /* FormViewController.swift */,
 				A4F0FF772144901800395579 /* TableViewController.swift */,
 				A491423E21D0F535006F6858 /* Entities.swift */,
-				A427FE7723420D0A001F1F05 /* RemoteDatabase.swift */,
 			);
 			name = "Example for Realtime";
 			path = Realtime;
@@ -264,8 +261,8 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 607FACEF1AFB9204008FA782 /* Build configuration list for PBXNativeTarget "Realtime_Example" */;
 			buildPhases = (
-				A4836740234CC35C003352E0 /* GYB */,
 				24EDC93C114A4733D392AF05 /* [CP] Check Pods Manifest.lock */,
+				A4836740234CC35C003352E0 /* GYB */,
 				607FACCC1AFB9204008FA782 /* Sources */,
 				607FACCD1AFB9204008FA782 /* Frameworks */,
 				607FACCE1AFB9204008FA782 /* Resources */,
@@ -451,7 +448,7 @@
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Realtime_Example/Pods-Realtime_Example-frameworks.sh",
 				"${BUILT_PRODUCTS_DIR}/GTMSessionFetcher/GTMSessionFetcher.framework",
-				"${BUILT_PRODUCTS_DIR}/GoogleUtilities-00567490/GoogleUtilities.framework",
+				"${BUILT_PRODUCTS_DIR}/GoogleUtilities/GoogleUtilities.framework",
 				"${BUILT_PRODUCTS_DIR}/Promise.swift/Promise_swift.framework",
 				"${BUILT_PRODUCTS_DIR}/leveldb-library/leveldb.framework",
 				"${BUILT_PRODUCTS_DIR}/nanopb/nanopb.framework",
@@ -516,21 +513,13 @@
 			);
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Realtime_FDB/Pods-Realtime_FDB-frameworks.sh",
-				"${BUILT_PRODUCTS_DIR}/GTMSessionFetcher/GTMSessionFetcher.framework",
-				"${BUILT_PRODUCTS_DIR}/GoogleUtilities-Environment-Logger/GoogleUtilities.framework",
 				"${BUILT_PRODUCTS_DIR}/Promise.swift/Promise_swift.framework",
-				"${BUILT_PRODUCTS_DIR}/leveldb-library/leveldb.framework",
-				"${BUILT_PRODUCTS_DIR}/nanopb/nanopb.framework",
 				"${BUILT_PRODUCTS_DIR}/FoundationDBModels/FoundationDBModels.framework",
 				"${BUILT_PRODUCTS_DIR}/Starscream/Starscream.framework",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/GTMSessionFetcher.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/GoogleUtilities.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Promise_swift.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/leveldb.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/nanopb.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/FoundationDBModels.framework",
 				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Starscream.framework",
 			);
@@ -579,7 +568,6 @@
 				A4FF245E2347C5AB0093C109 /* RealtimeTableController.swift in Sources */,
 				A4FF24612347C5D30093C109 /* FormViewController.swift in Sources */,
 				A4FF24622347C5D80093C109 /* TableViewController.swift in Sources */,
-				A4FF24642347C5DF0093C109 /* RemoteDatabase.swift in Sources */,
 				A4FF24662347C8300093C109 /* ViewController.swift in Sources */,
 				A4FF24632347C5DC0093C109 /* Entities.swift in Sources */,
 			);

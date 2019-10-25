@@ -71,7 +71,7 @@ public enum DatabaseDataEvent: Hashable, CustomDebugStringConvertible {
 @available(*, deprecated, renamed: "DatabaseDataEvent", message: "Use DatabaseDataEvent instead")
 public typealias DatabaseObservingEvent = DatabaseDataEvent
 
-public enum RealtimeDataOrdering {
+public enum RealtimeDataOrdering: Equatable {
     case key
     case value
     case child(String)

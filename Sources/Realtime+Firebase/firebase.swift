@@ -476,7 +476,7 @@ extension Database: RealtimeDatabase {
                 .value,
                 with: { (data) in
                     completion(data, .value)
-            },
+                },
                 withCancel: cancelHandler
             )
             return ListeningDispose({
@@ -490,7 +490,7 @@ extension Database: RealtimeDatabase {
                     if singleLoaded {
                         completion(data, .child(.added))
                     }
-            },
+                },
                 withCancel: cancelHandler
                 ) : nil
             let removed = changes.contains(.removed) ? query.observe(
@@ -499,7 +499,7 @@ extension Database: RealtimeDatabase {
                     if singleLoaded {
                         completion(data, .child(.removed))
                     }
-            },
+                },
                 withCancel: cancelHandler
                 ) : nil
             let changed = changes.contains(.changed) ? query.observe(
@@ -508,7 +508,7 @@ extension Database: RealtimeDatabase {
                     if singleLoaded {
                         completion(data, .child(.changed))
                     }
-            },
+                },
                 withCancel: cancelHandler
                 ) : nil
             query.observeSingleEvent(
@@ -516,7 +516,7 @@ extension Database: RealtimeDatabase {
                 with: { (data) in
                     completion(data, .value)
                     singleLoaded = true
-            },
+                },
                 withCancel: cancelHandler
             )
 

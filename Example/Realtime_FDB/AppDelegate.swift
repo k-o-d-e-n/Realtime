@@ -8,13 +8,14 @@
 
 import UIKit
 import Realtime
+import RFDatabaseClient
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        let remoteDatabase = RemoteDatabase(url: URL(string: "ws://192.168.0.151:8080")!)
+        let remoteDatabase = RFDatabase(url: URL(string: "ws://192.168.0.151:8080")!)
         remoteDatabase.connect()
         let configuration = RealtimeApp.Configuration(linksNode: BranchNode(key: "___tests/__links"))
         RealtimeApp.initialize(with: remoteDatabase, storage: RealtimeApp.cache, configuration: configuration)
