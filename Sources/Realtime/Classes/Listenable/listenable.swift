@@ -272,13 +272,6 @@ extension ListenEvent: Listenable {
         assign.call(self)
         return EmptyDispose()
     }
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
-        return ListeningItem(
-            resume: { assign.call(self) },
-            pause: { _ in },
-            token: assign.call(self)
-        )
-    }
 }
 
 /// Common protocol for all objects that ensures listening value. 
@@ -287,12 +280,10 @@ public protocol Listenable {
 
     /// Disposable listening of value
     func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable
-
-    /// Listening with possibility to control active state
-    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem // TODO: Remove
 }
-public extension Listenable where Self: AnyObject {
+public extension Listenable {
     /// Listening with possibility to control active state
+    @available(*, deprecated, message: "Use preprocessors to control subscription states")
     func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
         return ListeningItem(resume: { self.listening(assign) }, pause: { $0.dispose() }, token: listening(assign))
     }
@@ -301,9 +292,6 @@ public extension Listenable {
     func listening(_ assign: @escaping (ListenEvent<Out>) -> Void) -> Disposable {
         return listening(.just(assign))
     }
-    func listeningItem(_ assign: @escaping (ListenEvent<Out>) -> Void) -> ListeningItem {
-        return listeningItem(.just(assign))
-    }
     func listening(onValue assign: Assign<Out>) -> Disposable {
         return listening(Assign(assign: {
             if let v = $0.value {
@@ -311,18 +299,8 @@ public extension Listenable {
             }
         }))
     }
-    func listeningItem(onValue assign: Assign<Out>) -> ListeningItem {
-        return listeningItem(Assign(assign: {
-            if let v = $0.value {
-                assign.assign(v)
-            }
-        }))
-    }
     func listening(onValue assign: @escaping (Out) -> Void) -> Disposable {
         return listening(onValue: .just(assign))
-    }
-    func listeningItem(onValue assign: @escaping (Out) -> Void) -> ListeningItem {
-        return listeningItem(onValue: .just(assign))
     }
 
     func listening(onError assign: Assign<Error>) -> Disposable {
@@ -332,33 +310,15 @@ public extension Listenable {
             }
         }))
     }
-    func listeningItem(onError assign: Assign<Error>) -> ListeningItem {
-        return listeningItem(Assign(assign: {
-            if let v = $0.error {
-                assign.assign(v)
-            }
-        }))
-    }
     func listening(onError assign: @escaping (Error) -> Void) -> Disposable {
         return listening(onError: .just(assign))
     }
-    func listeningItem(onError assign: @escaping (Error) -> Void) -> ListeningItem {
-        return listeningItem(onError: .just(assign))
-    }
 
     internal func asAny() -> AnyListenable<Out> {
-        return AnyListenable(self.listening, self.listeningItem)
+        return AnyListenable(listening)
     }
     func listening(onValue: @escaping (Out) -> Void, onError: @escaping (Error) -> Void) -> Disposable {
         return listening(Assign(assign: { event in
-            switch event {
-            case .value(let v): onValue(v)
-            case .error(let e): onError(e)
-            }
-        }))
-    }
-    func listeningItem(onValue: @escaping (Out) -> Void, onError: @escaping (Error) -> Void) -> ListeningItem {
-        return listeningItem(Assign(assign: { event in
             switch event {
             case .value(let v): onValue(v)
             case .error(let e): onError(e)
@@ -369,23 +329,16 @@ public extension Listenable {
 
 public struct AnyListenable<Out>: Listenable {
     let _listening: (Assign<ListenEvent<Out>>) -> Disposable
-    let _listeningItem: (Assign<ListenEvent<Out>>) -> ListeningItem
 
     public init<L: Listenable>(_ base: L) where L.Out == Out {
         self._listening = base.listening
-        self._listeningItem = base.listeningItem
     }
-    init(_ listening: @escaping (Assign<ListenEvent<Out>>) -> Disposable,
-         _ listeningItem: @escaping (Assign<ListenEvent<Out>>) -> ListeningItem) {
+    init(_ listening: @escaping (Assign<ListenEvent<Out>>) -> Disposable) {
         self._listening = listening
-        self._listeningItem = listeningItem
     }
 
     public func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
         return _listening(assign)
-    }
-    public func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
-        return _listeningItem(assign)
     }
 }
 

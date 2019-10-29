@@ -199,9 +199,6 @@ public protocol Listenable {
 
     /// Disposable listening of value
     func listening(_ assign: Assign<OutData>) -> Disposable
-
-    /// Listening with possibility to control active state
-    func listeningItem(_ assign: Assign<OutData>) -> ListeningItem
 }
 ```
 

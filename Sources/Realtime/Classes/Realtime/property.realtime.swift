@@ -762,12 +762,6 @@ extension ReadonlyProperty: Listenable {
         }
         return repeater.listening(assign)
     }
-    public func listeningItem(_ assign: Closure<ListenEvent<PropertyState<T>>, Void>) -> ListeningItem {
-        defer {
-            assign.call(.value(_value))
-        }
-        return repeater.listeningItem(assign)
-    }
 }
 extension ReadonlyProperty: Equatable where T: Equatable {
     public static func ==(lhs: ReadonlyProperty, rhs: ReadonlyProperty) -> Bool {

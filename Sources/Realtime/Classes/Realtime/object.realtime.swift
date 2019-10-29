@@ -871,10 +871,6 @@ extension RTime: Listenable where Base: Object {
     public func listening(_ assign: Assign<ListenEvent<Base>>) -> Disposable {
         return base.repeater.map({ $0 as! Base }).listening(assign)
     }
-    /// Listening with possibility to control active state
-    public func listeningItem(_ assign: Assign<ListenEvent<Base>>) -> ListeningItem {
-        return base.repeater.map({ $0 as! Base }).listeningItem(assign)
-    }
 }
 extension Object: RealtimeCompatible {}
 

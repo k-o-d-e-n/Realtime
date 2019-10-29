@@ -22,9 +22,6 @@ public struct ReadonlyValue<Value>: Listenable {
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
         return repeater.listening(assign)
     }
-    public func listeningItem(_ assign: Assign<ListenEvent<Value>>) -> ListeningItem {
-        return repeater.listeningItem(assign)
-    }
 }
 
 /// Provides listening value based on async action
@@ -41,9 +38,6 @@ public struct AsyncReadonlyRepeater<Value>: Listenable {
 
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
         return repeater.listening(assign)
-    }
-    public func listeningItem(_ assign: Closure<ListenEvent<Value>, Void>) -> ListeningItem {
-        return repeater.listeningItem(assign)
     }
 }
 
@@ -73,9 +67,6 @@ public struct AsyncReadonlyValue<Value>: Listenable {
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
         return storage.listening(assign)
     }
-    public func listeningItem(_ assign: Closure<ListenEvent<Value>, Void>) -> ListeningItem {
-        return storage.listeningItem(assign)
-    }
 }
 
 struct Trivial<T>: Listenable, ValueWrapper {
@@ -102,10 +93,6 @@ struct Trivial<T>: Listenable, ValueWrapper {
 
     func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return repeater.listening(assign)
-    }
-
-    func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return repeater.listeningItem(assign)
     }
 }
 

@@ -55,16 +55,17 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     }
 
     open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
-        _update.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 
     open func onSelect(_ doit: @escaping ((IndexPath), Row<View, Model>) -> Void) {
-        _didSelect.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 
     override func free() {
         super.free()
         _model.value = nil
+        internalDispose.dispose()
     }
 
     func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
@@ -250,7 +251,7 @@ open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, 
     }
 
     public func onRowModel(_ doit: @escaping (RowModel, ReuseFormRow<View, Model, RowModel>) -> Void) {
-        _rowModel.listeningItem(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        _rowModel.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 }
 

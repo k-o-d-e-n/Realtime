@@ -70,7 +70,6 @@ extension Optional: _Optional {
     public var wrapped: Wrapped? { return self }
 }
 
-
 public extension Listenable {
     func bind<T>(to property: Property<T>) -> Disposable where T == Out {
         return listening(onValue: { value in
@@ -111,22 +110,6 @@ public extension RTime where Base: URLSession {
             task.resume()
             return storage.listening(assign)
         }
-
-        public func listeningItem(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> ListeningItem {
-            switch task.state {
-            case .completed, .canceling:
-                let value = self.storage.value
-                let error = task.error
-                return ListeningItem(
-                    resume: { assign.call(error.map({ .error($0) }) ?? .value(value)) },
-                    pause: {},
-                    token: ()
-                )
-            default:
-                task.resume()
-                return storage.listeningItem(assign)
-            }
-        }
     }
 
     final class RepeatedDataTask {
@@ -145,27 +128,6 @@ public extension RTime where Base: URLSession {
         public func listening(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> Disposable {
             task.resume()
             return repeater.listening(assign)
-        }
-
-        public func listeningItem(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> ListeningItem {
-            restartIfNeeded()
-            return ListeningItem(
-                resume: { [weak self] () -> Void? in
-                    return self?.restartIfNeeded()
-                },
-                pause: task.suspend,
-                dispose: task.cancel,
-                token: ()
-            )
-        }
-
-        private func restartIfNeeded() {
-            switch task.state {
-            case .completed, .canceling:
-                task = session.dataTask(for: request, repeater: repeater)
-            default: break
-            }
-            task.resume()
         }
     }
 }
@@ -206,26 +168,26 @@ extension URLSession: RealtimeCompatible {
 import UIKit
 
 public extension Listenable where Self.Out == String? {
-    func bind(to label: UILabel, default def: String? = nil) -> ListeningItem {
-        return listeningItem(onValue: .weak(label) { data, l in l?.text = data ?? def })
+    func bind(to label: UILabel, default def: String? = nil) -> Disposable {
+        return listening(onValue: .weak(label) { data, l in l?.text = data ?? def })
     }
-    func bind(to label: UILabel, default def: String? = nil, didSet: @escaping (UILabel, Out) -> Void) -> ListeningItem {
-        return listeningItem(onValue: .weak(label) { data, l in
+    func bind(to label: UILabel, default def: String? = nil, didSet: @escaping (UILabel, Out) -> Void) -> Disposable {
+        return listening(onValue: .weak(label) { data, l in
             l.map { $0.text = data ?? def; didSet($0, data) }
         })
     }
-    func bindWithUpdateLayout(to label: UILabel) -> ListeningItem {
+    func bindWithUpdateLayout(to label: UILabel) -> Disposable {
         return bind(to: label, didSet: { v, _ in v.superview?.setNeedsLayout() })
     }
 }
 public extension Listenable where Self.Out == String {
-    func bind(to label: UILabel) -> ListeningItem {
-        return listeningItem(onValue: .weak(label) { data, l in l?.text = data })
+    func bind(to label: UILabel) -> Disposable {
+        return listening(onValue: .weak(label) { data, l in l?.text = data })
     }
 }
 public extension Listenable where Self.Out == UIImage? {
-    func bind(to imageView: UIImageView, default def: UIImage? = nil) -> ListeningItem {
-        return listeningItem(onValue: .weak(imageView) { data, iv in iv?.image = data ?? def })
+    func bind(to imageView: UIImageView, default def: UIImage? = nil) -> Disposable {
+        return listening(onValue: .weak(imageView) { data, iv in iv?.image = data ?? def })
     }
 }
 
@@ -239,18 +201,6 @@ public struct ControlEvent<C: UIControl>: Listenable {
             controlListening.onStart()
         }
         return controlListening
-    }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<(control: C, event: UIEvent)>>) -> ListeningItem {
-        let controlListening = UIControl.Listening<C>(control, events: events, assign: assign)
-        defer {
-            controlListening.onStart()
-        }
-        return ListeningItem(
-            resume: controlListening.onStart,
-            pause: controlListening.onStop,
-            token: ()
-        )
     }
 }
 
@@ -321,16 +271,6 @@ extension UIBarButtonItem {
                 disposable.dispose()
             })
         }
-        public func listeningItem(_ assign: Closure<ListenEvent<BI>, Void>) -> ListeningItem {
-            let item = repeater.listeningItem(assign)
-            let unmanaged = Unmanaged.passUnretained(self).retain()
-            return ListeningItem(
-                resume: item.resume,
-                pause: item.pause,
-                dispose: { item.dispose(); unmanaged.release() },
-                token: ()
-            )
-        }
     }
 }
 extension UIBarButtonItem: RealtimeCompatible {}
@@ -357,10 +297,6 @@ extension UIImagePickerController: RealtimeCompatible {
                 listening.start()
             }
             return listening
-        }
-        public func listeningItem(_ assign: Closure<ListenEvent<Out>, Void>) -> ListeningItem {
-            let listening = Listening(controller, assign: assign)
-            return ListeningItem(resume: listening.start, pause: listening.stop, dispose: listening.dispose, token: listening.start())
         }
     }
     @available (iOS 9.0, *)

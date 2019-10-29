@@ -32,17 +32,6 @@ public struct Event: Listenable {
             self.database.removeObserver(for: self.node, with: token)
         })
     }
-
-    /// Listening with possibility to control active state
-    public func listeningItem(_ assign: Assign<ListenEvent<(RealtimeDataProtocol, DatabaseDataEvent)>>) -> ListeningItem {
-        let event = self.event
-        let token = database.listen(node: node, event: event, assign)
-        return ListeningItem(
-            resume: { self.database.listen(node: self.node, event: event, assign) },
-            pause: { self.database.removeObserver(for: self.node, with: $0) },
-            token: token
-        )
-    }
 }
 
 extension RealtimeDatabase {
@@ -604,17 +593,6 @@ extension StorageDownloadTask {
             return ListeningDispose({
                 handles.forEach(self.task.removeObserver)
             })
-        }
-        func listeningItem(_ assign: Closure<ListenEvent<StorageTaskSnapshot>, Void>) -> ListeningItem {
-            let handler = assign.map({ .value($0) }).closure
-            let handles = statuses.map({ task.observe($0, handler: handler) })
-            return ListeningItem(
-                resume: { () -> [String] in
-                    return self.statuses.map({ self.task.observe($0, handler: handler) })
-            },
-                pause: { $0.forEach(self.task.removeObserver) },
-                token: handles
-            )
         }
     }
 }

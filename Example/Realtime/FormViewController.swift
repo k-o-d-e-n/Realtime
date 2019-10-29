@@ -109,7 +109,7 @@ class FormViewController: UIViewController {
                 .onEvent(.editingDidEnd)
                 .map({ $0.0.text })
                 .compactMap()
-                .listeningItem(onValue: { (text) in
+                .listening(onValue: { (text) in
                     args.1.name <== text
                 })
                 .add(to: row.disposeStorage)
@@ -124,7 +124,7 @@ class FormViewController: UIViewController {
                 .map({ $0.0.text })
                 .flatMap(UInt8.init)
                 .map { $0 ?? 0 }
-                .listeningItem(onValue: { (age) in
+                .listening(onValue: { (age) in
                     args.1.age <== age
                 })
                 .add(to: row.disposeStorage)
@@ -172,7 +172,7 @@ class FormViewController: UIViewController {
                     Global.rtGroups.stopObserving()
                     return (true, nil)
                 }
-                groupPicker.onDismiss = Global.rtGroups.changes.listeningItem(onValue: { (event) in
+                groupPicker.onDismiss = Global.rtGroups.changes.listening(onValue: { (event) in
                     groupPicker.tableView.reloadData()
                 }).dispose
                 Global.rtGroups.runObserving()
