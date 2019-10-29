@@ -147,9 +147,9 @@ class RealtimeTableController: UITableViewController {
     let pagingControl: PagingControl = PagingControl()
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        #if FIREBASE
+//        #if FIREBASE
         Global.rtUsers.dataExplorer = .viewByPages(control: pagingControl, size: 2, ascending: ascending)
-        #endif
+//        #endif
         store.resume()
         Global.rtUsers.runObserving()
     }
