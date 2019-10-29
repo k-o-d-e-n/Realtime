@@ -88,6 +88,7 @@ extension ListeningDispose {
 }
 
 /// Listening with possibility to control connection state
+@available(*, deprecated, message: "Use preprocessors or manual control of subscription state")
 public final class ListeningItem {
     private let _resume: () -> Void
     private let _pause: () -> Void
@@ -178,14 +179,17 @@ public final class ListeningDisposeStore: Disposable, CustomStringConvertible {
         disposes.append(stop)
     }
 
+    @available(*, deprecated, message: "ListeningItem is deprecated")
     public func add(_ item: ListeningItem) {
         listeningItems.append(item)
     }
 
+    @available(*, deprecated, message: "Will be removed")
     public func disposeDisposes() {
         disposes.forEach { $0.dispose() }
         disposes.removeAll()
     }
+    @available(*, deprecated, message: "ListeningItem is deprecated")
     public func disposeItems() {
         listeningItems.forEach { $0.dispose() }
         listeningItems.removeAll()
@@ -196,10 +200,12 @@ public final class ListeningDisposeStore: Disposable, CustomStringConvertible {
         disposeItems()
     }
 
+    @available(*, deprecated, message: "ListeningItem is deprecated")
     public func pause() {
         listeningItems.forEach { $0.pause() }
     }
 
+    @available(*, deprecated, message: "ListeningItem is deprecated")
     public func resume() {
         listeningItems.forEach { $0.resume() }
     }
