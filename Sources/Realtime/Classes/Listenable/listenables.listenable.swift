@@ -121,10 +121,6 @@ public struct Repeater<T>: Listenable {
             self._remove(token)
         })
     }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return ListeningItem(resume: { self._add(assign) }, pause: _remove, token: _add(assign))
-    }
 }
 
 /// Stores value and sends event on his change
@@ -385,10 +381,6 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
             }
         }
     }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T>>) -> ListeningItem {
-        return ListeningItem(resume: { self.listening(assign) }, pause: { $0.dispose() }, token: listening(assign))
-    }
 }
 extension ValueStorage where T: AnyObject {
     /// Creates new instance with `unowned` reference that has no thread-safe working context
@@ -469,13 +461,6 @@ public struct Constant<T>: Listenable {
         assign.call(.value(value))
         return EmptyDispose()
     }
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
-        return ListeningItem(
-            resume: { assign.call(.value(self.value)) },
-            pause: { _ in },
-            token: assign.call(.value(value))
-        )
-    }
 }
 public struct SequenceListenable<Element>: Listenable {
     let value: AnySequence<Element>
@@ -485,12 +470,5 @@ public struct SequenceListenable<Element>: Listenable {
     public func listening(_ assign: Closure<ListenEvent<Element>, Void>) -> Disposable {
         value.forEach({ assign.call(.value($0)) })
         return EmptyDispose()
-    }
-    public func listeningItem(_ assign: Closure<ListenEvent<Element>, Void>) -> ListeningItem {
-        return ListeningItem(
-            resume: { self.value.forEach({ assign.call(.value($0)) }) },
-            pause: { _ in },
-            token: value.forEach({ assign.call(.value($0)) })
-        )
     }
 }

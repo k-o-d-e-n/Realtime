@@ -80,9 +80,6 @@ public struct Preprocessor<I: Listenable, O>: Listenable {
     public func listening(_ assign: Assign<ListenEvent<O>>) -> Disposable {
         return listenable.listening(bridgeMaker.wrapAssign(assign))
     }
-    public func listeningItem(_ assign: Assign<ListenEvent<O>>) -> ListeningItem {
-        return listenable.listeningItem(bridgeMaker.wrapAssign(assign))
-    }
 }
 
 public extension Listenable {
@@ -133,16 +130,6 @@ public struct EventMap<I, O>: Listenable {
 
     public func listening(_ assign: Closure<ListenEvent<O>, Void>) -> Disposable {
         return listenable.listening(assign.mapIn({ event in
-            do {
-                return try self.transform(event)
-            } catch let e {
-                return .error(e)
-            }
-        }))
-    }
-
-    public func listeningItem(_ assign: Closure<ListenEvent<O>, Void>) -> ListeningItem {
-        return listenable.listeningItem(assign.mapIn({ event in
             do {
                 return try self.transform(event)
             } catch let e {
@@ -213,12 +200,6 @@ public struct OnFire<T: Listenable>: Listenable {
             self.onFire()
         })
     }
-
-    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
-        let base = listenable.listeningItem(assign)
-        return ListeningItem(resume: base.resume, pause: base.pause,
-                             dispose: { base.dispose(); self.onFire() }, token: ())
-    }
 }
 public extension Listenable {
     /// calls closure on disconnect
@@ -233,10 +214,6 @@ public struct Do<T: Listenable>: Listenable {
 
     public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
         return listenable.listening(assign.with(work: doit))
-    }
-
-    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
-        return listenable.listeningItem(assign.with(work: doit))
     }
 }
 public extension Listenable {
@@ -293,34 +270,6 @@ public struct Once<T: Listenable>: Listenable {
         )
         return disposable!
     }
-
-    public func listeningItem(_ assign: Assign<ListenEvent<T.Out>>) -> ListeningItem {
-        /// calls once and sets to pause, on resume call enabled once event yet
-        var shouldCall = true
-        var baseItem: ListeningItem?
-        var item: ListeningItem?
-        baseItem = listenable
-            .filter({ _ in shouldCall })
-            .listeningItem(
-                assign.with(work: { (_) in
-                    item?.pause()
-                    shouldCall = false
-                })
-        )
-        item = ListeningItem(
-            resume: {
-                shouldCall = true
-                return baseItem!.resume()
-            },
-            pause: baseItem!.pause,
-            dispose: baseItem!.dispose,
-            token: ()
-        )
-        if !shouldCall {
-            item?.pause()
-        }
-        return item!
-    }
 }
 public extension Listenable {
     /// connection to receive single value
@@ -367,17 +316,6 @@ public struct Deadline<T: Listenable>: Listenable {
         }))
         return disposable
     }
-    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
-        var base: ListeningItem?
-        base = listenable.listeningItem(assign.filter({ _ -> Bool in
-            guard self.deadline >= .now() else {
-                base?.dispose()
-                return false
-            }
-            return true
-        }))
-        return base!
-    }
 }
 public extension Listenable {
     /// works until time has not reached deadline
@@ -407,18 +345,6 @@ public struct Livetime<T: Listenable>: Listenable {
             return true
         }))
         return disposable
-    }
-
-    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
-        var base: ListeningItem?
-        base = listenable.listeningItem(assign.filter({ _ -> Bool in
-            guard self.livingItem != nil else {
-                base?.dispose()
-                return false
-            }
-            return true
-        }))
-        return base!
     }
 }
 public extension Listenable {
@@ -600,10 +526,6 @@ public struct Accumulator<T>: Listenable {
         defer { sendFirstIfExists(assign) }
         return repeater.listening(assign)
     }
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
-        defer { sendFirstIfExists(assign) }
-        return repeater.listeningItem(assign)
-    }
 }
 public struct Combine<T>: Listenable {
     let accumulator: Accumulator<T>
@@ -615,17 +537,6 @@ public struct Combine<T>: Listenable {
             unmanaged.release()
             disposer.dispose()
         })
-    }
-
-    public func listeningItem(_ assign: Closure<ListenEvent<T>, Void>) -> ListeningItem {
-        let item = accumulator.listeningItem(assign)
-        let unmanaged = Unmanaged.passUnretained(accumulator.store).retain()
-        return ListeningItem(
-            resume: item.resume,
-            pause: item.pause,
-            dispose: { item.dispose(); unmanaged.release() },
-            token: ()
-        )
     }
 }
 
@@ -777,21 +688,6 @@ public struct Memoize<T: Listenable>: Listenable {
             disposer.dispose()
         })
     }
-
-    public func listeningItem(_ assign: Closure<ListenEvent<[T.Out]>, Void>) -> ListeningItem {
-        defer { sendLastIfNeeded(assign) }
-        let item = storage.map({ $0.0 }).listeningItem(assign)
-        let unmanaged = Unmanaged.passUnretained(dispose).retain()
-        return ListeningItem(
-            resume: {
-                defer { self.sendLastIfNeeded(assign) }
-                return item.resume()
-            },
-            pause: item.pause,
-            dispose: { item.dispose(); unmanaged.release() },
-            token: ()
-        )
-    }
 }
 
 public struct DoDebug<T: Listenable>: Listenable {
@@ -803,13 +699,6 @@ public struct DoDebug<T: Listenable>: Listenable {
         return listenable.listening(assign.with(work: doit))
         #else
         return listenable.listening(assign)
-        #endif
-    }
-    public func listeningItem(_ assign: Closure<ListenEvent<T.Out>, Void>) -> ListeningItem {
-        #if DEBUG
-        return listenable.listeningItem(assign.with(work: doit))
-        #else
-        return listenable.listeningItem(assign)
         #endif
     }
 }
@@ -881,23 +770,6 @@ public struct Shared<T: Listenable>: Listenable {
             })
         }
     }
-    public func listeningItem(_ assign: Assign<ListenEvent<T.Out>>) -> ListeningItem {
-        switch self.liveStrategy {
-        case .continuous: return repeater.listeningItem(assign)
-        case .repeatable(let source, let disposeStorage, _):
-            increment(disposeStorage, source: source)
-            let item = repeater.listeningItem(assign)
-            return ListeningItem(
-                resume: item.resume,
-                pause: item.pause,
-                dispose: {
-                    item.dispose()
-                    Shared.decrement(disposeStorage)
-                },
-                token: ()
-            )
-        }
-    }
 }
 public extension Listenable {
     /// Creates unretained listening point
@@ -960,17 +832,6 @@ public struct Share<T: Listenable>: Listenable {
             disposable.dispose()
             unmanaged.release()
         })
-    }
-    public func listeningItem(_ assign: Assign<ListenEvent<T.Out>>) -> ListeningItem {
-        let connection = currentDispose()
-        let item = repeater.listeningItem(assign)
-        let unmanaged = Unmanaged.passUnretained(connection).retain()
-        return ListeningItem(
-            resume: item.resume,
-            pause: item.pause,
-            dispose: { item.dispose(); unmanaged.release() },
-            token: ()
-        )
     }
 }
 public extension Listenable {
