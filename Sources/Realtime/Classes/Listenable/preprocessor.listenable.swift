@@ -411,10 +411,13 @@ public struct Accumulator<T>: Listenable {
     }
 
     public init<L1: Listenable, L2: Listenable>(repeater: Repeater<T>, _ one: L1, _ two: L2) where T == (L1.Out, L2.Out) {
+        self.init(repeater: repeater, one, default: nil, two, default: nil)
+    }
+    public init<L1: Listenable, L2: Listenable>(repeater: Repeater<T>, _ one: L1, default defOne: L1.Out?, _ two: L2, default defTwo: L2.Out?) where T == (L1.Out, L2.Out) {
         self.repeater = repeater
         let _first = _First()
 
-        var event: (one: ListenEvent<L1.Out>?, two: ListenEvent<L2.Out>?) {
+        var event: (one: ListenEvent<L1.Out>?, two: ListenEvent<L2.Out>?) = (defOne.map({ .value($0) }), defTwo.map({ .value($0) })) {
             didSet {
                 if let e = fulfill() {
                     _first._wrapped = nil
@@ -1036,15 +1039,15 @@ public extension Listenable where Out: _Optional, Out.Wrapped: HasDefaultLiteral
 public extension Listenable {
     /// Creates retained storage that saves last values, but emits result conditionally.
     ///
-    /// - Warning: Note, storage won't working while controller will send initial `true` or `false` value.
-    ///
     /// - Parameters:
     ///   - controller: Source of emitting control
     ///   - maxBufferSize: Maximum elements that can store in storage
+    ///   - initially: Initial state.
     /// - Returns: Retained preprocessor object
-    func suspend<L: Listenable>(controller: L, maxBufferSize: Int = .max) -> Preprocessor<Memoize<Combine<(Self.Out, Bool)>>, [Self.Out]> where L.Out == Bool {
+    typealias Suspend = Preprocessor<Memoize<Combine<(Self.Out, Bool)>>, [Self.Out]>
+    func suspend<L: Listenable>(controller: L, maxBufferSize: Int = .max, initially: Bool = true) -> Suspend where L.Out == Bool {
         debugFatalError(condition: maxBufferSize <= 0, "`size` must be more than 0")
-        return combine(with: controller.distinctUntilChanged())
+        return Combine(accumulator: Accumulator(repeater: .unsafe(), self, default: nil, controller, default: initially))
             .memoize(buffer: .custom({ (stores, last) -> (toSend: [(Self.Out, Bool)]?, toStorage: ([(Self.Out, Bool)], Bool)) in
                 if last.1 {
                     if stores.count > 1 {

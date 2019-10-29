@@ -1297,7 +1297,7 @@ extension ListenableTests {
         let controller = Repeater<Bool>.unsafe()
 
         var lastReceived: [Int]? = nil
-        let controlSource = source.suspend(controller: controller, maxBufferSize: 2)
+        let controlSource = source.suspend(controller: controller, maxBufferSize: 2, initially: false)
 
         let disposable1 = controlSource.listening(onValue: { value in
             lastReceived = value
