@@ -1040,11 +1040,11 @@ extension Representer {
         }
     }
 
-    public func writeRequiredProperty() -> Representer<V!?> {
-        return Representer<V!?>(writeRequiredProperty: self)
+    public func writeRequiredProperty() -> Representer<V??> {
+        return Representer<V??>(writeRequiredProperty: self)
     }
 
-    init<R: RepresenterProtocol>(writeRequiredProperty base: R) where V == R.V!? {
+    init<R: RepresenterProtocol>(writeRequiredProperty base: R) where V == R.V?? {
         self.encoding = { (value) -> RealtimeDatabaseValue? in
             switch value {
             case .none, .some(nil): throw RealtimeError(encoding: R.V.self, reason: "Required property has not been set")
