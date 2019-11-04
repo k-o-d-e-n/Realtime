@@ -1322,3 +1322,22 @@ extension ListenableTests {
         disposable1.dispose()
     }
 }
+
+// Combine support
+#if canImport(Combine)
+import Combine
+
+@available(iOS 13.0, *)
+extension ListenableTests {
+    func testRepeaterSubscriber() {
+        let repeater = Repeater<Int>.unsafe()
+        var value: Int? = nil
+        let cancellable = (repeater
+            .map({ $0 + 10 }) as Publishers.Map<Repeater<Int>, Int>)
+            .sink(receiveCompletion: { _ in XCTFail() }, receiveValue: { value = $0 })
+
+        repeater.send(.value(10))
+        XCTAssertEqual(value, 20)
+    }
+}
+#endif
