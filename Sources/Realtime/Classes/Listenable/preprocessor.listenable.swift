@@ -693,7 +693,10 @@ public struct Memoize<T: Listenable>: Listenable {
     init(_ base: T, storage: ValueStorage<([T.Out], Bool)>, buffer: Buffer) {
         self.dispose = ListeningDispose(base.listening(
             onValue: { (value) in
-                let result = buffer.mapper(&storage.unaffectedValue, value)
+                var result: [T.Out]?
+                storage.mutate { (currentValue) in
+                    result = buffer.mapper(&currentValue, value)
+                }
                 if let toSend = result {
                     storage.repeater.send(.value((toSend, true)))
                 }
@@ -834,7 +837,7 @@ public struct Share<T: Listenable>: Listenable {
         self.repeater = repeater
         switch liveStrategy {
         case .repeatable:
-            self.liveStrategy = .repeatable(source, ValueStorage.unsafe(weak: nil)) // TODO: weak must be lead to missing dispose immediately. Tests are wrong or weak storage works unexpected.
+            self.liveStrategy = .repeatable(source, ValueStorage.unsafe(weak: nil))
         case .continuous:
             self.liveStrategy = .continuous(ListeningDispose(source.bind(to: repeater)))
         }
