@@ -272,3 +272,58 @@ extension OtherTests {
 //        XCTAssertNotNil(objONO.nestedObj)
 //    }
 }
+
+extension OtherTests {
+    func testArrayContainersPerformance() {
+        class Box<T> {
+            var value: T
+            init(_ value: T) {
+                self.value = value
+            }
+        }
+        struct MutableBlackBox<T> {
+            var _value: T
+            init(_ value: T) {
+                self._value = value
+            }
+
+            var value: T {
+                get { return _value }
+                set { _value = newValue }
+            }
+        }
+        enum CustomOptional<T> {
+            case none
+            case some(T)
+        }
+        let size = 10_000_0
+        let input = stride(from: 0, to: size, by: 1)
+//        var array: [Int] = [] // very quick
+        let storage = ValueStorage<[Int]>.unsafe(strong: []) // now quick as array// extremely slow, with growing after each iteration
+//        let box = Box<[Int]>([]) // very quick as array
+//        var mutableBox = MutableBlackBox<[Int]>([]) // // extremely slow as ValueStorage
+//        var optionalArray: Optional<[Int]> = .some([]) // very quick as array
+//        var customOptionalArray: CustomOptional<[Int]> = .some([]) // quick but more slowly than Optional with `_?` access, and the same as `switch case` access.
+        self.measure {
+            input.forEach { (i) in
+//                array.append(i)
+                storage.mutate { (val) in
+                    val.append(i)
+                }
+//                box.value.append(i)
+//                mutableBox.value.append(i)
+//                optionalArray?.append(i)
+//                switch optionalArray {
+//                case .some(var arr): arr.append(i)
+//                case .none: optionalArray = .some([])
+//                }
+//                _ = unsafeBitCast(optionalArray, to: [Int].self)
+            }
+//            print(array.count)
+            print(storage.value.count)
+//            print(box.value.count)
+//            print(mutableBox.value.count)
+//            print(optionalArray?.count)
+        }
+    }
+}
