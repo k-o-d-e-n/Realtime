@@ -418,3 +418,62 @@ public extension Listenable {
         })
     }
 }
+
+#if canImport(Combine)
+import Combine
+
+@available(iOS 13.0, *)
+extension Cancellable where Self: Disposable {
+    public func cancel() { dispose() }
+}
+
+@available(iOS 13.0, *)
+extension AnyCancellable: Disposable {
+    public func dispose() { cancel() }
+}
+
+@available(iOS 13.0, *)
+extension Publisher where Self: Listenable, Output == Out {
+    func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
+        return sink(
+            receiveCompletion: { (completion) in
+                if case .failure(let err) = completion {
+                    assign.call(.error(err))
+                }
+            },
+            receiveValue: { (out) in
+                assign.call(.value(out))
+            }
+        )
+    }
+}
+
+@available(iOS 13.0, *)
+extension ListeningDispose: Subscription {
+    public var combineIdentifier: CombineIdentifier { return CombineIdentifier(self) }
+    public func request(_ demand: Subscribers.Demand) {}
+}
+
+@available(iOS 13.0, *)
+extension Listenable where Self: Publisher, Out == Output, Failure == Error {
+    public func receive<S>(subscriber: S) where S : Subscriber, Self.Failure == S.Failure, Self.Output == S.Input {
+        let dispose = listening({ (event) in
+            switch event {
+            case .value(let v):
+                _ = subscriber.receive(v)
+            case .error(let e): subscriber.receive(completion: .failure(e))
+            }
+        })
+        subscriber.receive(subscription: ListeningDispose(dispose))
+    }
+}
+
+extension Repeater: Publisher {
+    public typealias Output = T
+    public typealias Failure = Error
+}
+extension ValueStorage: Publisher {
+    public typealias Output = T
+    public typealias Failure = Error
+}
+#endif
