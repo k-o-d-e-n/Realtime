@@ -11,7 +11,11 @@ import Foundation
 // ## https://stackoverflow.com/questions/24047991/does-swift-have-documentation-comments-or-tools/28633899#28633899
 // Comment writing guide
 
+#if swift(>=5.0)
+internal let lazyStoragePath = "$__lazy_storage_$_"
+#else
 internal let lazyStoragePath = ".storage"
+#endif
 
 public struct RealtimeError: LocalizedError {
     let description: String

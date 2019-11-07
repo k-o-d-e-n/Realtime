@@ -769,12 +769,23 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     }
     private func forceValue<T>(from mirrorChild: (label: String?, value: Any), mirror: Mirror) -> T? {
         guard let value: T = realtimeValue(from: mirrorChild.value) else {
+            #if swift(>=5.0)
+            guard
+                var label = mirrorChild.label,
+                label.hasPrefix(lazyStoragePath)
+            else { return nil }
+            #else
             guard
                 var label = mirrorChild.label,
                 label.hasSuffix(lazyStoragePath)
             else { return nil }
+            #endif
 
+            #if swift(>=5.0)
+            label = String(label.suffix(from: label.index(label.startIndex, offsetBy: lazyStoragePath.count)))
+            #else
             label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
+            #endif
 
             guard let keyPath = (mirror.subjectType as! Object.Type).lazyPropertyKeyPath(for: label) else {
                 return nil
@@ -817,11 +828,19 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     }
     private func isNotIgnoredLabel(_ label: String?) -> Bool {
         return label.map { lbl -> Bool in
+            #if swift(>=5.0)
+            if lbl.hasPrefix(lazyStoragePath) {
+                return !ignoredLabels.contains(String(lbl.suffix(from: lbl.index(lbl.startIndex, offsetBy: lazyStoragePath.count))))
+            } else {
+                return !ignoredLabels.contains(lbl)
+            }
+            #else
             if lbl.hasSuffix(lazyStoragePath) {
                 return !ignoredLabels.contains(String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count))))
             } else {
                 return !ignoredLabels.contains(lbl)
             }
+            #endif
         } ?? true
     }
     
@@ -829,11 +848,19 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         var values: String = ""
         enumerateLoadedChilds { (label, val: _RealtimeValue) in
             let l = label.map({ lbl -> String in
+                #if swift(>=5.0)
+                if lbl.hasPrefix(lazyStoragePath) {
+                    return String(lbl.suffix(from: lbl.index(lbl.startIndex, offsetBy: lazyStoragePath.count)))
+                } else {
+                    return lbl
+                }
+                #else
                 if lbl.hasSuffix(lazyStoragePath) {
                     return String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count)))
                 } else {
                     return lbl
                 }
+                #endif
             })
             if values.isEmpty {
                 values.append(

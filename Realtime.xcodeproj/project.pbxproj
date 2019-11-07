@@ -79,96 +79,89 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		A408FF96235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5D12369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Realtime::Realtime";
 			remoteInfo = Realtime;
 		};
-		A408FF97235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5D22369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Promise.swift::Promise.swift";
 			remoteInfo = Promise.swift;
 		};
-		A408FF98235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5D32369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "SwiftAtomics::CAtomics";
 			remoteInfo = CAtomics;
 		};
-		A408FF99235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5D42369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Promise.swift::Promise.swift";
 			remoteInfo = Promise.swift;
 		};
-		A408FF9A235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5D52369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "SwiftAtomics::CAtomics";
 			remoteInfo = CAtomics;
 		};
-		A408FF9B235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5D62369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Realtime::Realtime";
 			remoteInfo = Realtime;
 		};
-		A408FF9C235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5D72369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Promise.swift::Promise.swift";
 			remoteInfo = Promise.swift;
 		};
-		A408FF9D235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5D82369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "SwiftAtomics::CAtomics";
 			remoteInfo = CAtomics;
 		};
-		A408FF9E235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5D92369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Realtime::RealtimeTestLib";
 			remoteInfo = RealtimeTestLib;
 		};
-		A408FF9F235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5DA2369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Realtime::Realtime";
 			remoteInfo = Realtime;
 		};
-		A408FFA0235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5DB2369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Promise.swift::Promise.swift";
 			remoteInfo = Promise.swift;
 		};
-		A408FFA1235DC9320026D9D5 /* PBXContainerItemProxy */ = {
+		A4F1A5DC2369A79C0062E85C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "SwiftAtomics::CAtomics";
 			remoteInfo = CAtomics;
-		};
-		A408FFA2235DC9330026D9D5 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = OBJ_1 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = "Realtime::RealtimeTests";
-			remoteInfo = RealtimeTests;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -469,12 +462,12 @@
 		OBJ_66 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				"Realtime::RealtimeTests::Product" /* RealtimeTests.xctest */,
-				"Realtime::RealtimeTestLib::Product" /* RealtimeTestLib.framework */,
-				"SwiftAtomics::CAtomics::Product" /* CAtomics.framework */,
+				"Realtime::Realtime::Product" /* Realtime.framework */,
 				"Promise.swift::Promise.swift::Product" /* Promise_swift.framework */,
 				"Realtime::Realtime+Firebase::Product" /* Realtime_Firebase.framework */,
-				"Realtime::Realtime::Product" /* Realtime.framework */,
+				"Realtime::RealtimeTestLib::Product" /* RealtimeTestLib.framework */,
+				"Realtime::RealtimeTests::Product" /* RealtimeTests.xctest */,
+				"SwiftAtomics::CAtomics::Product" /* CAtomics.framework */,
 			);
 			name = Products;
 			sourceTree = BUILT_PRODUCTS_DIR;
@@ -837,67 +830,67 @@
 		OBJ_142 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Promise.swift::Promise.swift" /* Promise.swift */;
-			targetProxy = A408FF97235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5D22369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_143 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "SwiftAtomics::CAtomics" /* CAtomics */;
-			targetProxy = A408FF98235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5D32369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_154 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Realtime::Realtime" /* Realtime */;
-			targetProxy = A408FF9B235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5D12369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_155 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Promise.swift::Promise.swift" /* Promise.swift */;
-			targetProxy = A408FF9C235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5D42369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_156 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "SwiftAtomics::CAtomics" /* CAtomics */;
-			targetProxy = A408FF9D235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5D52369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_167 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Realtime::RealtimeTests" /* RealtimeTests */;
-			targetProxy = A408FFA2235DC9330026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = "Realtime::RealtimeTests" /* RealtimeTests */;
 		};
 		OBJ_182 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Realtime::Realtime" /* Realtime */;
-			targetProxy = A408FF96235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5D62369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_183 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Promise.swift::Promise.swift" /* Promise.swift */;
-			targetProxy = A408FF99235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5D72369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_184 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "SwiftAtomics::CAtomics" /* CAtomics */;
-			targetProxy = A408FF9A235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5D82369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_196 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Realtime::RealtimeTestLib" /* RealtimeTestLib */;
-			targetProxy = A408FF9E235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5D92369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_197 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Realtime::Realtime" /* Realtime */;
-			targetProxy = A408FF9F235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5DA2369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_198 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Promise.swift::Promise.swift" /* Promise.swift */;
-			targetProxy = A408FFA0235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5DB2369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 		OBJ_199 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "SwiftAtomics::CAtomics" /* CAtomics */;
-			targetProxy = A408FFA1235DC9320026D9D5 /* PBXContainerItemProxy */;
+			targetProxy = A4F1A5DC2369A79C0062E85C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -933,7 +926,9 @@
 					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
 				);
 				INFOPLIST_FILE = Realtime.xcodeproj/Realtime_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				OTHER_CFLAGS = "$(inherited)";
 				OTHER_LDFLAGS = "$(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
@@ -942,8 +937,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGET_NAME = Realtime;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
 		};
@@ -960,7 +957,9 @@
 					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
 				);
 				INFOPLIST_FILE = Realtime.xcodeproj/Realtime_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				OTHER_CFLAGS = "$(inherited)";
 				OTHER_LDFLAGS = "$(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
@@ -969,8 +968,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGET_NAME = Realtime;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
 		};
@@ -987,7 +988,9 @@
 					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
 				);
 				INFOPLIST_FILE = Realtime.xcodeproj/Realtime_Firebase_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				OTHER_CFLAGS = "$(inherited)";
 				OTHER_LDFLAGS = "$(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
@@ -996,8 +999,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGET_NAME = "Realtime+Firebase";
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
 		};
@@ -1014,7 +1019,9 @@
 					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
 				);
 				INFOPLIST_FILE = Realtime.xcodeproj/Realtime_Firebase_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				OTHER_CFLAGS = "$(inherited)";
 				OTHER_LDFLAGS = "$(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
@@ -1023,8 +1030,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGET_NAME = "Realtime+Firebase";
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
 		};
@@ -1032,8 +1041,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				LD = /usr/bin/true;
-				OTHER_SWIFT_FLAGS = "-swift-version 4.2 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 4.2";
-				SWIFT_VERSION = 4.2;
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.1";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -1041,8 +1050,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				LD = /usr/bin/true;
-				OTHER_SWIFT_FLAGS = "-swift-version 4.2 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 4.2";
-				SWIFT_VERSION = 4.2;
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.1";
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
@@ -1071,7 +1080,9 @@
 					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
 				);
 				INFOPLIST_FILE = Realtime.xcodeproj/RealtimeTestLib_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				OTHER_CFLAGS = "$(inherited)";
 				OTHER_LDFLAGS = "$(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
@@ -1080,8 +1091,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGET_NAME = RealtimeTestLib;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
 		};
@@ -1098,7 +1111,9 @@
 					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
 				);
 				INFOPLIST_FILE = Realtime.xcodeproj/RealtimeTestLib_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				OTHER_CFLAGS = "$(inherited)";
 				OTHER_LDFLAGS = "$(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
@@ -1107,8 +1122,10 @@
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				SKIP_INSTALL = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGET_NAME = RealtimeTestLib;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
 		};
@@ -1126,13 +1143,17 @@
 					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
 				);
 				INFOPLIST_FILE = Realtime.xcodeproj/RealtimeTests_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @loader_path/../Frameworks @loader_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				OTHER_CFLAGS = "$(inherited)";
 				OTHER_LDFLAGS = "$(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGET_NAME = RealtimeTests;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Debug;
 		};
@@ -1150,13 +1171,17 @@
 					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
 				);
 				INFOPLIST_FILE = Realtime.xcodeproj/RealtimeTests_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @loader_path/../Frameworks @loader_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
 				OTHER_CFLAGS = "$(inherited)";
 				OTHER_LDFLAGS = "$(inherited)";
 				OTHER_SWIFT_FLAGS = "$(inherited)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGET_NAME = RealtimeTests;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
 			};
 			name = Release;
 		};

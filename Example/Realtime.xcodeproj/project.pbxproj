@@ -763,7 +763,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG FIREBASE";
 				SWIFT_ENFORCE_EXCLUSIVE_ACCESS = full;
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -823,7 +823,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG FIREBASE";
 				SWIFT_ENFORCE_EXCLUSIVE_ACCESS = full;
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
@@ -850,7 +850,7 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "Tests/Realtime_Tests-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Realtime_Example.app/Realtime_Example";
 			};
 			name = Debug;
@@ -873,7 +873,7 @@
 				SWIFT_ENFORCE_EXCLUSIVE_ACCESS = "compile-time";
 				SWIFT_OBJC_BRIDGING_HEADER = "Tests/Realtime_Tests-Bridging-Header.h";
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Realtime_Example.app/Realtime_Example";
 			};
 			name = Release;
@@ -909,7 +909,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "ru.koden.realtime-fdb.Realtime-FDB";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -944,7 +944,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "ru.koden.realtime-fdb.Realtime-FDB";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 4.2;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
