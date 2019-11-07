@@ -629,34 +629,63 @@ public struct Memoize<T: Listenable>: Listenable {
     let dispose: ListeningDispose
 
     public struct Buffer {
-        let mapper: ([T.Out], T.Out) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool))
+        public typealias Iterator = (inout ([T.Out], Bool), T.Out) -> [T.Out]?
+        let mapper: Iterator
 
         public static func continuous(bufferSize: Int, waitFullness: Bool, sendLast: Bool) -> Buffer {
             debugFatalError(condition: bufferSize <= 0, "`size` must be more than 0")
-            return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
-                let storage = Array((stores + [last]).suffix(bufferSize))
-                return !waitFullness || storage.count == bufferSize ? (storage, (storage, sendLast)) : (nil, (storage, sendLast))
-            })
+            if waitFullness {
+                return Buffer(mapper: { (storage, last) -> [T.Out]? in
+                    storage.1 = sendLast
+                    storage.0.append(last)
+                    if storage.0.count >= bufferSize {
+                        storage.0.removeFirst(storage.0.count - bufferSize)
+                        return storage.0
+                    } else {
+                        return nil
+                    }
+                })
+            } else {
+                return Buffer(mapper: { (storage, last) -> [T.Out]? in
+                    storage.0.append(last)
+                    if storage.0.count > bufferSize {
+                        storage.0.removeFirst(storage.0.count - bufferSize)
+                    }
+                    return storage.0
+                })
+            }
         }
         public static func portionally(bufferSize: Int) -> Buffer {
             debugFatalError(condition: bufferSize <= 0, "`size` must be more than 0")
-            return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
-                let storage = Array((stores + [last]).suffix(bufferSize))
-                return storage.count == bufferSize ? ([], (storage, false)) : (nil, (storage, false))
+            return Buffer(mapper: { (storage, last) -> [T.Out]? in
+                if storage.0.count < bufferSize {
+                    storage.0.append(last)
+                    return nil
+                } else {
+                    defer { storage.0.removeAll() }
+                    return storage.0
+                }
             })
         }
-        public static func custom(_ mapper: @escaping ([T.Out], T.Out) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool))) -> Buffer {
+        public static func custom(_ mapper: @escaping Iterator) -> Buffer {
             return Buffer(mapper: mapper)
         }
 
         static func oldValue() -> Buffer {
-            return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
-                return stores.isEmpty ? ([last] as [T.Out]?, ([last], false)) : ([stores[0], last], ([last], false))
+            return Buffer(mapper: { (storage, last) -> [T.Out]? in
+                defer { storage.0[0] = last }
+                return storage.0.isEmpty ? [last] : [storage.0[0], last]
             })
         }
         static func distinctUntilChanged(comparer: @escaping (T.Out, T.Out) -> Bool) -> Buffer {
-            return Buffer(mapper: { (stores, last) -> (toSend: [T.Out]?, toStorage: ([T.Out], Bool)) in
-                return stores.isEmpty || comparer(stores[0], last) ? ([last], ([last], false)) : (nil, (stores, true))
+            return Buffer(mapper: { (stores, last) -> [T.Out]? in
+                if stores.0.isEmpty || comparer(stores.0[0], last) {
+                    stores.1 = false
+                    return [last]
+                } else {
+                    stores.1 = true
+                    return nil
+                }
             })
         }
     }
@@ -664,9 +693,11 @@ public struct Memoize<T: Listenable>: Listenable {
     init(_ base: T, storage: ValueStorage<([T.Out], Bool)>, buffer: Buffer) {
         self.dispose = ListeningDispose(base.listening(
             onValue: { (value) in
-                let result = buffer.mapper(storage.value.0, value)
-                storage.replace(with: result.toStorage)
-                if let toSend = result.toSend {
+                var result: [T.Out]?
+                storage.mutate { (currentValue) in
+                    result = buffer.mapper(&currentValue, value)
+                }
+                if let toSend = result {
                     storage.repeater.send(.value((toSend, true)))
                 }
             },
@@ -806,7 +837,7 @@ public struct Share<T: Listenable>: Listenable {
         self.repeater = repeater
         switch liveStrategy {
         case .repeatable:
-            self.liveStrategy = .repeatable(source, ValueStorage.unsafe(weak: nil)) // TODO: weak must be lead to missing dispose immediately. Tests are wrong or weak storage works unexpected.
+            self.liveStrategy = .repeatable(source, ValueStorage.unsafe(weak: nil))
         case .continuous:
             self.liveStrategy = .continuous(ListeningDispose(source.bind(to: repeater)))
         }
@@ -1048,18 +1079,24 @@ public extension Listenable {
     func suspend<L: Listenable>(controller: L, maxBufferSize: Int = .max, initially: Bool = true) -> Suspend where L.Out == Bool {
         debugFatalError(condition: maxBufferSize <= 0, "`size` must be more than 0")
         return Combine(accumulator: Accumulator(repeater: .unsafe(), self, default: nil, controller, default: initially))
-            .memoize(buffer: .custom({ (stores, last) -> (toSend: [(Self.Out, Bool)]?, toStorage: ([(Self.Out, Bool)], Bool)) in
+            .memoize(buffer: .custom({ (storage, last) -> [(Self.Out, Bool)]? in
                 if last.1 {
-                    if stores.count > 1 {
-                        return (stores, ([(stores[stores.count - 1].0, true)], false))
+                    if storage.0.count > 1 {
+                        defer { storage.0 = [(storage.0[storage.0.count - 1].0, true)] }
+                        return storage.0
                     } else {
-                        return ([last], ([last], false))
+                        storage = ([last], false)
+                        return [last]
                     }
                 } else {
-                    if (stores.isEmpty || !stores[stores.count - 1].1) {
-                        return (nil, (Array((stores + [last]).suffix(maxBufferSize)), false))
+                    if (storage.0.isEmpty || !storage.0[storage.0.count - 1].1) {
+                        storage.0.append(last)
+                        if storage.0.count > maxBufferSize {
+                            storage.0.removeFirst(storage.0.count - maxBufferSize)
+                        }
+                        return nil
                     } else {
-                        return (nil, ([], false))
+                        return nil
                     }
                 }
             }))

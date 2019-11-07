@@ -8,6 +8,9 @@
 
 import UIKit
 import Realtime
+#if canImport(SwiftUI)
+import SwiftUI
+#endif
 
 class ViewController: UITableViewController {
     var disposeBag = ListeningDisposeStore()
@@ -38,7 +41,11 @@ extension ViewController {
         return 1
     }
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 4
+        if #available(iOS 13.0, *) {
+            return 5
+        } else {
+            return 4
+        }
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
@@ -55,6 +62,8 @@ extension ViewController {
             cell.textLabel?.text = "Form"
         case 3:
             cell.textLabel?.text = "Load"
+        case 4:
+            cell.textLabel?.text = "SwiftUI"
         default: break
         }
     }
@@ -97,6 +106,15 @@ extension ViewController {
                 )
             }))
             present(alert, animated: true, completion: nil)
+        case 4:
+            #if canImport(SwiftUI)
+            if #available(iOS 13.0, *) {
+                let user = User(in: Node.root("users/0312be1d-06b2-4ec8-a49d-84ab27c28ed1"))
+                let view = SwiftUIView(user: user)
+                let controller = UIHostingController(rootView: view)
+                navigationController?.pushViewController(controller, animated: true)
+            }
+            #endif
         default: break
         }
     }

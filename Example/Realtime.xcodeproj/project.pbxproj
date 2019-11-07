@@ -19,6 +19,7 @@
 		A408FFA6235DD9D50026D9D5 /* RealtimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A408FFA4235DD9D50026D9D5 /* RealtimeTests.swift */; };
 		A41BC0132040098800D1A9E8 /* RealtimeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41BC0122040098800D1A9E8 /* RealtimeViewController.swift */; };
 		A41FD589211EF890006DC3F7 /* other.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41FD588211EF890006DC3F7 /* other.swift */; };
+		A432591623740FB30011B0B6 /* SwiftUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A432591523740FB30011B0B6 /* SwiftUIView.swift */; };
 		A44331B62020E9E900BA2FDE /* Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44331B52020E9E900BA2FDE /* Auth.swift */; };
 		A4773C3120DFEAB2002D182A /* RealtimeTableController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */; };
 		A491423F21D0F535006F6858 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A491423E21D0F535006F6858 /* Entities.swift */; };
@@ -74,6 +75,7 @@
 		A416BD6E2007DED6008A4741 /* nanopb.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = nanopb.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A41BC0122040098800D1A9E8 /* RealtimeViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RealtimeViewController.swift; sourceTree = "<group>"; };
 		A41FD588211EF890006DC3F7 /* other.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = other.swift; sourceTree = "<group>"; };
+		A432591523740FB30011B0B6 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
 		A44331B52020E9E900BA2FDE /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTableController.swift; sourceTree = "<group>"; };
 		A491423E21D0F535006F6858 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
@@ -168,6 +170,7 @@
 				A4D56D1C2143FD8200641DF3 /* FormViewController.swift */,
 				A4F0FF772144901800395579 /* TableViewController.swift */,
 				A491423E21D0F535006F6858 /* Entities.swift */,
+				A432591523740FB30011B0B6 /* SwiftUIView.swift */,
 			);
 			name = "Example for Realtime";
 			path = Realtime;
@@ -539,6 +542,7 @@
 			files = (
 				A4D56D1D2143FD8200641DF3 /* FormViewController.swift in Sources */,
 				A4F0FF782144901800395579 /* TableViewController.swift in Sources */,
+				A432591623740FB30011B0B6 /* SwiftUIView.swift in Sources */,
 				607FACD81AFB9204008FA782 /* ViewController.swift in Sources */,
 				A41BC0132040098800D1A9E8 /* RealtimeViewController.swift in Sources */,
 				607FACD61AFB9204008FA782 /* AppDelegate.swift in Sources */,

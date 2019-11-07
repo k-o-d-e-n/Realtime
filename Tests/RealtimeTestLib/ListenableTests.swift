@@ -49,9 +49,9 @@ public final class ListenableTests: XCTestCase {
 
     func testStrongProperty() {
         let valueWrapper = ValueStorage<Int>.unsafe(strong: 0)
-        valueWrapper.set(1)
+        valueWrapper.replace(with: 1)
         XCTAssertEqual(valueWrapper.value, 1)
-        valueWrapper.set(20)
+        valueWrapper.replace(with: 20)
         XCTAssertEqual(valueWrapper.value, 20)
     }
 
@@ -67,7 +67,7 @@ public final class ListenableTests: XCTestCase {
         var object: NSObject? = NSObject()
         let valueWrapper = ValueStorage<NSObject?>.unsafe(weak: nil)
         XCTAssertEqual(valueWrapper.value, nil)
-        valueWrapper.set(object)
+        valueWrapper.replace(with: object)
         XCTAssertEqual(valueWrapper.value, object)
         object = nil
         XCTAssertEqual(valueWrapper.value, nil)
@@ -152,7 +152,7 @@ public final class ListenableTests: XCTestCase {
 
         var counter = 0
         let propertyIndexSet = ValueStorage<IndexSet>.unsafe(strong: IndexSet(integer: 0))
-        let readonlySum = AsyncReadonlyValue<(Int, Int)>(propertyIndexSet, storage: .unsafe()) { (v, promise) in
+        let readonlySum = AsyncReadonlyValue<(Int, Int)>(propertyIndexSet, storage: .unsafe(strong: (0, 0))) { (v, promise) in
             let c = counter
             counter += 1
             DispatchQueue.global(qos: .background).async {
@@ -1322,3 +1322,58 @@ extension ListenableTests {
         disposable1.dispose()
     }
 }
+
+// Combine support
+#if canImport(Combine)
+import Combine
+
+@available(iOS 13.0, *)
+extension ListenableTests {
+    func testRepeaterSubscriber() {
+        let repeater = Repeater<Int>.unsafe()
+        var value: Int? = nil
+        let cancellable = (repeater
+            .map({ $0 + 10 }) as Publishers.Map<Repeater<Int>, Int>)
+            .sink(receiveCompletion: { _ in XCTFail() }, receiveValue: { value = $0 })
+
+        repeater.send(.value(10))
+        XCTAssertEqual(value, 20)
+    }
+
+    /*
+     average: 19.077, relative standard deviation: 4.218%, values: [21.258198, 18.381111, 18.475626, 18.745093, 19.334410, 19.581569, 18.736857, 18.688745, 18.737831, 18.834351], performanceMetricID:com.apple.XCTPerformanceMetric_WallClockTime, baselineName: "", baselineAverage: , maxPercentRegression: 10.000%, maxPercentRelativeStandardDeviation: 10.000%, maxRegression: 0.100, maxStandardDeviation: 0.100
+     */
+    func testListenablePerformance() {
+        let size = 10_000_000
+        let input = stride(from: 0, to: size, by: 1)
+        self.measure {
+            _ = SequenceListenable(input)
+                .map { $0 * 2 }
+                .filter { $0.isMultiple(of: 2) }
+                .then { Constant($0) }
+                .memoize(buffer: .continuous(bufferSize: size, waitFullness: true, sendLast: true))
+                .map { $0.count }
+                .listening(onValue: { v in
+                    print(v)
+                })
+        }
+    }
+
+    /*
+     average: 20.828, relative standard deviation: 2.071%, values: [20.749577, 20.608360, 20.957495, 21.456119, 21.209799, 20.611770, 21.351128, 21.013746, 20.219937, 20.103494], performanceMetricID:com.apple.XCTPerformanceMetric_WallClockTime, baselineName: "", baselineAverage: , maxPercentRegression: 10.000%, maxPercentRelativeStandardDeviation: 10.000%, maxRegression: 0.100, maxStandardDeviation: 0.100
+     */
+    func testCombinePerformance() {
+        let input = stride(from: 0, to: 10_000_000, by: 1)
+        self.measure {
+            _ = Publishers.Sequence(sequence: input)
+                .map { $0 * 2 }
+                .filter { $0.isMultiple(of: 2) }
+                .flatMap { Just($0) }
+                .count()
+                .sink(receiveValue: {
+                    print($0)
+                })
+        }
+    }
+}
+#endif
