@@ -8,7 +8,9 @@
 
 import UIKit
 import Realtime
+#if canImport(SwiftUI)
 import SwiftUI
+#endif
 
 class ViewController: UITableViewController {
     var disposeBag = ListeningDisposeStore()
@@ -105,12 +107,14 @@ extension ViewController {
             }))
             present(alert, animated: true, completion: nil)
         case 4:
+            #if canImport(SwiftUI)
             if #available(iOS 13.0, *) {
                 let user = User(in: Node.root("users/0312be1d-06b2-4ec8-a49d-84ab27c28ed1"))
                 let view = SwiftUIView(user: user)
                 let controller = UIHostingController(rootView: view)
                 navigationController?.pushViewController(controller, animated: true)
             }
+            #endif
         default: break
         }
     }
