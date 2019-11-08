@@ -52,7 +52,12 @@ public final class RealtimeTests: XCTestCase {
 
     override public class func setUp() {
         super.setUp()
-        allTestsSetUp?()
+        if let testsSetUp = allTestsSetUp {
+            testsSetUp()
+        } else {
+            let configuration = RealtimeApp.Configuration.firebase(linksNode: BranchNode(key: "___tests/__links"))
+            RealtimeApp.initialize(with: RealtimeApp.cache, storage: RealtimeApp.cache, configuration: configuration)
+        }
     }
 
     override public func setUp() {

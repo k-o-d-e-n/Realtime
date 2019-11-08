@@ -19,8 +19,19 @@ struct SwiftUIView: View {
 
     var body: some View {
         VStack {
-            Text(model.name ?? "")
-            Text(model.age ?? "")
+            Image(uiImage: model.image ?? UIImage())
+            TupleView(
+                (
+                    Text("Name").bold(),
+                    Text(model.name ?? "").italic()
+                )
+            )
+            TupleView(
+                (
+                    Text("Age").bold(),
+                    Text(model.age ?? "").italic()
+                )
+            )
         }.onAppear {
             self.model.load()
         }
@@ -40,6 +51,7 @@ struct SwiftUIView_Previews: PreviewProvider {
 class SwiftUIViewModel: ObservableObject {
     @Published var name: String?
     @Published var age: String?
+    @Published var image: UIImage?
 
     let user: User
 
@@ -48,16 +60,32 @@ class SwiftUIViewModel: ObservableObject {
     }
 
     func load() {
-        _ = user.load()
-            .completion
+        _ = user.name.loadValue()
             .sink(
                 receiveCompletion: { compl in
                     print(compl)
                 },
                 receiveValue: { (val) in
-                    self.name = self.user.name.wrapped
-    //                self.age = self.user.
+                    self.name = val
                 }
+        )
+        _ = ("birthdate".date(in: user) as Property<Date>).loadValue()
+        .sink(
+            receiveCompletion: { compl in
+                print(compl)
+            },
+            receiveValue: { (date) in
+                self.age = "\(date)"
+            }
+        )
+        _ = ("photo".readonlyJpeg(in: user) as ReadonlyFile<UIImage?>).loadValue()
+        .sink(
+            receiveCompletion: { (compl) in
+                print(compl)
+            },
+            receiveValue: { (image) in
+                self.image = image
+            }
         )
     }
 }

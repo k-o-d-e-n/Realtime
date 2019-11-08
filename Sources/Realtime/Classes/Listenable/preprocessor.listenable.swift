@@ -647,6 +647,7 @@ public struct Memoize<T: Listenable>: Listenable {
                 })
             } else {
                 return Buffer(mapper: { (storage, last) -> [T.Out]? in
+                    storage.1 = sendLast
                     storage.0.append(last)
                     if storage.0.count > bufferSize {
                         storage.0.removeFirst(storage.0.count - bufferSize)
@@ -673,7 +674,7 @@ public struct Memoize<T: Listenable>: Listenable {
 
         static func oldValue() -> Buffer {
             return Buffer(mapper: { (storage, last) -> [T.Out]? in
-                defer { storage.0[0] = last }
+                defer { storage.0.isEmpty ? storage.0.append(last) : (storage.0[0] = last) }
                 return storage.0.isEmpty ? [last] : [storage.0[0], last]
             })
         }
@@ -1089,13 +1090,14 @@ public extension Listenable {
                         return [last]
                     }
                 } else {
-                    if (storage.0.isEmpty || !storage.0[storage.0.count - 1].1) {
+                    if storage.0.isEmpty || !storage.0[storage.0.count - 1].1 {
                         storage.0.append(last)
                         if storage.0.count > maxBufferSize {
                             storage.0.removeFirst(storage.0.count - maxBufferSize)
                         }
                         return nil
                     } else {
+                        storage = ([], false)
                         return nil
                     }
                 }

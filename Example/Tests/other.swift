@@ -68,7 +68,7 @@ extension OtherTests {
         print(oneMirror, testMirror)
     }
     func testReflectClass() {
-        let mirror = Mirror(reflecting: TestObject.self)
+        let mirror = Mirror(reflecting: Object.self)
         print(mirror.children.map({ $0 }), mirror.superclassMirror as Any)
     }
 
@@ -214,15 +214,15 @@ extension OtherTests {
             let rawValue = try data.rawValue()
             XCTAssertEqual(rawValue, value)
         } catch let e {
-            XCTFail(e.describingErrorDescription)
+            XCTFail(String(describing: e))
         }
     }
 
     func testPrefixOperator() {
-        let obj = TestObject()
-        obj.property <== "string"
+        let property = Property<String>(in: nil, options: [.representer: Availability.required(Representer<String>.realtimeDataValue)])
+        property <== "string"
 
-        XCTAssertEqual(§obj.property, "string")
+        XCTAssertEqual(§property, "string")
     }
 }
 

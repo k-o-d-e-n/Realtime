@@ -124,9 +124,6 @@ public struct Repeater<T>: Listenable {
 }
 
 /// Stores value and sends event on his change
-#if swift(>=5.0)
-@propertyWrapper
-#endif
 public struct ValueStorage<T>: Listenable, ValueWrapper {
     public typealias Dispatcher = Repeater<T>.Dispatcher
 

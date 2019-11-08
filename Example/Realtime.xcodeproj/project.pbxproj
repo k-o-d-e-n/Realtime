@@ -15,8 +15,6 @@
 		607FACDB1AFB9204008FA782 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 607FACD91AFB9204008FA782 /* Main.storyboard */; };
 		607FACDD1AFB9204008FA782 /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDC1AFB9204008FA782 /* Images.xcassets */; };
 		607FACE01AFB9204008FA782 /* LaunchScreen.xib in Resources */ = {isa = PBXBuildFile; fileRef = 607FACDE1AFB9204008FA782 /* LaunchScreen.xib */; };
-		A408FFA5235DD9D50026D9D5 /* ListenableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A408FFA3235DD9D40026D9D5 /* ListenableTests.swift */; };
-		A408FFA6235DD9D50026D9D5 /* RealtimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A408FFA4235DD9D50026D9D5 /* RealtimeTests.swift */; };
 		A41BC0132040098800D1A9E8 /* RealtimeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41BC0122040098800D1A9E8 /* RealtimeViewController.swift */; };
 		A41FD589211EF890006DC3F7 /* other.swift in Sources */ = {isa = PBXBuildFile; fileRef = A41FD588211EF890006DC3F7 /* other.swift */; };
 		A432591623740FB30011B0B6 /* SwiftUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A432591523740FB30011B0B6 /* SwiftUIView.swift */; };
@@ -42,12 +40,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		607FACE61AFB9204008FA782 /* PBXContainerItemProxy */ = {
+		A495BA5D237588FD00314A9B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 607FACC81AFB9204008FA782 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 607FACCF1AFB9204008FA782;
-			remoteInfo = Realtime;
+			remoteInfo = Realtime_Example;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -68,8 +66,6 @@
 		90151FA9D60EAEB782E36936 /* Pods_Realtime_Example.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Realtime_Example.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		98ECA0B61DDF7E69E3E0C34E /* Pods-Realtime_FDB.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Realtime_FDB.debug.xcconfig"; path = "Target Support Files/Pods-Realtime_FDB/Pods-Realtime_FDB.debug.xcconfig"; sourceTree = "<group>"; };
 		9912C096C6BE1DC41609DD50 /* Pods-Realtime_Example.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Realtime_Example.debug.xcconfig"; path = "Target Support Files/Pods-Realtime_Example/Pods-Realtime_Example.debug.xcconfig"; sourceTree = "<group>"; };
-		A408FFA3235DD9D40026D9D5 /* ListenableTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ListenableTests.swift; path = ../../Tests/RealtimeTestLib/ListenableTests.swift; sourceTree = "<group>"; };
-		A408FFA4235DD9D50026D9D5 /* RealtimeTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = RealtimeTests.swift; path = ../../Tests/RealtimeTestLib/RealtimeTests.swift; sourceTree = "<group>"; };
 		A416BD6A2007DECF008A4741 /* Realtime.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = Realtime.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A416BD6D2007DED6008A4741 /* leveldb.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = leveldb.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A416BD6E2007DED6008A4741 /* nanopb.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = nanopb.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -157,15 +153,14 @@
 		607FACD21AFB9204008FA782 /* Example for Realtime */ = {
 			isa = PBXGroup;
 			children = (
-				A4E054512008D3B100E95A49 /* GoogleService-Info.plist */,
+				607FACD31AFB9204008FA782 /* Supporting Files */,
+				607FACDC1AFB9204008FA782 /* Images.xcassets */,
+				607FACD91AFB9204008FA782 /* Main.storyboard */,
+				607FACDE1AFB9204008FA782 /* LaunchScreen.xib */,
 				607FACD51AFB9204008FA782 /* AppDelegate.swift */,
 				607FACD71AFB9204008FA782 /* ViewController.swift */,
 				A41BC0122040098800D1A9E8 /* RealtimeViewController.swift */,
 				A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */,
-				607FACD91AFB9204008FA782 /* Main.storyboard */,
-				607FACDC1AFB9204008FA782 /* Images.xcassets */,
-				607FACDE1AFB9204008FA782 /* LaunchScreen.xib */,
-				607FACD31AFB9204008FA782 /* Supporting Files */,
 				A44331B52020E9E900BA2FDE /* Auth.swift */,
 				A4D56D1C2143FD8200641DF3 /* FormViewController.swift */,
 				A4F0FF772144901800395579 /* TableViewController.swift */,
@@ -179,6 +174,7 @@
 		607FACD31AFB9204008FA782 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
+				A4E054512008D3B100E95A49 /* GoogleService-Info.plist */,
 				607FACD41AFB9204008FA782 /* Info.plist */,
 			);
 			name = "Supporting Files";
@@ -187,14 +183,11 @@
 		607FACE81AFB9204008FA782 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
-				A408FFA3235DD9D40026D9D5 /* ListenableTests.swift */,
-				A408FFA4235DD9D50026D9D5 /* RealtimeTests.swift */,
+				607FACE91AFB9204008FA782 /* Supporting Files */,
 				A4AAA56E21A1F1300085C3BA /* _concepts_.swift */,
 				A41FD588211EF890006DC3F7 /* other.swift */,
-				607FACE91AFB9204008FA782 /* Supporting Files */,
 				A4AAA57021A1F32D0085C3BA /* DispatchBenchmark.h */,
 				A4AAA57221A1F36C0085C3BA /* DispatchBenchmark.m */,
-				A4AAA57121A1F36B0085C3BA /* Realtime_Tests-Bridging-Header.h */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -202,6 +195,7 @@
 		607FACE91AFB9204008FA782 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
+				A4AAA57121A1F36B0085C3BA /* Realtime_Tests-Bridging-Header.h */,
 				607FACEA1AFB9204008FA782 /* Info.plist */,
 			);
 			name = "Supporting Files";
@@ -292,7 +286,7 @@
 			buildRules = (
 			);
 			dependencies = (
-				607FACE71AFB9204008FA782 /* PBXTargetDependency */,
+				A495BA5E237588FD00314A9B /* PBXTargetDependency */,
 			);
 			name = Realtime_Tests;
 			productName = Tests;
@@ -559,9 +553,7 @@
 				A4AAA56F21A1F1300085C3BA /* _concepts_.swift in Sources */,
 				A4AAA57321A1F36C0085C3BA /* DispatchBenchmark.m in Sources */,
 				A491424021D0F535006F6858 /* Entities.swift in Sources */,
-				A408FFA6235DD9D50026D9D5 /* RealtimeTests.swift in Sources */,
 				A41FD589211EF890006DC3F7 /* other.swift in Sources */,
-				A408FFA5235DD9D50026D9D5 /* ListenableTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -582,10 +574,10 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		607FACE71AFB9204008FA782 /* PBXTargetDependency */ = {
+		A495BA5E237588FD00314A9B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 607FACCF1AFB9204008FA782 /* Realtime_Example */;
-			targetProxy = 607FACE61AFB9204008FA782 /* PBXContainerItemProxy */;
+			targetProxy = A495BA5D237588FD00314A9B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 

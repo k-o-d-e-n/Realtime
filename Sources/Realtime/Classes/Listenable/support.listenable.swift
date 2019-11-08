@@ -355,17 +355,17 @@ extension UIImagePickerController: RealtimeCompatible {
 #if canImport(Combine)
 import Combine
 
-@available(iOS 13.0, *)
+@available(iOS 13.0, macOS 10.15, *)
 extension Cancellable where Self: Disposable {
     public func cancel() { dispose() }
 }
 
-@available(iOS 13.0, *)
+@available(iOS 13.0, macOS 10.15, *)
 extension AnyCancellable: Disposable {
     public func dispose() { cancel() }
 }
 
-@available(iOS 13.0, *)
+@available(iOS 13.0, macOS 10.15, *)
 extension Publisher where Self: Listenable, Output == Out {
     func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
         return sink(
@@ -381,13 +381,13 @@ extension Publisher where Self: Listenable, Output == Out {
     }
 }
 
-@available(iOS 13.0, *)
+@available(iOS 13.0, macOS 10.15, *)
 extension ListeningDispose: Subscription {
     public var combineIdentifier: CombineIdentifier { return CombineIdentifier(self) }
     public func request(_ demand: Subscribers.Demand) {}
 }
 
-@available(iOS 13.0, *)
+@available(iOS 13.0, macOS 10.15, *)
 extension Listenable where Self: Publisher, Out == Output, Failure == Error {
     public func receive<S>(subscriber: S) where S : Subscriber, Self.Failure == S.Failure, Self.Output == S.Input {
         let dispose = listening({ (event) in

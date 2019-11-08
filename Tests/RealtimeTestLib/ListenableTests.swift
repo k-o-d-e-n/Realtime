@@ -1327,12 +1327,12 @@ extension ListenableTests {
 #if canImport(Combine)
 import Combine
 
-@available(iOS 13.0, *)
+@available(iOS 13.0, macOS 10.15, *)
 extension ListenableTests {
     func testRepeaterSubscriber() {
         let repeater = Repeater<Int>.unsafe()
         var value: Int? = nil
-        let cancellable = (repeater
+        let c = (repeater
             .map({ $0 + 10 }) as Publishers.Map<Repeater<Int>, Int>)
             .sink(receiveCompletion: { _ in XCTFail() }, receiveValue: { value = $0 })
 
@@ -1343,7 +1343,7 @@ extension ListenableTests {
     /*
      average: 19.077, relative standard deviation: 4.218%, values: [21.258198, 18.381111, 18.475626, 18.745093, 19.334410, 19.581569, 18.736857, 18.688745, 18.737831, 18.834351], performanceMetricID:com.apple.XCTPerformanceMetric_WallClockTime, baselineName: "", baselineAverage: , maxPercentRegression: 10.000%, maxPercentRelativeStandardDeviation: 10.000%, maxRegression: 0.100, maxStandardDeviation: 0.100
      */
-    func testListenablePerformance() {
+    func _testListenablePerformance() {
         let size = 10_000_000
         let input = stride(from: 0, to: size, by: 1)
         self.measure {
@@ -1362,7 +1362,7 @@ extension ListenableTests {
     /*
      average: 20.828, relative standard deviation: 2.071%, values: [20.749577, 20.608360, 20.957495, 21.456119, 21.209799, 20.611770, 21.351128, 21.013746, 20.219937, 20.103494], performanceMetricID:com.apple.XCTPerformanceMetric_WallClockTime, baselineName: "", baselineAverage: , maxPercentRegression: 10.000%, maxPercentRelativeStandardDeviation: 10.000%, maxRegression: 0.100, maxStandardDeviation: 0.100
      */
-    func testCombinePerformance() {
+    func _testCombinePerformance() {
         let input = stride(from: 0, to: 10_000_000, by: 1)
         self.measure {
             _ = Publishers.Sequence(sequence: input)
