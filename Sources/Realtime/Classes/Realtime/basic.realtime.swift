@@ -89,7 +89,7 @@ extension Versionable {
 public struct ValueOption: Hashable {
     let rawValue: String
 
-    init(_ rawValue: String) {
+    public init(_ rawValue: String) {
         self.rawValue = rawValue
     }
 }
@@ -253,6 +253,11 @@ public extension Comparable where Self: RealtimeValue {
         }
     }
 }
+public extension RawRepresentable where Self.RawValue == String {
+    func value<T: RealtimeValue>(in object: Object, options: [ValueOption: Any] = [:]) -> T {
+        return T(in: object.node?.child(with: rawValue), options: options)
+    }
+}
 
 // MARK: Extended Realtime Value
 
@@ -358,7 +363,7 @@ public protocol WritableRealtimeValue: RealtimeValue {
     ///   - node: Database node where data will be store
     func write(to transaction: Transaction, by node: Node) throws
 }
-extension WritableRealtimeValue {
+public extension RealtimeValue {
     func writeSystemValues(to transaction: Transaction, by node: Node) throws {
         if let rw = raw {
             transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))

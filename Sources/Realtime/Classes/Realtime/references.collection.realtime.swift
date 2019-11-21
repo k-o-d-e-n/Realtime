@@ -425,9 +425,41 @@ public struct RCRef: WritableRealtimeValue, Comparable {
     public static func < (lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey < rhs.dbKey }
 }
 
-public class DistributedReferences<Element: RealtimeValue>: __RepresentableCollection<Element, RCRef> {
-    internal let builder: RealtimeValueBuilder<Element>
+public extension ValueOption {
+    static var representableBuilder: ValueOption { return ValueOption("realtime.representablecollection.builder") }
+}
+public class RepresentableCollection<Element: RealtimeValue, Ref: WritableRealtimeValue & Comparable>: __RepresentableCollection<Element, Ref> {
+    public typealias Builder = (Ref) -> Element
+    internal let builder: Builder
 
+    /// Creates new instance associated with database node
+    ///
+    /// Available options:
+    /// - database: Database reference
+    /// - representableBuilder: Closure that calls to build elements lazily.
+    ///
+    /// - Parameter node: Node location for value
+    /// - Parameter options: Dictionary of options
+    public required init(in node: Node?, options: [ValueOption : Any]) {
+        guard let builder = options[.representableBuilder] as? Builder else { fatalError("Cannot found builder parameter") }
+        self.builder = builder
+        super.init(view: SortedCollectionView(in: node, options: options), options: options)
+    }
+
+    /// Currently, no available.
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        #if DEBUG
+        fatalError("DistributedReferences does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
+        #else
+        throw RealtimeError(source: .collection, description: "DistributedReferences does not supported init(data:event:) yet.")
+        #endif
+    }
+
+    override func buildElement(with item: Ref) -> Element {
+        return builder(item)
+    }
+}
+public final class DistributedReferences<Element: RealtimeValue>: RepresentableCollection<Element, RCRef> {
     /// Creates new instance associated with database node
     ///
     /// Available options:
@@ -445,22 +477,12 @@ public class DistributedReferences<Element: RealtimeValue>: __RepresentableColle
         case .path(from: let n): anchorNode = n
         }
         let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
-        self.builder = RealtimeValueBuilder(spaceNode: anchorNode, impl: builder)
-        super.init(view: SortedCollectionView(in: node, options: options),
-                   options: options)
+        let _builder = RealtimeValueBuilder(spaceNode: anchorNode, impl: builder)
+        super.init(in: node, options: options.merging([.representableBuilder: _builder.build], uniquingKeysWith: { new, old in new }))
     }
 
-    /// Currently, no available.
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        #if DEBUG
-        fatalError("DistributedReferences does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
-        #else
-        throw RealtimeError(source: .collection, description: "DistributedReferences does not supported init(data:event:) yet.")
-        #endif
-    }
-
-    override func buildElement(with item: RCRef) -> Element {
-        return builder.build(with: item)
+        try super.init(data: data, event: event)
     }
 }
 

@@ -7,7 +7,7 @@
 
 import Foundation
 
-extension ValueOption {
+public extension ValueOption {
     static let elementBuilder = ValueOption("realtime.collection.builder")
     static let keyBuilder = ValueOption("realtime.collection.keyBuilder")
 }
