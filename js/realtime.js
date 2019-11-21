@@ -67,7 +67,7 @@ function linksRef(ref) {
   return ref.root.child(InternalKeys.links + "/" + Utilities.rootPath(ref));
 }
 
-export class Utilities {
+exports.Utilities = class Utilities {
   static dbPath(fromRef, toRef) {
     const toPath = toRef.toString();
     const fromPath = fromRef.toString();
@@ -125,7 +125,7 @@ String.fromSnapshot = function(snapshot) {
 };
 
 let reactivityEnvironment;
-export function setReactivityEnvironment(environment) {
+exports.setReactivityEnvironment = function(environment) {
   reactivityEnvironment = environment;
 }
 
@@ -133,7 +133,7 @@ function isPrimitive(test) {
   return test !== Object(test);
 }
 
-export class RealtimeValue {
+class RealtimeValue {
   constructor(ref, { raw, payload } = {}) {
     fatalError(ref == null, "Reference cannot be null");
     Object.defineProperty(this, "$_ref_", {
@@ -296,10 +296,11 @@ RealtimeValue.fromSnapshot = function(snapshot) {
   instance.apply(snapshot);
   return instance;
 };
+exports.RealtimeValue = RealtimeValue;
 
 // Properties
 
-export class Property extends RealtimeValue {
+class Property extends RealtimeValue {
   constructor(
     ref,
     { val, optional = false, readonly = false, representer } = {}
@@ -408,8 +409,9 @@ Property.prototype.map = function(transform) {
   if (this.value === undefined || this.value === null) return;
   return transform(this.value);
 };
+exports.Property = Property;
 
-export class Reference extends Property {
+exports.Reference = class Reference extends Property {
   constructor(ref, options) {
     super(ref, options);
     Object.defineProperty(this, "aboutValue", {
@@ -485,7 +487,7 @@ export class Reference extends Property {
   }
 }
 
-export class Relation extends Property {
+exports.Relation = class Relation extends Property {
   constructor(ref, options) {
     super(ref, options);
     Object.defineProperty(this, "aboutValue", {
@@ -544,7 +546,7 @@ export class Relation extends Property {
   }
 }
 
-export class File extends Property {
+class File extends Property {
   constructor(ref, options) {
     super(ref, options);
     Object.defineProperty(this, "metadata", {
@@ -615,10 +617,11 @@ File.jpeg = function(ref, options) {
   options.metadata = { contentType: "image/jpeg" };
   return new File(ref, options);
 };
+exports.File = File;
 
 // Object
 
-export class RealtimeObject extends RealtimeValue {
+exports.RealtimeObject = class RealtimeObject extends RealtimeValue {
   get excludedKeys() {
     return [];
   }
@@ -831,7 +834,7 @@ class RealtimeCollection extends RealtimeValue {
   }
 }
 
-export class Values extends RealtimeCollection {
+exports.Values = class Values extends RealtimeCollection {
   constructor(ref, { elementClass, ascending, viewWritable }) {
     super(ref, ascending);
     Object.defineProperty(this, "elementClass", {
@@ -966,7 +969,7 @@ export class Values extends RealtimeCollection {
   }
 }
 
-export class AssociatedValues extends RealtimeCollection {
+exports.AssociatedValues = class AssociatedValues extends RealtimeCollection {
   constructor(
     ref,
     { keyObject, valueClass, ascending, viewWritable, shouldLinking }
@@ -1210,7 +1213,7 @@ export class AssociatedValues extends RealtimeCollection {
   }
 }
 
-export class Relations extends RealtimeCollection {
+class Relations extends RealtimeCollection {
   constructor(ref, { element, ascending }) {
     super(ref, ascending);
     Object.defineProperty(this, "aboutElement", {
@@ -1300,6 +1303,7 @@ Relations.prototype.containsWithKey = function(key) {
     .once("value")
     .then(snap => snap.exists());
 };
+exports.Relations = Relations;
 
 var viewedCollections = new WeakMap();
 class CollectionView extends RealtimeCollection {
@@ -1370,7 +1374,7 @@ class PagingDataExplorer {
   previuos() {}
 }
 
-export class Transaction {
+exports.Transaction = class Transaction {
   constructor(database, storage) {
     this.database = database;
     this.storage = storage;
@@ -1492,13 +1496,12 @@ export class Transaction {
 }
 
 class ObjectUpdaterHandler {
-  #transaction;
   constructor(transaction) {
-    this.#transaction = transaction;
+    this.transaction = transaction;
   }
 
   get transaction() {
-    return this.#transaction;
+    return this.transaction;
   }
 
   toJSON() {
@@ -1514,7 +1517,7 @@ class ObjectUpdaterHandler {
   }
 
   commit(concurrency) {
-    const trans = this.#transaction;
+    const trans = this.transaction;
     this.writeChanges(trans);
     return trans.commit(concurrency);
   }
@@ -1540,7 +1543,7 @@ class ObjectUpdaterHandler {
     }
     const propValue = Reflect.get(target, property);
     if (propValue instanceof RealtimeValue) {
-      const proxy = propValue.updater(this.#transaction);
+      const proxy = propValue.updater(this.transaction);
       reactivityEnvironment.set(this, property, proxy);
       return proxy;
     } else {
@@ -1570,18 +1573,18 @@ class ObjectUpdaterHandler {
 }
 
 class PropertyUpdaterHandler {
-  #encoded = undefined;
   constructor() {
+    this.encoded = undefined;
     this.value = undefined;
   }
 
   toJSON() {
-    return this.#encoded ? this.#encoded.value : undefined;
+    return this.encoded ? this.encoded.value : undefined;
   }
 
   writeChanges(transaction) {
-    if (this.#encoded) {
-      this.___add(transaction, this.#encoded);
+    if (this.encoded) {
+      this.___add(transaction, this.encoded);
     }
   }
 
@@ -1607,7 +1610,7 @@ class PropertyUpdaterHandler {
     if (property in this) {
       const result = Reflect.set(this, property, newValue);
       if (property === "value") {
-        this.#encoded = { path: target.path, value: target.encode(newValue) };
+        this.encoded = { path: target.path, value: target.encode(newValue) };
       }
       return result;
     }
@@ -1635,9 +1638,8 @@ class RealtimeFileUpdater extends PropertyUpdaterHandler {
 }
 
 class RealtimeCollectionUpdater {
-  #transaction;
   constructor(transaction) {
-    this.#transaction = transaction;
+    this.transaction = transaction;
   }
 
   toJSON() {
@@ -1646,15 +1648,12 @@ class RealtimeCollectionUpdater {
 }
 
 class RepresentableCollectionMutator {
-  #transaction;
-  #changes = { added: [], removed: [] };
-  #target;
-  #finder;
   constructor(transaction, target, finder, elements = []) {
-    this.#transaction = transaction;
-    this.#target = target;
-    this.#finder = finder;
+    this.transaction = transaction;
+    this.target = target;
+    this.finder = finder;
     this.elements = elements; // TODO: Probably it does not need
+    this.changes = { added: [], removed: [] };
   }
 
   get length() {
@@ -1662,24 +1661,24 @@ class RepresentableCollectionMutator {
   }
 
   commit(concurrency) {
-    const trans = this.#transaction;
+    const trans = this.transaction;
     this.writeChanges(trans);
     return trans.commit(concurrency);
   }
 
   writeChanges(transaction) {
-    this.#changes.added.forEach(el => {
-      this.#target.writeElement(el, transaction);
+    this.changes.added.forEach(el => {
+      this.target.writeElement(el, transaction);
     });
-    this.#changes.removed.forEach(el => {
-      this.#target.removeElement(el, transaction);
+    this.changes.removed.forEach(el => {
+      this.target.removeElement(el, transaction);
     });
   }
 
   push(element) {
-    const find = this.#finder(element);
+    const find = this.finder(element);
     debug(() => {
-      if (this.#changes.added.find(find) || this.elements.find(find)) {
+      if (this.changes.added.find(find) || this.elements.find(find)) {
         console.warn(
           "Tries push element that already exists",
           this.elements,
@@ -1687,22 +1686,22 @@ class RepresentableCollectionMutator {
         );
       }
     });
-    this.#changes.added.push(element);
+    this.changes.added.push(element);
     this.elements.push(element);
 
-    const removedIndex = this.#changes.removed.findIndex(find);
+    const removedIndex = this.changes.removed.findIndex(find);
     if (removedIndex != -1) {
-      this.#changes.removed.splice(removedIndex, 1);
+      this.changes.removed.splice(removedIndex, 1);
     }
   }
 
   remove(element) {
-    const find = this.#finder(element);
-    const addedIndex = this.#changes.added.findIndex(find);
+    const find = this.finder(element);
+    const addedIndex = this.changes.added.findIndex(find);
     if (addedIndex != -1) {
-      this.#changes.added.splice(addedIndex, 1);
+      this.changes.added.splice(addedIndex, 1);
     } else {
-      this.#changes.removed.push(element);
+      this.changes.removed.push(element);
     }
     const elementsIndex = this.elements.findIndex(find);
     if (elementsIndex != -1) {
