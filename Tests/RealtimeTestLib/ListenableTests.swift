@@ -181,9 +181,9 @@ public final class ListenableTests: XCTestCase {
         let view = View()
         var backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white)
 
-        _ = backgroundProperty.once().listening(onValue: {
+        backgroundProperty.once().listening(onValue: {
             view.backgroundColor = $0
-        })
+        }).add(to: store)
 
         backgroundProperty <== .red
         backgroundProperty <== .green
@@ -197,11 +197,26 @@ public final class ListenableTests: XCTestCase {
         }
     }
 
+    func testOnce2() {
+        let view = View()
+        var backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white)
+
+        /// checks user resposibility to retain connection
+        _ = backgroundProperty.once().listening(onValue: {
+            view.backgroundColor = $0
+        })
+
+        backgroundProperty <== .red
+        backgroundProperty <== .green
+
+        XCTAssertEqual(view.backgroundColor, nil)
+    }
+
     func testOnFire() {
         let view = View()
         var backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white)
 
-        backgroundProperty
+        let dispose = backgroundProperty
             .onFire({
                 XCTAssertEqual(view.backgroundColor, nil)
             })

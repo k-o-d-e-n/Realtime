@@ -252,29 +252,22 @@ public struct Once<T: Listenable>: Listenable {
     }
 
     public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
-        var shouldCall = true
-        var disposable: Disposable? {
-            didSet {
-                if !shouldCall {
-                    disposable?.dispose()
-                }
-            }
-        }
-        disposable = listenable
-            .filter({ _ in shouldCall })
-            .listening(
+        weak var disposable: ListeningDispose?
+        let dispose = ListeningDispose(
+            listenable.filter({ _ in disposable?.isDisposed == false }).listening(
                 assign.with(work: { (_) in
                     disposable?.dispose()
-                    shouldCall = false
                 })
+            )
         )
-        return disposable!
+        disposable = dispose
+        return dispose
     }
 }
 public extension Listenable {
-    /// connection to receive single value
-    /// - Warning: can lead to memory leaks
-    @available(*, deprecated, message: "has unsafe behavior")
+    /// Connection to receive single value
+    /// - Warning: Disposable must be retained anyway,
+    /// otherwise connection will be disposed immediately
     func once() -> Once<Self> {
         return Once(self)
     }
