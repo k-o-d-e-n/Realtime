@@ -408,7 +408,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 
     public func revert() {
         if let old = _oldValue {
-            _value = old
+            _setValue(old)
             _oldValue = nil
         }
     }
@@ -468,7 +468,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
                 }
             }
         case .local(let v):
-            _setValue(.remote(v))
+            _setRemote(v)
         default: break
         }
     }
@@ -478,7 +478,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
         self._oldValue = nil
         switch _value {
         case .local(let v):
-            _setValue(.remote(v))
+            _setRemote(v)
         default: break
         }
     }
@@ -526,6 +526,11 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 
     internal func _addReversion(to transaction: Transaction, by node: Node) {
         transaction.addReversion(currentReversion())
+    }
+
+    override func _setRemote(_ value: T) {
+        super._setRemote(value)
+        _oldValue = nil
     }
 
     internal func _setLocalValue(_ value: T) {
@@ -714,7 +719,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         }
         do {
             if let value = try representer.decode(data) {
-                _setValue(.remote(value))
+                _setRemote(value)
             } else {
                 // actually does not call anyway
                 _setRemoved(isLocal: false)
@@ -723,6 +728,10 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             _setError(e)
             throw e
         }
+    }
+
+    internal func _setRemote(_ value: T) {
+        _setValue(.remote(value))
     }
 
     internal func _setValue(_ value: PropertyState<T>) {

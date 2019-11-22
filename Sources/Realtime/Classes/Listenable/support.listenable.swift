@@ -179,6 +179,14 @@ public extension Listenable where Self.Out == String? {
     func bindWithUpdateLayout(to label: UILabel) -> Disposable {
         return bind(to: label, didSet: { v, _ in v.superview?.setNeedsLayout() })
     }
+    func bind(to label: UITextField, default def: String? = nil) -> Disposable {
+        return listening(onValue: .weak(label) { data, l in l?.text = data ?? def })
+    }
+    func bind(to label: UITextField, default def: String? = nil, didSet: @escaping (UITextField, Out) -> Void) -> Disposable {
+        return listening(onValue: .weak(label) { data, l in
+            l.map { $0.text = data ?? def; didSet($0, data) }
+        })
+    }
 }
 public extension Listenable where Self.Out == String {
     func bind(to label: UILabel) -> Disposable {
