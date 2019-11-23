@@ -252,15 +252,15 @@ public struct Once<T: Listenable>: Listenable {
     }
 
     public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
-        weak var disposable: ListeningDispose?
+        let disposable: SingleDispose = SingleDispose(weak: nil)
         let dispose = ListeningDispose(
-            listenable.filter({ _ in disposable?.isDisposed == false }).listening(
-                assign.with(work: { (_) in
-                    disposable?.dispose()
-                })
-            )
+            listenable
+                .filter({ _ in disposable.isDisposed == false })
+                .listening(assign.with(work: { (_) in
+                    disposable.dispose()
+                }))
         )
-        disposable = dispose
+        disposable.replace(with: dispose)
         return dispose
     }
 }

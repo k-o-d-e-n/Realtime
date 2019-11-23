@@ -37,6 +37,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     lazy var _didSelect: Repeater<IndexPath> = .unsafe()
 
     var state: RowState = [.free, .pending]
+    open var indexPath: IndexPath?
 
     open internal(set) weak var model: Model? {
         set { _model.value = newValue }
@@ -58,7 +59,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 
-    open func onSelect(_ doit: @escaping ((IndexPath), Row<View, Model>) -> Void) {
+    open func onSelect(_ doit: @escaping (IndexPath, Row<View, Model>) -> Void) {
         _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 
@@ -75,7 +76,7 @@ extension Row where View: UITableViewCell {
     public convenience init(static view: View) {
         self.init(cellBuilder: .static(view))
     }
-    func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
+    internal func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
         switch cellBuilder {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath)
@@ -88,7 +89,7 @@ public extension Row where View: UIView {
     var isVisible: Bool {
         return state.contains(.displaying) && super._isVisible
     }
-    func build(for tableView: UITableView, at section: Int) -> UIView? {
+    internal func build(for tableView: UITableView, at section: Int) -> UIView? {
         switch cellBuilder {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableHeaderFooterView(withIdentifier: identifier)
@@ -109,16 +110,18 @@ extension Row: CustomDebugStringConvertible {
     }
 }
 extension Row {
-    func willDisplay(with view: View, model: Model) {
+    func willDisplay(with view: View, model: Model, indexPath: IndexPath) {
         if !state.contains(.displaying) || self.view !== view {
+            self.indexPath = indexPath
             self.view = view
             _model.value = model
             state.insert(.displaying)
             state.remove(.free)
         }
     }
-    func didEndDisplay(with view: View) {
+    func didEndDisplay(with view: View, indexPath: IndexPath) {
         if !state.contains(.free) && self.view === view {
+            self.indexPath = nil
             state.remove(.displaying)
             free()
             state.insert([.pending, .free])
@@ -131,8 +134,8 @@ extension Row {
 open class Section<Model: AnyObject>: RandomAccessCollection {
     open var footerTitle: String?
     open var headerTitle: String?
-    open var headerRow: Row<UIView, Model>?
-    open var footerRow: Row<UIView, Model>?
+    open internal(set) var headerRow: Row<UIView, Model>?
+    open internal(set) var footerRow: Row<UIView, Model>?
 
     var numberOfItems: Int { fatalError("override") }
 
@@ -165,16 +168,16 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
     func didEndDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
 
     func willDisplayHeaderView(_ view: UIView, at section: Int, with model: Model) {
-        headerRow?.willDisplay(with: view, model: model)
+        headerRow?.willDisplay(with: view, model: model, indexPath: IndexPath(row: -1, section: section))
     }
     func didEndDisplayHeaderView(_ view: UIView, at section: Int, with model: Model) {
-        headerRow?.didEndDisplay(with: view)
+        headerRow?.didEndDisplay(with: view, indexPath: IndexPath(row: -1, section: section))
     }
     func willDisplayFooterView(_ view: UIView, at section: Int, with model: Model) {
-        footerRow?.willDisplay(with: view, model: model)
+        footerRow?.willDisplay(with: view, model: model, indexPath: IndexPath(row: .max, section: section))
     }
     func didEndDisplayFooterView(_ view: UIView, at section: Int, with model: Model) {
-        footerRow?.didEndDisplay(with: view)
+        footerRow?.didEndDisplay(with: view, indexPath: IndexPath(row: .max, section: section))
     }
 
     public typealias Element = Row<UITableViewCell, Model>
@@ -234,13 +237,13 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
             }
         } else if rows.indices.contains(indexPath.row) {
             let row = rows[indexPath.row]
-            row.didEndDisplay(with: cell)
+            row.didEndDisplay(with: cell, indexPath: indexPath)
         }
     }
 
     override func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
         let item = rows[indexPath.row]
-        item.willDisplay(with: cell, model: model)
+        item.willDisplay(with: cell, model: model, indexPath: indexPath)
     }
 
     override func willDisplaySection(_ tableView: UITableView, at index: Int) {}

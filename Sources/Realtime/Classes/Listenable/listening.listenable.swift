@@ -59,10 +59,31 @@ public struct EmptyDispose: Disposable {
     public func dispose() {}
 }
 
-public final class SingleRetainDispose: Disposable {
-    var retained: AnyObject?
-    public init(_ value: AnyObject) { self.retained = value }
-    public func dispose() { self.retained = nil }
+public final class SingleDispose: Disposable {
+    var storage: ValueStorage<AnyObject?>?
+    public var isDisposed: Bool { return storage == nil }
+
+    init(storage: ValueStorage<AnyObject?>) {
+        self.storage = storage
+    }
+    deinit { dispose() }
+
+    public convenience init(strong value: AnyObject?) {
+        self.init(storage: .unsafe(strong: value))
+    }
+    public convenience init(weak value: AnyObject?) {
+        self.init(storage: .unsafe(weak: value))
+    }
+//    public convenience init(unowned value: AnyObject) {
+//        self.init(storage: .unsafe(unowned: value))
+//    }
+    public func dispose() {
+        storage?.wrappedValue = nil
+        storage = nil
+    }
+    public func replace(with newDispose: AnyObject) {
+        storage?.wrappedValue = newDispose
+    }
 }
 
 public final class ListeningDispose: Disposable {

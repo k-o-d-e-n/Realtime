@@ -130,7 +130,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     let get: () -> T
     let mutate: ((inout T) -> Void) -> Void
     let attachBehavior: AttachBehavior
-    let repeater: Repeater<T>
+    let repeater: Repeater<T> // TODO: Make repeater as public { get set } property (or func ), in shortly, make optional to create possibility to use ValueStorage as just storage
 
     enum AttachBehavior {
         case unsafe
