@@ -99,8 +99,9 @@ public extension Listenable {
                             bridgeMaker: Bridge(transform: transform))
     }
 
+    typealias CompactMap<U> = Preprocessor<Preprocessor<Preprocessor<Self, U?>, U?>, U>
     /// transforms value if it's not `nil`, otherwise skips value
-    func compactMap<U>(_ transform: @escaping (Out) throws -> U?) -> Preprocessor<Preprocessor<Preprocessor<Self, U?>, U?>, U> {
+    func compactMap<U>(_ transform: @escaping (Out) throws -> U?) -> CompactMap<U> {
         return self.map(transform).compactMap()
     }
 
@@ -121,6 +122,13 @@ public extension Listenable {
     func mapAsync<Result>(_ event: @escaping (Out, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result> {
         return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(event: event))
+    }
+
+    func forEach(_ closure: @escaping (Out) throws -> Void) -> Preprocessor<Self, Out> {
+        return map { v -> Out in
+            try closure(v)
+            return v
+        }
     }
 }
 

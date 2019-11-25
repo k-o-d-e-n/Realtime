@@ -28,14 +28,14 @@ extension RowState {
     static let removed: RowState = RowState(rawValue: 1 << 3)
 }
 
-// probably `ReuseItem` should be a subclass of static item
-// can add row dependency didSelect to hide/show optional cells
+@dynamicMemberLookup
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
-    var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
-    lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil)
-    lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap(), _model.compactMap())
-    lazy var _didSelect: Repeater<IndexPath> = .unsafe()
+    fileprivate var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
+    fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil)
+    fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap(), _model.compactMap())
+    fileprivate lazy var _didSelect: Repeater<IndexPath> = .unsafe()
 
+    var dynamicValues: [String: Any] = [:]
     var state: RowState = [.free, .pending]
     open var indexPath: IndexPath?
 
@@ -53,6 +53,11 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
 
     public convenience init(reuseIdentifier: String) {
         self.init(cellBuilder: .reuseIdentifier(reuseIdentifier))
+    }
+
+    open subscript<T>(dynamicMember member: String) -> T? {
+        set { dynamicValues[member] = newValue }
+        get { return dynamicValues[member] as? T }
     }
 
     open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) { // TODO: Row<View, Model> replace with Self (swift 5.1)
@@ -101,10 +106,11 @@ public extension Row where View: UIView {
 extension Row: CustomDebugStringConvertible {
     public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             view: \(view as Any),
             model: \(_model.value as Any),
-            state: \(state)
+            state: \(state),
+            values: \(dynamicValues)
         }
         """
     }
@@ -144,6 +150,7 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
         self.footerTitle = footerTitle
     }
 
+    // TODO: set_Row does not recognize with code completer
     open func setHeaderRow<V: UIView>(_ row: Row<V, Model>) {
         self.headerRow = unsafeBitCast(row, to: Row<UIView, Model>.self)
     }
@@ -191,6 +198,11 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
     }
     open subscript(position: Int) -> Row<UITableViewCell, Model> {
         fatalError("override")
+    }
+}
+public extension Section {
+    var visibleIndexPaths: [IndexPath] {
+        return compactMap({ $0.indexPath })
     }
 }
 

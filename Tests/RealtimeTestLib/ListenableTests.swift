@@ -216,18 +216,20 @@ public final class ListenableTests: XCTestCase {
         let view = View()
         var backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white)
 
+        var onFireCalled = false
         let dispose = backgroundProperty
             .onFire({
-                XCTAssertEqual(view.backgroundColor, nil)
+                onFireCalled = true
             })
-            .once()
             .listening(onValue: {
                 view.backgroundColor = $0
             })
-            .add(to: store)
 
         backgroundProperty <== .red
         XCTAssertEqual(view.backgroundColor, .red)
+
+        dispose.dispose()
+        XCTAssertTrue(onFireCalled)
 
         backgroundProperty <== .green
         XCTAssertEqual(view.backgroundColor, .red)
@@ -888,9 +890,9 @@ extension ListenableTests {
 
         (0..<20).forEach { (i) in
             DispatchQueue.global(qos: .background).async {
-                _ = repeater.once().listening({ _ in
+                put(repeater.once().listening({ _ in
                     exp.fulfill()
-                })
+                }))
             }
         }
 
