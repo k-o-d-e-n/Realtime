@@ -141,7 +141,7 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
 
     override public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.absolutePath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
             elements: \(view.map { $0.dbKey })
@@ -477,8 +477,8 @@ public final class DistributedReferences<Element: RealtimeValue>: RepresentableC
         case .path(from: let n): anchorNode = n
         }
         let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
-        let _builder = RealtimeValueBuilder(spaceNode: anchorNode, impl: builder)
-        super.init(in: node, options: options.merging([.representableBuilder: _builder.build], uniquingKeysWith: { new, old in new }))
+        let _builder: (RCRef) -> Element = RealtimeValueBuilder(spaceNode: anchorNode, impl: builder).build(withRef:)
+        super.init(in: node, options: options.merging([.representableBuilder: _builder], uniquingKeysWith: { new, old in new }))
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

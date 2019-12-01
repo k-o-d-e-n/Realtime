@@ -76,6 +76,31 @@ public extension Listenable {
             property <== value
         })
     }
+    func bind<T>(to obj: T, _ keyPath: WritableKeyPath<T, Out>, onError: ((Error) -> Void)? = nil) -> Disposable {
+        var object = obj
+        return listening({ (state) in
+            switch state {
+            case .value(let v): object[keyPath: keyPath] = v
+            case .error(let e): onError?(e)
+            }
+        })
+    }
+    func bind<T: AnyObject>(toWeak obj: T, _ keyPath: WritableKeyPath<T, Out>, onError: ((Error) -> Void)? = nil) -> Disposable {
+        return listening({ [weak obj] (state) in
+            switch state {
+            case .value(let v): obj?[keyPath: keyPath] = v
+            case .error(let e): onError?(e)
+            }
+        })
+    }
+    func bind<T: AnyObject>(toUnowned obj: T, _ keyPath: ReferenceWritableKeyPath<T, Out>, onError: ((Error) -> Void)? = nil) -> Disposable {
+        return listening({ [unowned obj] (state) in
+            switch state {
+            case .value(let v): obj[keyPath: keyPath] = v
+            case .error(let e): onError?(e)
+            }
+        })
+    }
 }
 
 #if os(macOS) || os(iOS)

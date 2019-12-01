@@ -309,6 +309,11 @@ class PagingController {
         self.pageSize = pageSize
         self.delegate = delegate
     }
+    deinit {
+        startPage?.dispose()
+        pages.forEach({ $0.value.dispose() })
+        endPage?.dispose()
+    }
 
     func start(observeNew observe: Bool = true, completion: (() -> Void)? = nil) {
         guard startPage == nil else {
@@ -451,11 +456,5 @@ class PagingController {
         )
 
         return true
-    }
-
-    deinit {
-        startPage?.dispose()
-        pages.forEach({ $0.value.dispose() })
-        endPage?.dispose()
     }
 }

@@ -66,6 +66,9 @@ extension RealtimeValueBuilder {
     func build<T>(with item: T) -> Value where T: RealtimeValue {
         return impl(spaceNode.child(with: item.dbKey), item.defaultOptions)
     }
+    func build(withRef item: RCRef) -> Value {
+        return impl(spaceNode.child(with: item.reference.source), item.defaultOptions)
+    }
 }
 
 /// Type-erased Realtime collection storage

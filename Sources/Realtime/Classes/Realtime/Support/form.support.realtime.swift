@@ -76,6 +76,10 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     public func sendSelectEvent(at indexPath: IndexPath) {
         _didSelect.send(.value(indexPath))
     }
+
+    public func removeAllValues() {
+        dynamicValues.removeAll()
+    }
 }
 extension Row where View: UITableViewCell {
     public convenience init(static view: View) {
@@ -686,7 +690,7 @@ extension Form: RandomAccessCollection {
     }
 }
 extension Form {
-    class Table: NSObject, UITableViewDelegate, UITableViewDataSource {
+    final class Table: NSObject, UITableViewDelegate, UITableViewDataSource {
         unowned var form: Form
 
         init(_ form: Form) {
@@ -702,7 +706,7 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-            return form.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? 44.0
+            return form.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? tableView.rowHeight
         }
 
         func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {

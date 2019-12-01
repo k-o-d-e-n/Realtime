@@ -743,6 +743,9 @@ public extension Listenable {
     func doOnDebug(_ something: @escaping (ListenEvent<Out>) -> Void) -> DoDebug<Self> {
         return DoDebug(listenable: self, doit: something)
     }
+    func print(_ labels: Any...) -> DoDebug<Self> {
+        return doOnDebug({ Swift.print(labels + [$0]) })
+    }
 }
 
 /// Creates unretained listening point
