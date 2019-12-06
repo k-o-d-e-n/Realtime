@@ -12,38 +12,42 @@ public extension RawRepresentable where Self.RawValue == String {
     func property<T>(in object: Object, representer: Representer<T>) -> Property<T> {
         return Property(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability<T>.required(representer)
-            ]
+            options: Property<T>.PropertyOptions(
+                RealtimeValueOptions(database: object.database),
+                availability: Availability<T>.required(representer),
+                initial: nil
+            )
         )
     }
     func property<T>(in object: Object, representer: Representer<T>) -> Property<T?> {
         return Property(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability<T?>.optional(representer)
-            ]
+            options: Property<T?>.PropertyOptions(
+                RealtimeValueOptions(database: object.database),
+                availability: Availability<T?>.optional(representer),
+                initial: nil
+            )
         )
     }
 
     func readonlyProperty<T>(in object: Object, representer: Representer<T>) -> ReadonlyProperty<T> {
         return ReadonlyProperty(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability<T>.required(representer)
-            ]
+            options: ReadonlyProperty<T>.PropertyOptions(
+                RealtimeValueOptions(database: object.database),
+                availability: Availability.required(representer),
+                initial: nil
+            )
         )
     }
     func readonlyProperty<T>(in object: Object, representer: Representer<T>) -> ReadonlyProperty<Optional<T>> {
         return ReadonlyProperty(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability<T?>.optional(representer)
-            ]
+            options: ReadonlyProperty<T?>.PropertyOptions(
+                RealtimeValueOptions(database: object.database),
+                availability: Availability.optional(representer),
+                initial: nil
+            )
         )
     }
     func readonlyProperty<T>(in object: Object) -> ReadonlyProperty<T> where T: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
@@ -78,48 +82,38 @@ public extension RawRepresentable where Self.RawValue == String {
         return property(in: object, representer: Representer<V>.codable)
     }
 
-    func reference<V: Object>(in object: Object, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V> {
+    func reference<V: Object>(in object: Object, mode: ReferenceMode) -> Reference<V> {
         return Reference(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .reference: Reference<V>.Mode.required(mode, options: options)
-            ]
+            options: Reference<V>.Mode.required(mode, db: object.database)
         )
     }
-    func reference<V: Object>(in object: Object, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V?> {
+    func reference<V: Object>(in object: Object, mode: ReferenceMode) -> Reference<V?> {
         return Reference(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .reference: Reference<V?>.Mode.optional(mode, options: options)
-            ]
+            options: Reference<V?>.Mode.optional(mode, db: object.database)
         )
     }
     func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relation<V> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .relation: Relation<V>.Options.required(
-                    rootLevelsUp: rootLevelsUp,
-                    ownerLevelsUp: ownerLevelsUp,
-                    property: property
-                )
-            ]
+            options: Relation<V>.Options.required(
+                db: object.database,
+                rootLevelsUp: rootLevelsUp,
+                ownerLevelsUp: ownerLevelsUp,
+                property: property
+            )
         )
     }
     func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relation<V?> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .relation: Relation<V?>.Options.optional(
-                    rootLevelsUp: rootLevelsUp,
-                    ownerLevelsUp: ownerLevelsUp,
-                    property: property
-                )
-            ]
+            options: Relation<V?>.Options.optional(
+                db: object.database,
+                rootLevelsUp: rootLevelsUp,
+                ownerLevelsUp: ownerLevelsUp,
+                property: property
+            )
         )
     }
 
@@ -143,13 +137,20 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
     public override var raw: RealtimeDatabaseValue? { return super._raw }
     public override var payload: RealtimeDatabaseValue? { return super._payload }
 
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        guard case let o as Mode = options[.reference] else { fatalError("Skipped required options") }
-        super.init(in: node, options: options.merging([.representer: o.availability], uniquingKeysWith: { _, new in new }))
+    public required init(in node: Node?, options: Mode) {
+        super.init(in: node, options: PropertyOptions(
+            RealtimeValueOptions(),
+            availability: options.availability,
+            initial: nil
+        ))
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         fatalError("init(data:event:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
+    }
+
+    public required init(in node: Node?, options: PropertyOptions) {
+        fatalError("init(in:options:) has not been implemented")
     }
 
     @discardableResult
@@ -170,21 +171,22 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
     }
 
     public struct Mode {
+        let database: RealtimeDatabase?
         let availability: Availability<Referenced>
 
-        public static func required(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode {
-            return Mode(availability: Availability<Referenced>.required(Representer.reference(mode, options: options)))
+        public static func required(_ mode: ReferenceMode, db: RealtimeDatabase?) -> Mode {
+            return Mode(database: db, availability: Availability<Referenced>.required(Representer.reference(mode)))
         }
-        public static func writeRequired<U: RealtimeValue>(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode where Referenced == Optional<U> {
-            return Mode(availability: Availability<Referenced>.writeRequired(Representer<U>.reference(mode, options: options)))
+        public static func writeRequired<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?) -> Mode where Referenced == Optional<U> {
+            return Mode(database: db, availability: Availability<Referenced>.writeRequired(Representer<U>.reference(mode)))
         }
-        public static func optional<U: RealtimeValue>(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode where Referenced == Optional<U> {
-            return Mode(availability: Availability<Referenced>.optional(Representer<U>.reference(mode, options: options)))
+        public static func optional<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?) -> Mode where Referenced == Optional<U> {
+            return Mode(database: db, availability: Availability<Referenced>.optional(Representer<U>.reference(mode)))
         }
     }
 
     public static func readonly(in node: Node?, mode: Mode) -> ReadonlyProperty<Referenced> {
-        return ReadonlyProperty(in: node, options: [.representer: mode.availability])
+        return ReadonlyProperty(in: node, options: PropertyOptions(RealtimeValueOptions(), availability: mode.availability, initial: nil))
     }
 }
 
@@ -194,22 +196,28 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     public override var raw: RealtimeDatabaseValue? { return super._raw }
     public override var payload: RealtimeDatabaseValue? { return super._payload }
 
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        guard case let relation as Relation<Related>.Options = options[.relation] else { fatalError("Skipped required options") }
-
-        self.options = relation
+    public required init(in node: Node?, options: Options) {
+        self.options = options
 
         if let ownerNode = node?.ancestor(onLevelUp: self.options.ownerLevelsUp) {
             self.options.ownerNode.value = ownerNode
         }
 
-        super.init(in: node, options: options.merging([.representer: relation.availability], uniquingKeysWith: { _, new in new }))
+        super.init(in: node, options: PropertyOptions(
+            RealtimeValueOptions(database: options.database),
+            availability: options.availability,
+            initial: nil
+        ))
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         fatalError("init(data:event:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
     }
-
+    
+    public required init(in node: Node?, options: PropertyOptions) {
+        fatalError("init(in:options:) has not been implemented")
+    }
+    
     @discardableResult
     public override func setValue(_ value: Related, in transaction: Transaction? = nil) throws -> Transaction {
         guard Related._isValid(asRelation: value) else { fatalError("Value must with rooted node") }
@@ -240,6 +248,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     }
 
     public struct Options {
+        let database: RealtimeDatabase?
         /// Levels up by hierarchy to relation owner of this property
         let ownerLevelsUp: UInt
         /// String path from related object to his relation property
@@ -250,9 +259,10 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         let ownerNode: ValueStorage<Node?>
         let availability: Availability<Related>
 
-        public static func required(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options {
+        public static func required(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
+                database: db,
                 ownerLevelsUp: ownerLevelsUp,
                 property: property,
                 rootLevelsUp: rootLevelsUp,
@@ -260,9 +270,10 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                 availability: Availability.required(Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
             )
         }
-        public static func writeRequired<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options where Related == Optional<U> {
+        public static func writeRequired<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
+                database: db,
                 ownerLevelsUp: ownerLevelsUp,
                 property: property,
                 rootLevelsUp: rootLevelsUp,
@@ -270,9 +281,10 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
                 availability: Availability.writeRequired(Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
             )
         }
-        public static func optional<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options where Related == Optional<U> {
+        public static func optional<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
+                database: db,
                 ownerLevelsUp: ownerLevelsUp,
                 property: property,
                 rootLevelsUp: rootLevelsUp,
@@ -294,7 +306,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     }
 
     public static func readonly(in node: Node?, config: Options) -> ReadonlyProperty<Related> {
-        return ReadonlyProperty(in: node, options: [.representer: config.availability])
+        return ReadonlyProperty(in: node, options: PropertyOptions(RealtimeValueOptions(), availability: config.availability, initial: nil))
     }
 }
 
@@ -399,12 +411,20 @@ public extension PropertyState where T: _Optional {
 }
 
 /// Defines read/write property with any value
-public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
+public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, NewWritableRealtimeValue, Reverting {
     fileprivate var _oldValue: PropertyState<T>?
     override var _hasChanges: Bool {
         return _oldValue != nil
     }
     public var oldValue: PropertyState<T>? { return _oldValue }
+
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.init(data: data, event: event)
+    }
+
+    public required init(in node: Node?, options: PropertyOptions) {
+        super.init(in: node, options: options)
+    }
 
     public func revert() {
         if let old = _oldValue {
@@ -627,13 +647,33 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     // MARK: Initializers, deinitializer
 
     public static func required(in node: Node?, representer: Representer<T>, options: [ValueOption: Any] = [:]) -> Self {
-        return self.init(in: node, options: options.merging([.representer: Availability.required(representer)], uniquingKeysWith: { _, new in new }))
+        return self.init(in: node, options: PropertyOptions(from: options.merging([.representer: Availability.required(representer)], uniquingKeysWith: { _, new in new })))
     }
     public static func optional<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) -> Self where Optional<U> == T {
-        return self.init(in: node, options: options.merging([.representer: Availability.optional(representer)], uniquingKeysWith: { _, new in new }))
+        return self.init(in: node, options: PropertyOptions(from: options.merging([.representer: Availability.optional(representer)], uniquingKeysWith: { _, new in new })))
     }
     public static func writeRequired<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) -> Self where Optional<U> == T {
-        return self.init(in: node, options: options.merging([.representer: Availability.writeRequired(representer)], uniquingKeysWith: { _, new in new }))
+        return self.init(in: node, options: PropertyOptions(from: options.merging([.representer: Availability.writeRequired(representer)], uniquingKeysWith: { _, new in new })))
+    }
+
+    public struct PropertyOptions {
+        let baseOptions: RealtimeValueOptions
+        let availability: Availability<T>
+        let initialValue: T?
+
+        init(from options: [ValueOption: Any]) {
+            guard case let availability as Availability<T> = options[.representer] else { fatalError("Bad options") }
+
+            self.availability = availability
+            self.initialValue = options[.initialValue] as? T
+            self.baseOptions = RealtimeValueOptions(from: options)
+        }
+
+        init(_ base: RealtimeValueOptions, availability: Availability<T>, initial value: T? = nil) {
+            self.baseOptions = base
+            self.availability = availability
+            self.initialValue = value
+        }
     }
 
     /// Designed initializer
@@ -650,16 +690,14 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     /// - Parameters:
     ///   - node: Database node reference
     ///   - options: Option values
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        guard case let availability as Availability<T> = options[.representer] else { fatalError("Bad options") }
-
-        if let inital = options[.initialValue], let v = inital as? T {
-            self._value = .local(v)
+    public required init(in node: Node?, options: PropertyOptions) {
+        if let inital = options.initialValue {
+            self._value = .local(inital)
         } else {
             self._value = .none
         }
-        self.representer = availability.representer
-        super.init(in: node, options: options)
+        self.representer = options.availability.representer
+        super.init(in: node, options: options.baseOptions)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

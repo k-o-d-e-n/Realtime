@@ -15,39 +15,39 @@ public extension RawRepresentable where Self.RawValue == String {
     func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T> {
         return ReadonlyFile(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability.required(representer)
-            ]
+            options: ReadonlyFile<T>.PropertyOptions(
+                RealtimeValueOptions(database: object.database),
+                availability: Availability.required(representer),
+                initial: nil
+            )
         )
     }
     func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T?> {
         return ReadonlyFile(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability.optional(representer)
-            ]
+            options: ReadonlyFile<T?>.PropertyOptions(
+                RealtimeValueOptions(database: object.database),
+                availability: Availability.optional(representer),
+                initial: nil
+            )
         )
     }
     func file<T>(in object: Object, representer: Representer<T>, metadata: [String: Any] = [:]) -> File<T> {
         return File(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability.required(representer),
-                .metadata: metadata
-            ]
+            options: .init(
+                baseOptions: .init(.init(database: object.database), availability: Availability.required(representer), initial: nil),
+                metadata: metadata
+            )
         )
     }
     func file<T>(in object: Object, representer: Representer<T>, metadata: [String: Any] = [:]) -> File<T?> {
-        return File(
+        return File<T?>(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability.optional(representer),
-                .metadata: metadata
-            ]
+            options: File<T?>.Options(
+                baseOptions: File<T?>.PropertyOptions(RealtimeValueOptions(database: object.database), availability: Availability<T?>.optional(representer), initial: nil),
+                metadata: metadata
+            )
         )
     }
     #if os(iOS)
@@ -304,13 +304,18 @@ public final class File<T>: Property<T> {
     private var _currentDownloadTask: FileDownloadTask?
     public private(set) var metadata: RealtimeMetadata?
 
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        if case let md as [String: Any] = options[.metadata] {
+    public struct Options {
+        let baseOptions: PropertyOptions
+        let metadata: RealtimeMetadata?
+    }
+
+    public required init(in node: Node?, options: Options) {
+        if let md = options.metadata {
             self.metadata = md
         } else {
             self.metadata = [:]
         }
-        super.init(in: node, options: options)
+        super.init(in: node, options: options.baseOptions)
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -320,6 +325,10 @@ public final class File<T>: Property<T> {
             self.metadata = [:] // TODO: Metadata
         }
         try super.init(data: data, event: event)
+    }
+
+    public required init(in node: Node?, options: PropertyOptions) {
+        fatalError("init(in:options:) has not been implemented")
     }
 
     override func cacheValue(_ node: Node, value: RealtimeDatabaseValue?) -> CacheNode {

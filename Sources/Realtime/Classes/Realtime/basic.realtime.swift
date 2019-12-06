@@ -144,14 +144,15 @@ extension _RealtimeValueUtilities where Self: _RealtimeValue {
 extension _RealtimeValue: _RealtimeValueUtilities {}
 
 /// Base protocol for all database entities
-public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented {
+public protocol NewRealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented {
     /// Indicates specific representation of this value, e.g. subclass or enum associated value
     var raw: RealtimeDatabaseValue? { get }
     /// Some data associated with value
     var payload: RealtimeDatabaseValue? { get }
     /// Node location in database
     var node: Node? { get }
-
+}
+public protocol RealtimeValue: NewRealtimeValue {
     /// Creates new instance associated with database node
     ///
     /// - Parameter node: Node location for value
@@ -170,6 +171,8 @@ extension RealtimeValue {
         self.init(in: data.node, options: options.merging([.database: data.database as Any], uniquingKeysWith: { _, new in new }))
         try apply(data, event: event)
     }
+}
+extension NewRealtimeValue {
     var defaultOptions: [ValueOption: Any] {
         var options: [ValueOption: Any] = [:]
         if let r = self.raw {
@@ -182,7 +185,7 @@ extension RealtimeValue {
     }
 }
 
-extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
+extension Optional: RealtimeValue, NewRealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
     public var raw: RealtimeDatabaseValue? { return self?.raw }
     public var payload: RealtimeDatabaseValue? { return self?.payload }
     public var node: Node? { return self?.node }
@@ -210,7 +213,7 @@ extension Optional: RealtimeDataRepresented where Wrapped: RealtimeDataRepresent
     }
 }
 
-public extension RealtimeValue {
+public extension NewRealtimeValue {
     var dbKey: String! { return node?.key }
 
     /// Indicates that value has key
@@ -231,17 +234,17 @@ public extension RealtimeValue {
     }
 }
 
-public extension Equatable where Self: RealtimeValue {
+public extension Equatable where Self: NewRealtimeValue {
     static func ==(lhs: Self, rhs: Self) -> Bool {
         return lhs.node == rhs.node
     }
 }
-public extension Hashable where Self: RealtimeValue {
+public extension Hashable where Self: NewRealtimeValue {
     func hash(into hasher: inout Hasher) {
         hasher.combine(dbKey)
     }
 }
-public extension Comparable where Self: RealtimeValue {
+public extension Comparable where Self: NewRealtimeValue {
     static func < (lhs: Self, rhs: Self) -> Bool {
         return dbKeyLessThan(lhs, rhs: rhs)
     }
@@ -317,7 +320,7 @@ public protocol RealtimeValueEvents {
     /// - Parameter ancestor: Ancestor node
     func didRemove(from ancestor: Node)
 }
-extension RealtimeValueEvents where Self: RealtimeValue {
+extension RealtimeValueEvents where Self: NewRealtimeValue {
     func willSave(in transaction: Transaction, in parent: Node) {
         guard let node = self.node else {
             return debugFatalError("Unkeyed value will be saved to undefined location in parent node: \(parent.absolutePath)")
@@ -354,8 +357,8 @@ extension RealtimeValueEvents where Self: RealtimeValue {
     }
 }
 
-/// Values that can writes as single values
-public protocol WritableRealtimeValue: RealtimeValue {
+/// Value that can writes as single values
+public protocol WritableRealtimeValue: RealtimeValue, NewWritableRealtimeValue {
     /// Writes all local stored data to transaction as is. You shouldn't call it directly.
     ///
     /// - Parameters:
@@ -363,7 +366,10 @@ public protocol WritableRealtimeValue: RealtimeValue {
     ///   - node: Database node where data will be store
     func write(to transaction: Transaction, by node: Node) throws
 }
-public extension RealtimeValue {
+public protocol NewWritableRealtimeValue: NewRealtimeValue {
+    func write(to transaction: Transaction, by node: Node) throws
+}
+public extension NewRealtimeValue {
     func writeSystemValues(to transaction: Transaction, by node: Node) throws {
         if let rw = raw {
             transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
@@ -390,8 +396,8 @@ extension WritableRealtimeValue where Self: Versionable {
     }
 }
 
-/// Values that can be changed partially
-public protocol ChangeableRealtimeValue: RealtimeValue {
+/// Value that can be changed partially
+public protocol ChangeableRealtimeValue: NewRealtimeValue {
     /// Indicates that value was changed
     var hasChanges: Bool { get }
 

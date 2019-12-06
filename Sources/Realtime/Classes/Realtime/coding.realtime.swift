@@ -973,7 +973,7 @@ public extension Representer where V: RealtimeValue {
     ///
     /// - Parameter mode: Representation mode
     /// - Returns: Reference representer
-    static func reference(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Representer<V> {
+    static func reference(_ mode: ReferenceMode) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let node = v.node else {
@@ -992,8 +992,8 @@ public extension Representer where V: RealtimeValue {
             decoding: { (data) in
                 let reference = try ReferenceRepresentation(data: data)
                 switch mode {
-                case .fullPath: return reference.make(options: options)
-                case .path(from: let n): return reference.make(fromAnchor: n, options: options)
+                case .fullPath: return reference.make(options: [:])
+                case .path(from: let n): return reference.make(fromAnchor: n, options: [:])
                 }
             }
         )

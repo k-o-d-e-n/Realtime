@@ -12,7 +12,7 @@ public extension RawRepresentable where RawValue == String {
     func values<Element>(in object: Object) -> Values<Element> {
         return Values(in: Node(key: rawValue, parent: object.node), options: [.database: object.database as Any])
     }
-    func values<Element>(in object: Object, elementOptions: [ValueOption: Any]) -> Values<Element> {
+    func values<Element: WritableRealtimeValue>(in object: Object, elementOptions: [ValueOption: Any]) -> Values<Element> {
         let db = object.database as Any
         return values(in: object, builder: { (node, options) in
             var compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
@@ -45,7 +45,7 @@ public extension Values {
 }
 
 /// A Realtime database collection that stores elements in own database node as is, as full objects.
-public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection where Element: WritableRealtimeValue & RealtimeValueEvents {
+public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection where Element: NewWritableRealtimeValue & RealtimeValueEvents {
     /// Stores collection values and responsible for lazy initialization elements
     var storage: RCKeyValueStorage<Element>
     internal private(set) var builder: RealtimeValueBuilder<Element>
@@ -102,7 +102,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     public required convenience init(in node: Node?, options: [ValueOption: Any]) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         let viewNode = Node(key: InternalKeys.items, parent: viewParentNode)
-        let view = SortedCollectionView<RCItem>(in: viewNode, options: [.database: options[.database] as Any])
+        let view = SortedCollectionView<RCItem>(in: viewNode, options: RealtimeValueOptions(database: options[.database] as? RealtimeDatabase))
         self.init(in: node, options: options, view: view)
     }
 
@@ -112,16 +112,16 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         let viewNode = Node(key: InternalKeys.items, parent: viewParentNode)
         self.builder = RealtimeValueBuilder(spaceNode: node, impl: Element.init)
         self.storage = RCKeyValueStorage()
-        self.view = SortedCollectionView(in: viewNode, options: [.database: data.database as Any])
+        self.view = SortedCollectionView(in: viewNode, options: RealtimeValueOptions(database: data.database))
         try super.init(data: data, event: event)
     }
 
     init(in node: Node?, options: [ValueOption: Any], view: SortedCollectionView<RCItem>) {
-        let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
+        guard let builder = options[.elementBuilder] as? RCElementBuilder<Element> else { fatalError() }
         self.builder = RealtimeValueBuilder(spaceNode: node, impl: builder)
         self.storage = RCKeyValueStorage()
         self.view = view
-        super.init(in: node, options: options)
+        super.init(in: node, options: RealtimeValueOptions(from: options))
     }
 
     // Implementation
@@ -415,7 +415,7 @@ extension Values {
 }
 
 public final class ExplicitValues<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Element: WritableRealtimeValue & Comparable {
+where Element: NewWritableRealtimeValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
 
     public override var raw: RealtimeDatabaseValue? { return nil }
@@ -451,19 +451,19 @@ where Element: WritableRealtimeValue & Comparable {
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
     public required convenience init(in node: Node?, options: [ValueOption: Any]) {
-        let view = SortedCollectionView<Element>(in: node, options: [.database: options[.database] as Any])
+        let view = SortedCollectionView<Element>(in: node, options: RealtimeValueOptions(database: options[.database] as? RealtimeDatabase))
         self.init(in: node, options: options, view: view)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         let node = data.node
-        self.view = SortedCollectionView(in: node, options: [.database: data.database as Any])
+        self.view = SortedCollectionView(in: node, options: RealtimeValueOptions(database: data.database))
         try super.init(data: data, event: event)
     }
 
     init(in node: Node?, options: [ValueOption: Any], view: SortedCollectionView<Element>) {
         self.view = view
-        super.init(in: node, options: options)
+        super.init(in: node, options: RealtimeValueOptions(from: options))
     }
 
     // Implementation

@@ -7,23 +7,17 @@
 
 import Foundation
 
-public struct RCItem: WritableRealtimeValue, Comparable {
+public struct RCItem: NewWritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue?
     public var payload: RealtimeDatabaseValue?
     public let node: Node?
     var priority: Int64?
     var linkID: String?
 
-    init(key: String?, value: RealtimeValue) {
+    init(key: String?, value: NewRealtimeValue) {
         self.raw = value.raw
         self.payload = value.payload
         self.node = Node(key: key ?? value.dbKey)
-    }
-
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self.node = node
-        self.raw = options[.rawValue] as? RealtimeDatabaseValue
-        self.payload = options[.payload] as? RealtimeDatabaseValue
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -79,7 +73,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
     }
 }
 
-public struct RDItem: WritableRealtimeValue, Comparable {
+public struct RDItem: NewWritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue?
     public var payload: RealtimeDatabaseValue?
     public var node: Node? { return rcItem.node }
@@ -95,14 +89,10 @@ public struct RDItem: WritableRealtimeValue, Comparable {
         get { return rcItem.linkID }
     }
 
-    init(key: RealtimeValue, value: RealtimeValue) {
+    init(key: NewRealtimeValue, value: NewRealtimeValue) {
         self.rcItem = RCItem(key: key.dbKey, value: value)
         self.raw = key.raw
         self.payload = key.payload
-    }
-
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self.rcItem = RCItem(in: node, options: options)
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -212,7 +202,7 @@ enum ViewDataExplorer {
     case page(PagingController)
 }
 
-public final class SortedCollectionView<Element: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollectionView {
+public final class SortedCollectionView<Element: NewWritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollectionView {
     typealias Source = SortedArray<Element>
     private var _elements: Source = Source()
     private var dataExplorer: ViewDataExplorer = .value(ascending: false) // TODO: default value may mismatch with default value of collection
@@ -239,12 +229,8 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         }
     }
 
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        super.init(in: node, options: options)
-    }
-
     public required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        self.init(in: data.node, options: [.database: data.database as Any, .storage: data.storage as Any])
+        self.init(in: data.node, options: RealtimeValueOptions(database: data.database, raw: nil, payload: nil))
         try apply(data, event: event)
     }
 

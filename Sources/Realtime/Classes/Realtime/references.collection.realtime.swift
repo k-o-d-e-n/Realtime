@@ -8,16 +8,13 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func references<C, Element>(in object: Object, elements: Node) -> C where C: References<Element> {
+    func references<C, Element: RealtimeValue>(in object: Object, elements: Node) -> C where C: References<Element> {
         return C(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .elementsNode: elements
-            ]
+            options: C.Options(baseOptions: RealtimeValueOptions(database: object.database), elementsNode: elements, builder: Element.init)
         )
     }
-    func references<C, Element>(in object: Object, elements: Node, elementOptions: [ValueOption: Any]) -> C where C: References<Element> {
+    func references<C, Element: RealtimeValue>(in object: Object, elements: Node, elementOptions: [ValueOption: Any]) -> C where C: References<Element> {
         let db = object.database as Any
         return references(in: object, elements: elements, builder: { (node, options) in
             var compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
@@ -28,11 +25,7 @@ public extension RawRepresentable where RawValue == String {
     func references<C, Element>(in object: Object, elements: Node, builder: @escaping RCElementBuilder<Element>) -> C where C: References<Element> {
         return C(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .elementsNode: elements,
-                .elementBuilder: builder
-            ]
+            options: C.Options(baseOptions: RealtimeValueOptions(database: object.database), elementsNode: elements, builder: builder)
         )
     }
 }
@@ -42,7 +35,7 @@ public extension ValueOption {
 }
 
 /// A Realtime database collection that stores elements in own database node as references.
-public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
+public class __RepresentableCollection<Element, Ref: NewWritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollection where Element: NewRealtimeValue {
     internal var storage: RCKeyValueStorage<Element>
 
     public override var raw: RealtimeDatabaseValue? { return nil }
@@ -85,11 +78,7 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required convenience init(in node: Node?, options: [ValueOption : Any]) {
-        self.init(view: SortedCollectionView(in: node, options: options), options: options)
-    }
-
-    init(view: SortedCollectionView<Ref>, options: [ValueOption: Any]) {
+    init(view: SortedCollectionView<Ref>, options: RealtimeValueOptions) {
         self.storage = RCKeyValueStorage()
         self.view = view
         super.init(in: view.node, options: options)
@@ -97,7 +86,7 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.storage = RCKeyValueStorage()
-        self.view = SortedCollectionView(in: data.node, options: [.database: data.database as Any])
+        self.view = SortedCollectionView(in: data.node, options: RealtimeValueOptions(database: data.database))
         try super.init(data: data, event: event)
     }
 
@@ -154,8 +143,14 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
     }
 }
 
-public class References<Element: RealtimeValue>: __RepresentableCollection<Element, RCItem>, WritableRealtimeCollection {
+public class References<Element: NewRealtimeValue>: __RepresentableCollection<Element, RCItem>, WritableRealtimeCollection {
     internal let builder: RealtimeValueBuilder<Element>
+
+    public struct Options {
+        let baseOptions: RealtimeValueOptions
+        let elementsNode: Node
+        let builder: RCElementBuilder<Element>
+    }
 
     /// Creates new instance associated with database node
     ///
@@ -166,12 +161,15 @@ public class References<Element: RealtimeValue>: __RepresentableCollection<Eleme
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
-        let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
-        self.builder = RealtimeValueBuilder(spaceNode: elements, impl: builder)
-        super.init(view: SortedCollectionView(in: node, options: options),
-                   options: options)
+    public required init(in node: Node?, options: Options) {
+        self.builder = RealtimeValueBuilder(spaceNode: options.elementsNode, impl: options.builder)
+        super.init(view: SortedCollectionView(in: node, options: options.baseOptions),
+                   options: options.baseOptions)
+    }
+
+    init(view: SortedCollectionView<RCItem>, options: Options) {
+        self.builder = RealtimeValueBuilder(spaceNode: options.elementsNode, impl: options.builder)
+        super.init(view: view, options: options.baseOptions)
     }
 
     override func buildElement(with item: RCItem) -> Element {
@@ -190,7 +188,7 @@ public class References<Element: RealtimeValue>: __RepresentableCollection<Eleme
 
 // MARK: Mutating
 
-public final class MutableReferences<Element: RealtimeValue>: References<Element>, MutableRealtimeCollection {
+public final class MutableReferences<Element: NewRealtimeValue>: References<Element>, MutableRealtimeCollection {
     override var _hasChanges: Bool { return view._hasChanges }
 
     public func write(_ element: Element, in transaction: Transaction) throws {
@@ -385,14 +383,14 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
 
 // MARK: DistributedReferences
 
-public struct RCRef: WritableRealtimeValue, Comparable {
+public struct RCRef: NewWritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue? { return reference?.payload.raw }
     public var payload: RealtimeDatabaseValue? { return reference?.payload.user }
     public var node: Node?
     public let dbKey: String!
     var reference: ReferenceRepresentation!
 
-    init(mode: ReferenceMode, value: RealtimeValue) {
+    init(mode: ReferenceMode, value: NewRealtimeValue) {
         self.dbKey = value.dbKey
         let raw = value.raw
         let payload = value.payload
@@ -405,11 +403,6 @@ public struct RCRef: WritableRealtimeValue, Comparable {
             ref: ref,
             payload: (raw, payload)
         )
-    }
-
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self.node = node
-        self.dbKey = node?.key
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -428,9 +421,14 @@ public struct RCRef: WritableRealtimeValue, Comparable {
 public extension ValueOption {
     static var representableBuilder: ValueOption { return ValueOption("realtime.representablecollection.builder") }
 }
-public class RepresentableCollection<Element: RealtimeValue, Ref: WritableRealtimeValue & Comparable>: __RepresentableCollection<Element, Ref> {
+public class RepresentableCollection<Element: NewRealtimeValue, Ref: NewWritableRealtimeValue & Comparable>: __RepresentableCollection<Element, Ref> {
     public typealias Builder = (Ref) -> Element
     internal let builder: Builder
+
+    public struct Options {
+        let baseOptions: RealtimeValueOptions
+        let builder: Builder
+    }
 
     /// Creates new instance associated with database node
     ///
@@ -440,10 +438,14 @@ public class RepresentableCollection<Element: RealtimeValue, Ref: WritableRealti
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        guard let builder = options[.representableBuilder] as? Builder else { fatalError("Cannot found builder parameter") }
-        self.builder = builder
-        super.init(view: SortedCollectionView(in: node, options: options), options: options)
+    public init(in node: Node?, options: Options) {
+        self.builder = options.builder
+        super.init(view: SortedCollectionView(in: node, options: options.baseOptions), options: options.baseOptions)
+    }
+
+    init(view: SortedCollectionView<Ref>, options: Options) {
+        self.builder = options.builder
+        super.init(view: view, options: options.baseOptions)
     }
 
     /// Currently, no available.
@@ -459,7 +461,13 @@ public class RepresentableCollection<Element: RealtimeValue, Ref: WritableRealti
         return builder(item)
     }
 }
-public final class DistributedReferences<Element: RealtimeValue>: RepresentableCollection<Element, RCRef> {
+public final class DistributedReferences<Element: NewRealtimeValue>: RepresentableCollection<Element, RCRef> {
+    public struct Options1 {
+        let baseOptions: RealtimeValueOptions
+        let mode: ReferenceMode = .fullPath
+        let builder: RCElementBuilder<Element>
+    }
+
     /// Creates new instance associated with database node
     ///
     /// Available options:
@@ -469,16 +477,14 @@ public final class DistributedReferences<Element: RealtimeValue>: RepresentableC
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        let mode = (options[.reference] as? ReferenceMode) ?? .fullPath
+    public required init(in node: Node?, options: Options1) {
         let anchorNode: Node
-        switch mode {
+        switch options.mode {
         case .fullPath: anchorNode = .root
         case .path(from: let n): anchorNode = n
         }
-        let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
-        let _builder: (RCRef) -> Element = RealtimeValueBuilder(spaceNode: anchorNode, impl: builder).build(withRef:)
-        super.init(in: node, options: options.merging([.representableBuilder: _builder], uniquingKeysWith: { new, old in new }))
+        let _builder: (RCRef) -> Element = RealtimeValueBuilder(spaceNode: anchorNode, impl: options.builder).build(withRef:)
+        super.init(in: node, options: Options(baseOptions: options.baseOptions, builder: _builder))
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -488,7 +494,7 @@ public final class DistributedReferences<Element: RealtimeValue>: RepresentableC
 
 // MARK: Relations
 
-public struct RelationsItem: WritableRealtimeValue, Comparable {
+public struct RelationsItem: NewWritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue?
     public var payload: RealtimeDatabaseValue?
     public var node: Node?
@@ -496,17 +502,10 @@ public struct RelationsItem: WritableRealtimeValue, Comparable {
     public let dbKey: String!
     var relation: RelationRepresentation!
 
-    init(value: RealtimeValue) {
+    init(value: NewRealtimeValue) {
         self.dbKey = value.dbKey
         self.raw = value.raw
         self.payload = value.payload
-    }
-
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self.node = node
-        self.dbKey = node?.key
-        self.raw = options[.rawValue] as? RealtimeDatabaseValue
-        self.payload = options[.payload] as? RealtimeDatabaseValue
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -558,6 +557,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         }
 
         self.options = relation
+        let options = RealtimeValueOptions(from: options)
         super.init(view: SortedCollectionView(in: node, options: options),
                    options: options)
     }
