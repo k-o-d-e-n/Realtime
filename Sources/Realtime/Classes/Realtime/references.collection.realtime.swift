@@ -285,7 +285,7 @@ public final class MutableReferences<Element: NewRealtimeValue>: References<Elem
         }
 
         storage.remove(for: element.dbKey)
-        guard let index = view.index(where: { $0.dbKey == element.dbKey }) else {
+        guard let index = view.firstIndex(where: { $0.dbKey == element.dbKey }) else {
             return
         }
         view.remove(at: index)
@@ -534,14 +534,12 @@ public extension RawRepresentable where RawValue == String {
     func relations<V: Object>(in object: Object, anchor: Relations<V>.Options.Anchor = .root, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relations<V> {
         return Relations(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .relation: Relations<V>.Options(
-                    anchor: anchor,
-                    ownerLevelsUp: ownerLevelsUp,
-                    property: property
-                )
-            ]
+            options: Relations<V>.Options(
+                database: object.database,
+                anchor: anchor,
+                ownerLevelsUp: ownerLevelsUp,
+                property: property
+            )
         )
     }
 }
@@ -550,16 +548,13 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
     override var _hasChanges: Bool { return view._hasChanges }
     let options: Options
 
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        guard case let relation as Options = options[.relation] else { fatalError("Skipped required options") }
-        if let error = relation.validate() {
+    public required init(in node: Node?, options: Options) {
+        if let error = options.validate() {
             fatalError("Options invalid. Reason: \(error)")
         }
 
-        self.options = relation
-        let options = RealtimeValueOptions(from: options)
-        super.init(view: SortedCollectionView(in: node, options: options),
-                   options: options)
+        self.options = options
+        super.init(view: SortedCollectionView(in: node, options: options.base), options: options.base)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -571,6 +566,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
     }
 
     public struct Options {
+        let base: RealtimeValueOptions
         /// Anchor behavior to get target path to relation owner
         let anchor: Anchor
         /// Levels up by hierarchy to relation owner of this property
@@ -585,7 +581,8 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
             case levelsUp(UInt)
         }
 
-        public init(anchor: Anchor, ownerLevelsUp: UInt, property: RelationProperty) {
+        public init(database: RealtimeDatabase?, anchor: Anchor, ownerLevelsUp: UInt, property: RelationProperty) {
+            self.base = RealtimeValueOptions(database: database)
             self.anchor = anchor
             self.ownerLevelsUp = ownerLevelsUp
             self.property = property
@@ -781,7 +778,7 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
         }
 
         storage.remove(for: element.dbKey)
-        guard let index = view.index(where: { $0.dbKey == element.dbKey }) else {
+        guard let index = view.firstIndex(where: { $0.dbKey == element.dbKey }) else {
             return
         }
         view.remove(at: index)

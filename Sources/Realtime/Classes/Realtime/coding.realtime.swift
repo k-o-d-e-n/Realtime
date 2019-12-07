@@ -926,7 +926,7 @@ public extension Representer where V: Collection {
         )
     }
 }
-public extension Representer where V: RealtimeValue {
+public extension Representer where V: NewRealtimeValue {
     /// Representer that convert `RealtimeValue` as database relation.
     ///
     /// - Parameters:
@@ -934,7 +934,7 @@ public extension Representer where V: RealtimeValue {
     ///   - rootLevelsUp: Level of root node to do relation path
     ///   - ownerNode: Database node of relation owner
     /// - Returns: Relation representer
-    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
+    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>, database: RealtimeDatabase?, builder: @escaping RCElementBuilder<V>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
@@ -947,11 +947,11 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
 
-                return RealtimeDatabaseValue(try RelationRepresentation(
+                return try RelationRepresentation(
                     path: node.path(from: anchorNode ?? .root),
                     property: mode.path(for: owner),
                     payload: (v.raw, v.payload)
-                ).defaultRepresentation())
+                ).defaultRepresentation()
             },
             decoding: { d in
                 guard let owner = ownerNode.value
@@ -964,16 +964,15 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
                 let relation = try RelationRepresentation(data: d)
-                return relation.make(fromAnchor: anchorNode ?? .root, options: [:])
+                return builder((anchorNode ?? .root).child(with: relation.targetPath), relation.options(database))
             }
         )
     }
-
     /// Representer that convert `RealtimeValue` as database reference.
     ///
     /// - Parameter mode: Representation mode
     /// - Returns: Reference representer
-    static func reference(_ mode: ReferenceMode) -> Representer<V> {
+    static func reference(_ mode: ReferenceMode, database: RealtimeDatabase?, builder: @escaping RCElementBuilder<V>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let node = v.node else {
@@ -984,16 +983,16 @@ public extension Representer where V: RealtimeValue {
                 case .fullPath: ref = node.absolutePath
                 case .path(from: let n): ref = node.path(from: n)
                 }
-                return RealtimeDatabaseValue(try ReferenceRepresentation(
+                return try ReferenceRepresentation(
                     ref: ref,
                     payload: (raw: v.raw, user: v.payload)
-                ).defaultRepresentation())
+                ).defaultRepresentation()
             },
             decoding: { (data) in
                 let reference = try ReferenceRepresentation(data: data)
                 switch mode {
-                case .fullPath: return reference.make(options: [:])
-                case .path(from: let n): return reference.make(fromAnchor: n, options: [:])
+                case .fullPath: return builder(.root(reference.source), reference.options.merging([.database: database as Any], uniquingKeysWith: { _, new in new }))
+                case .path(from: let n): return builder(n.child(with: reference.source), reference.options.merging([.database: database as Any], uniquingKeysWith: { _, new in new }))
                 }
             }
         )

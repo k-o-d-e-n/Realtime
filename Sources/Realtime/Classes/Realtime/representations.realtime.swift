@@ -58,6 +58,14 @@ struct ReferenceRepresentation: RealtimeDataRepresented {
     }
 }
 extension ReferenceRepresentation {
+    var options: [ValueOption: Any] {
+        var options: [ValueOption: Any] = [:]
+        options[.rawValue] = payload.raw
+        if let pl = payload.user {
+            options[.payload] = pl
+        }
+        return options
+    }
     func make<V: RealtimeValue>(fromAnchor node: Node = .root, options: [ValueOption: Any]) -> V {
         var options = options
         options[.rawValue] = payload.raw
@@ -193,6 +201,14 @@ public struct RelationRepresentation: RealtimeDataRepresented {
     }
 }
 extension RelationRepresentation {
+    func options(_ db: RealtimeDatabase?) -> [ValueOption: Any] {
+        var options: [ValueOption: Any] = [.database: db]
+        options[.rawValue] = payload.raw
+        if let pl = payload.user {
+            options[.payload] = pl
+        }
+        return options
+    }
     func make<V: RealtimeValue>(fromAnchor node: Node, options: [ValueOption: Any]) -> V {
         var options = options
         options[.rawValue] = payload.raw

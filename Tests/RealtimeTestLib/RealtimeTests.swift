@@ -109,14 +109,14 @@ class TestObject: Object {
         required init(in node: Node?, options: [ValueOption : Any]) {
             self.usualProperty = Property.optional(in: Node(key: "usualprop", parent: node),
                                                    representer: .realtimeDataValue,
-                                                   options: [.database: options[.database] as Any])
+                                                   db: options[.database] as? RealtimeDatabase)
             super.init(in: node, options: options)
         }
 
         required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             self.usualProperty = Property.optional(in: Node(key: "usualprop", parent: data.node),
                                                    representer: .realtimeDataValue,
-                                                   options: [.database: data.database as Any])
+                                                   db: data.database)
             try super.init(data: data, event: event)
         }
 
@@ -793,7 +793,9 @@ extension RealtimeTests {
     }
 
     func testRepresenterOptional() {
-        let representer = Representer<TestObject>.relation(.one(name: "prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil)).optional()
+        let representer = Representer<TestObject>.relation(
+            .one(name: "prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil), database: Cache.root, builder: TestObject.init
+        ).optional()
         do {
             let object = try representer.decode(ValueNode(node: Node(key: ""), value: nil))
             XCTAssertNil(object)
@@ -805,7 +807,7 @@ extension RealtimeTests {
     func testReferenceRepresentationPayload() {
         let userPayload = RealtimeDatabaseValue([RealtimeDatabaseValue(("foo", "bar"))])
         let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.payload: userPayload]))
-        let representer = Representer<ValueWithPayload>.reference(.fullPath)
+        let representer = Representer<ValueWithPayload>.reference(.fullPath, database: Cache.root, builder: ValueWithPayload.init)
 
         do {
             let result = try representer.encode(value)
@@ -1294,8 +1296,13 @@ extension RealtimeTests {
         transaction.revert()
     }
     func testLocalChangesDictionary() {
-        let dict: AssociatedValues<TestObject, TestObject> = AssociatedValues(in: Node(key: "dict"),
-                                                                              options: [.keysNode: Node.root])
+        let dict: AssociatedValues<TestObject, TestObject> = AssociatedValues(
+            in: Node(key: "dict"),
+            options: AssociatedValues.Options(
+                database: Cache.root, keys: .root,
+                keyBuilder: TestObject.init, valueBuilder: TestObject.init
+            )
+        )
 
         let one = TestObject()
         one.file <== "file".data(using: .utf8)
@@ -1326,7 +1333,7 @@ extension RealtimeTests {
 
     func testListeningCollectionChangesOnInsert() {
         let exp = expectation(description: "")
-        let array = Values<User>(in: .root, options: [.database: Cache.root])
+        let array = Values<User>(in: .root, options: Values.Options(database: Cache.root, builder: User.init))
 
         array.runObserving()
         array.changes.listening(onValue: { (event) in
@@ -1407,7 +1414,7 @@ extension RealtimeTests {
 
                 let chairman = Reference<User>.readonly(
                     in: conversation.chairman.node,
-                    mode: Reference<User>.Mode.required(.fullPath, db: Cache.root)
+                    mode: Reference<User>.Mode.required(.fullPath, db: Cache.root, builder: User.init)
                 )
                 do {
                     try chairman.apply(Cache.root.child(forNode: conversation.chairman.node!), event: .value)
@@ -1439,7 +1446,13 @@ extension RealtimeTests {
 
     func testAssociatedValuesWithVersionAndRawValues() {
         let exp = expectation(description: "")
-        let assocValues = AssociatedValues<TestObject, TestObject>(in: Node.root("values"), options: [.database: Cache.root, .keysNode: Node.root("keys")])
+        let assocValues = AssociatedValues<TestObject, TestObject>(
+            in: Node.root("values"),
+            options: AssociatedValues.Options(
+                database: Cache.root, keys: .root("keys"),
+                keyBuilder: TestObject.init, valueBuilder: TestObject.init
+            )
+        )
         let keyRaw = RealtimeDatabaseValue(2)
         let key = TestObject(in: Node.root("keys").child(with: "key"), options: [.database: Cache.root, .rawValue: keyRaw])
         let valueRaw = RealtimeDatabaseValue(5)
@@ -1453,7 +1466,10 @@ extension RealtimeTests {
                 /// we can use Values for readonly access to values, AssociatedValues and Values must be compatible
                 let copyAssocitedValues = AssociatedValues<Object, Object>(
                     in: Node.root("values"),
-                    options: [.keysNode: Node.root("keys"), .database: Cache.root]
+                    options: AssociatedValues.Options(
+                        database: Cache.root, keys: .root("keys"),
+                        keyBuilder: Object.init, valueBuilder: Object.init
+                    )
                 )
                 let copyValues = copyAssocitedValues.values()
                 /// we can use References for readonly access to keys
@@ -1511,7 +1527,7 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let prop = ReadonlyProperty<String>(
             in: Node.root("___tests/prop"),
-            options: ReadonlyProperty<String>.PropertyOptions(RealtimeValueOptions(), availability: Availability.required(Representer<String>.realtimeDataValue), initial: nil)
+            options: ReadonlyProperty<String>.PropertyOptions(database: Cache.root, availability: Availability.required(Representer<String>.realtimeDataValue), initial: nil)
         )
 
         _ = prop.load(timeout: .seconds(3)).completion.listening(.just { err in
@@ -1618,7 +1634,7 @@ class VersionableObject: Object {
     lazy var firstMinorVersionVariable: Property<String?> = Property.writeRequired(
         in: Node(key: "firstMinorVersionVariable", parent: self.node),
         representer: Representer<String>.realtimeDataValue,
-        options: [.database: self.database as Any]
+        db: self.database
     )
 
     // renamed
@@ -1627,7 +1643,7 @@ class VersionableObject: Object {
     lazy var renamedToVariable: Property<String?> = Property.writeRequired(
         in: Node(key: "renamedToVariable", parent: self.node),
         representer: Representer<String>.realtimeDataValue,
-        options: [.database: self.database as Any]
+        db: self.database
     )
 
     override var ignoredLabels: [String] {

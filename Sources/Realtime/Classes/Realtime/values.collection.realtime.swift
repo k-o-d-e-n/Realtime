@@ -9,10 +9,10 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func values<Element>(in object: Object) -> Values<Element> {
-        return Values(in: Node(key: rawValue, parent: object.node), options: [.database: object.database as Any])
+    func values<Element: RealtimeValue>(in object: Object) -> Values<Element> {
+        return Values(in: Node(key: rawValue, parent: object.node), options: Values.Options(database: object.database, builder: Element.init))
     }
-    func values<Element: WritableRealtimeValue>(in object: Object, elementOptions: [ValueOption: Any]) -> Values<Element> {
+    func values<Element: RealtimeValue>(in object: Object, elementOptions: [ValueOption: Any]) -> Values<Element> {
         let db = object.database as Any
         return values(in: object, builder: { (node, options) in
             var compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
@@ -23,24 +23,27 @@ public extension RawRepresentable where RawValue == String {
     func values<Element>(in object: Object, builder: @escaping RCElementBuilder<Element>) -> Values<Element> {
         return Values(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .elementBuilder: builder
-            ]
+            options: Values.Options(database: object.database, builder: builder)
         )
-    }
-}
-public extension Node {
-    func array<Element>() -> Values<Element> {
-        return Values(in: self)
     }
 }
 
 public extension Values {
-    convenience init<E>(in node: Node?, elements: References<E>) {
-        self.init(in: node,
-                  options: [.elementBuilder: elements.builder.impl],
-                  view: elements.view)
+    convenience init(in node: Node?, elements: References<Element>) {
+        self.init(
+            in: node,
+            options: Options(database: elements.database, builder: elements.builder.impl),
+            view: elements.view
+        )
+    }
+}
+
+public extension Values where Element: RealtimeValue {
+    /// Create new instance with default element builder
+    ///
+    /// - Parameter node: Database node
+    convenience init(in node: Node?) {
+        self.init(in: node, options: Options(database: nil, builder: Element.init))
     }
 }
 
@@ -85,12 +88,16 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         didSet { view.didChange(dataExplorer: dataExplorer) }
     }
 
-    /// Create new instance with default element builder
-    ///
-    /// - Parameter node: Database node
-    public convenience required init(in node: Node?) {
-        self.init(in: node, options: [:])
+    public struct Options {
+        let base: RealtimeValueOptions
+        let builder: RCElementBuilder<Element>
+
+        public init(database: RealtimeDatabase?, builder: @escaping RCElementBuilder<Element>) {
+            self.base = RealtimeValueOptions(database: database)
+            self.builder = builder
+        }
     }
+
     /// Creates new instance associated with database node
     ///
     /// Available options:
@@ -99,10 +106,10 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required convenience init(in node: Node?, options: [ValueOption: Any]) {
+    public required convenience init(in node: Node?, options: Options) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         let viewNode = Node(key: InternalKeys.items, parent: viewParentNode)
-        let view = SortedCollectionView<RCItem>(in: viewNode, options: RealtimeValueOptions(database: options[.database] as? RealtimeDatabase))
+        let view = SortedCollectionView<RCItem>(in: viewNode, options: RealtimeValueOptions(database: options.base.database))
         self.init(in: node, options: options, view: view)
     }
 
@@ -116,12 +123,11 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         try super.init(data: data, event: event)
     }
 
-    init(in node: Node?, options: [ValueOption: Any], view: SortedCollectionView<RCItem>) {
-        guard let builder = options[.elementBuilder] as? RCElementBuilder<Element> else { fatalError() }
-        self.builder = RealtimeValueBuilder(spaceNode: node, impl: builder)
+    init(in node: Node?, options: Options, view: SortedCollectionView<RCItem>) {
+        self.builder = RealtimeValueBuilder(spaceNode: node, impl: options.builder)
         self.storage = RCKeyValueStorage()
         self.view = view
-        super.init(in: node, options: RealtimeValueOptions(from: options))
+        super.init(in: node, options: options.base)
     }
 
     // Implementation
@@ -440,7 +446,7 @@ where Element: NewWritableRealtimeValue & Comparable {
     ///
     /// - Parameter node: Database node
     public convenience required init(in node: Node?) {
-        self.init(in: node, options: [:])
+        self.init(in: node, options: RealtimeValueOptions())
     }
     /// Creates new instance associated with database node
     ///
@@ -450,8 +456,8 @@ where Element: NewWritableRealtimeValue & Comparable {
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required convenience init(in node: Node?, options: [ValueOption: Any]) {
-        let view = SortedCollectionView<Element>(in: node, options: RealtimeValueOptions(database: options[.database] as? RealtimeDatabase))
+    public convenience override init(in node: Node?, options: RealtimeValueOptions) {
+        let view = SortedCollectionView<Element>(in: node, options: options)
         self.init(in: node, options: options, view: view)
     }
 
@@ -461,9 +467,9 @@ where Element: NewWritableRealtimeValue & Comparable {
         try super.init(data: data, event: event)
     }
 
-    init(in node: Node?, options: [ValueOption: Any], view: SortedCollectionView<Element>) {
+    init(in node: Node?, options: RealtimeValueOptions, view: SortedCollectionView<Element>) {
         self.view = view
-        super.init(in: node, options: RealtimeValueOptions(from: options))
+        super.init(in: node, options: options)
     }
 
     // Implementation

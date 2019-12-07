@@ -16,7 +16,7 @@ public extension RawRepresentable where Self.RawValue == String {
         return ReadonlyFile(
             in: Node(key: rawValue, parent: object.node),
             options: ReadonlyFile<T>.PropertyOptions(
-                RealtimeValueOptions(database: object.database),
+                database: object.database,
                 availability: Availability.required(representer),
                 initial: nil
             )
@@ -26,7 +26,7 @@ public extension RawRepresentable where Self.RawValue == String {
         return ReadonlyFile(
             in: Node(key: rawValue, parent: object.node),
             options: ReadonlyFile<T?>.PropertyOptions(
-                RealtimeValueOptions(database: object.database),
+                database: object.database,
                 availability: Availability.optional(representer),
                 initial: nil
             )
@@ -36,7 +36,7 @@ public extension RawRepresentable where Self.RawValue == String {
         return File(
             in: Node(key: rawValue, parent: object.node),
             options: .init(
-                baseOptions: .init(.init(database: object.database), availability: Availability.required(representer), initial: nil),
+                baseOptions: .init(database: object.database, availability: Availability.required(representer), initial: nil),
                 metadata: metadata
             )
         )
@@ -45,7 +45,7 @@ public extension RawRepresentable where Self.RawValue == String {
         return File<T?>(
             in: Node(key: rawValue, parent: object.node),
             options: File<T?>.Options(
-                baseOptions: File<T?>.PropertyOptions(RealtimeValueOptions(database: object.database), availability: Availability<T?>.optional(representer), initial: nil),
+                baseOptions: File<T?>.PropertyOptions(database: object.database, availability: Availability<T?>.optional(representer), initial: nil),
                 metadata: metadata
             )
         )
