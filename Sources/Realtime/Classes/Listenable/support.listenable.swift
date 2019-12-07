@@ -125,7 +125,8 @@ public extension RTime where Base: URLSession {
         let task: URLSessionDataTask
         let storage: ValueStorage<(Data?, URLResponse?)>
 
-        init(session: URLSession, request: URLRequest, storage: ValueStorage<(Data?, URLResponse?)> = .unsafe(strong: (nil, nil))) {
+        init(session: URLSession, request: URLRequest, storage: ValueStorage<(Data?, URLResponse?)> = .unsafe(strong: (nil, nil), repeater: .unsafe())) {
+            precondition(storage.repeater != nil, "Storage must have repeater")
             self.session = session
             self.task = session.dataTask(for: request, storage: storage)
             self.storage = storage
@@ -133,7 +134,7 @@ public extension RTime where Base: URLSession {
 
         public func listening(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> Disposable {
             task.resume()
-            return storage.listening(assign)
+            return storage.repeater!.listening(assign)
         }
     }
 
@@ -442,10 +443,10 @@ extension Repeater: Publisher {
     public typealias Output = T
     public typealias Failure = Error
 }
-extension ValueStorage: Publisher {
-    public typealias Output = T
-    public typealias Failure = Error
-}
+//extension ValueStorage: Publisher {
+//    public typealias Output = T
+//    public typealias Failure = Error
+//}
 extension Constant: Publisher {
     public typealias Output = T
     public typealias Failure = Error

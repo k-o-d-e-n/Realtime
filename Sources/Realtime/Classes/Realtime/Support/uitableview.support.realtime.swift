@@ -12,7 +12,7 @@ protocol ReuseItemProtocol {
 }
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
-    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, dispatcher: .queue(.main)) // why ValueStorage used? if it is not used
+    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe(with: .queue(.main)))
     public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
 
     open internal(set) weak var view: View? {

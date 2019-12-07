@@ -161,9 +161,9 @@ class CachedFileDownloadTask: RealtimeStorageTask {
         let switcher = Repeater<Bool>.unsafe()
         self.successSwitcher = switcher
         self._success = success
-        let source = ValueStorage<AnyListenable<RealtimeMetadata?>?>.unsafe(strong: nil)
+        let source = ValueStorage<AnyListenable<RealtimeMetadata?>?>.unsafe(strong: nil, repeater: .unsafe())
         self.currentSource = source
-        let memoizedSuccess = source.then({ $0! }).combine(with: switcher).memoizeOne(sendLast: true).filter({ $1 }).map({ $0.0 })
+        let memoizedSuccess = source.repeater!.then({ $0! }).combine(with: switcher).memoizeOne(sendLast: true).filter({ $1 }).map({ $0.0 })
         self._memoizedSuccess = memoizedSuccess
         self.nextLevelTask = task
         self.cache = cache
