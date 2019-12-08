@@ -9,7 +9,7 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func values<Element: RealtimeValue>(in object: Object) -> Values<Element> {
+    func values<Element: Object>(in object: Object) -> Values<Element> {
         return Values(in: Node(key: rawValue, parent: object.node), database: object.database)
     }
     func values<Element>(in object: Object, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) -> Values<Element> {
@@ -31,7 +31,7 @@ public extension Values {
     }
 }
 
-public extension Values where Element: RealtimeValue {
+public extension Values where Element: Object {
     /// Create new instance with default element builder
     ///
     /// - Parameter node: Database node
@@ -41,7 +41,7 @@ public extension Values where Element: RealtimeValue {
 
     convenience init(in node: Node?, database: RealtimeDatabase?) {
         self.init(in: node, options: Options(database: database, builder: { node, database, options in
-            return Element(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+            return Element(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
         }))
     }
 }

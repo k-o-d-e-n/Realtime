@@ -8,21 +8,21 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func dictionary<Key: RealtimeValue, Value: RealtimeValue>(in object: Object, keys: Node) -> AssociatedValues<Key, Value> {
+    func dictionary<Key: Object, Value: Object>(in object: Object, keys: Node) -> AssociatedValues<Key, Value> {
         return AssociatedValues(
             in: Node(key: rawValue, parent: object.node),
             options: AssociatedValues.Options(
                 database: object.database, keys: keys,
                 key: { node, database, options in
-                    return Key(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                    return Key(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
                 },
                 value: { node, database, options in
-                    return Value(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                    return Value(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
                 }
             )
         )
     }
-    func dictionary<Key: RealtimeValue, Value>(in object: Object, keys: Node, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Value>) -> AssociatedValues<Key, Value> {
+    func dictionary<Key: Object, Value>(in object: Object, keys: Node, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Value>) -> AssociatedValues<Key, Value> {
         return AssociatedValues(in: Node(key: rawValue, parent: object.node), database: object.database, keys: keys, value: builder)
     }
 }
@@ -34,26 +34,26 @@ extension ValueOption {
 /// A type that can used as key in `AssociatedValues` collection.
 public typealias HashableValue = Hashable & NewRealtimeValue
 
-extension AssociatedValues where Key: RealtimeValue, Value: RealtimeValue {
+extension AssociatedValues where Key: Object, Value: Object {
     convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node) {
         self.init(
             in: node,
             database: database, keys: keys,
             value: { node, database, options in
-                return Value(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                return Value(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
             }
         )
     }
 }
 
-extension AssociatedValues where Key: RealtimeValue {
+extension AssociatedValues where Key: Object {
     convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node, value: @escaping NewRCElementBuilder<RealtimeValueOptions, Value>) {
         self.init(
             in: node,
             options: Options(
                 database: database, keys: keys,
                 key: { node, database, options in
-                    return Key(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                    return Key(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
                 },
                 value: value
             )
@@ -489,17 +489,17 @@ extension AssociatedValues {
     }
 }
 
-public extension ExplicitAssociatedValues where Key: RealtimeValue {
+public extension ExplicitAssociatedValues where Key: Object {
     convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, keysNode: Node) throws {
         self.init(in: data.node, options: Options(database: data.database, keys: keysNode, keyBuilder: { node, database, options in
-            return Key(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+            return Key(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
         }))
         try apply(data, event: event)
     }
 }
 
 public final class ExplicitAssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable {
+where Value: NewWritableRealtimeValue & Comparable, Key: HashableValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
 
     internal let keysNode: Node
@@ -741,6 +741,7 @@ extension ExplicitAssociatedValues {
 
 extension AnyRealtimeCollection: RealtimeCollectionView {}
 
+/*
 class KeyedCollection<Key, Value>: _RealtimeValue, RealtimeCollection where Key: NewRealtimeValue, Value: RealtimeValue {
     typealias View = AnyRealtimeCollection<Key>
     typealias Element = (key: Key, value: Value)
@@ -792,3 +793,4 @@ class KeyedCollection<Key, Value>: _RealtimeValue, RealtimeCollection where Key:
         return v
     }
 }
+*/

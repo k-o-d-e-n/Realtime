@@ -8,15 +8,15 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func references<C, Element: RealtimeValue>(in parentNode: Node?, elements: Node, database: RealtimeDatabase?) -> C where C: References<Element> {
+    func references<C, Element: Object>(in parentNode: Node?, elements: Node, database: RealtimeDatabase?) -> C where C: References<Element> {
         return C(
             in: Node(key: rawValue, parent: parentNode),
             options: C.Options(database: database, elements: elements, builder: { node, database, options in
-                return Element(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                return Element(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
             })
         )
     }
-    func references<C, Element: RealtimeValue>(in object: Object, elements: Node) -> C where C: References<Element> {
+    func references<C, Element: Object>(in object: Object, elements: Node) -> C where C: References<Element> {
         return references(in: object.node, elements: elements, database: object.database)
     }
     func references<C, Element>(in object: Object, elements: Node, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) -> C where C: References<Element> {
@@ -568,13 +568,16 @@ public extension RawRepresentable where RawValue == String {
                 database: object.database,
                 anchor: anchor,
                 ownerLevelsUp: ownerLevelsUp,
-                property: property
+                property: property,
+                builder: { node, db, options in
+                    return V(in: node, options: options)
+                }
             )
         )
     }
 }
 
-public class Relations<Element>: __RepresentableCollection<Element, RelationsItem>, WritableRealtimeCollection where Element: RealtimeValue {
+public class Relations<Element>: __RepresentableCollection<Element, RelationsItem>, WritableRealtimeCollection where Element: NewRealtimeValue {
     override var _hasChanges: Bool { return view._hasChanges }
     let options: Options
 
@@ -603,6 +606,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         let ownerLevelsUp: UInt
         /// String path from related object to his relation property
         let property: RelationProperty
+        let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
 
         // TODO: Don`t control element node, because crash
         public enum Anchor {
@@ -611,11 +615,12 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
             case levelsUp(UInt)
         }
 
-        public init(database: RealtimeDatabase?, anchor: Anchor, ownerLevelsUp: UInt, property: RelationProperty) {
+        public init(database: RealtimeDatabase?, anchor: Anchor, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) {
             self.base = RealtimeValueOptions(database: database)
             self.anchor = anchor
             self.ownerLevelsUp = ownerLevelsUp
             self.property = property
+            self.builder = builder
         }
 
         fileprivate func anchorNode(forOwner node: Node) -> Node? {
@@ -704,7 +709,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         guard let ownerNode = self.node?.ancestor(onLevelUp: options.ownerLevelsUp) else { fatalError("Collection must be rooted") }
         guard let anchorNode = options.anchorNode(forOwner: ownerNode) else { fatalError("Couldn`t get anchor node for node \(ownerNode)") }
         let elementNode = anchorNode.child(with: item.relation.targetPath)
-        return Element(in: elementNode, options: [:])
+        return options.builder(elementNode, database, RealtimeValueOptions(database: database, raw: item.raw, payload: item.payload))
     }
 
     public override func didSave(in database: RealtimeDatabase, in parent: Node, by key: String) {

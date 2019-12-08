@@ -327,10 +327,6 @@ public final class File<T>: Property<T> {
         try super.init(data: data, event: event)
     }
 
-    public required init(in node: Node?, options: PropertyOptions) {
-        fatalError("init(in:options:) has not been implemented")
-    }
-
     override func cacheValue(_ node: Node, value: RealtimeDatabaseValue?) -> CacheNode {
         let file = FileNode(node: node, value: value)
         file.metadata = metadata ?? [:]

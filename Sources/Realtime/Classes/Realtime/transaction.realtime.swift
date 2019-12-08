@@ -169,7 +169,7 @@ extension Transaction {
     }
 }
 extension Transaction {
-    func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) throws {
+    func addLink<Value: NewRealtimeValue>(_ link: SourceLink, for value: Value) throws {
         addValue(try link.defaultRepresentation(), by: value.node!.linksItemsNode.child(with: link.id))
     }
 }

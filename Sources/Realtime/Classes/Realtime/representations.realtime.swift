@@ -61,14 +61,6 @@ extension ReferenceRepresentation {
     func options(_ db: RealtimeDatabase?) -> RealtimeValueOptions {
         return RealtimeValueOptions(database: db, raw: payload.raw, payload: payload.user)
     }
-    func make<V: RealtimeValue>(fromAnchor node: Node = .root, options: [ValueOption: Any]) -> V {
-        var options = options
-        options[.rawValue] = payload.raw
-        if let pl = payload.user {
-            options[.payload] = pl
-        }
-        return V(in: node.child(with: source), options: options)
-    }
 }
 
 /// Defines relation type.
@@ -198,14 +190,6 @@ public struct RelationRepresentation: RealtimeDataRepresented {
 extension RelationRepresentation {
     func options(_ db: RealtimeDatabase?) -> RealtimeValueOptions {
         return RealtimeValueOptions(database: db, raw: payload.raw, payload: payload.user)
-    }
-    func make<V: RealtimeValue>(fromAnchor node: Node, options: [ValueOption: Any]) -> V {
-        var options = options
-        options[.rawValue] = payload.raw
-        if let pl = payload.user {
-            options[.payload] = pl
-        }
-        return V(in: node.child(with: targetPath), options: options)
     }
 }
 

@@ -185,13 +185,11 @@ extension NewRealtimeValue {
     }
 }
 
-extension Optional: RealtimeValue, NewRealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
+extension Optional: NewRealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: NewRealtimeValue {
     public var raw: RealtimeDatabaseValue? { return self?.raw }
     public var payload: RealtimeDatabaseValue? { return self?.payload }
     public var node: Node? { return self?.node }
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self = .some(Wrapped(in: node, options: options))
-    }
+
     public mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try self?.apply(data, event: event)
     }
@@ -254,11 +252,6 @@ public extension Comparable where Self: NewRealtimeValue {
         case (.some(let l), .some(let r)): return l.key < r.key
         default: return false
         }
-    }
-}
-public extension RawRepresentable where Self.RawValue == String {
-    func value<T: RealtimeValue>(in object: Object, options: [ValueOption: Any] = [:]) -> T {
-        return T(in: object.node?.child(with: rawValue), options: options)
     }
 }
 
@@ -379,7 +372,7 @@ public extension NewRealtimeValue {
         }
     }
 }
-extension WritableRealtimeValue where Self: Versionable {
+extension NewWritableRealtimeValue where Self: Versionable {
     func writeSystemValues(to transaction: Transaction, by node: Node) throws {
         var versioner = Versioner()
         putVersion(into: &versioner)

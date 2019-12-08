@@ -461,6 +461,17 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
     }
 }
 
+public extension RawRepresentable where Self.RawValue == String {
+    func nested<Type: Object>(in object: Object, options: RealtimeValueOptions = .init()) -> Type {
+        let property = Type(
+            in: Node(key: rawValue, parent: object.node),
+            options: RealtimeValueOptions(database: object.database, raw: options.raw, payload: options.payload)
+        )
+        property.parent = object
+        return property
+    }
+}
+
 /// Main class to define Realtime models objects.
 /// You can define child properties using classes:
 ///
@@ -486,7 +497,7 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
 ///         }
 ///     }
 ///
-open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Comparable, Versionable {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, NewWritableRealtimeValue, RealtimeValueActions, Hashable, Comparable, Versionable {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
     lazy var repeater: Repeater<Object> = Repeater.unsafe()
 
@@ -525,8 +536,8 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         self.parent = object
     }
 
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        super.init(in: node, options: RealtimeValueOptions(from: options))
+    public required override init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {
+        super.init(in: node, options: options)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -950,12 +961,14 @@ extension Object: Reverting {
 }
 
 public extension Object {
+    /* TODO: creates objects with `Object` type and get EXC_BAD_ACCESS crash on runtime, because `_RealtimeValue.init` is not required
     /// Creates new instance associated with database node
     ///
     /// - Parameter node: Node location for value
-    convenience init(in node: Node?) { self.init(in: node, options: [:]) }
+    convenience init(in node: Node?) { self.init(in: node, options: RealtimeValueOptions()) }
     /// Creates new standalone instance with undefined node
     convenience init() { self.init(in: nil) }
+     */
 }
 
 public extension Object {

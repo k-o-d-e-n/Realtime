@@ -106,10 +106,10 @@ class TestObject: Object {
         lazy var lazyProperty: Property<String?> = "lazyprop".property(in: self)
         var usualProperty: Property<String?>
 
-        required init(in node: Node?, options: [ValueOption : Any]) {
+        required init(in node: Node?, options: RealtimeValueOptions) {
             self.usualProperty = Property.optional(in: Node(key: "usualprop", parent: node),
                                                    representer: .realtimeDataValue,
-                                                   db: options[.database] as? RealtimeDatabase)
+                                                   db: options.database)
             super.init(in: node, options: options)
         }
 
@@ -202,6 +202,11 @@ extension RealtimeTests {
         XCTAssertEqual(calculator, 1)
     }
 
+    func testObject() {
+        let conversation = Conversation(in: Node(key: "conv_1", parent: .root))
+        XCTAssertTrue(type(of: conversation) == Conversation.self)
+    }
+
     func testObjectSave() {
         let obj = TestObject()
 
@@ -272,7 +277,7 @@ extension RealtimeTests {
         }
     }
     func testRemovePropertyValue() {
-        let rootObj = Object(in: Node.root, options: [.database: Cache.root])
+        let rootObj = Object(in: Node.root, options: RealtimeValueOptions(database: Cache.root))
         let prop: Property<String?> = "prop".property(in: rootObj)
 
         prop.remove()
@@ -351,12 +356,12 @@ extension RealtimeTests {
 
     func testMergeTransactions() {
         let exp = expectation(description: "")
-        let testObject = TestObject(in: .root, options: [.database: Cache.root])
+        let testObject = TestObject(in: .root, options: RealtimeValueOptions(database: Cache.root))
 
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
 
-        let element = TestObject(in: Node.root.child(with: "element_1"), options: [.database: Cache.root])
+        let element = TestObject(in: Node.root.child(with: "element_1"), options: RealtimeValueOptions(database: Cache.root))
         element.property <== "element #1"
         element.nestedObject.lazyProperty <== "value"
 
@@ -631,8 +636,8 @@ extension RealtimeTests {
         let transaction = Transaction(database: Cache.root)
 
         do {
-            let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
-            let group = Group(in: Node(key: "group", parent: .root), options: [.database: Cache.root])
+            let user = User(in: Node(key: "user", parent: .root), options: RealtimeValueOptions(database: Cache.root))
+            let group = Group(in: Node(key: "group", parent: .root), options: RealtimeValueOptions(database: Cache.root))
 
             group._manager <== user
             try user.ownedGroups.write(group, in: transaction)
@@ -706,7 +711,7 @@ extension RealtimeTests {
     func testRelationPayload() {
         let exp = expectation(description: "")
         let payload = RealtimeDatabaseValue([RealtimeDatabaseValue(("key", "value"))])
-        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: RealtimeDatabaseValue(2), .payload: payload])
+        let obj = Object(in: Node.root("obj"), options: RealtimeValueOptions(database: Cache.root, raw: RealtimeDatabaseValue(2), payload: payload))
         let relation: Relation<Object> = "relation".relation(in: Object(in: .root), .one(name: "obj"))
         relation <== obj
 
@@ -795,7 +800,7 @@ extension RealtimeTests {
     func testRepresenterOptional() {
         let representer = Representer<TestObject>.relation(
             .one(name: "prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil), database: Cache.root, builder: { node, database, options in
-                return TestObject(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                return TestObject(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
             }
         ).optional()
         do {
@@ -808,9 +813,9 @@ extension RealtimeTests {
 
     func testReferenceRepresentationPayload() {
         let userPayload = RealtimeDatabaseValue([RealtimeDatabaseValue(("foo", "bar"))])
-        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.payload: userPayload]))
+        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: RealtimeValueOptions(payload: userPayload)))
         let representer = Representer<ValueWithPayload>.reference(.fullPath, database: Cache.root, builder: { node, database, options in
-            return ValueWithPayload(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+            return ValueWithPayload(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
         })
 
         do {
@@ -894,7 +899,7 @@ extension RealtimeTests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
     }
 
-    enum ValueWithPayload: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
+    enum ValueWithPayload: NewWritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
         var raw: RealtimeDatabaseValue? {
             switch self {
             case .two: return RealtimeDatabaseValue(UInt8(1))
@@ -919,8 +924,8 @@ extension RealtimeTests {
         case one(TestObject)
         case two(TestObject)
 
-        init(in node: Node?, options: [ValueOption : Any]) {
-            let raw = try? options.rawValue?.typed(as: UInt8.self) ?? 0
+        init(in node: Node?, options: RealtimeValueOptions) {
+            let raw = try? options.raw?.typed(as: UInt8.self) ?? 0
 
             switch raw {
             case 1: self = .two(TestObject(in: node, options: options))
@@ -990,7 +995,10 @@ extension RealtimeTests {
     }
 
     func testPayload() {
-        let array = Values<ValueWithPayload>(in: Node.root.child(with: "__tests/array"))
+        let array = Values<ValueWithPayload>(
+            in: Node.root.child(with: "__tests/array"),
+            options: Values.Options(database: Cache.root, builder: { ValueWithPayload(in: $0, options: $2) })
+        )
         let transaction = Transaction()
 
         do {
@@ -1011,22 +1019,22 @@ extension RealtimeTests {
         var payloadBuilder = RealtimeDatabaseValue.Dictionary()
         payloadBuilder.setValue("val", forKey: "key")
         let payload = payloadBuilder.build()
-        let value = TestObject(in: .root, options: [.payload: payload])
+        let value = TestObject(in: .root, options: RealtimeValueOptions(payload: payload))
         XCTAssertEqual(value.payload, payload)
     }
 
     func testInitializeWithPayload3() {
         var payloadBuilder = RealtimeDatabaseValue.Dictionary()
         payloadBuilder.setValue("val", forKey: "key")
-        let payload: Any = payloadBuilder.build()
-        let value = TestObject(in: .root, options: [.payload: payload])
-        XCTAssertEqual(value.payload, payload as? RealtimeDatabaseValue)
+        let payload = payloadBuilder.build()
+        let value = TestObject(in: .root, options: RealtimeValueOptions(payload: payload))
+        XCTAssertEqual(value.payload, payload)
     }
 
     func testInitializeWithPayload4() {
         let exp = expectation(description: "")
         let rawValue = RealtimeDatabaseValue(5)
-        let user = User2(in: nil, options: [.database: Cache.root, .rawValue: rawValue])
+        let user = User2(in: nil, options: RealtimeValueOptions(database: Cache.root, raw: rawValue))
         XCTAssertEqual(user.raw, rawValue)
 
         user.name <== "User name"
@@ -1111,7 +1119,7 @@ extension RealtimeTests {
                     XCTFail(e.localizedDescription)
                 } else {
                     XCTAssertTrue(cache.hasChildren(), "FAIL CACHE")
-                    let restoredObj = TestObject(in: testObject.node, options: [.database: cache])
+                    let restoredObj = TestObject(in: testObject.node, options: RealtimeValueOptions(database: cache))
                     _ = restoredObj.load().completion.listening(.just { e in
                         e.error.map { XCTFail($0.localizedDescription) }
 
@@ -1346,7 +1354,7 @@ extension RealtimeTests {
         }).add(to: store)
         array.changes.listening { err in
             XCTFail(err.localizedDescription)
-            }.add(to: store)
+        }.add(to: store)
 
         let element = User()
         element.name <== "User"
@@ -1372,8 +1380,8 @@ extension RealtimeTests {
 
     func testReadonlyRelation() {
         let exp = expectation(description: "")
-        let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
-        let group = Group(in: Node(key: "group", parent: .root), options: [.database: Cache.root])
+        let user = User(in: Node(key: "user", parent: .root), options: RealtimeValueOptions(database: Cache.root))
+        let group = Group(in: Node(key: "group", parent: .root), options: RealtimeValueOptions(database: Cache.root))
         user.ownedGroup <== group
 
         do {
@@ -1402,8 +1410,8 @@ extension RealtimeTests {
     func testReadonlyReference() {
         Cache.root.clear()
         let exp = expectation(description: "")
-        let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
-        let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: [.database: Cache.root])
+        let user = User(in: Node(key: "user", parent: .root), options: RealtimeValueOptions(database: Cache.root))
+        let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: RealtimeValueOptions(database: Cache.root))
         conversation.chairman <== user
 
         do {
@@ -1414,7 +1422,7 @@ extension RealtimeTests {
                 let chairman = Reference<User>.readonly(
                     in: conversation.chairman.node,
                     mode: Reference<User>.Mode.required(.fullPath, db: Cache.root, builder: { node, database, options in
-                        return User(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                        return User(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
                     })
                 )
                 do {
@@ -1435,7 +1443,7 @@ extension RealtimeTests {
     }
 
     func testDatabaseBinding() {
-        let testObject = TestObject(in: .root, options: [.database: Cache.root])
+        let testObject = TestObject(in: .root, options: RealtimeValueOptions(database: Cache.root))
         testObject.forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             if value.database === Cache.root {
                 XCTAssertTrue(true)
@@ -1452,9 +1460,9 @@ extension RealtimeTests {
             database: Cache.root, keys: .root("keys")
         )
         let keyRaw = RealtimeDatabaseValue(2)
-        let key = TestObject(in: Node.root("keys").child(with: "key"), options: [.database: Cache.root, .rawValue: keyRaw])
+        let key = TestObject(in: Node.root("keys").child(with: "key"), options: RealtimeValueOptions(database: Cache.root, raw: keyRaw))
         let valueRaw = RealtimeDatabaseValue(5)
-        let value = TestObject(in: nil, options: [.database: Cache.root, .rawValue: valueRaw])
+        let value = TestObject(in: nil, options: RealtimeValueOptions(database: Cache.root, raw: valueRaw))
         do {
             let trans = Transaction(database: Cache.root)
             try assocValues.write(element: value, for: key, in: trans)
@@ -1775,7 +1783,7 @@ class VersionableObjectV2: Object {
 ///
 /// - v1: Model in first major version
 /// - v2: Model in second major version
-enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
+enum VersionableValue: NewWritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
     case v1(VersionableObject)
     case v2(VersionableObjectV2)
 
@@ -1795,7 +1803,7 @@ enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeV
         }
     }
 
-    init(in node: Node?, options: [ValueOption : Any]) {
+    init(in node: Node?, options: RealtimeValueOptions) {
         self = .v2(VersionableObjectV2(in: node, options: options))
     }
 
@@ -1861,7 +1869,7 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let versionableObj = VersionableObject(
             in: Node(key: "obj", parent: .root),
-            options: [.database: Cache.root]
+            options: RealtimeValueOptions(database: Cache.root)
         )
 
         let preconditionTransaction = Transaction(database: Cache.root)
@@ -1898,7 +1906,7 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let versionableObj = VersionableObject(
             in: Node(key: "obj", parent: .root),
-            options: [.database: Cache.root]
+            options: RealtimeValueOptions(database: Cache.root)
         )
 
         let preconditionTransaction = Transaction(database: Cache.root)
@@ -1946,7 +1954,7 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let versionableObj = VersionableObjectV2(
             in: Node(key: "obj", parent: nil),
-            options: [.database: Cache.root]
+            options: RealtimeValueOptions(database: Cache.root)
         )
 
         let now = Date()
