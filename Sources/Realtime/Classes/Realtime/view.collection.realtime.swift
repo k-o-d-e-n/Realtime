@@ -7,14 +7,14 @@
 
 import Foundation
 
-public struct RCItem: NewWritableRealtimeValue, Comparable {
+public struct RCItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue?
     public var payload: RealtimeDatabaseValue?
     public let node: Node?
     var priority: Int64?
     var linkID: String?
 
-    init(key: String?, value: NewRealtimeValue) {
+    init(key: String?, value: RealtimeValue) {
         self.raw = value.raw
         self.payload = value.payload
         self.node = Node(key: key ?? value.dbKey)
@@ -73,7 +73,7 @@ public struct RCItem: NewWritableRealtimeValue, Comparable {
     }
 }
 
-public struct RDItem: NewWritableRealtimeValue, Comparable {
+public struct RDItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue?
     public var payload: RealtimeDatabaseValue?
     public var node: Node? { return rcItem.node }
@@ -89,7 +89,7 @@ public struct RDItem: NewWritableRealtimeValue, Comparable {
         get { return rcItem.linkID }
     }
 
-    init(key: NewRealtimeValue, value: NewRealtimeValue) {
+    init(key: RealtimeValue, value: RealtimeValue) {
         self.rcItem = RCItem(key: key.dbKey, value: value)
         self.raw = key.raw
         self.payload = key.payload
@@ -202,7 +202,7 @@ enum ViewDataExplorer {
     case page(PagingController)
 }
 
-public final class SortedCollectionView<Element: NewWritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollectionView {
+public final class SortedCollectionView<Element: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollectionView {
     typealias Source = SortedArray<Element>
     private var _elements: Source = Source()
     private var dataExplorer: ViewDataExplorer = .value(ascending: false) // TODO: default value may mismatch with default value of collection

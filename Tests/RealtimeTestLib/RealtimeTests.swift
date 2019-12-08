@@ -145,7 +145,7 @@ enum RVEvent {
     case didSave, didRemove(RVType)
 }
 
-func checkStates(in v: NewRealtimeValue, for event: RVEvent, _ line: Int = #line) {
+func checkStates(in v: RealtimeValue, for event: RVEvent, _ line: Int = #line) {
     switch event {
     case .didSave, .willRemove:
         XCTAssertTrue(v.isReferred, "line: \(line)")
@@ -172,19 +172,19 @@ func checkStates(in v: NewRealtimeValue, for event: RVEvent, _ line: Int = #line
     }
 }
 
-func checkDidSave(_ v: NewRealtimeValue, nested: Bool = false, _ line: Int = #line) {
+func checkDidSave(_ v: RealtimeValue, nested: Bool = false, _ line: Int = #line) {
     checkStates(in: v, for: .didSave, line)
 }
 
-func checkDidRemove(_ v: NewRealtimeValue, value type: RVType = .unkeyed, _ line: Int = #line) {
+func checkDidRemove(_ v: RealtimeValue, value type: RVType = .unkeyed, _ line: Int = #line) {
     checkStates(in: v, for: .didRemove(type), line)
 }
 
-func checkWillSave(_ v: NewRealtimeValue, value type: RVType = .unkeyed, _ line: Int = #line) {
+func checkWillSave(_ v: RealtimeValue, value type: RVType = .unkeyed, _ line: Int = #line) {
     checkStates(in: v, for: .willSave(type), line)
 }
 
-func checkWillRemove(_ v: NewRealtimeValue, nested: Bool = false, _ line: Int = #line) {
+func checkWillRemove(_ v: RealtimeValue, nested: Bool = false, _ line: Int = #line) {
     checkStates(in: v, for: .willRemove, line)
 }
 
@@ -899,7 +899,7 @@ extension RealtimeTests {
         XCTAssertTrue(testObject.dictionary.isStandalone)
     }
 
-    enum ValueWithPayload: NewWritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
+    enum ValueWithPayload: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
         var raw: RealtimeDatabaseValue? {
             switch self {
             case .two: return RealtimeDatabaseValue(UInt8(1))
@@ -1783,7 +1783,7 @@ class VersionableObjectV2: Object {
 ///
 /// - v1: Model in first major version
 /// - v2: Model in second major version
-enum VersionableValue: NewWritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
+enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeValueActions {
     case v1(VersionableObject)
     case v2(VersionableObjectV2)
 

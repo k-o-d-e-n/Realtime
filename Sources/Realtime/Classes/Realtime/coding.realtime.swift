@@ -926,7 +926,7 @@ public extension Representer where V: Collection {
         )
     }
 }
-public extension Representer where V: NewRealtimeValue {
+public extension Representer where V: RealtimeValue {
     /// Representer that convert `RealtimeValue` as database relation.
     ///
     /// - Parameters:
@@ -934,7 +934,7 @@ public extension Representer where V: NewRealtimeValue {
     ///   - rootLevelsUp: Level of root node to do relation path
     ///   - ownerNode: Database node of relation owner
     /// - Returns: Relation representer
-    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>, database: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, V>) -> Representer<V> {
+    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>, database: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, V>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
@@ -972,7 +972,7 @@ public extension Representer where V: NewRealtimeValue {
     ///
     /// - Parameter mode: Representation mode
     /// - Returns: Reference representer
-    static func reference(_ mode: ReferenceMode, database: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, V>) -> Representer<V> {
+    static func reference(_ mode: ReferenceMode, database: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, V>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let node = v.node else {

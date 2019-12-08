@@ -68,7 +68,7 @@ public enum RCDataExplorer {
 }
 
 /// A type that represents Realtime database collection
-public protocol RealtimeCollection: RandomAccessCollection, NewRealtimeValue, RealtimeCollectionActions {
+public protocol RealtimeCollection: RandomAccessCollection, RealtimeValue, RealtimeCollectionActions {
     associatedtype View: RealtimeCollectionView
     /// Object that stores data of the view collection
     var view: View { get }
@@ -125,7 +125,7 @@ extension RealtimeCollection where Index == Int {
     }
 }
 
-public protocol WritableRealtimeCollection: RealtimeCollection, NewWritableRealtimeValue {
+public protocol WritableRealtimeCollection: RealtimeCollection, WritableRealtimeValue {
     func write(to transaction: Transaction, by node: Node) throws
 }
 

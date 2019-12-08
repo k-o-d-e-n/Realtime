@@ -12,7 +12,7 @@ public extension RawRepresentable where RawValue == String {
     func values<Element: Object>(in object: Object) -> Values<Element> {
         return Values(in: Node(key: rawValue, parent: object.node), database: object.database)
     }
-    func values<Element>(in object: Object, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) -> Values<Element> {
+    func values<Element>(in object: Object, builder: @escaping RCElementBuilder<RealtimeValueOptions, Element>) -> Values<Element> {
         return Values(
             in: Node(key: rawValue, parent: object.node),
             options: Values.Options(database: object.database, builder: builder)
@@ -47,10 +47,10 @@ public extension Values where Element: Object {
 }
 
 /// A Realtime database collection that stores elements in own database node as is, as full objects.
-public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection where Element: NewWritableRealtimeValue & RealtimeValueEvents {
+public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection where Element: WritableRealtimeValue & RealtimeValueEvents {
     /// Stores collection values and responsible for lazy initialization elements
     var storage: RCKeyValueStorage<Element>
-    fileprivate let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
+    fileprivate let builder: RCElementBuilder<RealtimeValueOptions, Element>
     override var _hasChanges: Bool { return view._hasChanges }
 
     public override var raw: RealtimeDatabaseValue? { return nil }
@@ -89,9 +89,9 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
 
     public struct Options {
         let base: RealtimeValueOptions
-        let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
+        let builder: RCElementBuilder<RealtimeValueOptions, Element>
 
-        public init(database: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) {
+        public init(database: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, Element>) {
             self.base = RealtimeValueOptions(database: database)
             self.builder = builder
         }
@@ -423,7 +423,7 @@ extension Values {
 }
 
 public final class ExplicitValues<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Element: NewWritableRealtimeValue & Comparable {
+where Element: WritableRealtimeValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
 
     public override var raw: RealtimeDatabaseValue? { return nil }

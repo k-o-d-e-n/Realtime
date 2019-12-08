@@ -134,7 +134,7 @@ public extension ValueOption {
 }
 
 /// Defines read/write property where value is Realtime database reference
-public final class Reference<Referenced: NewRealtimeValue & _RealtimeValueUtilities>: Property<Referenced> {
+public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities>: Property<Referenced> {
     public override var raw: RealtimeDatabaseValue? { return super._raw }
     public override var payload: RealtimeDatabaseValue? { return super._payload }
 
@@ -171,13 +171,13 @@ public final class Reference<Referenced: NewRealtimeValue & _RealtimeValueUtilit
         let database: RealtimeDatabase?
         let availability: Availability<Referenced>
 
-        public static func required(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Referenced>) -> Mode {
+        public static func required(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, Referenced>) -> Mode {
             return Mode(database: db, availability: Availability<Referenced>.required(Representer.reference(mode, database: db, builder: builder)))
         }
-        public static func writeRequired<U: NewRealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, U>) -> Mode where Referenced == Optional<U> {
+        public static func writeRequired<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, U>) -> Mode where Referenced == Optional<U> {
             return Mode(database: db, availability: Availability<Referenced>.writeRequired(Representer<U>.reference(mode, database: db, builder: builder)))
         }
-        public static func optional<U: NewRealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, U>) -> Mode where Referenced == Optional<U> {
+        public static func optional<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, U>) -> Mode where Referenced == Optional<U> {
             return Mode(database: db, availability: Availability<Referenced>.optional(Representer<U>.reference(mode, database: db, builder: builder)))
         }
     }
@@ -188,7 +188,7 @@ public final class Reference<Referenced: NewRealtimeValue & _RealtimeValueUtilit
 }
 
 /// Defines read/write property where value is Realtime database relation
-public final class Relation<Related: NewRealtimeValue & _RealtimeValueUtilities>: Property<Related> {
+public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: Property<Related> {
     var options: Options
     public override var raw: RealtimeDatabaseValue? { return super._raw }
     public override var payload: RealtimeDatabaseValue? { return super._payload }
@@ -252,7 +252,7 @@ public final class Relation<Related: NewRealtimeValue & _RealtimeValueUtilities>
         let ownerNode: ValueStorage<Node?>
         let availability: Availability<Related>
 
-        public static func required(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Related>) -> Options {
+        public static func required(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<RealtimeValueOptions, Related>) -> Options {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 database: db,
@@ -263,7 +263,7 @@ public final class Relation<Related: NewRealtimeValue & _RealtimeValueUtilities>
                 availability: Availability.required(Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode, database: db, builder: builder))
             )
         }
-        public static func writeRequired<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, U>) -> Options where Related == Optional<U> {
+        public static func writeRequired<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<RealtimeValueOptions, U>) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 database: db,
@@ -274,7 +274,7 @@ public final class Relation<Related: NewRealtimeValue & _RealtimeValueUtilities>
                 availability: Availability.writeRequired(Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode, database: db, builder: builder))
             )
         }
-        public static func optional<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, U>) -> Options where Related == Optional<U> {
+        public static func optional<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<RealtimeValueOptions, U>) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 database: db,
@@ -404,7 +404,7 @@ public extension PropertyState where T: _Optional {
 }
 
 /// Defines read/write property with any value
-public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, NewWritableRealtimeValue, Reverting {
+public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
     fileprivate var _oldValue: PropertyState<T>?
     override var _hasChanges: Bool {
         return _oldValue != nil

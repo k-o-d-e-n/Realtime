@@ -22,7 +22,7 @@ public extension RawRepresentable where RawValue == String {
             )
         )
     }
-    func dictionary<Key: Object, Value>(in object: Object, keys: Node, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Value>) -> AssociatedValues<Key, Value> {
+    func dictionary<Key: Object, Value>(in object: Object, keys: Node, builder: @escaping RCElementBuilder<RealtimeValueOptions, Value>) -> AssociatedValues<Key, Value> {
         return AssociatedValues(in: Node(key: rawValue, parent: object.node), database: object.database, keys: keys, value: builder)
     }
 }
@@ -32,7 +32,7 @@ extension ValueOption {
 }
 
 /// A type that can used as key in `AssociatedValues` collection.
-public typealias HashableValue = Hashable & NewRealtimeValue
+public typealias HashableValue = Hashable & RealtimeValue
 
 extension AssociatedValues where Key: Object, Value: Object {
     convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node) {
@@ -47,7 +47,7 @@ extension AssociatedValues where Key: Object, Value: Object {
 }
 
 extension AssociatedValues where Key: Object {
-    convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node, value: @escaping NewRCElementBuilder<RealtimeValueOptions, Value>) {
+    convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node, value: @escaping RCElementBuilder<RealtimeValueOptions, Value>) {
         self.init(
             in: node,
             options: Options(
@@ -64,12 +64,12 @@ extension AssociatedValues where Key: Object {
 /// A Realtime database collection that stores elements in own database node as is,
 /// as full objects, that keyed by database key of `Key` element.
 public final class AssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Value: NewWritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & Comparable {
+where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
 
     internal let keysNode: Node
-    internal let valueBuilder: NewRCElementBuilder<RealtimeValueOptions, Value>
-    internal let keyBuilder: NewRCElementBuilder<RealtimeValueOptions, Key>
+    internal let valueBuilder: RCElementBuilder<RealtimeValueOptions, Value>
+    internal let keyBuilder: RCElementBuilder<RealtimeValueOptions, Key>
 
     var storage: RCDictionaryStorage<Key, Value>
     public override var raw: RealtimeDatabaseValue? { return nil }
@@ -108,10 +108,10 @@ where Value: NewWritableRealtimeValue & RealtimeValueEvents, Key: HashableValue 
     public struct Options {
         let base: RealtimeValueOptions
         let keysNode: Node
-        let keyBuilder: NewRCElementBuilder<RealtimeValueOptions, Key>
-        let valueBuilder: NewRCElementBuilder<RealtimeValueOptions, Value>
+        let keyBuilder: RCElementBuilder<RealtimeValueOptions, Key>
+        let valueBuilder: RCElementBuilder<RealtimeValueOptions, Value>
 
-        init(database: RealtimeDatabase?, keys: Node, key: @escaping NewRCElementBuilder<RealtimeValueOptions, Key>, value: @escaping NewRCElementBuilder<RealtimeValueOptions, Value>) {
+        init(database: RealtimeDatabase?, keys: Node, key: @escaping RCElementBuilder<RealtimeValueOptions, Key>, value: @escaping RCElementBuilder<RealtimeValueOptions, Value>) {
             guard keys.isRooted else { fatalError("Keys must has rooted location") }
             self.base = RealtimeValueOptions(database: database)
             self.keysNode = keys
@@ -499,11 +499,11 @@ public extension ExplicitAssociatedValues where Key: Object {
 }
 
 public final class ExplicitAssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
-where Value: NewWritableRealtimeValue & Comparable, Key: HashableValue & Comparable {
+where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
 
     internal let keysNode: Node
-    internal let keyBuilder: NewRCElementBuilder<RealtimeValueOptions, Key>
+    internal let keyBuilder: RCElementBuilder<RealtimeValueOptions, Key>
 
     var storage: RCDictionaryStorage<Key, Value>
     public override var raw: RealtimeDatabaseValue? { return nil }
@@ -548,9 +548,9 @@ where Value: NewWritableRealtimeValue & Comparable, Key: HashableValue & Compara
     public struct Options {
         let base: RealtimeValueOptions
         let keysNode: Node
-        let keyBuilder: NewRCElementBuilder<RealtimeValueOptions, Key>
+        let keyBuilder: RCElementBuilder<RealtimeValueOptions, Key>
 
-        public init(database: RealtimeDatabase?, keys: Node, keyBuilder: @escaping NewRCElementBuilder<RealtimeValueOptions, Key>) {
+        public init(database: RealtimeDatabase?, keys: Node, keyBuilder: @escaping RCElementBuilder<RealtimeValueOptions, Key>) {
             guard keys.isRooted else { fatalError("Keys must has rooted location") }
             self.base = RealtimeValueOptions(database: database)
             self.keysNode = keys
@@ -742,7 +742,7 @@ extension ExplicitAssociatedValues {
 extension AnyRealtimeCollection: RealtimeCollectionView {}
 
 /*
-class KeyedCollection<Key, Value>: _RealtimeValue, RealtimeCollection where Key: NewRealtimeValue, Value: RealtimeValue {
+class KeyedCollection<Key, Value>: _RealtimeValue, RealtimeCollection where Key: RealtimeValue, Value: RealtimeValue {
     typealias View = AnyRealtimeCollection<Key>
     typealias Element = (key: Key, value: Value)
     var storage: RCKeyValueStorage<Value> = [:]

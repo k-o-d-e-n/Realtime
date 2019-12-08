@@ -19,7 +19,7 @@ public extension RawRepresentable where RawValue == String {
     func references<C, Element: Object>(in object: Object, elements: Node) -> C where C: References<Element> {
         return references(in: object.node, elements: elements, database: object.database)
     }
-    func references<C, Element>(in object: Object, elements: Node, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) -> C where C: References<Element> {
+    func references<C, Element>(in object: Object, elements: Node, builder: @escaping RCElementBuilder<RealtimeValueOptions, Element>) -> C where C: References<Element> {
         return C(
             in: Node(key: rawValue, parent: object.node),
             options: C.Options(database: object.database, elements: elements, builder: builder)
@@ -32,7 +32,7 @@ public extension ValueOption {
 }
 
 /// A Realtime database collection that stores elements in own database node as references.
-public class __RepresentableCollection<Element, Ref: NewWritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollection where Element: NewRealtimeValue {
+public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
     internal var storage: RCKeyValueStorage<Element>
 
     public override var raw: RealtimeDatabaseValue? { return nil }
@@ -146,16 +146,16 @@ public class __RepresentableCollection<Element, Ref: NewWritableRealtimeValue & 
     }
 }
 
-public class References<Element: NewRealtimeValue>: __RepresentableCollection<Element, RCItem>, WritableRealtimeCollection {
-    internal let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
+public class References<Element: RealtimeValue>: __RepresentableCollection<Element, RCItem>, WritableRealtimeCollection {
+    internal let builder: RCElementBuilder<RealtimeValueOptions, Element>
     internal let spaceNode: Node
 
     public struct Options {
         let base: RealtimeValueOptions
         let elementsNode: Node
-        let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
+        let builder: RCElementBuilder<RealtimeValueOptions, Element>
 
-        public init(database: RealtimeDatabase?, elements: Node, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) {
+        public init(database: RealtimeDatabase?, elements: Node, builder: @escaping RCElementBuilder<RealtimeValueOptions, Element>) {
             self.base = RealtimeValueOptions(database: database)
             self.elementsNode = elements
             self.builder = builder
@@ -199,7 +199,7 @@ public class References<Element: NewRealtimeValue>: __RepresentableCollection<El
 
 // MARK: Mutating
 
-public final class MutableReferences<Element: NewRealtimeValue>: References<Element>, MutableRealtimeCollection {
+public final class MutableReferences<Element: RealtimeValue>: References<Element>, MutableRealtimeCollection {
     override var _hasChanges: Bool { return view._hasChanges }
 
     public func write(_ element: Element, in transaction: Transaction) throws {
@@ -394,14 +394,14 @@ public final class MutableReferences<Element: NewRealtimeValue>: References<Elem
 
 // MARK: DistributedReferences
 
-public struct RCRef: NewWritableRealtimeValue, Comparable {
+public struct RCRef: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue? { return reference?.payload.raw }
     public var payload: RealtimeDatabaseValue? { return reference?.payload.user }
     public var node: Node?
     public let dbKey: String!
     var reference: ReferenceRepresentation!
 
-    init(mode: ReferenceMode, value: NewRealtimeValue) {
+    init(mode: ReferenceMode, value: RealtimeValue) {
         self.dbKey = value.dbKey
         let raw = value.raw
         let payload = value.payload
@@ -432,8 +432,8 @@ public struct RCRef: NewWritableRealtimeValue, Comparable {
 public extension ValueOption {
     static var representableBuilder: ValueOption { return ValueOption("realtime.representablecollection.builder") }
 }
-public class RepresentableCollection<Element: NewRealtimeValue, Ref: NewWritableRealtimeValue & Comparable>: __RepresentableCollection<Element, Ref> {
-    public typealias Builder = NewRCElementBuilder<Ref, Element>
+public class RepresentableCollection<Element: RealtimeValue, Ref: WritableRealtimeValue & Comparable>: __RepresentableCollection<Element, Ref> {
+    public typealias Builder = RCElementBuilder<Ref, Element>
     internal let builder: Builder
 
     public struct Options {
@@ -477,16 +477,16 @@ public class RepresentableCollection<Element: NewRealtimeValue, Ref: NewWritable
         return builder(item.node, database, item)
     }
 }
-public final class DistributedReferences<Element: NewRealtimeValue>: __RepresentableCollection<Element, RCRef> {
+public final class DistributedReferences<Element: RealtimeValue>: __RepresentableCollection<Element, RCRef> {
     let anchorNode: Node
-    let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
+    let builder: RCElementBuilder<RealtimeValueOptions, Element>
 
     public struct Options {
         let base: RealtimeValueOptions
         let mode: ReferenceMode
-        let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
+        let builder: RCElementBuilder<RealtimeValueOptions, Element>
 
-        public init(database: RealtimeDatabase?, mode: ReferenceMode, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) {
+        public init(database: RealtimeDatabase?, mode: ReferenceMode, builder: @escaping RCElementBuilder<RealtimeValueOptions, Element>) {
             self.base = RealtimeValueOptions(database: database)
             self.mode = mode
             self.builder = builder
@@ -524,7 +524,7 @@ public final class DistributedReferences<Element: NewRealtimeValue>: __Represent
 
 // MARK: Relations
 
-public struct RelationsItem: NewWritableRealtimeValue, Comparable {
+public struct RelationsItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue?
     public var payload: RealtimeDatabaseValue?
     public var node: Node?
@@ -532,7 +532,7 @@ public struct RelationsItem: NewWritableRealtimeValue, Comparable {
     public let dbKey: String!
     var relation: RelationRepresentation!
 
-    init(value: NewRealtimeValue) {
+    init(value: RealtimeValue) {
         self.dbKey = value.dbKey
         self.raw = value.raw
         self.payload = value.payload
@@ -577,7 +577,7 @@ public extension RawRepresentable where RawValue == String {
     }
 }
 
-public class Relations<Element>: __RepresentableCollection<Element, RelationsItem>, WritableRealtimeCollection where Element: NewRealtimeValue {
+public class Relations<Element>: __RepresentableCollection<Element, RelationsItem>, WritableRealtimeCollection where Element: RealtimeValue {
     override var _hasChanges: Bool { return view._hasChanges }
     let options: Options
 
@@ -606,7 +606,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         let ownerLevelsUp: UInt
         /// String path from related object to his relation property
         let property: RelationProperty
-        let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
+        let builder: RCElementBuilder<RealtimeValueOptions, Element>
 
         // TODO: Don`t control element node, because crash
         public enum Anchor {
@@ -615,7 +615,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
             case levelsUp(UInt)
         }
 
-        public init(database: RealtimeDatabase?, anchor: Anchor, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) {
+        public init(database: RealtimeDatabase?, anchor: Anchor, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<RealtimeValueOptions, Element>) {
             self.base = RealtimeValueOptions(database: database)
             self.anchor = anchor
             self.ownerLevelsUp = ownerLevelsUp

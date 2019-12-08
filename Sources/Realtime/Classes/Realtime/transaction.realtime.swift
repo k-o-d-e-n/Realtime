@@ -145,14 +145,14 @@ extension Transaction {
         storage.commit(transaction: self, completion: completion)
     }
 
-    internal func _set<T: NewWritableRealtimeValue>(_ value: T, by node: Node) throws {
+    internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Node) throws {
         guard node.isRooted else { fatalError("Node to set must be rooted") }
 
         try value.write(to: self, by: node)
     }
 
     /// adds operation of delete RealtimeValue
-    internal func _delete<T: NewRealtimeValue & RealtimeValueEvents>(_ value: T) {
+    internal func _delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         guard let node = value.node, node.isRooted else { fatalError("Value must be rooted") }
 
         value.willRemove(in: self)
@@ -169,7 +169,7 @@ extension Transaction {
     }
 }
 extension Transaction {
-    func addLink<Value: NewRealtimeValue>(_ link: SourceLink, for value: Value) throws {
+    func addLink<Value: RealtimeValue>(_ link: SourceLink, for value: Value) throws {
         addValue(try link.defaultRepresentation(), by: value.node!.linksItemsNode.child(with: link.id))
     }
 }
@@ -430,7 +430,7 @@ public extension Transaction {
     }
 
     /// adds operation of save RealtimeValue as single value
-    func set<T: NewWritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Node) throws {
+    func set<T: WritableRealtimeValue & RealtimeValueEvents>(_ value: T, by node: Node) throws {
         if let merged = mergedToTransaction {
             try merged.set(value, by: node)
         } else {
@@ -445,7 +445,7 @@ public extension Transaction {
     }
 
     /// adds operation of delete RealtimeValue
-    func delete<T: NewRealtimeValue & RealtimeValueEvents>(_ value: T) {
+    func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T) {
         if let merged = mergedToTransaction {
             merged.delete(value)
         } else {

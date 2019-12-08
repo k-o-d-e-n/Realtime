@@ -170,7 +170,7 @@ public struct RealtimeValueOptions {
 }
 
 /// Base class for any database value
-open class _RealtimeValue: NewRealtimeValue, RealtimeValueEvents, CustomDebugStringConvertible {
+open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugStringConvertible {
     /// Remote version of model
     fileprivate(set) var _version: String?
     /// Database that associated with this value
@@ -444,11 +444,6 @@ open class _RealtimeValue: NewRealtimeValue, RealtimeValueEvents, CustomDebugStr
         """
     }
 }
-extension NewWritableRealtimeValue where Self: _RealtimeValue {
-    public func write(to transaction: Transaction, by node: Node) throws {
-        try _write(to: transaction, by: node)
-    }
-}
 extension WritableRealtimeValue where Self: _RealtimeValue {
     public func write(to transaction: Transaction, by node: Node) throws {
         try _write(to: transaction, by: node)
@@ -497,7 +492,7 @@ public extension RawRepresentable where Self.RawValue == String {
 ///         }
 ///     }
 ///
-open class Object: _RealtimeValue, ChangeableRealtimeValue, NewWritableRealtimeValue, RealtimeValueActions, Hashable, Comparable, Versionable {
+open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValue, RealtimeValueActions, Hashable, Comparable, Versionable {
     override var _hasChanges: Bool { return containsInLoadedChild(where: { (_, val: _RealtimeValue) in return val._hasChanges }) }
     lazy var repeater: Repeater<Object> = Repeater.unsafe()
 

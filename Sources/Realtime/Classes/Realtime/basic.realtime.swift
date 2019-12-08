@@ -144,7 +144,7 @@ extension _RealtimeValueUtilities where Self: _RealtimeValue {
 extension _RealtimeValue: _RealtimeValueUtilities {}
 
 /// Base protocol for all database entities
-public protocol NewRealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented {
+public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented {
     /// Indicates specific representation of this value, e.g. subclass or enum associated value
     var raw: RealtimeDatabaseValue? { get }
     /// Some data associated with value
@@ -152,14 +152,16 @@ public protocol NewRealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresen
     /// Node location in database
     var node: Node? { get }
 }
-public protocol RealtimeValue: NewRealtimeValue {
+/// RealtimeValue that can be initialized as standalone object
+public protocol LazyRealtimeValue: RealtimeValue { // TODO: Unused
+    associatedtype Options
     /// Creates new instance associated with database node
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    init(in node: Node?, options: [ValueOption: Any])
+    init(in node: Node?, options: Options)
 }
-extension RealtimeValue {
+extension LazyRealtimeValue {
     /// Use current initializer if `RealtimeValue` has required user-defined options
     ///
     /// - Parameters:
@@ -167,25 +169,13 @@ extension RealtimeValue {
     ///   - event: Event associated with data
     ///   - options: User-defined options
     /// - Throws: If data cannot be applied
-    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent, options: [ValueOption: Any]) throws {
-        self.init(in: data.node, options: options.merging([.database: data.database as Any], uniquingKeysWith: { _, new in new }))
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent, options: Options) throws {
+        self.init(in: data.node, options: options)
         try apply(data, event: event)
     }
 }
-extension NewRealtimeValue {
-    var defaultOptions: [ValueOption: Any] {
-        var options: [ValueOption: Any] = [:]
-        if let r = self.raw {
-            options[.rawValue] = r
-        }
-        if let upl = self.payload {
-            options[.payload] = upl
-        }
-        return options
-    }
-}
 
-extension Optional: NewRealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: NewRealtimeValue {
+extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtilities where Wrapped: RealtimeValue {
     public var raw: RealtimeDatabaseValue? { return self?.raw }
     public var payload: RealtimeDatabaseValue? { return self?.payload }
     public var node: Node? { return self?.node }
@@ -211,7 +201,7 @@ extension Optional: RealtimeDataRepresented where Wrapped: RealtimeDataRepresent
     }
 }
 
-public extension NewRealtimeValue {
+public extension RealtimeValue {
     var dbKey: String! { return node?.key }
 
     /// Indicates that value has key
@@ -232,17 +222,17 @@ public extension NewRealtimeValue {
     }
 }
 
-public extension Equatable where Self: NewRealtimeValue {
+public extension Equatable where Self: RealtimeValue {
     static func ==(lhs: Self, rhs: Self) -> Bool {
         return lhs.node == rhs.node
     }
 }
-public extension Hashable where Self: NewRealtimeValue {
+public extension Hashable where Self: RealtimeValue {
     func hash(into hasher: inout Hasher) {
         hasher.combine(dbKey)
     }
 }
-public extension Comparable where Self: NewRealtimeValue {
+public extension Comparable where Self: RealtimeValue {
     static func < (lhs: Self, rhs: Self) -> Bool {
         return dbKeyLessThan(lhs, rhs: rhs)
     }
@@ -313,7 +303,7 @@ public protocol RealtimeValueEvents {
     /// - Parameter ancestor: Ancestor node
     func didRemove(from ancestor: Node)
 }
-extension RealtimeValueEvents where Self: NewRealtimeValue {
+extension RealtimeValueEvents where Self: RealtimeValue {
     func willSave(in transaction: Transaction, in parent: Node) {
         guard let node = self.node else {
             return debugFatalError("Unkeyed value will be saved to undefined location in parent node: \(parent.absolutePath)")
@@ -351,7 +341,7 @@ extension RealtimeValueEvents where Self: NewRealtimeValue {
 }
 
 /// Value that can writes as single values
-public protocol WritableRealtimeValue: RealtimeValue, NewWritableRealtimeValue {
+public protocol WritableRealtimeValue: RealtimeValue {
     /// Writes all local stored data to transaction as is. You shouldn't call it directly.
     ///
     /// - Parameters:
@@ -359,10 +349,7 @@ public protocol WritableRealtimeValue: RealtimeValue, NewWritableRealtimeValue {
     ///   - node: Database node where data will be store
     func write(to transaction: Transaction, by node: Node) throws
 }
-public protocol NewWritableRealtimeValue: NewRealtimeValue {
-    func write(to transaction: Transaction, by node: Node) throws
-}
-public extension NewRealtimeValue {
+public extension RealtimeValue {
     func writeSystemValues(to transaction: Transaction, by node: Node) throws {
         if let rw = raw {
             transaction.addValue(rw, by: Node(key: InternalKeys.raw, parent: node))
@@ -372,7 +359,7 @@ public extension NewRealtimeValue {
         }
     }
 }
-extension NewWritableRealtimeValue where Self: Versionable {
+extension WritableRealtimeValue where Self: Versionable {
     func writeSystemValues(to transaction: Transaction, by node: Node) throws {
         var versioner = Versioner()
         putVersion(into: &versioner)
@@ -390,7 +377,7 @@ extension NewWritableRealtimeValue where Self: Versionable {
 }
 
 /// Value that can be changed partially
-public protocol ChangeableRealtimeValue: NewRealtimeValue {
+public protocol ChangeableRealtimeValue: RealtimeValue {
     /// Indicates that value was changed
     var hasChanges: Bool { get }
 

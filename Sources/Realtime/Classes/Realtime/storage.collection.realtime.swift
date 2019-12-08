@@ -48,7 +48,7 @@ protocol MutableRCStorage: RCStorage {
 /// Type-erased Realtime collection storage
 typealias AnyRCStorage = EmptyCollection
 
-public typealias NewRCElementBuilder<ViewElement, Element> = (Node?, RealtimeDatabase?, ViewElement) -> Element
+public typealias RCElementBuilder<ViewElement, Element> = (Node?, RealtimeDatabase?, ViewElement) -> Element
 typealias RCKeyValueStorage<V> = Dictionary<String, V>
 extension String: DatabaseKeyRepresentable {
     public var dbKey: String! { return self }
