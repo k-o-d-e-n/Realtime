@@ -10,17 +10,9 @@ import Foundation
 
 public extension RawRepresentable where RawValue == String {
     func values<Element: RealtimeValue>(in object: Object) -> Values<Element> {
-        return Values(in: Node(key: rawValue, parent: object.node), options: Values.Options(database: object.database, builder: Element.init))
+        return Values(in: Node(key: rawValue, parent: object.node), database: object.database)
     }
-    func values<Element: RealtimeValue>(in object: Object, elementOptions: [ValueOption: Any]) -> Values<Element> {
-        let db = object.database as Any
-        return values(in: object, builder: { (node, options) in
-            var compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
-            compoundOptions[.database] = db
-            return Element(in: node, options: compoundOptions)
-        })
-    }
-    func values<Element>(in object: Object, builder: @escaping RCElementBuilder<Element>) -> Values<Element> {
+    func values<Element>(in object: Object, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) -> Values<Element> {
         return Values(
             in: Node(key: rawValue, parent: object.node),
             options: Values.Options(database: object.database, builder: builder)
@@ -30,9 +22,10 @@ public extension RawRepresentable where RawValue == String {
 
 public extension Values {
     convenience init(in node: Node?, elements: References<Element>) {
+        let db = elements.database
         self.init(
             in: node,
-            options: Options(database: elements.database, builder: elements.builder.impl),
+            options: Options(database: db, builder: elements.builder),
             view: elements.view
         )
     }
@@ -43,7 +36,13 @@ public extension Values where Element: RealtimeValue {
     ///
     /// - Parameter node: Database node
     convenience init(in node: Node?) {
-        self.init(in: node, options: Options(database: nil, builder: Element.init))
+        self.init(in: node, database: nil)
+    }
+
+    convenience init(in node: Node?, database: RealtimeDatabase?) {
+        self.init(in: node, options: Options(database: database, builder: { node, database, options in
+            return Element(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+        }))
     }
 }
 
@@ -51,7 +50,7 @@ public extension Values where Element: RealtimeValue {
 public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection where Element: NewWritableRealtimeValue & RealtimeValueEvents {
     /// Stores collection values and responsible for lazy initialization elements
     var storage: RCKeyValueStorage<Element>
-    internal private(set) var builder: RealtimeValueBuilder<Element>
+    fileprivate let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
     override var _hasChanges: Bool { return view._hasChanges }
 
     public override var raw: RealtimeDatabaseValue? { return nil }
@@ -90,9 +89,9 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
 
     public struct Options {
         let base: RealtimeValueOptions
-        let builder: RCElementBuilder<Element>
+        let builder: NewRCElementBuilder<RealtimeValueOptions, Element>
 
-        public init(database: RealtimeDatabase?, builder: @escaping RCElementBuilder<Element>) {
+        public init(database: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Element>) {
             self.base = RealtimeValueOptions(database: database)
             self.builder = builder
         }
@@ -109,7 +108,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     public required convenience init(in node: Node?, options: Options) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
         let viewNode = Node(key: InternalKeys.items, parent: viewParentNode)
-        let view = SortedCollectionView<RCItem>(in: viewNode, options: RealtimeValueOptions(database: options.base.database))
+        let view = SortedCollectionView<RCItem>(in: viewNode, options: options.base)
         self.init(in: node, options: options, view: view)
     }
 
@@ -124,7 +123,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     }
 
     init(in node: Node?, options: Options, view: SortedCollectionView<RCItem>) {
-        self.builder = RealtimeValueBuilder(spaceNode: node, impl: options.builder)
+        self.builder = options.builder
         self.storage = RCKeyValueStorage()
         self.view = view
         super.init(in: node, options: options.base)
@@ -132,10 +131,14 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
 
     // Implementation
 
+    fileprivate func _build(_ item: RCItem) -> Element {
+        return builder(node?.child(with: item.dbKey), database, RealtimeValueOptions(database: database, raw: item.raw, payload: item.payload))
+    }
+
     public subscript(position: Int) -> Element {
         let item = view[position]
         guard let element = storage.value(for: item.dbKey) else {
-            let element = builder.build(with: item)
+            let element = _build(item)
             storage.set(value: element, for: item.dbKey)
             return element
         }
@@ -158,7 +161,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
             if var element = storage[key.dbKey] {
                 try element.apply(childData, event: event)
             } else {
-                var value = builder.build(with: key)
+                var value = _build(key)
                 try value.apply(childData, event: event)
                 storage[key.dbKey] = value
             }
@@ -189,9 +192,8 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
             view.didSave(in: database, in: node.linksNode)
-            builder.spaceNode = node
+            storage.forEach { $0.value.didSave(in: database, in: node, by: $0.key) }
         }
-        storage.forEach { $0.value.didSave(in: database, in: builder.spaceNode, by: $0.key) }
     }
 
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
@@ -205,7 +207,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
         view.didRemove()
-        storage.values.forEach { $0.didRemove(from: builder.spaceNode) }
+        storage.values.forEach { $0.didRemove() }
     }
 
     override public var debugDescription: String {
@@ -235,7 +237,7 @@ extension Values {
     @discardableResult
     public func write(element: Element, with priority: Int64? = nil, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
-        guard !element.isReferred || element.node!.parent == builder.spaceNode
+        guard !element.isReferred || element.node!.parent == node
             else { fatalError("Element must not be referred in other location") }
         guard isSynced || element.node == nil else {
             let transaction = transaction ?? Transaction(database: database)
@@ -280,7 +282,7 @@ extension Values {
     ///   - priority: Priority value or `nil` if you want to add to end of collection.
     public func insert(element: Element, with priority: Int64? = nil) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
-        guard !element.isReferred || element.node!.parent == builder.spaceNode
+        guard !element.isReferred || element.node!.parent == node
             else { fatalError("Element must not be referred in other location") }
         let contains = element.node.map { n in storage[n.key] != nil } ?? false
         guard !contains else {
@@ -401,16 +403,16 @@ extension Values {
             if let element = storage.removeValue(forKey: item.dbKey) {
                 return element
             } else {
-                return builder.build(with: item)
+                return _build(item)
             }
         }
         let element = removedElement
-        element.willRemove(in: transaction, from: builder.spaceNode)
+        element.willRemove(in: transaction)
         transaction.addReversion { [weak self] in
             self?.storage[item.dbKey] = element
         }
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item element
-        transaction.removeValue(by: builder.spaceNode.child(with: item.dbKey)) /// remove element
+        transaction.removeValue(by: node!.child(with: item.dbKey)) /// remove element
         // TODO: Why element does not remove through his API? Therefore does not remove 'link_items'. The same in AssociatedValues
         transaction.addCompletion { result in
             if result {

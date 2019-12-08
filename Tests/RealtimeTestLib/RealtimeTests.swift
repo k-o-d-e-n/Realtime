@@ -794,7 +794,9 @@ extension RealtimeTests {
 
     func testRepresenterOptional() {
         let representer = Representer<TestObject>.relation(
-            .one(name: "prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil), database: Cache.root, builder: TestObject.init
+            .one(name: "prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil), database: Cache.root, builder: { node, database, options in
+                return TestObject(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+            }
         ).optional()
         do {
             let object = try representer.decode(ValueNode(node: Node(key: ""), value: nil))
@@ -807,7 +809,9 @@ extension RealtimeTests {
     func testReferenceRepresentationPayload() {
         let userPayload = RealtimeDatabaseValue([RealtimeDatabaseValue(("foo", "bar"))])
         let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.payload: userPayload]))
-        let representer = Representer<ValueWithPayload>.reference(.fullPath, database: Cache.root, builder: ValueWithPayload.init)
+        let representer = Representer<ValueWithPayload>.reference(.fullPath, database: Cache.root, builder: { node, database, options in
+            return ValueWithPayload(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+        })
 
         do {
             let result = try representer.encode(value)
@@ -1239,10 +1243,7 @@ extension AssociatedValues: Reverting {
 
 extension RealtimeTests {
     func testLocalChangesLinkedArray() {
-        let linkedArray: MutableReferences<TestObject> = MutableReferences(
-            in: Node(key: "l_array"),
-            options: .init(baseOptions: RealtimeValueOptions(database: Cache.root), elementsNode: .root, builder: TestObject.init)
-        )
+        let linkedArray: MutableReferences<TestObject> = "l_array".references(in: nil, elements: .root, database: Cache.root)
 
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
@@ -1298,10 +1299,8 @@ extension RealtimeTests {
     func testLocalChangesDictionary() {
         let dict: AssociatedValues<TestObject, TestObject> = AssociatedValues(
             in: Node(key: "dict"),
-            options: AssociatedValues.Options(
-                database: Cache.root, keys: .root,
-                keyBuilder: TestObject.init, valueBuilder: TestObject.init
-            )
+            database: Cache.root,
+            keys: .root
         )
 
         let one = TestObject()
@@ -1333,7 +1332,7 @@ extension RealtimeTests {
 
     func testListeningCollectionChangesOnInsert() {
         let exp = expectation(description: "")
-        let array = Values<User>(in: .root, options: Values.Options(database: Cache.root, builder: User.init))
+        let array = Values<User>(in: .root, database: Cache.root)
 
         array.runObserving()
         array.changes.listening(onValue: { (event) in
@@ -1414,7 +1413,9 @@ extension RealtimeTests {
 
                 let chairman = Reference<User>.readonly(
                     in: conversation.chairman.node,
-                    mode: Reference<User>.Mode.required(.fullPath, db: Cache.root, builder: User.init)
+                    mode: Reference<User>.Mode.required(.fullPath, db: Cache.root, builder: { node, database, options in
+                        return User(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                    })
                 )
                 do {
                     try chairman.apply(Cache.root.child(forNode: conversation.chairman.node!), event: .value)
@@ -1448,10 +1449,7 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let assocValues = AssociatedValues<TestObject, TestObject>(
             in: Node.root("values"),
-            options: AssociatedValues.Options(
-                database: Cache.root, keys: .root("keys"),
-                keyBuilder: TestObject.init, valueBuilder: TestObject.init
-            )
+            database: Cache.root, keys: .root("keys")
         )
         let keyRaw = RealtimeDatabaseValue(2)
         let key = TestObject(in: Node.root("keys").child(with: "key"), options: [.database: Cache.root, .rawValue: keyRaw])
@@ -1466,10 +1464,7 @@ extension RealtimeTests {
                 /// we can use Values for readonly access to values, AssociatedValues and Values must be compatible
                 let copyAssocitedValues = AssociatedValues<Object, Object>(
                     in: Node.root("values"),
-                    options: AssociatedValues.Options(
-                        database: Cache.root, keys: .root("keys"),
-                        keyBuilder: Object.init, valueBuilder: Object.init
-                    )
+                    database: Cache.root, keys: .root("keys")
                 )
                 let copyValues = copyAssocitedValues.values()
                 /// we can use References for readonly access to keys

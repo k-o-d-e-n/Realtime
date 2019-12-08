@@ -44,37 +44,11 @@ protocol MutableRCStorage: RCStorage {
     @discardableResult
     mutating func remove(for key: Key) -> Value?
 }
-protocol RealtimeValueBuilderProtocol {
-    associatedtype Value
-    func build(with key: String, options: [ValueOption: Any]) -> Value
-}
-struct RealtimeValueBuilder<Value>: RealtimeValueBuilderProtocol {
-    var spaceNode: Node!
-    let impl: RCElementBuilder<Value>
-
-    func build(with key: String, options: [ValueOption : Any]) -> Value {
-        return impl(spaceNode.child(with: key), options)
-    }
-}
-extension RealtimeValueBuilder {
-    func buildValue(with item: RDItem) -> Value {
-        return impl(spaceNode.child(with: item.dbKey), item.rcItem.defaultOptions)
-    }
-    func buildKey(with item: RDItem) -> Value {
-        return impl(spaceNode.child(with: item.dbKey), item.defaultOptions)
-    }
-    func build<T>(with item: T) -> Value where T: NewRealtimeValue {
-        return impl(spaceNode.child(with: item.dbKey), item.defaultOptions)
-    }
-    func build(withRef item: RCRef) -> Value {
-        return impl(spaceNode.child(with: item.reference.source), item.defaultOptions)
-    }
-}
 
 /// Type-erased Realtime collection storage
 typealias AnyRCStorage = EmptyCollection
 
-public typealias RCElementBuilder<Element> = (Node, [ValueOption: Any]) -> Element
+public typealias NewRCElementBuilder<ViewElement, Element> = (Node?, RealtimeDatabase?, ViewElement) -> Element
 typealias RCKeyValueStorage<V> = Dictionary<String, V>
 extension String: DatabaseKeyRepresentable {
     public var dbKey: String! { return self }

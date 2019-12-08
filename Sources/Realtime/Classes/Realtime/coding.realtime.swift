@@ -934,7 +934,7 @@ public extension Representer where V: NewRealtimeValue {
     ///   - rootLevelsUp: Level of root node to do relation path
     ///   - ownerNode: Database node of relation owner
     /// - Returns: Relation representer
-    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>, database: RealtimeDatabase?, builder: @escaping RCElementBuilder<V>) -> Representer<V> {
+    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>, database: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, V>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
@@ -964,7 +964,7 @@ public extension Representer where V: NewRealtimeValue {
                     }
                 }
                 let relation = try RelationRepresentation(data: d)
-                return builder((anchorNode ?? .root).child(with: relation.targetPath), relation.options(database))
+                return builder((anchorNode ?? .root).child(with: relation.targetPath), database, relation.options(database))
             }
         )
     }
@@ -972,7 +972,7 @@ public extension Representer where V: NewRealtimeValue {
     ///
     /// - Parameter mode: Representation mode
     /// - Returns: Reference representer
-    static func reference(_ mode: ReferenceMode, database: RealtimeDatabase?, builder: @escaping RCElementBuilder<V>) -> Representer<V> {
+    static func reference(_ mode: ReferenceMode, database: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, V>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let node = v.node else {
@@ -991,8 +991,8 @@ public extension Representer where V: NewRealtimeValue {
             decoding: { (data) in
                 let reference = try ReferenceRepresentation(data: data)
                 switch mode {
-                case .fullPath: return builder(.root(reference.source), reference.options.merging([.database: database as Any], uniquingKeysWith: { _, new in new }))
-                case .path(from: let n): return builder(n.child(with: reference.source), reference.options.merging([.database: database as Any], uniquingKeysWith: { _, new in new }))
+                case .fullPath: return builder(.root(reference.source), database, reference.options(database))
+                case .path(from: let n): return builder(n.child(with: reference.source), database, reference.options(database))
                 }
             }
         )

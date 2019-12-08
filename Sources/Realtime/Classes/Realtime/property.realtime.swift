@@ -85,13 +85,17 @@ public extension RawRepresentable where Self.RawValue == String {
     func reference<V: Object>(in object: Object, mode: ReferenceMode) -> Reference<V> {
         return Reference(
             in: Node(key: rawValue, parent: object.node),
-            options: Reference<V>.Mode.required(mode, db: object.database, builder: V.init)
+            options: Reference<V>.Mode.required(mode, db: object.database, builder: { node, database, options in
+                return V(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+            })
         )
     }
     func reference<V: Object>(in object: Object, mode: ReferenceMode) -> Reference<V?> {
         return Reference(
             in: Node(key: rawValue, parent: object.node),
-            options: Reference<V?>.Mode.optional(mode, db: object.database, builder: V.init)
+            options: Reference<V?>.Mode.optional(mode, db: object.database, builder: { node, database, options in
+                return V(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+            })
         )
     }
     func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relation<V> {
@@ -102,7 +106,9 @@ public extension RawRepresentable where Self.RawValue == String {
                 rootLevelsUp: rootLevelsUp,
                 ownerLevelsUp: ownerLevelsUp,
                 property: property,
-                builder: V.init
+                builder: { node, database, options in
+                    return V(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                }
             )
         )
     }
@@ -114,7 +120,9 @@ public extension RawRepresentable where Self.RawValue == String {
                 rootLevelsUp: rootLevelsUp,
                 ownerLevelsUp: ownerLevelsUp,
                 property: property,
-                builder: V.init
+                builder: { node, database, options in
+                    return V(in: node, options: [.database: database as Any, .rawValue: options.raw as Any, .payload: options.payload as Any])
+                }
             )
         )
     }
@@ -176,13 +184,13 @@ public final class Reference<Referenced: NewRealtimeValue & _RealtimeValueUtilit
         let database: RealtimeDatabase?
         let availability: Availability<Referenced>
 
-        public static func required(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping RCElementBuilder<Referenced>) -> Mode {
+        public static func required(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Referenced>) -> Mode {
             return Mode(database: db, availability: Availability<Referenced>.required(Representer.reference(mode, database: db, builder: builder)))
         }
-        public static func writeRequired<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping RCElementBuilder<U>) -> Mode where Referenced == Optional<U> {
+        public static func writeRequired<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, U>) -> Mode where Referenced == Optional<U> {
             return Mode(database: db, availability: Availability<Referenced>.writeRequired(Representer<U>.reference(mode, database: db, builder: builder)))
         }
-        public static func optional<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping RCElementBuilder<U>) -> Mode where Referenced == Optional<U> {
+        public static func optional<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, U>) -> Mode where Referenced == Optional<U> {
             return Mode(database: db, availability: Availability<Referenced>.optional(Representer<U>.reference(mode, database: db, builder: builder)))
         }
     }
@@ -261,7 +269,7 @@ public final class Relation<Related: NewRealtimeValue & _RealtimeValueUtilities>
         let ownerNode: ValueStorage<Node?>
         let availability: Availability<Related>
 
-        public static func required(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<Related>) -> Options {
+        public static func required(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, Related>) -> Options {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 database: db,
@@ -272,7 +280,7 @@ public final class Relation<Related: NewRealtimeValue & _RealtimeValueUtilities>
                 availability: Availability.required(Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode, database: db, builder: builder))
             )
         }
-        public static func writeRequired<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<U>) -> Options where Related == Optional<U> {
+        public static func writeRequired<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, U>) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 database: db,
@@ -283,7 +291,7 @@ public final class Relation<Related: NewRealtimeValue & _RealtimeValueUtilities>
                 availability: Availability.writeRequired(Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode, database: db, builder: builder))
             )
         }
-        public static func optional<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<U>) -> Options where Related == Optional<U> {
+        public static func optional<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping NewRCElementBuilder<RealtimeValueOptions, U>) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
                 database: db,
