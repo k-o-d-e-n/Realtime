@@ -27,10 +27,6 @@ public extension RawRepresentable where RawValue == String {
     }
 }
 
-public extension ValueOption {
-    static let elementsNode = ValueOption("realtime.linkedarray.elements")
-}
-
 /// A Realtime database collection that stores elements in own database node as references.
 public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Comparable>: _RealtimeValue, RealtimeCollection where Element: RealtimeValue {
     internal var storage: RCKeyValueStorage<Element>
@@ -430,9 +426,6 @@ public struct RCRef: WritableRealtimeValue, Comparable {
     public static func < (lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey < rhs.dbKey }
 }
 
-public extension ValueOption {
-    static var representableBuilder: ValueOption { return ValueOption("realtime.representablecollection.builder") }
-}
 public class RepresentableCollection<Element: RealtimeValue, Ref: WritableRealtimeValue & Comparable>: __RepresentableCollection<Element, Ref> {
     public typealias Builder = RCElementBuilder<Ref, Element>
     internal let builder: Builder

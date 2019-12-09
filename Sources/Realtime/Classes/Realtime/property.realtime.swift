@@ -128,11 +128,6 @@ public extension RawRepresentable where Self.RawValue == String {
     }
 }
 
-public extension ValueOption {
-    static let relation = ValueOption("realtime.relation")
-    static let reference = ValueOption("realtime.reference")
-}
-
 /// Defines read/write property where value is Realtime database reference
 public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities>: Property<Referenced> {
     public override var raw: RealtimeDatabaseValue? { return super._raw }
@@ -304,11 +299,6 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
 }
 
 // MARK: Listenable realtime property
-
-public extension ValueOption {
-    static let representer: ValueOption = ValueOption("realtime.property.representer")
-    static let initialValue: ValueOption = ValueOption("realtime.property.initialValue")
-}
 
 public enum PropertyState<T> {
     case none
@@ -643,14 +633,6 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
         let baseOptions: RealtimeValueOptions
         let availability: Availability<T>
         let initialValue: T? // TODO: Remove, because initial value set as local value, though on step initialization as @propertyWrapper may be useful
-
-        init(from options: [ValueOption: Any]) {
-            guard case let availability as Availability<T> = options[.representer] else { fatalError("Bad options") }
-
-            self.availability = availability
-            self.initialValue = options[.initialValue] as? T
-            self.baseOptions = RealtimeValueOptions(from: options)
-        }
 
         init(database: RealtimeDatabase?, availability: Availability<T>, initial value: T? = nil) {
             self.baseOptions = RealtimeValueOptions(database: database)

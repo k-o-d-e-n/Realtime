@@ -128,12 +128,6 @@ extension ReadonlyProperty {
     }
 }
 
-extension ValueOption {
-    /// Key for `RealtimeStorage` instance
-    public static var storage: ValueOption = ValueOption("realtime.storage")
-    public static var metadata: ValueOption = ValueOption("realtime.file.metadata")
-}
-
 // TODO: Avoid completions task must operates data
 class CachedFileDownloadTask: RealtimeStorageTask {
     var _nextTask: RealtimeStorageTask? = nil

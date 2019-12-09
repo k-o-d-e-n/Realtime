@@ -163,10 +163,6 @@ public struct RealtimeValueOptions {
     func with(db: RealtimeDatabase?) -> RealtimeValueOptions {
         return .init(database: db, raw: raw, payload: payload)
     }
-
-    public init(from oldOptions: [ValueOption : Any]) {
-        self.init(database: oldOptions[.database] as? RealtimeDatabase, raw: oldOptions[.rawValue] as? RealtimeDatabaseValue, payload: oldOptions[.payload] as? RealtimeDatabaseValue)
-    }
 }
 
 /// Base class for any database value

@@ -85,31 +85,6 @@ extension Versionable {
 
 // MARK: RealtimeValue
 
-/// Key of RealtimeValue option
-public struct ValueOption: Hashable {
-    let rawValue: String
-
-    public init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-}
-public extension ValueOption {
-    /// Key for `RealtimeDatabase` instance
-    static let database: ValueOption = ValueOption("realtime.database")
-    /// Key for `RealtimeDatabaseValue?` value,
-    /// use it only when you need added required information for lazy initialization of `RealtimeValue`
-    static let payload: ValueOption = ValueOption("realtime.value.payload")
-    /// Key for `RealtimeDatabaseValue` value
-    static let rawValue: ValueOption = ValueOption("realtime.value.raw")
-}
-public extension Dictionary where Key == ValueOption {
-    var rawValue: RealtimeDatabaseValue? {
-        return self[.rawValue] as? RealtimeDatabaseValue
-    }
-    var payload: RealtimeDatabaseValue? {
-        return self[.payload] as? RealtimeDatabaseValue
-    }
-}
 public extension RealtimeDataProtocol {
     internal func version() throws -> String? {
         let container = try self.container(keyedBy: InternalKeys.self)
@@ -221,6 +196,9 @@ public extension RealtimeValue {
         try apply(dbKey.child(from: parent), event: .value)
     }
 }
+
+/// A type that can used as key in `AssociatedValues` collection.
+public typealias HashableValue = Hashable & RealtimeValue
 
 public extension Equatable where Self: RealtimeValue {
     static func ==(lhs: Self, rhs: Self) -> Bool {

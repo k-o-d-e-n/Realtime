@@ -27,13 +27,6 @@ public extension RawRepresentable where RawValue == String {
     }
 }
 
-extension ValueOption {
-    public static let keysNode = ValueOption("realtime.dictionary.keys")
-}
-
-/// A type that can used as key in `AssociatedValues` collection.
-public typealias HashableValue = Hashable & RealtimeValue
-
 extension AssociatedValues where Key: Object, Value: Object {
     convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node) {
         self.init(
