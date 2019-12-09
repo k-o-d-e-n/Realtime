@@ -115,13 +115,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        let node = data.node
-        let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
-        let viewNode = Node(key: InternalKeys.items, parent: viewParentNode)
-        self.builder = RealtimeValueBuilder(spaceNode: node, impl: Element.init)
-        self.storage = RCKeyValueStorage()
-        self.view = SortedCollectionView(in: viewNode, options: RealtimeValueOptions(database: data.database))
-        try super.init(data: data, event: event)
+        fatalError("Values does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
     }
 
     init(in node: Node?, options: Options, view: SortedCollectionView<RCItem>) {

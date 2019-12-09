@@ -515,7 +515,7 @@ public final class DistributedReferences<Element: RealtimeValue>: __Representabl
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        try super.init(data: data, event: event)
+        fatalError("DistributedReferences does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
     }
 
     override func buildElement(with item: RCRef) -> Element {
