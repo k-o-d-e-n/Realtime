@@ -190,12 +190,12 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
 
     public convenience init(in object: _RealtimeValue, keyedBy key: String, options: RealtimeValueOptions = .init()) {
         self.init(
-            in: Node(key: key, parent: object.node),
+            node: Node(key: key, parent: object.node),
             options: options.with(db: object.database)
         )
     }
 
-    init(in node: Node?, options: RealtimeValueOptions) {
+    init(node: Node?, options: RealtimeValueOptions) {
         self.database = options.database ?? RealtimeApp.app.database
         self.node = node
         if let pl = options.payload {
@@ -525,14 +525,14 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
 
     public init(in object: Object, keyedBy key: String, options: RealtimeValueOptions) {
         super.init(
-            in: Node(key: key, parent: object.node),
+            node: Node(key: key, parent: object.node),
             options: options.with(db: object.database)
         )
         self.parent = object
     }
 
-    public required override init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {
-        super.init(in: node, options: options)
+    public required init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {
+        super.init(node: node, options: options)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

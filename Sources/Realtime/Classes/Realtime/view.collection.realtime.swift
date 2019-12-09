@@ -29,7 +29,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         let dataContainer = try data.container(keyedBy: InternalKeys.self)
         self.node = Node(key: key)
         self.raw = try valueData.rawValue()
-        self.linkID = try dataContainer.decode(String.self, forKey: .link)
+        self.linkID = try dataContainer.decodeIfPresent(String.self, forKey: .link)
         self.priority = try dataContainer.decodeIfPresent(Int64.self, forKey: .index)
         self.payload = try valueData.payload()
     }
@@ -230,7 +230,7 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     }
 
     public required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        self.init(in: data.node, options: RealtimeValueOptions(database: data.database, raw: nil, payload: nil))
+        self.init(node: data.node, options: RealtimeValueOptions(database: data.database, raw: nil, payload: nil))
         try apply(data, event: event)
     }
 

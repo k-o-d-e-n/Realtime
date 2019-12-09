@@ -702,7 +702,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             self._value = .none
         }
         self.representer = options.availability.representer
-        super.init(in: node, options: options.baseOptions)
+        super.init(node: node, options: options.baseOptions)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

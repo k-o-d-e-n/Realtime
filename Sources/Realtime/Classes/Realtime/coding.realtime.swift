@@ -77,7 +77,10 @@ extension Decoder where Self: RealtimeDataProtocol {
 
     fileprivate func childDecoder<Key: CodingKey>(forKey key: Key) throws -> RealtimeDataProtocol {
         guard hasChild(key.stringValue) else {
-            throw DecodingError.keyNotFound(key, DecodingError.Context(codingPath: [key], debugDescription: debugDescription))
+            throw DecodingError.keyNotFound(key, DecodingError.Context(
+                codingPath: compactMap({ $0.key.flatMap(_RealtimeCodingKey.init) }),
+                debugDescription: debugDescription
+            ))
         }
         return child(forPath: key.stringValue)
     }

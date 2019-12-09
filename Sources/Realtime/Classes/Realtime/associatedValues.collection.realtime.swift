@@ -136,8 +136,8 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
         self.keyBuilder = options.keyBuilder
         self.keysNode = options.keysNode
         self.storage = RCDictionaryStorage()
-        self.view = SortedCollectionView(in: Node(key: InternalKeys.items, parent: viewParentNode), options: options.base)
-        super.init(in: node, options: options.base)
+        self.view = SortedCollectionView(node: Node(key: InternalKeys.items, parent: viewParentNode), options: options.base)
+        super.init(node: node, options: options.base)
     }
 
     /// Currently no available
@@ -571,8 +571,8 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable
         self.keyBuilder = options.keyBuilder
         self.keysNode = options.keysNode
         self.storage = RCDictionaryStorage()
-        self.view = SortedCollectionView(in: node, options: RealtimeValueOptions(database: options.base.database))
-        super.init(in: node, options: options.base)
+        self.view = SortedCollectionView(node: node, options: RealtimeValueOptions(database: options.base.database))
+        super.init(node: node, options: options.base)
     }
 
     /// Currently no available

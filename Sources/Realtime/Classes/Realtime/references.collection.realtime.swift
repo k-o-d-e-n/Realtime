@@ -68,10 +68,10 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         didSet { view.didChange(dataExplorer: dataExplorer) }
     }
 
-    override init(in node: Node?, options: RealtimeValueOptions) {
+    init(in node: Node?, options: RealtimeValueOptions) {
         self.storage = RCKeyValueStorage()
-        self.view = SortedCollectionView(in: node, options: RealtimeValueOptions(database: options.database))
-        super.init(in: node, options: options)
+        self.view = SortedCollectionView(node: node, options: RealtimeValueOptions(database: options.database))
+        super.init(node: node, options: options)
     }
 
     /// Creates new instance associated with database node
@@ -84,12 +84,12 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
     init(view: SortedCollectionView<Ref>, options: RealtimeValueOptions) {
         self.storage = RCKeyValueStorage()
         self.view = view
-        super.init(in: view.node, options: options)
+        super.init(node: view.node, options: options)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         self.storage = RCKeyValueStorage()
-        self.view = SortedCollectionView(in: data.node, options: RealtimeValueOptions(database: data.database))
+        self.view = SortedCollectionView(node: data.node, options: RealtimeValueOptions(database: data.database))
         try super.init(data: data, event: event)
     }
 
@@ -146,6 +146,7 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
     }
 }
 
+// TODO: DistributedReferences has the same target, but has no linking with source object. This has, but is not used.
 public class References<Element: RealtimeValue>: __RepresentableCollection<Element, RCItem>, WritableRealtimeCollection {
     internal let builder: RCElementBuilder<RealtimeValueOptions, Element>
     internal let spaceNode: Node
@@ -174,7 +175,7 @@ public class References<Element: RealtimeValue>: __RepresentableCollection<Eleme
     public required init(in node: Node?, options: Options) {
         self.builder = options.builder
         self.spaceNode = options.elementsNode
-        super.init(view: SortedCollectionView(in: node, options: options.base), options: options.base)
+        super.init(view: SortedCollectionView(node: node, options: options.base), options: options.base)
     }
 
     init(view: SortedCollectionView<RCItem>, options: Options) {
@@ -456,7 +457,7 @@ public class RepresentableCollection<Element: RealtimeValue, Ref: WritableRealti
     /// - Parameter options: Dictionary of options
     public init(in node: Node?, options: Options) {
         self.builder = options.builder
-        super.init(view: SortedCollectionView(in: node, options: options.base), options: options.base)
+        super.init(view: SortedCollectionView(node: node, options: options.base), options: options.base)
     }
 
     init(view: SortedCollectionView<Ref>, options: Options) {
@@ -587,7 +588,7 @@ public class Relations<Element>: __RepresentableCollection<Element, RelationsIte
         }
 
         self.options = options
-        super.init(view: SortedCollectionView(in: node, options: options.base), options: options.base)
+        super.init(view: SortedCollectionView(node: node, options: options.base), options: options.base)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

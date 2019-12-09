@@ -205,6 +205,13 @@ extension RealtimeTests {
     func testObject() {
         let conversation = Conversation(in: Node(key: "conv_1", parent: .root))
         XCTAssertTrue(type(of: conversation) == Conversation.self)
+
+        func build<El: Object>(_ node: Node?, db: RealtimeDatabase?, options: RealtimeValueOptions) -> El {
+            return El(in: node, options: options)
+        }
+
+        let conversation1: Conversation = build(nil, db: nil, options: RealtimeValueOptions())
+        XCTAssertTrue(type(of: conversation1) == Conversation.self)
     }
 
     func testObjectSave() {
