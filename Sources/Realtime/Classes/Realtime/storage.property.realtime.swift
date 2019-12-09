@@ -36,7 +36,7 @@ public extension RawRepresentable where Self.RawValue == String {
         return File(
             in: Node(key: rawValue, parent: object.node),
             options: .init(
-                .required(representer: representer, db: object.database, initial: nil),
+                .required(representer, db: object.database, initial: nil),
                 metadata: metadata
             )
         )
@@ -45,7 +45,7 @@ public extension RawRepresentable where Self.RawValue == String {
         return File<T?>(
             in: Node(key: rawValue, parent: object.node),
             options: File<T?>.Options(
-                .optional(representer: representer, db: object.database, initial: nil),
+                .optional(representer, db: object.database, initial: nil),
                 metadata: metadata
             )
         )

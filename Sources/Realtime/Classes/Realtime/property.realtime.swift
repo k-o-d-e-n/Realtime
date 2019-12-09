@@ -640,13 +640,13 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             self.initialValue = value
         }
 
-        public static func required(representer: Representer<T>, db: RealtimeDatabase?, initial: T? = nil) -> PropertyOptions {
+        public static func required(_ representer: Representer<T>, db: RealtimeDatabase?, initial: T? = nil) -> PropertyOptions {
             return self.init(database: db, availability: Availability.required(representer), initial: initial)
         }
-        public static func optional<U>(representer: Representer<U>, db: RealtimeDatabase?, initial: T? = nil) -> Self where Optional<U> == T {
+        public static func optional<U>(_ representer: Representer<U>, db: RealtimeDatabase?, initial: T? = nil) -> Self where Optional<U> == T {
             return self.init(database: db, availability: Availability.optional(representer), initial: initial)
         }
-        public static func writeRequired<U>(representer: Representer<U>, db: RealtimeDatabase?, initial: T? = nil) -> Self where Optional<U> == T {
+        public static func writeRequired<U>(_ representer: Representer<U>, db: RealtimeDatabase?, initial: T? = nil) -> Self where Optional<U> == T {
             return self.init(database: db, availability: Availability.writeRequired(representer), initial: initial)
         }
     }
