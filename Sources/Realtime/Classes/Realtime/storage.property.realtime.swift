@@ -36,7 +36,7 @@ public extension RawRepresentable where Self.RawValue == String {
         return File(
             in: Node(key: rawValue, parent: object.node),
             options: .init(
-                baseOptions: .init(database: object.database, availability: Availability.required(representer), initial: nil),
+                .required(representer: representer, db: object.database, initial: nil),
                 metadata: metadata
             )
         )
@@ -45,7 +45,7 @@ public extension RawRepresentable where Self.RawValue == String {
         return File<T?>(
             in: Node(key: rawValue, parent: object.node),
             options: File<T?>.Options(
-                baseOptions: File<T?>.PropertyOptions(database: object.database, availability: Availability<T?>.optional(representer), initial: nil),
+                .optional(representer: representer, db: object.database, initial: nil),
                 metadata: metadata
             )
         )
@@ -305,8 +305,13 @@ public final class File<T>: Property<T> {
     public private(set) var metadata: RealtimeMetadata?
 
     public struct Options {
-        let baseOptions: PropertyOptions
+        let base: PropertyOptions
         let metadata: RealtimeMetadata?
+
+        public init(_ base: PropertyOptions, metadata: RealtimeMetadata?) {
+            self.base = base
+            self.metadata = metadata
+        }
     }
 
     public required init(in node: Node?, options: Options) {
@@ -315,7 +320,7 @@ public final class File<T>: Property<T> {
         } else {
             self.metadata = [:]
         }
-        super.init(in: node, options: options.baseOptions)
+        super.init(in: node, options: options.base)
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

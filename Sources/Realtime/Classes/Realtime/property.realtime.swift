@@ -617,18 +617,6 @@ extension Availability where T: HasDefaultLiteral & _ComparableWithDefaultLitera
     }
 }
 
-extension Property {
-    public static func required(in node: Node?, representer: Representer<T>, db: RealtimeDatabase? = nil) -> Property {
-        return Property(in: node, options: .required(representer: representer, db: db))
-    }
-    public static func optional<U>(in node: Node?, representer: Representer<U>, db: RealtimeDatabase? = nil) -> Property where Optional<U> == T {
-        return Property(in: node, options: .optional(representer: representer, db: db))
-    }
-    public static func writeRequired<U>(in node: Node?, representer: Representer<U>, db: RealtimeDatabase? = nil) -> Property where Optional<U> == T {
-        return Property(in: node, options: .writeRequired(representer: representer, db: db))
-    }
-}
-
 /// Defines readonly property with any value
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate var _value: PropertyState<T>

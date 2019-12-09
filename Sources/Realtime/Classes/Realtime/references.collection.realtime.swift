@@ -577,6 +577,22 @@ public extension RawRepresentable where RawValue == String {
         )
     }
 }
+public extension Relations where Element: Object {
+    convenience init(in node: Node?, database: RealtimeDatabase?, anchor: Options.Anchor = .root, ownerLevelsUp: UInt = 1, _ property: RelationProperty) {
+        self.init(
+            in: node,
+            options: Options(
+                database: database,
+                anchor: anchor,
+                ownerLevelsUp: ownerLevelsUp,
+                property: property,
+                builder: { node, db, options in
+                    return Element(in: node, options: options)
+                }
+            )
+        )
+    }
+}
 
 public class Relations<Element>: __RepresentableCollection<Element, RelationsItem>, WritableRealtimeCollection where Element: RealtimeValue {
     override var _hasChanges: Bool { return view._hasChanges }

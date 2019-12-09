@@ -46,6 +46,18 @@ extension Error {
     }
 }
 
+extension Property {
+    static func required(in node: Node?, representer: Representer<T>, db: RealtimeDatabase? = nil) -> Property {
+        return Property(in: node, options: .required(representer: representer, db: db))
+    }
+    static func optional<U>(in node: Node?, representer: Representer<U>, db: RealtimeDatabase? = nil) -> Property where Optional<U> == T {
+        return Property(in: node, options: .optional(representer: representer, db: db))
+    }
+    static func writeRequired<U>(in node: Node?, representer: Representer<U>, db: RealtimeDatabase? = nil) -> Property where Optional<U> == T {
+        return Property(in: node, options: .writeRequired(representer: representer, db: db))
+    }
+}
+
 public final class RealtimeTests: XCTestCase {
     var store: ListeningDisposeStore = ListeningDisposeStore()
     public static var allTestsSetUp: (() -> Void)?

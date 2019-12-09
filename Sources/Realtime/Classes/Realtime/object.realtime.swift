@@ -150,9 +150,9 @@ struct Reflector: Sequence {
 }
 
 public struct RealtimeValueOptions {
-    let database: RealtimeDatabase?
-    let raw: RealtimeDatabaseValue?
-    let payload: RealtimeDatabaseValue?
+    public let database: RealtimeDatabase?
+    public let raw: RealtimeDatabaseValue?
+    public let payload: RealtimeDatabaseValue?
 
     public init(database: RealtimeDatabase? = nil, raw: RealtimeDatabaseValue? = nil, payload: RealtimeDatabaseValue? = nil) {
         self.database = database

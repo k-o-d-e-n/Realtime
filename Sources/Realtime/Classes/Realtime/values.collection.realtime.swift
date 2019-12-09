@@ -458,6 +458,12 @@ where Element: WritableRealtimeValue & Comparable {
         let view = SortedCollectionView<Element>(node: node, options: options)
         self.init(in: node, options: options, view: view)
     }
+    public convenience init(in object: _RealtimeValue, keyedBy key: String, options: RealtimeValueOptions = .init()) {
+        self.init(
+            in: Node(key: key, parent: object.node),
+            options: options.with(db: object.database)
+        )
+    }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         let node = data.node

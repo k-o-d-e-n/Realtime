@@ -289,12 +289,13 @@ extension AssociatedValues {
     /// - Returns: `RealtimeCollection` of key objects
     public func keys() -> Keys {
         let builder = keyBuilder
+        let anchor = keysNode
         return Keys(
             view: view,
             options: RepresentableCollection<Key, RDItem>.Options(
                 database: database,
                 builder: { (node, database, item) -> Key in
-                    return builder(node, database, RealtimeValueOptions(database: database, raw: item.raw, payload: item.payload))
+                    return builder(node.map({ Node(key: $0.key, parent: anchor) }), database, RealtimeValueOptions(database: database, raw: item.raw, payload: item.payload))
                 }
             )
         )
@@ -490,8 +491,16 @@ extension AssociatedValues {
 }
 
 public extension ExplicitAssociatedValues where Key: Object {
-    convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, keysNode: Node) throws {
-        self.init(in: data.node, options: Options(database: data.database, keys: keysNode, keyBuilder: { node, database, options in
+    convenience init(in object: Object, keyedBy key: String, keys: Node) {
+        self.init(in: Node(key: key, parent: object.node), database: object.database, keys: keys)
+    }
+    convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node) {
+        self.init(in: node, options: Options(database: database, keys: keys, keyBuilder: { node, database, options in
+            return Key(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+        }))
+    }
+    convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, keys: Node) throws {
+        self.init(in: data.node, options: Options(database: data.database, keys: keys, keyBuilder: { node, database, options in
             return Key(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
         }))
         try apply(data, event: event)
