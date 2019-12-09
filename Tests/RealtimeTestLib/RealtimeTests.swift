@@ -48,13 +48,13 @@ extension Error {
 
 extension Property {
     static func required(in node: Node?, representer: Representer<T>, db: RealtimeDatabase? = nil) -> Property {
-        return Property(in: node, options: .required(representer: representer, db: db))
+        return Property(in: node, options: .required(representer, db: db))
     }
     static func optional<U>(in node: Node?, representer: Representer<U>, db: RealtimeDatabase? = nil) -> Property where Optional<U> == T {
-        return Property(in: node, options: .optional(representer: representer, db: db))
+        return Property(in: node, options: .optional(representer, db: db))
     }
     static func writeRequired<U>(in node: Node?, representer: Representer<U>, db: RealtimeDatabase? = nil) -> Property where Optional<U> == T {
-        return Property(in: node, options: .writeRequired(representer: representer, db: db))
+        return Property(in: node, options: .writeRequired(representer, db: db))
     }
 }
 
@@ -1549,7 +1549,7 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let prop = ReadonlyProperty<String>(
             in: Node.root("___tests/prop"),
-            options: ReadonlyProperty<String>.PropertyOptions(database: Cache.root, availability: Availability.required(Representer<String>.realtimeDataValue), initial: nil)
+            options: .required(.realtimeDataValue, db: Cache.root)
         )
 
         _ = prop.load(timeout: .seconds(3)).completion.listening(.just { err in

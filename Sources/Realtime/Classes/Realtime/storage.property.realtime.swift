@@ -15,21 +15,13 @@ public extension RawRepresentable where Self.RawValue == String {
     func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T> {
         return ReadonlyFile(
             in: Node(key: rawValue, parent: object.node),
-            options: ReadonlyFile<T>.PropertyOptions(
-                database: object.database,
-                availability: Availability.required(representer),
-                initial: nil
-            )
+            options: .required(representer, db: object.database)
         )
     }
     func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T?> {
         return ReadonlyFile(
             in: Node(key: rawValue, parent: object.node),
-            options: ReadonlyFile<T?>.PropertyOptions(
-                database: object.database,
-                availability: Availability.optional(representer),
-                initial: nil
-            )
+            options: .optional(representer, db: object.database)
         )
     }
     func file<T>(in object: Object, representer: Representer<T>, metadata: [String: Any] = [:]) -> File<T> {
