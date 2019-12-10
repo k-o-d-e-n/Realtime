@@ -32,12 +32,12 @@ Pod::Spec.new do |s|
   s.osx.deployment_target = '10.10'
   s.swift_version = '5.0'
   s.source_files = 'Sources/Realtime/**/*'
-  s.dependency 'Promise.swift'
+  s.dependency 'Promise.swift', '~> 0.6.1'
   s.static_framework = true
   s.default_subspec = 'Core'
   s.subspec 'Core'
   s.subspec 'Firebase' do |firebase|
-      firebase.source_files = 'Sources/Realtime+Firebase/**/*'
+      firebase.source_files = 'Sources/Realtime+Firebase/**/*', 'Sources/Realtime/**/*'
       firebase.dependency 'Firebase/Database'
       firebase.dependency 'Firebase/Storage'
   end
