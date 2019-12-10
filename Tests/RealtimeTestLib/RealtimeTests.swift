@@ -55,7 +55,7 @@ public final class RealtimeTests: XCTestCase {
         if let testsSetUp = allTestsSetUp {
             testsSetUp()
         } else {
-            let configuration = RealtimeApp.Configuration.firebase(linksNode: BranchNode(key: "___tests/__links"))
+            let configuration = RealtimeApp.Configuration(linksNode: BranchNode(key: "___tests/__links"))
             RealtimeApp.initialize(with: RealtimeApp.cache, storage: RealtimeApp.cache, configuration: configuration)
         }
     }
