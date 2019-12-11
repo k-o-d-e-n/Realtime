@@ -95,6 +95,8 @@ class RealtimeTableController: UITableViewController {
         }
 
         users.changes
+            .suspend(controller: listeningControl)
+            .then(SequenceListenable.init)
             .do({ [unowned self] e in
                 refreshControl.endRefreshing()
                 iView.stopAnimating()
@@ -145,19 +147,20 @@ class RealtimeTableController: UITableViewController {
 
     let ascending: Bool = false
     let pagingControl: PagingControl = PagingControl()
+    let listeningControl: Repeater<Bool> = .unsafe()
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
 //        #if FIREBASE
         Global.rtUsers.dataExplorer = .viewByPages(control: pagingControl, size: 2, ascending: ascending)
 //        #endif
-        store.resume()
+        listeningControl.send(.value(true))
         Global.rtUsers.runObserving()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         Global.rtUsers.stopObserving()
-        store.pause()
+        listeningControl.send(.value(false))
         Global.rtUsers.dataExplorer = .view(ascending: ascending)
     }
 
