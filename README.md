@@ -194,6 +194,7 @@ For more details see Example project.
 
 ***SingleSectionTableViewDelegate*** -  provides single section data source for UITableView with auto update.
 ***SectionedTableViewDelegate*** -  provides sectioned data source for UITableView with auto update.
+***CollectionViewDelegate*** - provides data source for UICollectionView with auto update.
 ```swift
 delegate.register(UITableViewCell.self) { (item, cell, user, ip) in
     item.bind(

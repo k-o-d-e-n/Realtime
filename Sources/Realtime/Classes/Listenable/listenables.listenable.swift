@@ -122,6 +122,11 @@ public struct Repeater<T>: Listenable {
         })
     }
 }
+extension Repeater {
+    func send(_ input: Out) {
+        self.send(.value(input))
+    }
+}
 
 /// Stores value and sends event on his change
 public struct ValueStorage<T>: Listenable, ValueWrapper {

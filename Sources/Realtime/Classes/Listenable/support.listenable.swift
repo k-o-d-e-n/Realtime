@@ -400,7 +400,7 @@ extension AnyCancellable: Disposable {
 
 @available(iOS 13.0, macOS 10.15, *)
 extension Publisher where Self: Listenable, Output == Out {
-    func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
         return sink(
             receiveCompletion: { (completion) in
                 if case .failure(let err) = completion {
