@@ -48,7 +48,6 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
 
     public required init(cellBuilder: CellBuilder<View>) {
         self.cellBuilder = cellBuilder
-        self._view.repeater = Repeater.default
     }
     deinit {}
 

@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "Realtime::Realtime+Firebase"
-               BuildableName = "Realtime_Firebase.framework"
-               BlueprintName = "Realtime+Firebase"
+               BlueprintIdentifier = "Realtime::RealtimeTestLib"
+               BuildableName = "RealtimeTestLib.framework"
+               BlueprintName = "RealtimeTestLib"
                ReferencedContainer = "container:Realtime.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -28,9 +28,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "Realtime::RealtimeTestLib"
-               BuildableName = "RealtimeTestLib.framework"
-               BlueprintName = "RealtimeTestLib"
+               BlueprintIdentifier = "Realtime::Realtime+Firebase"
+               BuildableName = "Realtime_Firebase.framework"
+               BlueprintName = "Realtime+Firebase"
                ReferencedContainer = "container:Realtime.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -67,8 +67,6 @@
             </BuildableReference>
          </TestableReference>
       </Testables>
-      <AdditionalOptions>
-      </AdditionalOptions>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -80,17 +78,6 @@
       debugDocumentVersioning = "YES"
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
-      <MacroExpansion>
-         <BuildableReference
-            BuildableIdentifier = "primary"
-            BlueprintIdentifier = "Realtime::Realtime+Firebase"
-            BuildableName = "Realtime_Firebase.framework"
-            BlueprintName = "Realtime+Firebase"
-            ReferencedContainer = "container:Realtime.xcodeproj">
-         </BuildableReference>
-      </MacroExpansion>
-      <AdditionalOptions>
-      </AdditionalOptions>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

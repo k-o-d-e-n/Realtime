@@ -369,45 +369,6 @@ public final class ListenableTests: XCTestCase {
         XCTAssertEqual(doubleValue, 10.0)
     }
 
-    func testListeningItem() {
-        let propertyDouble = ValueStorage<Double>.unsafe(strong: .pi, repeater: .unsafe())
-
-        var doubleValue = 0.0
-        var item: ListeningItem? = propertyDouble.repeater!.listeningItem(.just {
-            if let val = $0.value {
-                doubleValue = val
-            }
-        })
-
-        XCTAssertTrue(item!.isListen)
-        propertyDouble.value = 10.0
-        XCTAssertEqual(doubleValue, 10.0)
-
-        item?.pause()
-        XCTAssertFalse(item!.isListen)
-        propertyDouble.value = .infinity
-        XCTAssertEqual(doubleValue, 10.0)
-
-        item?.resume()
-        XCTAssertTrue(item!.isListen)
-        propertyDouble.value = .pi
-        XCTAssertEqual(doubleValue, .pi)
-
-        item?.pause()
-        XCTAssertFalse(item!.isListen)
-        propertyDouble.value = 100.5
-
-        item?.resume()
-        XCTAssertTrue(item!.isListen)
-        XCTAssertEqual(doubleValue, .pi)
-        propertyDouble.value = 504.8
-        XCTAssertEqual(doubleValue, 504.8)
-
-        item = nil
-        propertyDouble.value = 1000
-        XCTAssertEqual(doubleValue, 504.8)
-    }
-
     func testListeningStore() {
         let store = ListeningDisposeStore()
         let propertyDouble = ValueStorage<Double>.unsafe(strong: .pi, repeater: .unsafe())
@@ -420,30 +381,6 @@ public final class ListenableTests: XCTestCase {
         store.dispose()
         propertyDouble.value = .infinity
         XCTAssertEqual(doubleValue, 10.0)
-
-        let item = propertyDouble.repeater!.listeningItem(.just { doubleValue = try! $0.tryValue() })
-        item.add(to: store)
-
-        propertyDouble.value = .pi
-        XCTAssertEqual(doubleValue, .pi)
-        XCTAssertTrue(item.isListen)
-
-        store.pause()
-        propertyDouble.value = 55.4
-        XCTAssertNotEqual(doubleValue, 55.4)
-        XCTAssertFalse(item.isListen)
-
-        store.resume()
-        XCTAssertTrue(item.isListen)
-
-        propertyDouble.value = 150.5
-        XCTAssertEqual(doubleValue, 150.5)
-
-        store.pause()
-        propertyDouble.value = 25.1
-
-        store.resume()
-        XCTAssertEqual(doubleValue, 150.5)
     }
 
     func testFilterPropertyClass() {
@@ -812,52 +749,6 @@ extension ListenableTests {
 
         bgToken.dispose()
         backgroundProperty <== .black
-
-        waitForExpectations(timeout: 5) { (error) in
-            error.map { XCTFail($0.localizedDescription) }
-        }
-    }
-
-    func testRepeaterListeiningItem() {
-        let exp = expectation(description: "")
-        exp.expectedFulfillmentCount = 4
-
-        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock(), dispatcher: .queue(DispatchQueue(label: "repeater")))
-        var counter = 0
-        let bgItem = repeater.listeningItem(.just { val in
-            guard let v = val.value else { return }
-            print(v)
-            defer { counter += 1; exp.fulfill() }
-            switch counter {
-            case 0: XCTAssertEqual(v, 4)
-            case 1: XCTAssertEqual(v, 5)
-            case 2: XCTAssertEqual(v, 20)
-            case 3: XCTAssertEqual(v, 999)
-            default: XCTFail("Extra call")
-            }
-        })
-
-        repeater.send(.value(4))
-        repeater.send(.value(5))
-
-        bgItem.pause()
-
-        repeater.send(.value(100))
-
-        DispatchQueue.global().async {
-            XCTAssertFalse(Thread.isMainThread)
-            bgItem.resume()
-
-            repeater.send(.value(20))
-
-            bgItem.pause()
-
-            repeater.send(.value(1000))
-
-            bgItem.resume()
-
-            repeater.send(.value(999))
-        }
 
         waitForExpectations(timeout: 5) { (error) in
             error.map { XCTFail($0.localizedDescription) }

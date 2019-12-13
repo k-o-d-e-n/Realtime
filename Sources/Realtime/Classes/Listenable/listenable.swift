@@ -282,13 +282,6 @@ public protocol Listenable {
     func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable
 }
 public extension Listenable {
-    /// Listening with possibility to control active state
-    @available(*, deprecated, message: "Use preprocessors to control subscription states")
-    func listeningItem(_ assign: Assign<ListenEvent<Out>>) -> ListeningItem {
-        return ListeningItem(resume: { self.listening(assign) }, pause: { $0.dispose() }, token: listening(assign))
-    }
-}
-public extension Listenable {
     func listening(_ assign: @escaping (ListenEvent<Out>) -> Void) -> Disposable {
         return listening(.just(assign))
     }
