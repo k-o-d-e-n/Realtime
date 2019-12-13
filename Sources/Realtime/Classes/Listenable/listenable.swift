@@ -10,31 +10,6 @@ import Foundation
 
 /// -------------------------------------------------------------------
 
-public struct Promise {
-    let action: () -> Void
-    let error: (Error) -> Void
-
-    public func fulfill() {
-        action()
-    }
-
-    public func reject(_ error: Error) {
-        self.error(error)
-    }
-}
-public struct ResultPromise<T> {
-    let receiver: (T) -> Void
-    let error: (Error) -> Void
-
-    public func fulfill(_ result: T) {
-        receiver(result)
-    }
-
-    public func reject(_ error: Error) {
-        self.error(error)
-    }
-}
-
 protocol ClosureProtocol {
     associatedtype Arg
     associatedtype Returns

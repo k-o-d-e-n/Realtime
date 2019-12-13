@@ -37,7 +37,9 @@ struct Bridge<I, O> {
             switch e {
             case .value(let v):
                 do {
-                    try event(v, ResultPromise(receiver: { assign(.value($0)) }, error: { assign(.error($0)) }))
+                    let promise: ResultPromise<O> = ResultPromise()
+                    promise.do({ assign(.value($0)) }).resolve({ assign(.error($0)) })
+                    try event(v, promise)
                 } catch let e {
                     assign(.error(e))
                 }
@@ -58,12 +60,14 @@ extension Bridge where I == O {
             }
         })
     }
-    init(event: @escaping (O, Promise) throws -> Void) {
+    init(event: @escaping (O, PromiseVoid) throws -> Void) {
         self.init(bridge: { e, assign in
             switch e {
             case .value(let v):
                 do {
-                    try event(v, Promise(action: { assign(.value(v)) }, error: { assign(.error($0)) }))
+                    let promise = PromiseVoid()
+                    promise.do({ assign(.value(v)) }).resolve({ assign(.error($0)) })
+                    try event(v, promise)
                 } catch let e {
                     assign(.error(e))
                 }
@@ -111,7 +115,7 @@ public extension Listenable {
     /// - Warning: This does not preserve the sequence of events
     ///
     /// - Parameter event: Closure to run async work.
-    func doAsync(_ event: @escaping (Out, Promise) throws -> Void) -> Preprocessor<Self, Out> {
+    func doAsync(_ event: @escaping (Out, PromiseVoid) throws -> Void) -> Preprocessor<Self, Out> {
         return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(event: event))
     }
@@ -994,7 +998,8 @@ public extension Listenable where Out: _Optional {
     func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result?> {
         return mapAsync({ (out, promise) in
             guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
-            let wrappedPromise = ResultPromise<Result>(receiver: promise.fulfill, error: promise.reject)
+            let wrappedPromise = ResultPromise<Result>()
+            wrappedPromise.do(promise.fulfill).resolve(promise.reject(_:))
             try event(wrapped, wrappedPromise)
         })
     }

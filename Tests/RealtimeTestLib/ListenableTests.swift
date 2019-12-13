@@ -120,63 +120,6 @@ public final class ListenableTests: XCTestCase {
         }
     }
 
-    func testReadonlyValue() {
-        let exp = expectation(description: "")
-        exp.expectedFulfillmentCount = 2
-
-        var propertyIndexSet = ValueStorage<IndexSet>.unsafe(strong: IndexSet(integer: 0), repeater: .unsafe())
-        let readonlySum = ReadonlyValue<Int>(propertyIndexSet.repeater!) { (v) -> Int in
-            return v.reduce(0, +)
-        }
-        var counter = 0
-        readonlySum.listening(onValue: { v in
-            defer { counter += 1; exp.fulfill() }
-            switch counter {
-            case 0: XCTAssertEqual(v, 1)
-            case 1: XCTAssertEqual(v, IndexSet(integersIn: 100...500).reduce(0, +) + 1)
-            default: XCTFail("Extra call")
-            }
-        }).add(to: store)
-
-        propertyIndexSet.value.insert(1)
-        propertyIndexSet.value.insert(integersIn: 100...500)
-
-        waitForExpectations(timeout: 5) { (error) in
-            error.map { XCTFail($0.localizedDescription) }
-        }
-    }
-
-    func testAsyncReadonlyValue() {
-        let exp = expectation(description: "")
-        exp.expectedFulfillmentCount = 2
-
-        var counter = 0
-        let propertyIndexSet = ValueStorage<IndexSet>.unsafe(strong: IndexSet(integer: 0), repeater: .unsafe())
-        let storage = ValueStorage<(Int, Int)>.unsafe(strong: (0, 0), repeater: .unsafe())
-        let readonlySum = AsyncReadonlyValue<(Int, Int)>(propertyIndexSet.repeater!, storage: storage) { (v, promise) in
-            let c = counter
-            counter += 1
-            DispatchQueue.global(qos: .background).async {
-                promise.fulfill((c, v.reduce(0, +)))
-            }
-        }
-        readonlySum.listening(onValue: { (c, v) in
-            switch c {
-            case 0: XCTAssertEqual(v, 1)
-            case 1: XCTAssertEqual(v, IndexSet(integersIn: 100...500).reduce(0, +) + 1)
-            default: XCTFail("Extra call")
-            }
-            exp.fulfill()
-        }).add(to: store)
-
-        propertyIndexSet.value.insert(1)
-        propertyIndexSet.value.insert(integersIn: 100...500)
-
-        waitForExpectations(timeout: 5) { (error) in
-            error.map { XCTFail($0.localizedDescription) }
-        }
-    }
-
     func testOnce() {
         let exp = expectation(description: "")
         let view = View()
@@ -522,15 +465,15 @@ public final class ListenableTests: XCTestCase {
 
         let exp = expectation(description: "")
         property <== 0
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
             XCTAssertEqual(property.value, 0)
             XCTAssertEqual(exponentValue, property.value.exponent)
             property <== 21
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
                 XCTAssertEqual(exponentValue, property.value.exponent)
                 XCTAssertEqual(property.value, 21)
                 property <== -100.5
-                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
                     XCTAssertEqual(exponentValue, property.value.exponent)
                     XCTAssertEqual(property.value, -100.5)
                     exp.fulfill()
@@ -593,15 +536,15 @@ public final class ListenableTests: XCTestCase {
 
         let exp = expectation(description: "")
         property <== 0
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
             XCTAssertEqual(property.value, 0)
             XCTAssertEqual(exponentValue, "\(property.value.exponent)")
             property <== 21
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
                 XCTAssertEqual(exponentValue, "\(property.value.exponent)")
                 XCTAssertEqual(property.value, 21)
                 property <== -100.5
-                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
                     XCTAssertEqual(exponentValue, "\(property.value.exponent)")
                     XCTAssertEqual(property.value, -100.5)
                     exp.fulfill()

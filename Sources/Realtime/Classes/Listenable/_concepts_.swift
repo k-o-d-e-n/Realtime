@@ -7,68 +7,6 @@
 
 import Foundation
 
-/// Provides calculated listening value
-public struct ReadonlyValue<Value>: Listenable {
-    let repeater: Repeater<Value>
-    private let store: ListeningDisposeStore
-
-    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), calculation: @escaping (L.Out) -> Value) {
-        let store = ListeningDisposeStore()
-        repeater.depends(on: source.map(calculation)).add(to: store)
-        self.repeater = repeater
-        self.store = store
-    }
-
-    public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
-        return repeater.listening(assign)
-    }
-}
-
-/// Provides listening value based on async action
-public struct AsyncReadonlyRepeater<Value>: Listenable {
-    let repeater: Repeater<Value>
-    private let store: ListeningDisposeStore
-
-    public init<L: Listenable>(_ source: L, repeater: Repeater<Value> = .unsafe(), fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
-        let store = ListeningDisposeStore()
-        repeater.depends(on: source.mapAsync(fetching)).add(to: store)
-        self.repeater = repeater
-        self.store = store
-    }
-
-    public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
-        return repeater.listening(assign)
-    }
-}
-
-/// The same as AsyncReadonlyRepeater but with keeping value
-public struct AsyncReadonlyValue<Value>: Listenable {
-    let storage: ValueStorage<Value>
-    private let store: ListeningDisposeStore
-
-    public init<L: Listenable>(_ source: L, storage: ValueStorage<Value>, fetching: @escaping (L.Out, ResultPromise<Value>) -> Void) {
-        let store = ListeningDisposeStore()
-
-        let promise = ResultPromise(receiver: { storage.value = $0 }, error: storage.sendError)
-        source.listening({ (e) in
-            switch e {
-            case .value(let v): fetching(v, promise)
-            case .error(let e): storage.sendError(e)
-            }
-        }).add(to: store)
-        self.storage = storage
-        self.store = store
-    }
-
-    public func sendValue() {
-        storage.repeater?.send(.value(storage.value))
-    }
-
-    public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
-        return storage.repeater?.listening(assign) ?? EmptyDispose()
-    }
-}
-
 struct Trivial<T>: Listenable, ValueWrapper {
     let repeater: Repeater<T>
 
@@ -282,6 +220,13 @@ public extension __Promise {
 import Promise_swift
 
 public typealias _Promise<T> = DispatchPromise<T>
+public typealias PromiseVoid = DispatchPromise<Void>
+public typealias ResultPromise<T> = DispatchPromise<T>
+extension DispatchPromise where Value == Void {
+    func fulfill() {
+        self.fulfill(())
+    }
+}
 
 extension DispatchPromise: Listenable {
     public func listening(_ assign: Closure<ListenEvent<Value>, Void>) -> Disposable {

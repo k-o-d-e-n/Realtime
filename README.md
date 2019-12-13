@@ -303,6 +303,9 @@ public protocol Listenable {
 ### Debugging
 Add debug argument 'REALTIME_CRASH_ON_ERROR' passed on launch, to catch internal errors.
 
+### JS
+Also exists NodeJS module, created for Vue.js application. Source code you can found in `js` folder.
+
 ## Limitations
 Realtime objects should not passed between threads.
 
