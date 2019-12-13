@@ -106,6 +106,8 @@ transaction.commit(with: { state, err in
 
 ***File*** - stored property for file in Firebase Storage.
 
+All properties adopt `@propertyWrapper` feature, but while Swift unsupported access to `self` in custom lazy properties, this way to define properties generally useless.
+
 ### Collections
 ```swift
 class Some: Object {

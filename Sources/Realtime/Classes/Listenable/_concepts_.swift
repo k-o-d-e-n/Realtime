@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Trivial<T>: Listenable, ValueWrapper {
+struct Trivial<T>: Listenable {
     let repeater: Repeater<T>
 
     var value: T {
@@ -31,6 +31,17 @@ struct Trivial<T>: Listenable, ValueWrapper {
 
     func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         return repeater.listening(assign)
+    }
+}
+extension Trivial {
+    static func <==(_ prop: inout Self, _ value: T) {
+        prop.value = value
+    }
+    static func <==(_ value: inout T, _ prop: Self) {
+        value = prop.value
+    }
+    static func <==(_ value: inout T?, _ prop: Self) {
+        value = prop.value
     }
 }
 

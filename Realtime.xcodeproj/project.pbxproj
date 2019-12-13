@@ -1,1927 +1,1481 @@
 // !$*UTF8*$!
 {
-   archiveVersion = "1";
-   objectVersion = "46";
-   objects = {
-      "OBJ_1" = {
-         isa = "PBXProject";
-         attributes = {
-            LastSwiftMigration = "9999";
-            LastUpgradeCheck = "9999";
-         };
-         buildConfigurationList = "OBJ_2";
-         compatibilityVersion = "Xcode 3.2";
-         developmentRegion = "en";
-         hasScannedForEncodings = "0";
-         knownRegions = (
-            "en"
-         );
-         mainGroup = "OBJ_5";
-         productRefGroup = "OBJ_66";
-         projectDirPath = ".";
-         targets = (
-            "SwiftAtomics::CAtomics",
-            "Promise.swift::Promise.swift",
-            "Promise.swift::SwiftPMPackageDescription",
-            "Realtime::Realtime",
-            "Realtime::Realtime+Firebase",
-            "Realtime::SwiftPMPackageDescription",
-            "Realtime::RealtimePackageTests::ProductTarget",
-            "Realtime::RealtimeTestLib",
-            "Realtime::RealtimeTests",
-            "SwiftAtomics::SwiftPMPackageDescription"
-         );
-      };
-      "OBJ_10" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_11",
-            "OBJ_12",
-            "OBJ_13",
-            "OBJ_14",
-            "OBJ_15",
-            "OBJ_16"
-         );
-         name = "Listenable";
-         path = "Listenable";
-         sourceTree = "<group>";
-      };
-      "OBJ_100" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_101",
-            "OBJ_102"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_101" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            LD = "/usr/bin/true";
-            OTHER_SWIFT_FLAGS = (
-               "-swift-version",
-               "5",
-               "-I",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2",
-               "-target",
-               "x86_64-apple-macosx10.10",
-               "-sdk",
-               "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk",
-               "-package-description-version",
-               "5"
-            );
-            SWIFT_VERSION = "5.0";
-         };
-         name = "Debug";
-      };
-      "OBJ_102" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            LD = "/usr/bin/true";
-            OTHER_SWIFT_FLAGS = (
-               "-swift-version",
-               "5",
-               "-I",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2",
-               "-target",
-               "x86_64-apple-macosx10.10",
-               "-sdk",
-               "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk",
-               "-package-description-version",
-               "5"
-            );
-            SWIFT_VERSION = "5.0";
-         };
-         name = "Release";
-      };
-      "OBJ_103" = {
-         isa = "PBXSourcesBuildPhase";
-         files = (
-            "OBJ_104"
-         );
-      };
-      "OBJ_104" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_58";
-      };
-      "OBJ_106" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_107",
-            "OBJ_108"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_107" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/Realtime_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "Realtime";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "Realtime";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Debug";
-      };
-      "OBJ_108" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/Realtime_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "Realtime";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "Realtime";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Release";
-      };
-      "OBJ_109" = {
-         isa = "PBXSourcesBuildPhase";
-         files = (
-            "OBJ_110",
-            "OBJ_111",
-            "OBJ_112",
-            "OBJ_113",
-            "OBJ_114",
-            "OBJ_115",
-            "OBJ_116",
-            "OBJ_117",
-            "OBJ_118",
-            "OBJ_119",
-            "OBJ_120",
-            "OBJ_121",
-            "OBJ_122",
-            "OBJ_123",
-            "OBJ_124",
-            "OBJ_125",
-            "OBJ_126",
-            "OBJ_127",
-            "OBJ_128",
-            "OBJ_129",
-            "OBJ_130",
-            "OBJ_131",
-            "OBJ_132",
-            "OBJ_133",
-            "OBJ_134",
-            "OBJ_135",
-            "OBJ_136",
-            "OBJ_137",
-            "OBJ_138"
-         );
-      };
-      "OBJ_11" = {
-         isa = "PBXFileReference";
-         path = "_concepts_.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_110" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_11";
-      };
-      "OBJ_111" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_12";
-      };
-      "OBJ_112" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_13";
-      };
-      "OBJ_113" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_14";
-      };
-      "OBJ_114" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_15";
-      };
-      "OBJ_115" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_16";
-      };
-      "OBJ_116" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_19";
-      };
-      "OBJ_117" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_20";
-      };
-      "OBJ_118" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_21";
-      };
-      "OBJ_119" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_22";
-      };
-      "OBJ_12" = {
-         isa = "PBXFileReference";
-         path = "listenable.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_120" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_23";
-      };
-      "OBJ_121" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_24";
-      };
-      "OBJ_122" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_25";
-      };
-      "OBJ_123" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_26";
-      };
-      "OBJ_124" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_27";
-      };
-      "OBJ_125" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_28";
-      };
-      "OBJ_126" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_29";
-      };
-      "OBJ_127" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_30";
-      };
-      "OBJ_128" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_31";
-      };
-      "OBJ_129" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_32";
-      };
-      "OBJ_13" = {
-         isa = "PBXFileReference";
-         path = "listenables.listenable.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_130" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_33";
-      };
-      "OBJ_131" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_34";
-      };
-      "OBJ_132" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_35";
-      };
-      "OBJ_133" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_36";
-      };
-      "OBJ_134" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_37";
-      };
-      "OBJ_135" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_38";
-      };
-      "OBJ_136" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_39";
-      };
-      "OBJ_137" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_40";
-      };
-      "OBJ_138" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_41";
-      };
-      "OBJ_139" = {
-         isa = "PBXFrameworksBuildPhase";
-         files = (
-            "OBJ_140",
-            "OBJ_141"
-         );
-      };
-      "OBJ_14" = {
-         isa = "PBXFileReference";
-         path = "listening.listenable.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_140" = {
-         isa = "PBXBuildFile";
-         fileRef = "Promise.swift::Promise.swift::Product";
-      };
-      "OBJ_141" = {
-         isa = "PBXBuildFile";
-         fileRef = "SwiftAtomics::CAtomics::Product";
-      };
-      "OBJ_142" = {
-         isa = "PBXTargetDependency";
-         target = "Promise.swift::Promise.swift";
-      };
-      "OBJ_143" = {
-         isa = "PBXTargetDependency";
-         target = "SwiftAtomics::CAtomics";
-      };
-      "OBJ_145" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_146",
-            "OBJ_147"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_146" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/Realtime_Firebase_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "Realtime-Firebase";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "Realtime+Firebase";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Debug";
-      };
-      "OBJ_147" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/Realtime_Firebase_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "Realtime-Firebase";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "Realtime+Firebase";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Release";
-      };
-      "OBJ_148" = {
-         isa = "PBXSourcesBuildPhase";
-         files = (
-            "OBJ_149"
-         );
-      };
-      "OBJ_149" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_43";
-      };
-      "OBJ_15" = {
-         isa = "PBXFileReference";
-         path = "preprocessor.listenable.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_150" = {
-         isa = "PBXFrameworksBuildPhase";
-         files = (
-            "OBJ_151",
-            "OBJ_152",
-            "OBJ_153"
-         );
-      };
-      "OBJ_151" = {
-         isa = "PBXBuildFile";
-         fileRef = "Realtime::Realtime::Product";
-      };
-      "OBJ_152" = {
-         isa = "PBXBuildFile";
-         fileRef = "Promise.swift::Promise.swift::Product";
-      };
-      "OBJ_153" = {
-         isa = "PBXBuildFile";
-         fileRef = "SwiftAtomics::CAtomics::Product";
-      };
-      "OBJ_154" = {
-         isa = "PBXTargetDependency";
-         target = "Realtime::Realtime";
-      };
-      "OBJ_155" = {
-         isa = "PBXTargetDependency";
-         target = "Promise.swift::Promise.swift";
-      };
-      "OBJ_156" = {
-         isa = "PBXTargetDependency";
-         target = "SwiftAtomics::CAtomics";
-      };
-      "OBJ_158" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_159",
-            "OBJ_160"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_159" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            LD = "/usr/bin/true";
-            OTHER_SWIFT_FLAGS = (
-               "-swift-version",
-               "5",
-               "-I",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2",
-               "-target",
-               "x86_64-apple-macosx10.10",
-               "-sdk",
-               "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk",
-               "-package-description-version",
-               "5.1"
-            );
-            SWIFT_VERSION = "5.0";
-         };
-         name = "Debug";
-      };
-      "OBJ_16" = {
-         isa = "PBXFileReference";
-         path = "support.listenable.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_160" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            LD = "/usr/bin/true";
-            OTHER_SWIFT_FLAGS = (
-               "-swift-version",
-               "5",
-               "-I",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2",
-               "-target",
-               "x86_64-apple-macosx10.10",
-               "-sdk",
-               "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk",
-               "-package-description-version",
-               "5.1"
-            );
-            SWIFT_VERSION = "5.0";
-         };
-         name = "Release";
-      };
-      "OBJ_161" = {
-         isa = "PBXSourcesBuildPhase";
-         files = (
-            "OBJ_162"
-         );
-      };
-      "OBJ_162" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_6";
-      };
-      "OBJ_164" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_165",
-            "OBJ_166"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_165" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-         };
-         name = "Debug";
-      };
-      "OBJ_166" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-         };
-         name = "Release";
-      };
-      "OBJ_167" = {
-         isa = "PBXTargetDependency";
-         target = "Realtime::RealtimeTests";
-      };
-      "OBJ_17" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_18",
-            "OBJ_22",
-            "OBJ_23",
-            "OBJ_24",
-            "OBJ_25",
-            "OBJ_26",
-            "OBJ_27",
-            "OBJ_28",
-            "OBJ_29",
-            "OBJ_30",
-            "OBJ_31",
-            "OBJ_32",
-            "OBJ_33",
-            "OBJ_34",
-            "OBJ_35",
-            "OBJ_36",
-            "OBJ_37",
-            "OBJ_38",
-            "OBJ_39"
-         );
-         name = "Realtime";
-         path = "Realtime";
-         sourceTree = "<group>";
-      };
-      "OBJ_170" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_171",
-            "OBJ_172"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_171" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/RealtimeTestLib_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "RealtimeTestLib";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "RealtimeTestLib";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Debug";
-      };
-      "OBJ_172" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/RealtimeTestLib_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "RealtimeTestLib";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "RealtimeTestLib";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Release";
-      };
-      "OBJ_173" = {
-         isa = "PBXSourcesBuildPhase";
-         files = (
-            "OBJ_174",
-            "OBJ_175",
-            "OBJ_176",
-            "OBJ_177"
-         );
-      };
-      "OBJ_174" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_81";
-      };
-      "OBJ_175" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_45";
-      };
-      "OBJ_176" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_46";
-      };
-      "OBJ_177" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_47";
-      };
-      "OBJ_178" = {
-         isa = "PBXFrameworksBuildPhase";
-         files = (
-            "OBJ_179",
-            "OBJ_180",
-            "OBJ_181"
-         );
-      };
-      "OBJ_179" = {
-         isa = "PBXBuildFile";
-         fileRef = "Realtime::Realtime::Product";
-      };
-      "OBJ_18" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_19",
-            "OBJ_20",
-            "OBJ_21"
-         );
-         name = "Support";
-         path = "Support";
-         sourceTree = "<group>";
-      };
-      "OBJ_180" = {
-         isa = "PBXBuildFile";
-         fileRef = "Promise.swift::Promise.swift::Product";
-      };
-      "OBJ_181" = {
-         isa = "PBXBuildFile";
-         fileRef = "SwiftAtomics::CAtomics::Product";
-      };
-      "OBJ_182" = {
-         isa = "PBXTargetDependency";
-         target = "Realtime::Realtime";
-      };
-      "OBJ_183" = {
-         isa = "PBXTargetDependency";
-         target = "Promise.swift::Promise.swift";
-      };
-      "OBJ_184" = {
-         isa = "PBXTargetDependency";
-         target = "SwiftAtomics::CAtomics";
-      };
-      "OBJ_185" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_186",
-            "OBJ_187"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_186" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            CLANG_ENABLE_MODULES = "YES";
-            EMBEDDED_CONTENT_CONTAINS_SWIFT = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/RealtimeTests_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "@loader_path/../Frameworks",
-               "@loader_path/Frameworks"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "RealtimeTests";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Debug";
-      };
-      "OBJ_187" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            CLANG_ENABLE_MODULES = "YES";
-            EMBEDDED_CONTENT_CONTAINS_SWIFT = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/RealtimeTests_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "@loader_path/../Frameworks",
-               "@loader_path/Frameworks"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "RealtimeTests";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Release";
-      };
-      "OBJ_188" = {
-         isa = "PBXSourcesBuildPhase";
-         files = (
-            "OBJ_189",
-            "OBJ_190"
-         );
-      };
-      "OBJ_189" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_50";
-      };
-      "OBJ_19" = {
-         isa = "PBXFileReference";
-         path = "UI.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_190" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_51";
-      };
-      "OBJ_191" = {
-         isa = "PBXFrameworksBuildPhase";
-         files = (
-            "OBJ_192",
-            "OBJ_193",
-            "OBJ_194",
-            "OBJ_195"
-         );
-      };
-      "OBJ_192" = {
-         isa = "PBXBuildFile";
-         fileRef = "Realtime::RealtimeTestLib::Product";
-      };
-      "OBJ_193" = {
-         isa = "PBXBuildFile";
-         fileRef = "Realtime::Realtime::Product";
-      };
-      "OBJ_194" = {
-         isa = "PBXBuildFile";
-         fileRef = "Promise.swift::Promise.swift::Product";
-      };
-      "OBJ_195" = {
-         isa = "PBXBuildFile";
-         fileRef = "SwiftAtomics::CAtomics::Product";
-      };
-      "OBJ_196" = {
-         isa = "PBXTargetDependency";
-         target = "Realtime::RealtimeTestLib";
-      };
-      "OBJ_197" = {
-         isa = "PBXTargetDependency";
-         target = "Realtime::Realtime";
-      };
-      "OBJ_198" = {
-         isa = "PBXTargetDependency";
-         target = "Promise.swift::Promise.swift";
-      };
-      "OBJ_199" = {
-         isa = "PBXTargetDependency";
-         target = "SwiftAtomics::CAtomics";
-      };
-      "OBJ_2" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_3",
-            "OBJ_4"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_20" = {
-         isa = "PBXFileReference";
-         path = "form.support.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_201" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_202",
-            "OBJ_203"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_202" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            LD = "/usr/bin/true";
-            OTHER_SWIFT_FLAGS = (
-               "-swift-version",
-               "4.2",
-               "-I",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2",
-               "-target",
-               "x86_64-apple-macosx10.10",
-               "-sdk",
-               "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk",
-               "-package-description-version",
-               "4.2"
-            );
-            SWIFT_VERSION = "4.2";
-         };
-         name = "Debug";
-      };
-      "OBJ_203" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            LD = "/usr/bin/true";
-            OTHER_SWIFT_FLAGS = (
-               "-swift-version",
-               "4.2",
-               "-I",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2",
-               "-target",
-               "x86_64-apple-macosx10.10",
-               "-sdk",
-               "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk",
-               "-package-description-version",
-               "4.2"
-            );
-            SWIFT_VERSION = "4.2";
-         };
-         name = "Release";
-      };
-      "OBJ_204" = {
-         isa = "PBXSourcesBuildPhase";
-         files = (
-            "OBJ_205"
-         );
-      };
-      "OBJ_205" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_65";
-      };
-      "OBJ_21" = {
-         isa = "PBXFileReference";
-         path = "uitableview.support.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_22" = {
-         isa = "PBXFileReference";
-         path = "associatedValues.collection.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_23" = {
-         isa = "PBXFileReference";
-         path = "basic.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_24" = {
-         isa = "PBXFileReference";
-         path = "cache.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_25" = {
-         isa = "PBXFileReference";
-         path = "coding.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_26" = {
-         isa = "PBXFileReference";
-         path = "collection.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_27" = {
-         isa = "PBXFileReference";
-         path = "database.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_28" = {
-         isa = "PBXFileReference";
-         path = "node.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_29" = {
-         isa = "PBXFileReference";
-         path = "object.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_3" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            CLANG_ENABLE_OBJC_ARC = "YES";
-            COMBINE_HIDPI_IMAGES = "YES";
-            COPY_PHASE_STRIP = "NO";
-            DEBUG_INFORMATION_FORMAT = "dwarf";
-            DYLIB_INSTALL_NAME_BASE = "@rpath";
-            ENABLE_NS_ASSERTIONS = "YES";
-            GCC_OPTIMIZATION_LEVEL = "0";
-            GCC_PREPROCESSOR_DEFINITIONS = (
-               "$(inherited)",
-               "SWIFT_PACKAGE=1",
-               "DEBUG=1"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            ONLY_ACTIVE_ARCH = "YES";
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)",
-               "-DXcode"
-            );
-            PRODUCT_NAME = "$(TARGET_NAME)";
-            SDKROOT = "macosx";
-            SUPPORTED_PLATFORMS = (
-               "macosx",
-               "iphoneos",
-               "iphonesimulator",
-               "appletvos",
-               "appletvsimulator",
-               "watchos",
-               "watchsimulator"
-            );
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)",
-               "SWIFT_PACKAGE",
-               "DEBUG"
-            );
-            SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-            USE_HEADERMAP = "NO";
-         };
-         name = "Debug";
-      };
-      "OBJ_30" = {
-         isa = "PBXFileReference";
-         path = "property.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_31" = {
-         isa = "PBXFileReference";
-         path = "references.collection.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_32" = {
-         isa = "PBXFileReference";
-         path = "representations.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_33" = {
-         isa = "PBXFileReference";
-         path = "storage.collection.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_34" = {
-         isa = "PBXFileReference";
-         path = "storage.property.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_35" = {
-         isa = "PBXFileReference";
-         path = "support.databaseValue.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_36" = {
-         isa = "PBXFileReference";
-         path = "transaction.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_37" = {
-         isa = "PBXFileReference";
-         path = "values.collection.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_38" = {
-         isa = "PBXFileReference";
-         path = "view.collection.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_39" = {
-         isa = "PBXFileReference";
-         path = "wrappers.collection.realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_4" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            CLANG_ENABLE_OBJC_ARC = "YES";
-            COMBINE_HIDPI_IMAGES = "YES";
-            COPY_PHASE_STRIP = "YES";
-            DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-            DYLIB_INSTALL_NAME_BASE = "@rpath";
-            GCC_OPTIMIZATION_LEVEL = "s";
-            GCC_PREPROCESSOR_DEFINITIONS = (
-               "$(inherited)",
-               "SWIFT_PACKAGE=1"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)",
-               "-DXcode"
-            );
-            PRODUCT_NAME = "$(TARGET_NAME)";
-            SDKROOT = "macosx";
-            SUPPORTED_PLATFORMS = (
-               "macosx",
-               "iphoneos",
-               "iphonesimulator",
-               "appletvos",
-               "appletvsimulator",
-               "watchos",
-               "watchsimulator"
-            );
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)",
-               "SWIFT_PACKAGE"
-            );
-            SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
-            USE_HEADERMAP = "NO";
-         };
-         name = "Release";
-      };
-      "OBJ_40" = {
-         isa = "PBXFileReference";
-         path = "SortedArray.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_41" = {
-         isa = "PBXFileReference";
-         path = "realtime.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_42" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_43"
-         );
-         name = "Realtime+Firebase";
-         path = "Sources/Realtime+Firebase";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_43" = {
-         isa = "PBXFileReference";
-         path = "firebase.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_44" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_45",
-            "OBJ_46",
-            "OBJ_47"
-         );
-         name = "RealtimeTestLib";
-         path = "Tests/RealtimeTestLib";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_45" = {
-         isa = "PBXFileReference";
-         path = "ListenableTests.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_46" = {
-         isa = "PBXFileReference";
-         path = "RealtimeTests.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_47" = {
-         isa = "PBXFileReference";
-         path = "XCTestManifests.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_48" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_49"
-         );
-         name = "Tests";
-         path = "";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_49" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_50",
-            "OBJ_51"
-         );
-         name = "RealtimeTests";
-         path = "Tests/RealtimeTests";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_5" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_6",
-            "OBJ_7",
-            "OBJ_48",
-            "OBJ_52",
-            "OBJ_66",
-            "OBJ_73",
-            "OBJ_74",
-            "OBJ_75",
-            "OBJ_76",
-            "OBJ_77",
-            "OBJ_78",
-            "OBJ_79"
-         );
-         path = "";
-         sourceTree = "<group>";
-      };
-      "OBJ_50" = {
-         isa = "PBXFileReference";
-         path = "AllTests.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_51" = {
-         isa = "PBXFileReference";
-         path = "XCTestManifests.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_52" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_53",
-            "OBJ_59"
-         );
-         name = "Dependencies";
-         path = "";
-         sourceTree = "<group>";
-      };
-      "OBJ_53" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_54",
-            "OBJ_58"
-         );
-         name = "Promise.swift";
-         path = "";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_54" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_55"
-         );
-         name = "Promise.swift";
-         path = ".build/checkouts/promise.swift/Sources/Promise.swift";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_55" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_56",
-            "OBJ_57"
-         );
-         name = "Classes";
-         path = "Classes";
-         sourceTree = "<group>";
-      };
-      "OBJ_56" = {
-         isa = "PBXFileReference";
-         path = "Promise.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_57" = {
-         isa = "PBXFileReference";
-         path = "Support.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_58" = {
-         isa = "PBXFileReference";
-         explicitFileType = "sourcecode.swift";
-         name = "Package.swift";
-         path = "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime/.build/checkouts/promise.swift/Package.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_59" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_60",
-            "OBJ_64",
-            "OBJ_65"
-         );
-         name = "SwiftAtomics 5.0.1";
-         path = "";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_6" = {
-         isa = "PBXFileReference";
-         explicitFileType = "sourcecode.swift";
-         path = "Package.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_60" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_61",
-            "OBJ_62"
-         );
-         name = "CAtomics";
-         path = ".build/checkouts/swift-atomics/Sources/CAtomics";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_61" = {
-         isa = "PBXFileReference";
-         path = "CAtomics.c";
-         sourceTree = "<group>";
-      };
-      "OBJ_62" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_63"
-         );
-         name = "include";
-         path = "include";
-         sourceTree = "<group>";
-      };
-      "OBJ_63" = {
-         isa = "PBXFileReference";
-         path = "CAtomics.h";
-         sourceTree = "<group>";
-      };
-      "OBJ_64" = {
-         isa = "PBXGroup";
-         children = (
-         );
-         name = "SwiftAtomics";
-         path = ".build/checkouts/swift-atomics/Sources/SwiftAtomics";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_65" = {
-         isa = "PBXFileReference";
-         explicitFileType = "sourcecode.swift";
-         name = "Package.swift";
-         path = "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime/.build/checkouts/swift-atomics/Package.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_66" = {
-         isa = "PBXGroup";
-         children = (
-            "Promise.swift::Promise.swift::Product",
-            "SwiftAtomics::CAtomics::Product",
-            "Realtime::Realtime::Product",
-            "Realtime::RealtimeTestLib::Product",
-            "Realtime::RealtimeTests::Product",
-            "Realtime::Realtime+Firebase::Product"
-         );
-         name = "Products";
-         path = "";
-         sourceTree = "BUILT_PRODUCTS_DIR";
-      };
-      "OBJ_7" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_8",
-            "OBJ_42",
-            "OBJ_44"
-         );
-         name = "Sources";
-         path = "";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_73" = {
-         isa = "PBXFileReference";
-         path = "js";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_74" = {
-         isa = "PBXFileReference";
-         path = "Example";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_75" = {
-         isa = "PBXFileReference";
-         path = "Realtime.podspec";
-         sourceTree = "<group>";
-      };
-      "OBJ_76" = {
-         isa = "PBXFileReference";
-         path = "LICENSE";
-         sourceTree = "<group>";
-      };
-      "OBJ_77" = {
-         isa = "PBXFileReference";
-         path = "run_gyb.sh";
-         sourceTree = "<group>";
-      };
-      "OBJ_78" = {
-         isa = "PBXFileReference";
-         path = "README.md";
-         sourceTree = "<group>";
-      };
-      "OBJ_79" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_80"
-         );
-         name = "Example";
-         path = "Example";
-         sourceTree = "<group>";
-      };
-      "OBJ_8" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_9"
-         );
-         name = "Realtime";
-         path = "Sources/Realtime";
-         sourceTree = "SOURCE_ROOT";
-      };
-      "OBJ_80" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_81"
-         );
-         name = "Realtime";
-         path = "Realtime";
-         sourceTree = "<group>";
-      };
-      "OBJ_81" = {
-         isa = "PBXFileReference";
-         path = "Entities.swift";
-         sourceTree = "<group>";
-      };
-      "OBJ_83" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_84",
-            "OBJ_85"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_84" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            CLANG_ENABLE_MODULES = "YES";
-            DEFINES_MODULE = "YES";
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/CAtomics_Info.plist";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "CAtomics";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            TARGET_NAME = "CAtomics";
-         };
-         name = "Debug";
-      };
-      "OBJ_85" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            CLANG_ENABLE_MODULES = "YES";
-            DEFINES_MODULE = "YES";
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/CAtomics_Info.plist";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "CAtomics";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            TARGET_NAME = "CAtomics";
-         };
-         name = "Release";
-      };
-      "OBJ_86" = {
-         isa = "PBXSourcesBuildPhase";
-         files = (
-            "OBJ_87"
-         );
-      };
-      "OBJ_87" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_61";
-      };
-      "OBJ_88" = {
-         isa = "PBXHeadersBuildPhase";
-         files = (
-            "OBJ_89"
-         );
-      };
-      "OBJ_89" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_63";
-         settings = {
-            ATTRIBUTES = (
-               "Public"
-            );
-         };
-      };
-      "OBJ_9" = {
-         isa = "PBXGroup";
-         children = (
-            "OBJ_10",
-            "OBJ_17",
-            "OBJ_40",
-            "OBJ_41"
-         );
-         name = "Classes";
-         path = "Classes";
-         sourceTree = "<group>";
-      };
-      "OBJ_90" = {
-         isa = "PBXFrameworksBuildPhase";
-         files = (
-         );
-      };
-      "OBJ_92" = {
-         isa = "XCConfigurationList";
-         buildConfigurations = (
-            "OBJ_93",
-            "OBJ_94"
-         );
-         defaultConfigurationIsVisible = "0";
-         defaultConfigurationName = "Release";
-      };
-      "OBJ_93" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/Promise_swift_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "Promise-swift";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "Promise.swift";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Debug";
-      };
-      "OBJ_94" = {
-         isa = "XCBuildConfiguration";
-         buildSettings = {
-            ENABLE_TESTABILITY = "YES";
-            FRAMEWORK_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(PLATFORM_DIR)/Developer/Library/Frameworks"
-            );
-            HEADER_SEARCH_PATHS = (
-               "$(inherited)"
-            );
-            INFOPLIST_FILE = "Realtime.xcodeproj/Promise_swift_Info.plist";
-            IPHONEOS_DEPLOYMENT_TARGET = "8.0";
-            LD_RUNPATH_SEARCH_PATHS = (
-               "$(inherited)",
-               "$(TOOLCHAIN_DIR)/usr/lib/swift/macosx"
-            );
-            MACOSX_DEPLOYMENT_TARGET = "10.10";
-            OTHER_CFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_LDFLAGS = (
-               "$(inherited)"
-            );
-            OTHER_SWIFT_FLAGS = (
-               "$(inherited)"
-            );
-            PRODUCT_BUNDLE_IDENTIFIER = "Promise-swift";
-            PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
-            PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
-            SKIP_INSTALL = "YES";
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS = (
-               "$(inherited)"
-            );
-            SWIFT_VERSION = "5.0";
-            TARGET_NAME = "Promise.swift";
-            TVOS_DEPLOYMENT_TARGET = "9.0";
-            WATCHOS_DEPLOYMENT_TARGET = "2.0";
-         };
-         name = "Release";
-      };
-      "OBJ_95" = {
-         isa = "PBXSourcesBuildPhase";
-         files = (
-            "OBJ_96",
-            "OBJ_97"
-         );
-      };
-      "OBJ_96" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_56";
-      };
-      "OBJ_97" = {
-         isa = "PBXBuildFile";
-         fileRef = "OBJ_57";
-      };
-      "OBJ_98" = {
-         isa = "PBXFrameworksBuildPhase";
-         files = (
-         );
-      };
-      "Promise.swift::Promise.swift" = {
-         isa = "PBXNativeTarget";
-         buildConfigurationList = "OBJ_92";
-         buildPhases = (
-            "OBJ_95",
-            "OBJ_98"
-         );
-         dependencies = (
-         );
-         name = "Promise.swift";
-         productName = "Promise_swift";
-         productReference = "Promise.swift::Promise.swift::Product";
-         productType = "com.apple.product-type.framework";
-      };
-      "Promise.swift::Promise.swift::Product" = {
-         isa = "PBXFileReference";
-         path = "Promise_swift.framework";
-         sourceTree = "BUILT_PRODUCTS_DIR";
-      };
-      "Promise.swift::SwiftPMPackageDescription" = {
-         isa = "PBXNativeTarget";
-         buildConfigurationList = "OBJ_100";
-         buildPhases = (
-            "OBJ_103"
-         );
-         dependencies = (
-         );
-         name = "Promise.swiftPackageDescription";
-         productName = "Promise.swiftPackageDescription";
-         productType = "com.apple.product-type.framework";
-      };
-      "Realtime::Realtime" = {
-         isa = "PBXNativeTarget";
-         buildConfigurationList = "OBJ_106";
-         buildPhases = (
-            "OBJ_109",
-            "OBJ_139"
-         );
-         dependencies = (
-            "OBJ_142",
-            "OBJ_143"
-         );
-         name = "Realtime";
-         productName = "Realtime";
-         productReference = "Realtime::Realtime::Product";
-         productType = "com.apple.product-type.framework";
-      };
-      "Realtime::Realtime+Firebase" = {
-         isa = "PBXNativeTarget";
-         buildConfigurationList = "OBJ_145";
-         buildPhases = (
-            "OBJ_148",
-            "OBJ_150"
-         );
-         dependencies = (
-            "OBJ_154",
-            "OBJ_155",
-            "OBJ_156"
-         );
-         name = "Realtime+Firebase";
-         productName = "Realtime_Firebase";
-         productReference = "Realtime::Realtime+Firebase::Product";
-         productType = "com.apple.product-type.framework";
-      };
-      "Realtime::Realtime+Firebase::Product" = {
-         isa = "PBXFileReference";
-         path = "Realtime_Firebase.framework";
-         sourceTree = "BUILT_PRODUCTS_DIR";
-      };
-      "Realtime::Realtime::Product" = {
-         isa = "PBXFileReference";
-         path = "Realtime.framework";
-         sourceTree = "BUILT_PRODUCTS_DIR";
-      };
-      "Realtime::RealtimePackageTests::ProductTarget" = {
-         isa = "PBXAggregateTarget";
-         buildConfigurationList = "OBJ_164";
-         buildPhases = (
-         );
-         dependencies = (
-            "OBJ_167"
-         );
-         name = "RealtimePackageTests";
-         productName = "RealtimePackageTests";
-      };
-      "Realtime::RealtimeTestLib" = {
-         isa = "PBXNativeTarget";
-         buildConfigurationList = "OBJ_170";
-         buildPhases = (
-            "OBJ_173",
-            "OBJ_178"
-         );
-         dependencies = (
-            "OBJ_182",
-            "OBJ_183",
-            "OBJ_184"
-         );
-         name = "RealtimeTestLib";
-         productName = "RealtimeTestLib";
-         productReference = "Realtime::RealtimeTestLib::Product";
-         productType = "com.apple.product-type.framework";
-      };
-      "Realtime::RealtimeTestLib::Product" = {
-         isa = "PBXFileReference";
-         path = "RealtimeTestLib.framework";
-         sourceTree = "BUILT_PRODUCTS_DIR";
-      };
-      "Realtime::RealtimeTests" = {
-         isa = "PBXNativeTarget";
-         buildConfigurationList = "OBJ_185";
-         buildPhases = (
-            "OBJ_188",
-            "OBJ_191"
-         );
-         dependencies = (
-            "OBJ_196",
-            "OBJ_197",
-            "OBJ_198",
-            "OBJ_199"
-         );
-         name = "RealtimeTests";
-         productName = "RealtimeTests";
-         productReference = "Realtime::RealtimeTests::Product";
-         productType = "com.apple.product-type.bundle.unit-test";
-      };
-      "Realtime::RealtimeTests::Product" = {
-         isa = "PBXFileReference";
-         path = "RealtimeTests.xctest";
-         sourceTree = "BUILT_PRODUCTS_DIR";
-      };
-      "Realtime::SwiftPMPackageDescription" = {
-         isa = "PBXNativeTarget";
-         buildConfigurationList = "OBJ_158";
-         buildPhases = (
-            "OBJ_161"
-         );
-         dependencies = (
-         );
-         name = "RealtimePackageDescription";
-         productName = "RealtimePackageDescription";
-         productType = "com.apple.product-type.framework";
-      };
-      "SwiftAtomics::CAtomics" = {
-         isa = "PBXNativeTarget";
-         buildConfigurationList = "OBJ_83";
-         buildPhases = (
-            "OBJ_86",
-            "OBJ_88",
-            "OBJ_90"
-         );
-         dependencies = (
-         );
-         name = "CAtomics";
-         productName = "CAtomics";
-         productReference = "SwiftAtomics::CAtomics::Product";
-         productType = "com.apple.product-type.framework";
-      };
-      "SwiftAtomics::CAtomics::Product" = {
-         isa = "PBXFileReference";
-         path = "CAtomics.framework";
-         sourceTree = "BUILT_PRODUCTS_DIR";
-      };
-      "SwiftAtomics::SwiftPMPackageDescription" = {
-         isa = "PBXNativeTarget";
-         buildConfigurationList = "OBJ_201";
-         buildPhases = (
-            "OBJ_204"
-         );
-         dependencies = (
-         );
-         name = "SwiftAtomicsPackageDescription";
-         productName = "SwiftAtomicsPackageDescription";
-         productType = "com.apple.product-type.framework";
-      };
-   };
-   rootObject = "OBJ_1";
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXAggregateTarget section */
+		"Realtime::RealtimePackageTests::ProductTarget" /* RealtimePackageTests */ = {
+			isa = PBXAggregateTarget;
+			buildConfigurationList = OBJ_164 /* Build configuration list for PBXAggregateTarget "RealtimePackageTests" */;
+			buildPhases = (
+			);
+			dependencies = (
+				OBJ_167 /* PBXTargetDependency */,
+			);
+			name = RealtimePackageTests;
+			productName = RealtimePackageTests;
+		};
+/* End PBXAggregateTarget section */
+
+/* Begin PBXBuildFile section */
+		OBJ_104 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_58 /* Package.swift */; };
+		OBJ_110 /* _concepts_.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_11 /* _concepts_.swift */; };
+		OBJ_111 /* listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_12 /* listenable.swift */; };
+		OBJ_112 /* listenables.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_13 /* listenables.listenable.swift */; };
+		OBJ_113 /* listening.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_14 /* listening.listenable.swift */; };
+		OBJ_114 /* preprocessor.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_15 /* preprocessor.listenable.swift */; };
+		OBJ_115 /* support.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_16 /* support.listenable.swift */; };
+		OBJ_116 /* UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_19 /* UI.swift */; };
+		OBJ_117 /* form.support.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_20 /* form.support.realtime.swift */; };
+		OBJ_118 /* uitableview.support.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_21 /* uitableview.support.realtime.swift */; };
+		OBJ_119 /* associatedValues.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_22 /* associatedValues.collection.realtime.swift */; };
+		OBJ_120 /* basic.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_23 /* basic.realtime.swift */; };
+		OBJ_121 /* cache.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_24 /* cache.realtime.swift */; };
+		OBJ_122 /* coding.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_25 /* coding.realtime.swift */; };
+		OBJ_123 /* collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_26 /* collection.realtime.swift */; };
+		OBJ_124 /* database.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_27 /* database.realtime.swift */; };
+		OBJ_125 /* node.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_28 /* node.realtime.swift */; };
+		OBJ_126 /* object.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_29 /* object.realtime.swift */; };
+		OBJ_127 /* property.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_30 /* property.realtime.swift */; };
+		OBJ_128 /* references.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_31 /* references.collection.realtime.swift */; };
+		OBJ_129 /* representations.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_32 /* representations.realtime.swift */; };
+		OBJ_130 /* storage.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_33 /* storage.collection.realtime.swift */; };
+		OBJ_131 /* storage.property.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_34 /* storage.property.realtime.swift */; };
+		OBJ_132 /* support.databaseValue.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_35 /* support.databaseValue.realtime.swift */; };
+		OBJ_133 /* transaction.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_36 /* transaction.realtime.swift */; };
+		OBJ_134 /* values.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_37 /* values.collection.realtime.swift */; };
+		OBJ_135 /* view.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_38 /* view.collection.realtime.swift */; };
+		OBJ_136 /* wrappers.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_39 /* wrappers.collection.realtime.swift */; };
+		OBJ_137 /* SortedArray.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_40 /* SortedArray.swift */; };
+		OBJ_138 /* realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_41 /* realtime.swift */; };
+		OBJ_140 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
+		OBJ_141 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
+		OBJ_149 /* firebase.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_43 /* firebase.swift */; };
+		OBJ_151 /* Realtime.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Realtime::Realtime::Product" /* Realtime.framework */; };
+		OBJ_152 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
+		OBJ_153 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
+		OBJ_162 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_6 /* Package.swift */; };
+		OBJ_174 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_81 /* Entities.swift */; };
+		OBJ_175 /* ListenableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_45 /* ListenableTests.swift */; };
+		OBJ_176 /* RealtimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_46 /* RealtimeTests.swift */; };
+		OBJ_177 /* XCTestManifests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_47 /* XCTestManifests.swift */; };
+		OBJ_179 /* Realtime.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Realtime::Realtime::Product" /* Realtime.framework */; };
+		OBJ_180 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
+		OBJ_181 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
+		OBJ_189 /* AllTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_50 /* AllTests.swift */; };
+		OBJ_190 /* XCTestManifests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_51 /* XCTestManifests.swift */; };
+		OBJ_192 /* RealtimeTestLib.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Realtime::RealtimeTestLib::Product" /* RealtimeTestLib.framework */; };
+		OBJ_193 /* Realtime.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Realtime::Realtime::Product" /* Realtime.framework */; };
+		OBJ_194 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
+		OBJ_195 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
+		OBJ_205 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_65 /* Package.swift */; };
+		OBJ_87 /* CAtomics.c in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_61 /* CAtomics.c */; };
+		OBJ_89 /* CAtomics.h in Headers */ = {isa = PBXBuildFile; fileRef = OBJ_63 /* CAtomics.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		OBJ_96 /* Promise.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_56 /* Promise.swift */; };
+		OBJ_97 /* Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_57 /* Support.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A4AB88DF23A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "Realtime::Realtime";
+			remoteInfo = Realtime;
+		};
+		A4AB88E023A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "Promise.swift::Promise.swift";
+			remoteInfo = Promise.swift;
+		};
+		A4AB88E123A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "SwiftAtomics::CAtomics";
+			remoteInfo = CAtomics;
+		};
+		A4AB88E223A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "Promise.swift::Promise.swift";
+			remoteInfo = Promise.swift;
+		};
+		A4AB88E323A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "SwiftAtomics::CAtomics";
+			remoteInfo = CAtomics;
+		};
+		A4AB88E423A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "Realtime::Realtime";
+			remoteInfo = Realtime;
+		};
+		A4AB88E523A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "Promise.swift::Promise.swift";
+			remoteInfo = Promise.swift;
+		};
+		A4AB88E623A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "SwiftAtomics::CAtomics";
+			remoteInfo = CAtomics;
+		};
+		A4AB88E723A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "Realtime::RealtimeTestLib";
+			remoteInfo = RealtimeTestLib;
+		};
+		A4AB88E823A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "Realtime::Realtime";
+			remoteInfo = Realtime;
+		};
+		A4AB88E923A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "Promise.swift::Promise.swift";
+			remoteInfo = Promise.swift;
+		};
+		A4AB88EA23A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "SwiftAtomics::CAtomics";
+			remoteInfo = CAtomics;
+		};
+		A4AB88EB23A3BE6800B1E9B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = OBJ_1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = "Realtime::RealtimeTests";
+			remoteInfo = RealtimeTests;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		OBJ_11 /* _concepts_.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _concepts_.swift; sourceTree = "<group>"; };
+		OBJ_12 /* listenable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = listenable.swift; sourceTree = "<group>"; };
+		OBJ_13 /* listenables.listenable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = listenables.listenable.swift; sourceTree = "<group>"; };
+		OBJ_14 /* listening.listenable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = listening.listenable.swift; sourceTree = "<group>"; };
+		OBJ_15 /* preprocessor.listenable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = preprocessor.listenable.swift; sourceTree = "<group>"; };
+		OBJ_16 /* support.listenable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = support.listenable.swift; sourceTree = "<group>"; };
+		OBJ_19 /* UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI.swift; sourceTree = "<group>"; };
+		OBJ_20 /* form.support.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = form.support.realtime.swift; sourceTree = "<group>"; };
+		OBJ_21 /* uitableview.support.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = uitableview.support.realtime.swift; sourceTree = "<group>"; };
+		OBJ_22 /* associatedValues.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = associatedValues.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_23 /* basic.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = basic.realtime.swift; sourceTree = "<group>"; };
+		OBJ_24 /* cache.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = cache.realtime.swift; sourceTree = "<group>"; };
+		OBJ_25 /* coding.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = coding.realtime.swift; sourceTree = "<group>"; };
+		OBJ_26 /* collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_27 /* database.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = database.realtime.swift; sourceTree = "<group>"; };
+		OBJ_28 /* node.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = node.realtime.swift; sourceTree = "<group>"; };
+		OBJ_29 /* object.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = object.realtime.swift; sourceTree = "<group>"; };
+		OBJ_30 /* property.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = property.realtime.swift; sourceTree = "<group>"; };
+		OBJ_31 /* references.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = references.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_32 /* representations.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = representations.realtime.swift; sourceTree = "<group>"; };
+		OBJ_33 /* storage.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = storage.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_34 /* storage.property.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = storage.property.realtime.swift; sourceTree = "<group>"; };
+		OBJ_35 /* support.databaseValue.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = support.databaseValue.realtime.swift; sourceTree = "<group>"; };
+		OBJ_36 /* transaction.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = transaction.realtime.swift; sourceTree = "<group>"; };
+		OBJ_37 /* values.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = values.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_38 /* view.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = view.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_39 /* wrappers.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = wrappers.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_40 /* SortedArray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortedArray.swift; sourceTree = "<group>"; };
+		OBJ_41 /* realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = realtime.swift; sourceTree = "<group>"; };
+		OBJ_43 /* firebase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = firebase.swift; sourceTree = "<group>"; };
+		OBJ_45 /* ListenableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenableTests.swift; sourceTree = "<group>"; };
+		OBJ_46 /* RealtimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTests.swift; sourceTree = "<group>"; };
+		OBJ_47 /* XCTestManifests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XCTestManifests.swift; sourceTree = "<group>"; };
+		OBJ_50 /* AllTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllTests.swift; sourceTree = "<group>"; };
+		OBJ_51 /* XCTestManifests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XCTestManifests.swift; sourceTree = "<group>"; };
+		OBJ_56 /* Promise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Promise.swift; sourceTree = "<group>"; };
+		OBJ_57 /* Support.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support.swift; sourceTree = "<group>"; };
+		OBJ_58 /* Package.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; name = Package.swift; path = "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime/.build/checkouts/promise.swift/Package.swift"; sourceTree = "<group>"; };
+		OBJ_6 /* Package.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; path = Package.swift; sourceTree = "<group>"; };
+		OBJ_61 /* CAtomics.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = CAtomics.c; sourceTree = "<group>"; };
+		OBJ_63 /* CAtomics.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CAtomics.h; sourceTree = "<group>"; };
+		OBJ_65 /* Package.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; name = Package.swift; path = "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime/.build/checkouts/swift-atomics/Package.swift"; sourceTree = "<group>"; };
+		OBJ_73 /* js */ = {isa = PBXFileReference; lastKnownFileType = folder; path = js; sourceTree = SOURCE_ROOT; };
+		OBJ_74 /* Example */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Example; sourceTree = SOURCE_ROOT; };
+		OBJ_75 /* Realtime.podspec */ = {isa = PBXFileReference; lastKnownFileType = text; path = Realtime.podspec; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
+		OBJ_76 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		OBJ_77 /* run_gyb.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = run_gyb.sh; sourceTree = "<group>"; };
+		OBJ_78 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		OBJ_81 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
+		"Promise.swift::Promise.swift::Product" /* Promise_swift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Promise_swift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		"Realtime::Realtime+Firebase::Product" /* Realtime_Firebase.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realtime_Firebase.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		"Realtime::Realtime::Product" /* Realtime.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realtime.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		"Realtime::RealtimeTestLib::Product" /* RealtimeTestLib.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = RealtimeTestLib.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		"Realtime::RealtimeTests::Product" /* RealtimeTests.xctest */ = {isa = PBXFileReference; lastKnownFileType = file; path = RealtimeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		"SwiftAtomics::CAtomics::Product" /* CAtomics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = CAtomics.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		OBJ_139 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_140 /* Promise_swift.framework in Frameworks */,
+				OBJ_141 /* CAtomics.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_150 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_151 /* Realtime.framework in Frameworks */,
+				OBJ_152 /* Promise_swift.framework in Frameworks */,
+				OBJ_153 /* CAtomics.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_178 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_179 /* Realtime.framework in Frameworks */,
+				OBJ_180 /* Promise_swift.framework in Frameworks */,
+				OBJ_181 /* CAtomics.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_191 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_192 /* RealtimeTestLib.framework in Frameworks */,
+				OBJ_193 /* Realtime.framework in Frameworks */,
+				OBJ_194 /* Promise_swift.framework in Frameworks */,
+				OBJ_195 /* CAtomics.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_90 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_98 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		OBJ_10 /* Listenable */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_11 /* _concepts_.swift */,
+				OBJ_12 /* listenable.swift */,
+				OBJ_13 /* listenables.listenable.swift */,
+				OBJ_14 /* listening.listenable.swift */,
+				OBJ_15 /* preprocessor.listenable.swift */,
+				OBJ_16 /* support.listenable.swift */,
+			);
+			path = Listenable;
+			sourceTree = "<group>";
+		};
+		OBJ_17 /* Realtime */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_18 /* Support */,
+				OBJ_22 /* associatedValues.collection.realtime.swift */,
+				OBJ_23 /* basic.realtime.swift */,
+				OBJ_24 /* cache.realtime.swift */,
+				OBJ_25 /* coding.realtime.swift */,
+				OBJ_26 /* collection.realtime.swift */,
+				OBJ_27 /* database.realtime.swift */,
+				OBJ_28 /* node.realtime.swift */,
+				OBJ_29 /* object.realtime.swift */,
+				OBJ_30 /* property.realtime.swift */,
+				OBJ_31 /* references.collection.realtime.swift */,
+				OBJ_32 /* representations.realtime.swift */,
+				OBJ_33 /* storage.collection.realtime.swift */,
+				OBJ_34 /* storage.property.realtime.swift */,
+				OBJ_35 /* support.databaseValue.realtime.swift */,
+				OBJ_36 /* transaction.realtime.swift */,
+				OBJ_37 /* values.collection.realtime.swift */,
+				OBJ_38 /* view.collection.realtime.swift */,
+				OBJ_39 /* wrappers.collection.realtime.swift */,
+			);
+			path = Realtime;
+			sourceTree = "<group>";
+		};
+		OBJ_18 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_19 /* UI.swift */,
+				OBJ_20 /* form.support.realtime.swift */,
+				OBJ_21 /* uitableview.support.realtime.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+		OBJ_42 /* Realtime+Firebase */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_43 /* firebase.swift */,
+			);
+			name = "Realtime+Firebase";
+			path = "Sources/Realtime+Firebase";
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_44 /* RealtimeTestLib */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_45 /* ListenableTests.swift */,
+				OBJ_46 /* RealtimeTests.swift */,
+				OBJ_47 /* XCTestManifests.swift */,
+			);
+			name = RealtimeTestLib;
+			path = Tests/RealtimeTestLib;
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_48 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_49 /* RealtimeTests */,
+			);
+			name = Tests;
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_49 /* RealtimeTests */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_50 /* AllTests.swift */,
+				OBJ_51 /* XCTestManifests.swift */,
+			);
+			name = RealtimeTests;
+			path = Tests/RealtimeTests;
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_5 /*  */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_6 /* Package.swift */,
+				OBJ_7 /* Sources */,
+				OBJ_48 /* Tests */,
+				OBJ_52 /* Dependencies */,
+				OBJ_66 /* Products */,
+				OBJ_73 /* js */,
+				OBJ_74 /* Example */,
+				OBJ_75 /* Realtime.podspec */,
+				OBJ_76 /* LICENSE */,
+				OBJ_77 /* run_gyb.sh */,
+				OBJ_78 /* README.md */,
+				OBJ_79 /* Example */,
+			);
+			name = "";
+			sourceTree = "<group>";
+		};
+		OBJ_52 /* Dependencies */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_53 /* Promise.swift */,
+				OBJ_59 /* SwiftAtomics 5.0.1 */,
+			);
+			name = Dependencies;
+			sourceTree = "<group>";
+		};
+		OBJ_53 /* Promise.swift */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_54 /* Promise.swift */,
+				OBJ_58 /* Package.swift */,
+			);
+			name = Promise.swift;
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_54 /* Promise.swift */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_55 /* Classes */,
+			);
+			name = Promise.swift;
+			path = .build/checkouts/promise.swift/Sources/Promise.swift;
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_55 /* Classes */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_56 /* Promise.swift */,
+				OBJ_57 /* Support.swift */,
+			);
+			path = Classes;
+			sourceTree = "<group>";
+		};
+		OBJ_59 /* SwiftAtomics 5.0.1 */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_60 /* CAtomics */,
+				OBJ_64 /* SwiftAtomics */,
+				OBJ_65 /* Package.swift */,
+			);
+			name = "SwiftAtomics 5.0.1";
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_60 /* CAtomics */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_61 /* CAtomics.c */,
+				OBJ_62 /* include */,
+			);
+			name = CAtomics;
+			path = ".build/checkouts/swift-atomics/Sources/CAtomics";
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_62 /* include */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_63 /* CAtomics.h */,
+			);
+			path = include;
+			sourceTree = "<group>";
+		};
+		OBJ_64 /* SwiftAtomics */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = SwiftAtomics;
+			path = ".build/checkouts/swift-atomics/Sources/SwiftAtomics";
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_66 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				"Promise.swift::Promise.swift::Product" /* Promise_swift.framework */,
+				"SwiftAtomics::CAtomics::Product" /* CAtomics.framework */,
+				"Realtime::Realtime::Product" /* Realtime.framework */,
+				"Realtime::RealtimeTestLib::Product" /* RealtimeTestLib.framework */,
+				"Realtime::RealtimeTests::Product" /* RealtimeTests.xctest */,
+				"Realtime::Realtime+Firebase::Product" /* Realtime_Firebase.framework */,
+			);
+			name = Products;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		OBJ_7 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_8 /* Realtime */,
+				OBJ_42 /* Realtime+Firebase */,
+				OBJ_44 /* RealtimeTestLib */,
+			);
+			name = Sources;
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_79 /* Example */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_80 /* Realtime */,
+			);
+			path = Example;
+			sourceTree = "<group>";
+		};
+		OBJ_8 /* Realtime */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_9 /* Classes */,
+			);
+			name = Realtime;
+			path = Sources/Realtime;
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_80 /* Realtime */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_81 /* Entities.swift */,
+			);
+			path = Realtime;
+			sourceTree = "<group>";
+		};
+		OBJ_9 /* Classes */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_10 /* Listenable */,
+				OBJ_17 /* Realtime */,
+				OBJ_40 /* SortedArray.swift */,
+				OBJ_41 /* realtime.swift */,
+			);
+			path = Classes;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		OBJ_88 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_89 /* CAtomics.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		"Promise.swift::Promise.swift" /* Promise.swift */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = OBJ_92 /* Build configuration list for PBXNativeTarget "Promise.swift" */;
+			buildPhases = (
+				OBJ_95 /* Sources */,
+				OBJ_98 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Promise.swift;
+			productName = Promise_swift;
+			productReference = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		"Promise.swift::SwiftPMPackageDescription" /* Promise.swiftPackageDescription */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = OBJ_100 /* Build configuration list for PBXNativeTarget "Promise.swiftPackageDescription" */;
+			buildPhases = (
+				OBJ_103 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Promise.swiftPackageDescription;
+			productName = Promise.swiftPackageDescription;
+			productType = "com.apple.product-type.framework";
+		};
+		"Realtime::Realtime" /* Realtime */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = OBJ_106 /* Build configuration list for PBXNativeTarget "Realtime" */;
+			buildPhases = (
+				OBJ_109 /* Sources */,
+				OBJ_139 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				OBJ_142 /* PBXTargetDependency */,
+				OBJ_143 /* PBXTargetDependency */,
+			);
+			name = Realtime;
+			productName = Realtime;
+			productReference = "Realtime::Realtime::Product" /* Realtime.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		"Realtime::Realtime+Firebase" /* Realtime+Firebase */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = OBJ_145 /* Build configuration list for PBXNativeTarget "Realtime+Firebase" */;
+			buildPhases = (
+				OBJ_148 /* Sources */,
+				OBJ_150 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				OBJ_154 /* PBXTargetDependency */,
+				OBJ_155 /* PBXTargetDependency */,
+				OBJ_156 /* PBXTargetDependency */,
+			);
+			name = "Realtime+Firebase";
+			productName = Realtime_Firebase;
+			productReference = "Realtime::Realtime+Firebase::Product" /* Realtime_Firebase.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		"Realtime::RealtimeTestLib" /* RealtimeTestLib */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = OBJ_170 /* Build configuration list for PBXNativeTarget "RealtimeTestLib" */;
+			buildPhases = (
+				OBJ_173 /* Sources */,
+				OBJ_178 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				OBJ_182 /* PBXTargetDependency */,
+				OBJ_183 /* PBXTargetDependency */,
+				OBJ_184 /* PBXTargetDependency */,
+			);
+			name = RealtimeTestLib;
+			productName = RealtimeTestLib;
+			productReference = "Realtime::RealtimeTestLib::Product" /* RealtimeTestLib.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		"Realtime::RealtimeTests" /* RealtimeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = OBJ_185 /* Build configuration list for PBXNativeTarget "RealtimeTests" */;
+			buildPhases = (
+				OBJ_188 /* Sources */,
+				OBJ_191 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				OBJ_196 /* PBXTargetDependency */,
+				OBJ_197 /* PBXTargetDependency */,
+				OBJ_198 /* PBXTargetDependency */,
+				OBJ_199 /* PBXTargetDependency */,
+			);
+			name = RealtimeTests;
+			productName = RealtimeTests;
+			productReference = "Realtime::RealtimeTests::Product" /* RealtimeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		"Realtime::SwiftPMPackageDescription" /* RealtimePackageDescription */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = OBJ_158 /* Build configuration list for PBXNativeTarget "RealtimePackageDescription" */;
+			buildPhases = (
+				OBJ_161 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RealtimePackageDescription;
+			productName = RealtimePackageDescription;
+			productType = "com.apple.product-type.framework";
+		};
+		"SwiftAtomics::CAtomics" /* CAtomics */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = OBJ_83 /* Build configuration list for PBXNativeTarget "CAtomics" */;
+			buildPhases = (
+				OBJ_86 /* Sources */,
+				OBJ_88 /* Headers */,
+				OBJ_90 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CAtomics;
+			productName = CAtomics;
+			productReference = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+		"SwiftAtomics::SwiftPMPackageDescription" /* SwiftAtomicsPackageDescription */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = OBJ_201 /* Build configuration list for PBXNativeTarget "SwiftAtomicsPackageDescription" */;
+			buildPhases = (
+				OBJ_204 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SwiftAtomicsPackageDescription;
+			productName = SwiftAtomicsPackageDescription;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		OBJ_1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftMigration = 9999;
+				LastUpgradeCheck = 9999;
+			};
+			buildConfigurationList = OBJ_2 /* Build configuration list for PBXProject "Realtime" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = OBJ_5 /*  */;
+			productRefGroup = OBJ_66 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				"SwiftAtomics::CAtomics" /* CAtomics */,
+				"Promise.swift::Promise.swift" /* Promise.swift */,
+				"Promise.swift::SwiftPMPackageDescription" /* Promise.swiftPackageDescription */,
+				"Realtime::Realtime" /* Realtime */,
+				"Realtime::Realtime+Firebase" /* Realtime+Firebase */,
+				"Realtime::SwiftPMPackageDescription" /* RealtimePackageDescription */,
+				"Realtime::RealtimePackageTests::ProductTarget" /* RealtimePackageTests */,
+				"Realtime::RealtimeTestLib" /* RealtimeTestLib */,
+				"Realtime::RealtimeTests" /* RealtimeTests */,
+				"SwiftAtomics::SwiftPMPackageDescription" /* SwiftAtomicsPackageDescription */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		OBJ_103 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_104 /* Package.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_109 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_110 /* _concepts_.swift in Sources */,
+				OBJ_111 /* listenable.swift in Sources */,
+				OBJ_112 /* listenables.listenable.swift in Sources */,
+				OBJ_113 /* listening.listenable.swift in Sources */,
+				OBJ_114 /* preprocessor.listenable.swift in Sources */,
+				OBJ_115 /* support.listenable.swift in Sources */,
+				OBJ_116 /* UI.swift in Sources */,
+				OBJ_117 /* form.support.realtime.swift in Sources */,
+				OBJ_118 /* uitableview.support.realtime.swift in Sources */,
+				OBJ_119 /* associatedValues.collection.realtime.swift in Sources */,
+				OBJ_120 /* basic.realtime.swift in Sources */,
+				OBJ_121 /* cache.realtime.swift in Sources */,
+				OBJ_122 /* coding.realtime.swift in Sources */,
+				OBJ_123 /* collection.realtime.swift in Sources */,
+				OBJ_124 /* database.realtime.swift in Sources */,
+				OBJ_125 /* node.realtime.swift in Sources */,
+				OBJ_126 /* object.realtime.swift in Sources */,
+				OBJ_127 /* property.realtime.swift in Sources */,
+				OBJ_128 /* references.collection.realtime.swift in Sources */,
+				OBJ_129 /* representations.realtime.swift in Sources */,
+				OBJ_130 /* storage.collection.realtime.swift in Sources */,
+				OBJ_131 /* storage.property.realtime.swift in Sources */,
+				OBJ_132 /* support.databaseValue.realtime.swift in Sources */,
+				OBJ_133 /* transaction.realtime.swift in Sources */,
+				OBJ_134 /* values.collection.realtime.swift in Sources */,
+				OBJ_135 /* view.collection.realtime.swift in Sources */,
+				OBJ_136 /* wrappers.collection.realtime.swift in Sources */,
+				OBJ_137 /* SortedArray.swift in Sources */,
+				OBJ_138 /* realtime.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_148 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_149 /* firebase.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_161 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_162 /* Package.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_173 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_174 /* Entities.swift in Sources */,
+				OBJ_175 /* ListenableTests.swift in Sources */,
+				OBJ_176 /* RealtimeTests.swift in Sources */,
+				OBJ_177 /* XCTestManifests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_188 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_189 /* AllTests.swift in Sources */,
+				OBJ_190 /* XCTestManifests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_204 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_205 /* Package.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_86 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_87 /* CAtomics.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		OBJ_95 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 0;
+			files = (
+				OBJ_96 /* Promise.swift in Sources */,
+				OBJ_97 /* Support.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		OBJ_142 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "Promise.swift::Promise.swift" /* Promise.swift */;
+			targetProxy = A4AB88E023A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_143 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "SwiftAtomics::CAtomics" /* CAtomics */;
+			targetProxy = A4AB88E123A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_154 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "Realtime::Realtime" /* Realtime */;
+			targetProxy = A4AB88E423A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_155 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "Promise.swift::Promise.swift" /* Promise.swift */;
+			targetProxy = A4AB88E523A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_156 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "SwiftAtomics::CAtomics" /* CAtomics */;
+			targetProxy = A4AB88E623A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_167 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "Realtime::RealtimeTests" /* RealtimeTests */;
+			targetProxy = A4AB88EB23A3BE6800B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_182 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "Realtime::Realtime" /* Realtime */;
+			targetProxy = A4AB88DF23A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_183 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "Promise.swift::Promise.swift" /* Promise.swift */;
+			targetProxy = A4AB88E223A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_184 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "SwiftAtomics::CAtomics" /* CAtomics */;
+			targetProxy = A4AB88E323A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_196 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "Realtime::RealtimeTestLib" /* RealtimeTestLib */;
+			targetProxy = A4AB88E723A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_197 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "Realtime::Realtime" /* Realtime */;
+			targetProxy = A4AB88E823A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_198 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "Promise.swift::Promise.swift" /* Promise.swift */;
+			targetProxy = A4AB88E923A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+		OBJ_199 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "SwiftAtomics::CAtomics" /* CAtomics */;
+			targetProxy = A4AB88EA23A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		OBJ_101 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				LD = /usr/bin/true;
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		OBJ_102 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				LD = /usr/bin/true;
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		OBJ_107 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/Realtime_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = Realtime;
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = Realtime;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Debug;
+		};
+		OBJ_108 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/Realtime_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = Realtime;
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = Realtime;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Release;
+		};
+		OBJ_146 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/Realtime_Firebase_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = "Realtime-Firebase";
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = "Realtime+Firebase";
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Debug;
+		};
+		OBJ_147 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/Realtime_Firebase_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = "Realtime-Firebase";
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = "Realtime+Firebase";
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Release;
+		};
+		OBJ_159 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				LD = /usr/bin/true;
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.1";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		OBJ_160 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				LD = /usr/bin/true;
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.1";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		OBJ_165 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Debug;
+		};
+		OBJ_166 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+			};
+			name = Release;
+		};
+		OBJ_171 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/RealtimeTestLib_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = RealtimeTestLib;
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = RealtimeTestLib;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Debug;
+		};
+		OBJ_172 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/RealtimeTestLib_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = RealtimeTestLib;
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = RealtimeTestLib;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Release;
+		};
+		OBJ_186 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				EMBEDDED_CONTENT_CONTAINS_SWIFT = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/RealtimeTests_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @loader_path/../Frameworks @loader_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = RealtimeTests;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Debug;
+		};
+		OBJ_187 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				EMBEDDED_CONTENT_CONTAINS_SWIFT = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/RealtimeTests_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @loader_path/../Frameworks @loader_path/Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = RealtimeTests;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Release;
+		};
+		OBJ_202 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				LD = /usr/bin/true;
+				OTHER_SWIFT_FLAGS = "-swift-version 4.2 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 4.2";
+				SWIFT_VERSION = 4.2;
+			};
+			name = Debug;
+		};
+		OBJ_203 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				LD = /usr/bin/true;
+				OTHER_SWIFT_FLAGS = "-swift-version 4.2 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 4.2";
+				SWIFT_VERSION = 4.2;
+			};
+			name = Release;
+		};
+		OBJ_3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_NS_ASSERTIONS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"SWIFT_PACKAGE=1",
+					"DEBUG=1",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_SWIFT_FLAGS = "$(inherited) -DXcode";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = "macosx iphoneos iphonesimulator appletvos appletvsimulator watchos watchsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SWIFT_PACKAGE DEBUG";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				USE_HEADERMAP = NO;
+			};
+			name = Debug;
+		};
+		OBJ_4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GCC_OPTIMIZATION_LEVEL = s;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"SWIFT_PACKAGE=1",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_SWIFT_FLAGS = "$(inherited) -DXcode";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = "macosx iphoneos iphonesimulator appletvos appletvsimulator watchos watchsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) SWIFT_PACKAGE";
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				USE_HEADERMAP = NO;
+			};
+			name = Release;
+		};
+		OBJ_84 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				DEFINES_MODULE = YES;
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/CAtomics_Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = CAtomics;
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				TARGET_NAME = CAtomics;
+			};
+			name = Debug;
+		};
+		OBJ_85 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				DEFINES_MODULE = YES;
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/.build/checkouts/swift-atomics/Sources/CAtomics/include",
+				);
+				INFOPLIST_FILE = Realtime.xcodeproj/CAtomics_Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = CAtomics;
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				TARGET_NAME = CAtomics;
+			};
+			name = Release;
+		};
+		OBJ_93 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = Realtime.xcodeproj/Promise_swift_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = "Promise-swift";
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = Promise.swift;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Debug;
+		};
+		OBJ_94 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_TESTABILITY = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PLATFORM_DIR)/Developer/Library/Frameworks",
+				);
+				HEADER_SEARCH_PATHS = "$(inherited)";
+				INFOPLIST_FILE = Realtime.xcodeproj/Promise_swift_Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) $(TOOLCHAIN_DIR)/usr/lib/swift/macosx";
+				MACOSX_DEPLOYMENT_TARGET = 10.10;
+				OTHER_CFLAGS = "$(inherited)";
+				OTHER_LDFLAGS = "$(inherited)";
+				OTHER_SWIFT_FLAGS = "$(inherited)";
+				PRODUCT_BUNDLE_IDENTIFIER = "Promise-swift";
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME:c99extidentifier)";
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGET_NAME = Promise.swift;
+				TVOS_DEPLOYMENT_TARGET = 9.0;
+				WATCHOS_DEPLOYMENT_TARGET = 2.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		OBJ_100 /* Build configuration list for PBXNativeTarget "Promise.swiftPackageDescription" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_101 /* Debug */,
+				OBJ_102 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_106 /* Build configuration list for PBXNativeTarget "Realtime" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_107 /* Debug */,
+				OBJ_108 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_145 /* Build configuration list for PBXNativeTarget "Realtime+Firebase" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_146 /* Debug */,
+				OBJ_147 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_158 /* Build configuration list for PBXNativeTarget "RealtimePackageDescription" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_159 /* Debug */,
+				OBJ_160 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_164 /* Build configuration list for PBXAggregateTarget "RealtimePackageTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_165 /* Debug */,
+				OBJ_166 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_170 /* Build configuration list for PBXNativeTarget "RealtimeTestLib" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_171 /* Debug */,
+				OBJ_172 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_185 /* Build configuration list for PBXNativeTarget "RealtimeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_186 /* Debug */,
+				OBJ_187 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_2 /* Build configuration list for PBXProject "Realtime" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_3 /* Debug */,
+				OBJ_4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_201 /* Build configuration list for PBXNativeTarget "SwiftAtomicsPackageDescription" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_202 /* Debug */,
+				OBJ_203 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_83 /* Build configuration list for PBXNativeTarget "CAtomics" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_84 /* Debug */,
+				OBJ_85 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_92 /* Build configuration list for PBXNativeTarget "Promise.swift" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_93 /* Debug */,
+				OBJ_94 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = OBJ_1 /* Project object */;
 }

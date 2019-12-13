@@ -33,6 +33,11 @@ extension Closure: ClosureProtocol {
         return closure(arg)
     }
 }
+public extension Closure where I == Void {
+    func call() -> O {
+        return call(())
+    }
+}
 extension ThrowsClosure: ClosureProtocol {
     func call(_ arg: I, error: UnsafeMutablePointer<Error?>?) -> O? {
         do {
@@ -310,40 +315,6 @@ public struct AnyListenable<Out>: Listenable {
     }
 }
 
-/// Common protocol for entities that represents some data
-public protocol ValueWrapper { // TODO: Deprecate
-    associatedtype V
-    var value: V { get set }
-}
-
-public extension ValueWrapper {
-    static func <==(_ prop: inout Self, _ value: V) {
-        prop.value = value
-    }
-    static func <==(_ value: inout V, _ prop: Self) {
-        value = prop.value
-    }
-    static func <==(_ value: inout V?, _ prop: Self) {
-        value = prop.value
-    }
-}
-public extension ValueWrapper {
-    func mapValue<U>(_ transform: (V) -> U) -> U {
-        return transform(value)
-    }
-}
-public extension ValueWrapper where V: _Optional {
-    static func <==(_ value: inout V?, _ prop: Self) {
-        value = prop.value
-    }
-    func mapValue<U>(_ transform: (V.Wrapped) -> U) -> U? {
-        return value.map(transform)
-    }
-    func flatMapValue<U>(_ transform: (V.Wrapped) -> U?) -> U? {
-        return value.flatMap(transform)
-    }
-}
-
 public extension Repeater {
     /// Makes notification depending
     ///
@@ -354,17 +325,6 @@ public extension Repeater {
     }
 }
 public extension Listenable {
-    /// Binds values new values to value wrapper
-    ///
-    /// - Parameter other: Value wrapper that will be receive value
-    /// - Returns: Disposable
-    @available(*, deprecated, message: "has unsafe behavior")
-    func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.Out {
-        return livetime(of: other).listening(onValue: { [weak other] val in
-            other?.value = val
-        })
-    }
-
     /// Binds events to repeater
     ///
     /// - Parameter other: Repeater that will be receive value

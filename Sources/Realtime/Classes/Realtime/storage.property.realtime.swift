@@ -242,9 +242,14 @@ class FileDownloadTask: RealtimeStorageTask {
 }
 
 /// Defines readonly property for files storage
+@propertyWrapper
 public final class ReadonlyFile<T>: ReadonlyProperty<T> {
     private var _currentDownloadTask: FileDownloadTask?
     public private(set) var metadata: RealtimeMetadata?
+
+    public override var wrappedValue: T? { super.wrappedValue }
+    public override var projectedValue: ReadonlyFile<T> { return self }
+
     public override func runObserving() -> Bool {
         // currently it disabled
         return false
@@ -286,15 +291,32 @@ public final class ReadonlyFile<T>: ReadonlyProperty<T> {
 }
 
 /// Defines read/write property for files storage
+@propertyWrapper
 public final class File<T>: Property<T> {
     private var _currentDownloadTask: FileDownloadTask?
     public private(set) var metadata: RealtimeMetadata?
+
+    public override var wrappedValue: T? {
+        get { super.wrappedValue }
+        set { super.wrappedValue = newValue }
+    }
+    public override var projectedValue: File<T> { return self }
 
     public struct Options {
         let base: PropertyOptions
         let metadata: RealtimeMetadata?
 
-        public init(_ base: PropertyOptions, metadata: RealtimeMetadata?) {
+        public static func required(_ representer: Representer<T>, db: RealtimeDatabase? = nil, metadata: RealtimeMetadata? = nil) -> Self {
+            return .init(.required(representer, db: db), metadata: metadata)
+        }
+        public static func optional<U>(_ representer: Representer<U>, db: RealtimeDatabase? = nil, metadata: RealtimeMetadata? = nil) -> Self where Optional<U> == T {
+            return .init(.optional(representer, db: db), metadata: metadata)
+        }
+        public static func writeRequired<U>(_ representer: Representer<U>, db: RealtimeDatabase? = nil, metadata: RealtimeMetadata? = nil) -> Self where Optional<U> == T {
+            return .init(.writeRequired(representer, db: db), metadata: metadata)
+        }
+
+        init(_ base: PropertyOptions, metadata: RealtimeMetadata?) {
             self.base = base
             self.metadata = metadata
         }

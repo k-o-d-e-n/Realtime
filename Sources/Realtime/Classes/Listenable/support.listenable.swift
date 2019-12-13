@@ -443,10 +443,10 @@ extension Repeater: Publisher {
     public typealias Output = T
     public typealias Failure = Error
 }
-//extension ValueStorage: Publisher {
-//    public typealias Output = T
-//    public typealias Failure = Error
-//}
+extension ValueStorage: Publisher {
+    public typealias Output = T
+    public typealias Failure = Error
+}
 extension Constant: Publisher {
     public typealias Output = T
     public typealias Failure = Error

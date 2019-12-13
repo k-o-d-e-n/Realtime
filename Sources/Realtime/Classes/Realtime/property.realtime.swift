@@ -113,9 +113,16 @@ public extension RawRepresentable where Self.RawValue == String {
 }
 
 /// Defines read/write property where value is Realtime database reference
+@propertyWrapper
 public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities>: Property<Referenced> {
     public override var raw: RealtimeDatabaseValue? { return super._raw }
     public override var payload: RealtimeDatabaseValue? { return super._payload }
+
+    public override var wrappedValue: Referenced? {
+        get { super.wrappedValue }
+        set { super.wrappedValue = newValue }
+    }
+    public override var projectedValue: Reference<Referenced> { self }
 
     public required init(in node: Node?, options: Mode) {
         super.init(in: node, options: PropertyOptions(
@@ -167,10 +174,17 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
 }
 
 /// Defines read/write property where value is Realtime database relation
+@propertyWrapper
 public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: Property<Related> {
     var options: Options
     public override var raw: RealtimeDatabaseValue? { return super._raw }
     public override var payload: RealtimeDatabaseValue? { return super._payload }
+
+    public override var wrappedValue: Related? {
+        get { super.wrappedValue }
+        set { super.wrappedValue = newValue }
+    }
+    public override var projectedValue: Relation<Related> { self }
 
     public required init(in node: Node?, options: Options) {
         self.options = options
@@ -378,12 +392,25 @@ public extension PropertyState where T: _Optional {
 }
 
 /// Defines read/write property with any value
+@propertyWrapper
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
     fileprivate var _oldValue: PropertyState<T>?
     override var _hasChanges: Bool {
         return _oldValue != nil
     }
     public var oldValue: PropertyState<T>? { return _oldValue }
+
+    override public var wrappedValue: T? {
+        get { return super.wrappedValue }
+        set {
+            if let v = newValue {
+                _setLocalValue(v)
+            } else {
+                _setRemoved(isLocal: true)
+            }
+        }
+    }
+    override public var projectedValue: Property { return self }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try super.init(data: data, event: event)
@@ -568,6 +595,7 @@ public extension Property where T: Equatable {
 }
 
 /// Defines readonly property with any value
+@propertyWrapper
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate var _value: PropertyState<T>
     fileprivate(set) var representer: Representer<T?>
@@ -586,6 +614,11 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             else { stopObserving() }
         }
     }
+
+    public var wrappedValue: T? {
+        return wrapped
+    }
+    public var projectedValue: ReadonlyProperty { return self }
     
     // MARK: Initializers, deinitializer
 
@@ -600,15 +633,19 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             self.initialValue = value
         }
 
-        public static func required(_ representer: Representer<T>, db: RealtimeDatabase?, initial: T? = nil) -> PropertyOptions {
-            return self.init(database: db, representer: representer.requiredProperty(), initial: initial)
+        public static func required(_ representer: Representer<T>, db: RealtimeDatabase? = nil, initial: T? = nil) -> Self {
+            return Self.init(database: db, representer: representer.requiredProperty(), initial: initial)
         }
-        public static func optional<U>(_ representer: Representer<U>, db: RealtimeDatabase?, initial: T? = nil) -> Self where Optional<U> == T {
-            return self.init(database: db, representer: representer.optionalProperty(), initial: initial)
+        public static func optional<U>(_ representer: Representer<U>, db: RealtimeDatabase? = nil, initial: T? = nil) -> Self where Optional<U> == T {
+            return Self.init(database: db, representer: representer.optionalProperty(), initial: initial)
         }
-        public static func writeRequired<U>(_ representer: Representer<U>, db: RealtimeDatabase?, initial: T? = nil) -> Self where Optional<U> == T {
-            return self.init(database: db, representer: representer.writeRequiredProperty(), initial: initial)
+        public static func writeRequired<U>(_ representer: Representer<U>, db: RealtimeDatabase? = nil, initial: T? = nil) -> Self where Optional<U> == T {
+            return Self.init(database: db, representer: representer.writeRequiredProperty(), initial: initial)
         }
+    }
+
+    public convenience init<U>(in node: Node?, representer: Representer<U>) where U? == T {
+        self.init(in: node, options: .optional(representer))
     }
 
     /// Designed initializer

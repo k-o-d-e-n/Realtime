@@ -2182,3 +2182,42 @@ extension RealtimeTests {
         }
     }
 }
+
+final class PropertyWrappers: Object {
+    @Property(in: Node(key: "wrapper1"), options: .required(.realtimeDataValue))
+    var wrapper1: String?
+    @Property(in: Node(key: "wrapper2"), options: .optional(.date(.secondsSince1970)))
+    var wrapper2: Date??
+    @File(in: Node(key: "wrapper3"), options: .optional(.realtimeDataValue))
+    var wrapper3: Data??
+
+    required init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {
+        super.init(in: node, options: options)
+        if let n = node {
+            forceEnumerateAllChilds { (_, val: _RealtimeValue) in
+                val.node?.parent = n
+            }
+        }
+    }
+
+    required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.init(data: data, event: event)
+    }
+}
+
+extension RealtimeTests {
+    func testPropertyWrappers() {
+        let wrappers = PropertyWrappers(in: Node(key: "parent"))
+
+        XCTAssertEqual(wrappers.wrapper1, nil)
+        XCTAssertEqual(wrappers.wrapper2, nil)
+
+        XCTAssertEqual(wrappers.$wrapper1.node?.absolutePath, "parent/wrapper1")
+        XCTAssertEqual(wrappers.$wrapper2.node?.absolutePath, "parent/wrapper2")
+        XCTAssertEqual(wrappers.$wrapper3.node?.absolutePath, "parent/wrapper3")
+
+//        checkDidRemove(wrappers.$wrapper1)
+//        checkDidRemove(wrappers.$wrapper2)
+//        checkDidRemove(wrappers.$wrapper3)
+    }
+}
