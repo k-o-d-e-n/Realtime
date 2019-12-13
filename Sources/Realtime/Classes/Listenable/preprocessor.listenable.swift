@@ -605,7 +605,7 @@ public extension Listenable {
     func memoize(buffer: Memoize<Self>.Buffer) -> Memoize<Self> {
         return Memoize(
             self,
-            storage: .unsafe(strong: ([], false)),
+            storage: .unsafe(strong: ([], false), repeater: .unsafe()),
             buffer: buffer
         )
     }
@@ -693,6 +693,7 @@ public struct Memoize<T: Listenable>: Listenable {
     }
 
     init(_ base: T, storage: ValueStorage<([T.Out], Bool)>, buffer: Buffer) {
+        precondition(storage.repeater != nil, "Storage must have repeater")
         self.dispose = ListeningDispose(base.listening(
             onValue: { (value) in
                 var result: [T.Out]?
@@ -700,7 +701,7 @@ public struct Memoize<T: Listenable>: Listenable {
                     result = buffer.mapper(&currentValue, value)
                 }
                 if let toSend = result {
-                    storage.repeater.send(.value((toSend, true)))
+                    storage.repeater?.send(.value((toSend, true)))
                 }
             },
             onError: storage.sendError
@@ -717,7 +718,7 @@ public struct Memoize<T: Listenable>: Listenable {
 
     public func listening(_ assign: Closure<ListenEvent<[T.Out]>, Void>) -> Disposable {
         defer { sendLastIfNeeded(assign) }
-        let disposer = storage.map({ $0.0 }).listening(assign)
+        let disposer = storage.repeater!.map({ $0.0 }).listening(assign)
         let unmanaged = Unmanaged.passUnretained(dispose).retain()
         return ListeningDispose.init({
             unmanaged.release()

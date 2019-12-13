@@ -61,11 +61,11 @@ public struct AsyncReadonlyValue<Value>: Listenable {
     }
 
     public func sendValue() {
-        storage.repeater.send(.value(storage.value))
+        storage.repeater?.send(.value(storage.value))
     }
 
     public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
-        return storage.listening(assign)
+        return storage.repeater?.listening(assign) ?? EmptyDispose()
     }
 }
 

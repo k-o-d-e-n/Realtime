@@ -31,8 +31,8 @@ extension RowState {
 @dynamicMemberLookup
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     fileprivate var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
-    fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil)
-    fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap(), _model.compactMap())
+    fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe())
+    fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.repeater!.compactMap(), _model.repeater!.compactMap())
     fileprivate lazy var _didSelect: Repeater<IndexPath> = .unsafe()
 
     var dynamicValues: [String: Any] = [:]

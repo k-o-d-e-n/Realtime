@@ -336,7 +336,7 @@ public struct AnyListenable<Out>: Listenable {
 }
 
 /// Common protocol for entities that represents some data
-public protocol ValueWrapper {
+public protocol ValueWrapper { // TODO: Deprecate
     associatedtype V
     var value: V { get set }
 }
