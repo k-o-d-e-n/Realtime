@@ -8,6 +8,10 @@
 #if os(iOS)
 import UIKit
 
+#if canImport(Combine)
+import Combine
+#endif
+
 public enum CellBuilder<View> {
     case reuseIdentifier(String)
     case `static`(View)
@@ -31,9 +35,15 @@ extension RowState {
 @dynamicMemberLookup
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     fileprivate var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
+    #if canImport(Combine)
+    fileprivate lazy var _model: CurrentValueSubject<Model?, Never> = CurrentValueSubject(nil)
+    fileprivate lazy var _update: AnyPublisher<(View, Model), Never> = _view.compactMap({ $0 }).combineLatest(_model.compactMap({ $0 })).eraseToAnyPublisher()
+    fileprivate lazy var _didSelect: PassthroughSubject<IndexPath, Never> = PassthroughSubject()
+    #else
     fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil)
-    fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap(), _model.compactMap())
+    fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap({ $0 }), _model.compactMap({ $0 }))
     fileprivate lazy var _didSelect: Repeater<IndexPath> = .unsafe()
+    #endif
 
     var dynamicValues: [String: Any] = [:]
     var state: RowState = [.free, .pending]
@@ -74,7 +84,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     }
 
     public func sendSelectEvent(at indexPath: IndexPath) {
-        _didSelect.send(.value(indexPath))
+        _didSelect.send(indexPath)
     }
 
     public func removeAllValues() {
@@ -267,7 +277,7 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 
     override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        rows[indexPath.row]._didSelect.send(.value(indexPath))
+        rows[indexPath.row]._didSelect.send(indexPath)
     }
 
     override func reloadCell(at indexPath: IndexPath) {
@@ -294,7 +304,11 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 }
 
 open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, Model> {
+    #if canImport(Combine)
+    lazy var _rowModel: PassthroughSubject<RowModel, Never> = PassthroughSubject()
+    #else
     lazy var _rowModel: Repeater<RowModel> = Repeater.unsafe()
+    #endif
 
     public required init() {
         super.init(cellBuilder: .custom({ _,_  in fatalError("Reuse form row does not responsible for cell building") }))
@@ -430,7 +444,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         if !item.state.contains(.displaying) || item.view !== cell {
             item.view = cell
             item.model = model
-            item._rowModel.send(.value(dataSource.collection[indexPath.row]))
+            item._rowModel.send(dataSource.collection[indexPath.row])
             item.state.insert(.displaying)
             item.state.remove(.free)
         }
@@ -445,7 +459,7 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
 
     override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         if let cell = tableView.cellForRow(at: indexPath) {
-            reuseController.active(at: cell)?._didSelect.send(.value(indexPath))
+            reuseController.active(at: cell)?._didSelect.send(indexPath)
         }
     }
 

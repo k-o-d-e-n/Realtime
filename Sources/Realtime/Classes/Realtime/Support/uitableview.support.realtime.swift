@@ -7,12 +7,20 @@
 //  Copyright © 2018 Denis Koryttsev. All rights reserved.
 //
 
+#if canImport(Combine)
+import Combine
+#endif
+
 protocol ReuseItemProtocol {
     func free()
 }
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
+    #if canImport(Combine)
+    lazy var _view: CurrentValueSubject<View?, Never> = CurrentValueSubject(nil)
+    #else
     lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, dispatcher: .queue(.main)) // why ValueStorage used? if it is not used
+    #endif
     public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
 
     open internal(set) weak var view: View? {
