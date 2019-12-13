@@ -77,7 +77,10 @@ extension Decoder where Self: RealtimeDataProtocol {
 
     fileprivate func childDecoder<Key: CodingKey>(forKey key: Key) throws -> RealtimeDataProtocol {
         guard hasChild(key.stringValue) else {
-            throw DecodingError.keyNotFound(key, DecodingError.Context(codingPath: [key], debugDescription: debugDescription))
+            throw DecodingError.keyNotFound(key, DecodingError.Context(
+                codingPath: compactMap({ $0.key.flatMap(_RealtimeCodingKey.init) }),
+                debugDescription: debugDescription
+            ))
         }
         return child(forPath: key.stringValue)
     }
@@ -934,7 +937,7 @@ public extension Representer where V: RealtimeValue {
     ///   - rootLevelsUp: Level of root node to do relation path
     ///   - ownerNode: Database node of relation owner
     /// - Returns: Relation representer
-    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>) -> Representer<V> {
+    static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>, database: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, V>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
@@ -947,11 +950,11 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
 
-                return RealtimeDatabaseValue(try RelationRepresentation(
+                return try RelationRepresentation(
                     path: node.path(from: anchorNode ?? .root),
                     property: mode.path(for: owner),
                     payload: (v.raw, v.payload)
-                ).defaultRepresentation())
+                ).defaultRepresentation()
             },
             decoding: { d in
                 guard let owner = ownerNode.value
@@ -964,16 +967,15 @@ public extension Representer where V: RealtimeValue {
                     }
                 }
                 let relation = try RelationRepresentation(data: d)
-                return relation.make(fromAnchor: anchorNode ?? .root, options: [:])
+                return builder((anchorNode ?? .root).child(with: relation.targetPath), database, relation.options(database))
             }
         )
     }
-
     /// Representer that convert `RealtimeValue` as database reference.
     ///
     /// - Parameter mode: Representation mode
     /// - Returns: Reference representer
-    static func reference(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Representer<V> {
+    static func reference(_ mode: ReferenceMode, database: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, V>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
                 guard let node = v.node else {
@@ -984,16 +986,16 @@ public extension Representer where V: RealtimeValue {
                 case .fullPath: ref = node.absolutePath
                 case .path(from: let n): ref = node.path(from: n)
                 }
-                return RealtimeDatabaseValue(try ReferenceRepresentation(
+                return try ReferenceRepresentation(
                     ref: ref,
                     payload: (raw: v.raw, user: v.payload)
-                ).defaultRepresentation())
+                ).defaultRepresentation()
             },
             decoding: { (data) in
                 let reference = try ReferenceRepresentation(data: data)
                 switch mode {
-                case .fullPath: return reference.make(options: options)
-                case .path(from: let n): return reference.make(fromAnchor: n, options: options)
+                case .fullPath: return builder(.root(reference.source), database, reference.options(database))
+                case .path(from: let n): return builder(n.child(with: reference.source), database, reference.options(database))
                 }
             }
         )

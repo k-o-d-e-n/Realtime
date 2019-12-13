@@ -15,39 +15,31 @@ public extension RawRepresentable where Self.RawValue == String {
     func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T> {
         return ReadonlyFile(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability.required(representer)
-            ]
+            options: .required(representer, db: object.database)
         )
     }
     func readonlyFile<T>(in object: Object, representer: Representer<T>) -> ReadonlyFile<T?> {
         return ReadonlyFile(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability.optional(representer)
-            ]
+            options: .optional(representer, db: object.database)
         )
     }
     func file<T>(in object: Object, representer: Representer<T>, metadata: [String: Any] = [:]) -> File<T> {
         return File(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability.required(representer),
-                .metadata: metadata
-            ]
+            options: .init(
+                .required(representer, db: object.database, initial: nil),
+                metadata: metadata
+            )
         )
     }
     func file<T>(in object: Object, representer: Representer<T>, metadata: [String: Any] = [:]) -> File<T?> {
-        return File(
+        return File<T?>(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability.optional(representer),
-                .metadata: metadata
-            ]
+            options: File<T?>.Options(
+                .optional(representer, db: object.database, initial: nil),
+                metadata: metadata
+            )
         )
     }
     #if os(iOS)
@@ -126,12 +118,6 @@ extension ReadonlyProperty {
             self._setError(e)
         }
     }
-}
-
-extension ValueOption {
-    /// Key for `RealtimeStorage` instance
-    public static var storage: ValueOption = ValueOption("realtime.storage")
-    public static var metadata: ValueOption = ValueOption("realtime.file.metadata")
 }
 
 // TODO: Avoid completions task must operates data
@@ -304,13 +290,23 @@ public final class File<T>: Property<T> {
     private var _currentDownloadTask: FileDownloadTask?
     public private(set) var metadata: RealtimeMetadata?
 
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        if case let md as [String: Any] = options[.metadata] {
+    public struct Options {
+        let base: PropertyOptions
+        let metadata: RealtimeMetadata?
+
+        public init(_ base: PropertyOptions, metadata: RealtimeMetadata?) {
+            self.base = base
+            self.metadata = metadata
+        }
+    }
+
+    public required init(in node: Node?, options: Options) {
+        if let md = options.metadata {
             self.metadata = md
         } else {
             self.metadata = [:]
         }
-        super.init(in: node, options: options)
+        super.init(in: node, options: options.base)
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {

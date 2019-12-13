@@ -219,7 +219,10 @@ extension OtherTests {
     }
 
     func testPrefixOperator() {
-        let property = Property<String>(in: nil, options: [.representer: Availability.required(Representer<String>.realtimeDataValue)])
+        let property = Property<String>(
+            in: nil,
+            options: .init(database: Cache.root, availability: Availability.required(Representer<String>.realtimeDataValue))
+        )
         property <== "string"
 
         XCTAssertEqual(§property, "string")

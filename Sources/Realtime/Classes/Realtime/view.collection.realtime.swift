@@ -20,12 +20,6 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         self.node = Node(key: key ?? value.dbKey)
     }
 
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self.node = node
-        self.raw = options[.rawValue] as? RealtimeDatabaseValue
-        self.payload = options[.payload] as? RealtimeDatabaseValue
-    }
-
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         guard let key = data.key else {
             throw RealtimeError(initialization: RCItem.self, data)
@@ -35,7 +29,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         let dataContainer = try data.container(keyedBy: InternalKeys.self)
         self.node = Node(key: key)
         self.raw = try valueData.rawValue()
-        self.linkID = try dataContainer.decode(String.self, forKey: .link)
+        self.linkID = try dataContainer.decodeIfPresent(String.self, forKey: .link)
         self.priority = try dataContainer.decodeIfPresent(Int64.self, forKey: .index)
         self.payload = try valueData.payload()
     }
@@ -99,10 +93,6 @@ public struct RDItem: WritableRealtimeValue, Comparable {
         self.rcItem = RCItem(key: key.dbKey, value: value)
         self.raw = key.raw
         self.payload = key.payload
-    }
-
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self.rcItem = RCItem(in: node, options: options)
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -239,12 +229,8 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         }
     }
 
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        super.init(in: node, options: options)
-    }
-
     public required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        self.init(in: data.node, options: [.database: data.database as Any, .storage: data.storage as Any])
+        self.init(node: data.node, options: RealtimeValueOptions(database: data.database, raw: nil, payload: nil))
         try apply(data, event: event)
     }
 

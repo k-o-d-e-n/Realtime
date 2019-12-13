@@ -46,6 +46,18 @@ extension Error {
     }
 }
 
+extension Property {
+    static func required(in node: Node?, representer: Representer<T>, db: RealtimeDatabase? = nil) -> Property {
+        return Property(in: node, options: .required(representer, db: db))
+    }
+    static func optional<U>(in node: Node?, representer: Representer<U>, db: RealtimeDatabase? = nil) -> Property where Optional<U> == T {
+        return Property(in: node, options: .optional(representer, db: db))
+    }
+    static func writeRequired<U>(in node: Node?, representer: Representer<U>, db: RealtimeDatabase? = nil) -> Property where Optional<U> == T {
+        return Property(in: node, options: .writeRequired(representer, db: db))
+    }
+}
+
 public final class RealtimeTests: XCTestCase {
     var store: ListeningDisposeStore = ListeningDisposeStore()
     public static var allTestsSetUp: (() -> Void)?
@@ -106,17 +118,17 @@ class TestObject: Object {
         lazy var lazyProperty: Property<String?> = "lazyprop".property(in: self)
         var usualProperty: Property<String?>
 
-        required init(in node: Node?, options: [ValueOption : Any]) {
+        required init(in node: Node?, options: RealtimeValueOptions) {
             self.usualProperty = Property.optional(in: Node(key: "usualprop", parent: node),
                                                    representer: .realtimeDataValue,
-                                                   options: [.database: options[.database] as Any])
+                                                   db: options.database)
             super.init(in: node, options: options)
         }
 
         required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
             self.usualProperty = Property.optional(in: Node(key: "usualprop", parent: data.node),
                                                    representer: .realtimeDataValue,
-                                                   options: [.database: data.database as Any])
+                                                   db: data.database)
             try super.init(data: data, event: event)
         }
 
@@ -202,6 +214,18 @@ extension RealtimeTests {
         XCTAssertEqual(calculator, 1)
     }
 
+    func testObject() {
+        let conversation = Conversation(in: Node(key: "conv_1", parent: .root))
+        XCTAssertTrue(type(of: conversation) == Conversation.self)
+
+        func build<El: Object>(_ node: Node?, db: RealtimeDatabase?, options: RealtimeValueOptions) -> El {
+            return El(in: node, options: options)
+        }
+
+        let conversation1: Conversation = build(nil, db: nil, options: RealtimeValueOptions())
+        XCTAssertTrue(type(of: conversation1) == Conversation.self)
+    }
+
     func testObjectSave() {
         let obj = TestObject()
 
@@ -250,9 +274,9 @@ extension RealtimeTests {
         }
     }
     func testPropertySetValue() {
-        let property = Property<String>(
+        let property = Property<String>.required(
             in: Node(key: "value", parent: .root),
-            options: [.representer: Availability<String>.required(.realtimeDataValue)]
+            representer: .realtimeDataValue
         )
 
         XCTAssertFalse(property.hasChanges)
@@ -272,7 +296,7 @@ extension RealtimeTests {
         }
     }
     func testRemovePropertyValue() {
-        let rootObj = Object(in: Node.root, options: [.database: Cache.root])
+        let rootObj = Object(in: Node.root, options: RealtimeValueOptions(database: Cache.root))
         let prop: Property<String?> = "prop".property(in: rootObj)
 
         prop.remove()
@@ -351,12 +375,12 @@ extension RealtimeTests {
 
     func testMergeTransactions() {
         let exp = expectation(description: "")
-        let testObject = TestObject(in: .root, options: [.database: Cache.root])
+        let testObject = TestObject(in: .root, options: RealtimeValueOptions(database: Cache.root))
 
         testObject.property <== "string"
         testObject.nestedObject.lazyProperty <== "nested_string"
 
-        let element = TestObject(in: Node.root.child(with: "element_1"), options: [.database: Cache.root])
+        let element = TestObject(in: Node.root.child(with: "element_1"), options: RealtimeValueOptions(database: Cache.root))
         element.property <== "element #1"
         element.nestedObject.lazyProperty <== "value"
 
@@ -631,8 +655,8 @@ extension RealtimeTests {
         let transaction = Transaction(database: Cache.root)
 
         do {
-            let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
-            let group = Group(in: Node(key: "group", parent: .root), options: [.database: Cache.root])
+            let user = User(in: Node(key: "user", parent: .root), options: RealtimeValueOptions(database: Cache.root))
+            let group = Group(in: Node(key: "group", parent: .root), options: RealtimeValueOptions(database: Cache.root))
 
             group._manager <== user
             try user.ownedGroups.write(group, in: transaction)
@@ -706,7 +730,7 @@ extension RealtimeTests {
     func testRelationPayload() {
         let exp = expectation(description: "")
         let payload = RealtimeDatabaseValue([RealtimeDatabaseValue(("key", "value"))])
-        let obj = Object(in: Node.root("obj"), options: [.database: Cache.root, .rawValue: RealtimeDatabaseValue(2), .payload: payload])
+        let obj = Object(in: Node.root("obj"), options: RealtimeValueOptions(database: Cache.root, raw: RealtimeDatabaseValue(2), payload: payload))
         let relation: Relation<Object> = "relation".relation(in: Object(in: .root), .one(name: "obj"))
         relation <== obj
 
@@ -761,7 +785,7 @@ extension RealtimeTests {
     }
 
     func testWriteRequiredPropertyFailsOnSave() {
-        let property = Property<String?>(in: Node(key: "prop"), options: [.representer: Availability.writeRequired(Representer<String>.realtimeDataValue)])
+        let property = Property<String?>.writeRequired(in: Node(key: "prop"), representer: .realtimeDataValue)
 
         do {
             let transaction = Transaction()
@@ -793,7 +817,11 @@ extension RealtimeTests {
     }
 
     func testRepresenterOptional() {
-        let representer = Representer<TestObject>.relation(.one(name: "prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil)).optional()
+        let representer = Representer<TestObject>.relation(
+            .one(name: "prop"), rootLevelsUp: nil, ownerNode: .unsafe(strong: nil), database: Cache.root, builder: { node, database, options in
+                return TestObject(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+            }
+        ).optional()
         do {
             let object = try representer.decode(ValueNode(node: Node(key: ""), value: nil))
             XCTAssertNil(object)
@@ -804,8 +832,10 @@ extension RealtimeTests {
 
     func testReferenceRepresentationPayload() {
         let userPayload = RealtimeDatabaseValue([RealtimeDatabaseValue(("foo", "bar"))])
-        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: [.payload: userPayload]))
-        let representer = Representer<ValueWithPayload>.reference(.fullPath, options: [:])
+        let value = ValueWithPayload.two(TestObject(in: Node(key: "path/subpath", parent: .root), options: RealtimeValueOptions(payload: userPayload)))
+        let representer = Representer<ValueWithPayload>.reference(.fullPath, database: Cache.root, builder: { node, database, options in
+            return ValueWithPayload(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+        })
 
         do {
             let result = try representer.encode(value)
@@ -913,8 +943,8 @@ extension RealtimeTests {
         case one(TestObject)
         case two(TestObject)
 
-        init(in node: Node?, options: [ValueOption : Any]) {
-            let raw = try? options.rawValue?.typed(as: UInt8.self) ?? 0
+        init(in node: Node?, options: RealtimeValueOptions) {
+            let raw = try? options.raw?.typed(as: UInt8.self) ?? 0
 
             switch raw {
             case 1: self = .two(TestObject(in: node, options: options))
@@ -984,7 +1014,10 @@ extension RealtimeTests {
     }
 
     func testPayload() {
-        let array = Values<ValueWithPayload>(in: Node.root.child(with: "__tests/array"))
+        let array = Values<ValueWithPayload>(
+            in: Node.root.child(with: "__tests/array"),
+            options: Values.Options(database: Cache.root, builder: { ValueWithPayload(in: $0, options: $2) })
+        )
         let transaction = Transaction()
 
         do {
@@ -1005,22 +1038,22 @@ extension RealtimeTests {
         var payloadBuilder = RealtimeDatabaseValue.Dictionary()
         payloadBuilder.setValue("val", forKey: "key")
         let payload = payloadBuilder.build()
-        let value = TestObject(in: .root, options: [.payload: payload])
+        let value = TestObject(in: .root, options: RealtimeValueOptions(payload: payload))
         XCTAssertEqual(value.payload, payload)
     }
 
     func testInitializeWithPayload3() {
         var payloadBuilder = RealtimeDatabaseValue.Dictionary()
         payloadBuilder.setValue("val", forKey: "key")
-        let payload: Any = payloadBuilder.build()
-        let value = TestObject(in: .root, options: [.payload: payload])
-        XCTAssertEqual(value.payload, payload as? RealtimeDatabaseValue)
+        let payload = payloadBuilder.build()
+        let value = TestObject(in: .root, options: RealtimeValueOptions(payload: payload))
+        XCTAssertEqual(value.payload, payload)
     }
 
     func testInitializeWithPayload4() {
         let exp = expectation(description: "")
         let rawValue = RealtimeDatabaseValue(5)
-        let user = User2(in: nil, options: [.database: Cache.root, .rawValue: rawValue])
+        let user = User2(in: nil, options: RealtimeValueOptions(database: Cache.root, raw: rawValue))
         XCTAssertEqual(user.raw, rawValue)
 
         user.name <== "User name"
@@ -1105,7 +1138,7 @@ extension RealtimeTests {
                     XCTFail(e.localizedDescription)
                 } else {
                     XCTAssertTrue(cache.hasChildren(), "FAIL CACHE")
-                    let restoredObj = TestObject(in: testObject.node, options: [.database: cache])
+                    let restoredObj = TestObject(in: testObject.node, options: RealtimeValueOptions(database: cache))
                     _ = restoredObj.load().completion.listening(.just { e in
                         e.error.map { XCTFail($0.localizedDescription) }
 
@@ -1237,7 +1270,7 @@ extension AssociatedValues: Reverting {
 
 extension RealtimeTests {
     func testLocalChangesLinkedArray() {
-        let linkedArray: MutableReferences<TestObject> = MutableReferences(in: Node(key: "l_array"), options: [.elementsNode: Node.root])
+        let linkedArray: MutableReferences<TestObject> = "l_array".references(in: nil, elements: .root, database: Cache.root)
 
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
@@ -1291,8 +1324,11 @@ extension RealtimeTests {
         transaction.revert()
     }
     func testLocalChangesDictionary() {
-        let dict: AssociatedValues<TestObject, TestObject> = AssociatedValues(in: Node(key: "dict"),
-                                                                              options: [.keysNode: Node.root])
+        let dict: AssociatedValues<TestObject, TestObject> = AssociatedValues(
+            in: Node(key: "dict"),
+            database: Cache.root,
+            keys: .root
+        )
 
         let one = TestObject()
         one.file <== "file".data(using: .utf8)
@@ -1323,7 +1359,7 @@ extension RealtimeTests {
 
     func testListeningCollectionChangesOnInsert() {
         let exp = expectation(description: "")
-        let array = Values<User>(in: .root, options: [.database: Cache.root])
+        let array = Values<User>(in: .root, database: Cache.root)
 
         array.runObserving()
         array.changes.listening(onValue: { (event) in
@@ -1337,7 +1373,7 @@ extension RealtimeTests {
         }).add(to: store)
         array.changes.listening { err in
             XCTFail(err.localizedDescription)
-            }.add(to: store)
+        }.add(to: store)
 
         let element = User()
         element.name <== "User"
@@ -1363,8 +1399,8 @@ extension RealtimeTests {
 
     func testReadonlyRelation() {
         let exp = expectation(description: "")
-        let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
-        let group = Group(in: Node(key: "group", parent: .root), options: [.database: Cache.root])
+        let user = User(in: Node(key: "user", parent: .root), options: RealtimeValueOptions(database: Cache.root))
+        let group = Group(in: Node(key: "group", parent: .root), options: RealtimeValueOptions(database: Cache.root))
         user.ownedGroup <== group
 
         do {
@@ -1393,8 +1429,8 @@ extension RealtimeTests {
     func testReadonlyReference() {
         Cache.root.clear()
         let exp = expectation(description: "")
-        let user = User(in: Node(key: "user", parent: .root), options: [.database: Cache.root])
-        let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: [.database: Cache.root])
+        let user = User(in: Node(key: "user", parent: .root), options: RealtimeValueOptions(database: Cache.root))
+        let conversation = Conversation(in: Node(key: "conversation", parent: .root), options: RealtimeValueOptions(database: Cache.root))
         conversation.chairman <== user
 
         do {
@@ -1404,7 +1440,9 @@ extension RealtimeTests {
 
                 let chairman = Reference<User>.readonly(
                     in: conversation.chairman.node,
-                    mode: Reference<User>.Mode.required(.fullPath, options: [.database: Cache.root])
+                    mode: Reference<User>.Mode.required(.fullPath, db: Cache.root, builder: { node, database, options in
+                        return User(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+                    })
                 )
                 do {
                     try chairman.apply(Cache.root.child(forNode: conversation.chairman.node!), event: .value)
@@ -1424,7 +1462,7 @@ extension RealtimeTests {
     }
 
     func testDatabaseBinding() {
-        let testObject = TestObject(in: .root, options: [.database: Cache.root])
+        let testObject = TestObject(in: .root, options: RealtimeValueOptions(database: Cache.root))
         testObject.forceEnumerateAllChilds { (_, value: _RealtimeValue) in
             if value.database === Cache.root {
                 XCTAssertTrue(true)
@@ -1436,11 +1474,14 @@ extension RealtimeTests {
 
     func testAssociatedValuesWithVersionAndRawValues() {
         let exp = expectation(description: "")
-        let assocValues = AssociatedValues<TestObject, TestObject>(in: Node.root("values"), options: [.database: Cache.root, .keysNode: Node.root("keys")])
+        let assocValues = AssociatedValues<TestObject, TestObject>(
+            in: Node.root("values"),
+            database: Cache.root, keys: .root("keys")
+        )
         let keyRaw = RealtimeDatabaseValue(2)
-        let key = TestObject(in: Node.root("keys").child(with: "key"), options: [.database: Cache.root, .rawValue: keyRaw])
+        let key = TestObject(in: Node.root("keys").child(with: "key"), options: RealtimeValueOptions(database: Cache.root, raw: keyRaw))
         let valueRaw = RealtimeDatabaseValue(5)
-        let value = TestObject(in: nil, options: [.database: Cache.root, .rawValue: valueRaw])
+        let value = TestObject(in: nil, options: RealtimeValueOptions(database: Cache.root, raw: valueRaw))
         do {
             let trans = Transaction(database: Cache.root)
             try assocValues.write(element: value, for: key, in: trans)
@@ -1450,7 +1491,7 @@ extension RealtimeTests {
                 /// we can use Values for readonly access to values, AssociatedValues and Values must be compatible
                 let copyAssocitedValues = AssociatedValues<Object, Object>(
                     in: Node.root("values"),
-                    options: [.keysNode: Node.root("keys"), .database: Cache.root]
+                    database: Cache.root, keys: .root("keys")
                 )
                 let copyValues = copyAssocitedValues.values()
                 /// we can use References for readonly access to keys
@@ -1506,7 +1547,10 @@ extension RealtimeTests {
         }
 
         let exp = expectation(description: "")
-        let prop = ReadonlyProperty<String>(in: Node.root("___tests/prop"), options: [.representer: Availability.required(Representer<String>.realtimeDataValue)])
+        let prop = ReadonlyProperty<String>(
+            in: Node.root("___tests/prop"),
+            options: .required(.realtimeDataValue, db: Cache.root)
+        )
 
         _ = prop.load(timeout: .seconds(3)).completion.listening(.just { err in
             guard let e = err.error else { return XCTFail("Must be timout error") }
@@ -1532,68 +1576,68 @@ extension RealtimeTests {
 
 extension RealtimeTests {
     func testEqualFailsRequiredPropertyWithoutValueAndValue() {
-        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.realtimeDataValue)])
+        let property = Property<String>.required(in: .root, representer: .realtimeDataValue)
         XCTAssertFalse(property ==== "")
         XCTAssertFalse("" ==== property)
     }
     func testNotEqualRequiredPropertyWithoutValueAndValue() {
-        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.realtimeDataValue)])
+        let property = Property<String>.required(in: .root, representer: .realtimeDataValue)
         XCTAssertTrue(property !=== "")
         XCTAssertTrue("" !=== property)
     }
     func testEqualRequiredPropertyWithoutValueAndNil() {
-        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.realtimeDataValue)])
+        let property = Property<String>.required(in: .root, representer: .realtimeDataValue)
         XCTAssertTrue(property ==== nil)
         XCTAssertTrue(nil ==== property)
     }
     func testEqualFailsRequiredPropertyWithValueAndValue() {
-        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.realtimeDataValue)])
+        let property = Property<String>.required(in: .root, representer: .realtimeDataValue)
         property <== "string"
         XCTAssertFalse(property ==== "")
         XCTAssertFalse("" ==== property)
     }
     func testNotEqualRequiredPropertyWithValueAndValue() {
-        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.realtimeDataValue)])
+        let property = Property<String>.required(in: .root, representer: .realtimeDataValue)
         property <== "string"
         XCTAssertTrue(property !=== "")
         XCTAssertTrue("" !=== property)
     }
     func testNotEqualRequiredPropertyWithValueAndNil() {
-        let property = Property<String>(in: .root, options: [.representer: Availability<String>.required(Representer.realtimeDataValue)])
+        let property = Property<String>.required(in: .root, representer: .realtimeDataValue)
         property <== "string"
         XCTAssertFalse(property ==== nil)
         XCTAssertFalse(nil ==== property)
     }
     func testEqualFailsOptionalPropertyWithoutValueAndValue() {
-        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.realtimeDataValue)])
+        let property = Property<String?>.optional(in: .root, representer: .realtimeDataValue)
         XCTAssertFalse(property ==== "")
         XCTAssertFalse("" ==== property)
     }
     func testNotEqualOptionalPropertyWithoutValueAndValue() {
-        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.realtimeDataValue)])
+        let property = Property<String?>.optional(in: .root, representer: .realtimeDataValue)
         XCTAssertTrue(property !=== "")
         XCTAssertTrue("" !=== property)
     }
     func testEqualOptionalPropertyWithNilValueAndNil() {
-        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.realtimeDataValue)])
+        let property = Property<String?>.optional(in: .root, representer: .realtimeDataValue)
         property <== nil
         XCTAssertTrue(property ==== nil)
         XCTAssertTrue(nil ==== property)
     }
     func testEqualFailsOptionalPropertyWithValueAndValue() {
-        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.realtimeDataValue)])
+        let property = Property<String?>.optional(in: .root, representer: .realtimeDataValue)
         property <== "string"
         XCTAssertFalse(property ==== "")
         XCTAssertFalse("" ==== property)
     }
     func testNotEqualOptionalPropertyWithValueAndValue() {
-        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.realtimeDataValue)])
+        let property = Property<String?>.optional(in: .root, representer: .realtimeDataValue)
         property <== "string"
         XCTAssertTrue(property !=== "")
         XCTAssertTrue("" !=== property)
     }
     func testNotEqualOptionalPropertyWithValueAndNil() {
-        let property = Property<String?>(in: .root, options: [.representer: Availability<String?>.optional(Representer.realtimeDataValue)])
+        let property = Property<String?>.optional(in: .root, representer: .realtimeDataValue)
         property <== "string"
         XCTAssertFalse(property ==== nil)
         XCTAssertFalse(nil ==== property)
@@ -1612,7 +1656,7 @@ class VersionableObject: Object {
     lazy var firstMinorVersionVariable: Property<String?> = Property.writeRequired(
         in: Node(key: "firstMinorVersionVariable", parent: self.node),
         representer: Representer<String>.realtimeDataValue,
-        options: [.database: self.database as Any]
+        db: self.database
     )
 
     // renamed
@@ -1621,7 +1665,7 @@ class VersionableObject: Object {
     lazy var renamedToVariable: Property<String?> = Property.writeRequired(
         in: Node(key: "renamedToVariable", parent: self.node),
         representer: Representer<String>.realtimeDataValue,
-        options: [.database: self.database as Any]
+        db: self.database
     )
 
     override var ignoredLabels: [String] {
@@ -1778,7 +1822,7 @@ enum VersionableValue: WritableRealtimeValue, RealtimeDataRepresented, RealtimeV
         }
     }
 
-    init(in node: Node?, options: [ValueOption : Any]) {
+    init(in node: Node?, options: RealtimeValueOptions) {
         self = .v2(VersionableObjectV2(in: node, options: options))
     }
 
@@ -1844,7 +1888,7 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let versionableObj = VersionableObject(
             in: Node(key: "obj", parent: .root),
-            options: [.database: Cache.root]
+            options: RealtimeValueOptions(database: Cache.root)
         )
 
         let preconditionTransaction = Transaction(database: Cache.root)
@@ -1881,7 +1925,7 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let versionableObj = VersionableObject(
             in: Node(key: "obj", parent: .root),
-            options: [.database: Cache.root]
+            options: RealtimeValueOptions(database: Cache.root)
         )
 
         let preconditionTransaction = Transaction(database: Cache.root)
@@ -1929,7 +1973,7 @@ extension RealtimeTests {
         let exp = expectation(description: "")
         let versionableObj = VersionableObjectV2(
             in: Node(key: "obj", parent: nil),
-            options: [.database: Cache.root]
+            options: RealtimeValueOptions(database: Cache.root)
         )
 
         let now = Date()

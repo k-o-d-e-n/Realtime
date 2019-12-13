@@ -124,10 +124,6 @@ where C.View.Element: DatabaseKeyRepresentable {
         self.init(base: base)
     }
 
-    convenience required init(in node: Node, options: [ValueOption: Any]) {
-        self.init(base: C(in: node, options: options))
-    }
-
     override func makeIterator() -> AnyIterator<C.Iterator.Element> { return AnyIterator(base.makeIterator()) }
     override var startIndex: Index { return Index(base.startIndex) }
     override var endIndex: Index { return Index(base.endIndex) }
@@ -165,11 +161,6 @@ public final class AnyRealtimeCollection<Element>: RealtimeCollection {
 
     public init<C: RealtimeCollection>(_ base: C) where C.Element == Element, C.View.Element: DatabaseKeyRepresentable {
         self.base = _AnyRealtimeCollection<C>(base: base)
-    }
-
-    /// Currently no available
-    public convenience init(in node: Node?, options: [ValueOption: Any]) {
-        fatalError("Cannot use this initializer")
     }
 
     public convenience required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws { fatalError() }
@@ -273,7 +264,6 @@ where Base.View.Element: DatabaseKeyRepresentable {
         self.transform = transform
     }
 
-    public init(in node: Node?, options: [ValueOption: Any]) { fatalError() }
     public convenience required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         fatalError("Cannot use this initializer")
     }
@@ -320,7 +310,6 @@ where Base.View.Element: DatabaseKeyRepresentable, Base.Element: RealtimeCollect
         self.base = _AnyRealtimeCollection(base: base)
     }
 
-    public init(in node: Node?, options: [ValueOption: Any]) { fatalError() }
     public convenience required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         fatalError("Cannot use this initializer")
     }

@@ -149,6 +149,22 @@ struct Reflector: Sequence {
     }
 }
 
+public struct RealtimeValueOptions {
+    public let database: RealtimeDatabase?
+    public let raw: RealtimeDatabaseValue?
+    public let payload: RealtimeDatabaseValue?
+
+    public init(database: RealtimeDatabase? = nil, raw: RealtimeDatabaseValue? = nil, payload: RealtimeDatabaseValue? = nil) {
+        self.database = database
+        self.raw = raw
+        self.payload = payload
+    }
+
+    func with(db: RealtimeDatabase?) -> RealtimeValueOptions {
+        return .init(database: db, raw: raw, payload: payload)
+    }
+}
+
 /// Base class for any database value
 open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugStringConvertible {
     /// Remote version of model
@@ -168,21 +184,21 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
 
     internal var observing: [DatabaseDataEvent: (token: UInt, counter: Int)] = [:]
 
-    public convenience init(in object: _RealtimeValue, keyedBy key: String, options: [ValueOption: Any] = [:]) {
+    public convenience init(in object: _RealtimeValue, keyedBy key: String, options: RealtimeValueOptions = .init()) {
         self.init(
-            in: Node(key: key, parent: object.node),
-            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
+            node: Node(key: key, parent: object.node),
+            options: options.with(db: object.database)
         )
     }
 
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
+    init(node: Node?, options: RealtimeValueOptions) {
+        self.database = options.database ?? RealtimeApp.app.database
         self.node = node
-        if case let pl as RealtimeDatabaseValue = options[.payload] {
+        if let pl = options.payload {
             self.payload = pl
         }
-        if case let ipl as RealtimeDatabaseValue = options[.rawValue] {
-            self.raw = ipl
+        if let r = options.raw {
+            self.raw = r
         }
     }
 
@@ -436,6 +452,17 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
     }
 }
 
+public extension RawRepresentable where Self.RawValue == String {
+    func nested<Type: Object>(in object: Object, options: RealtimeValueOptions = .init()) -> Type {
+        let property = Type(
+            in: Node(key: rawValue, parent: object.node),
+            options: RealtimeValueOptions(database: object.database, raw: options.raw, payload: options.payload)
+        )
+        property.parent = object
+        return property
+    }
+}
+
 /// Main class to define Realtime models objects.
 /// You can define child properties using classes:
 ///
@@ -492,12 +519,20 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         return []
     }
 
-    public convenience init(in object: Object, keyedBy key: String, options: [ValueOption: Any] = [:]) {
-        self.init(
-            in: Node(key: key, parent: object.node),
-            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
+    public init(in object: Object, keyedBy key: String, options: RealtimeValueOptions) {
+        super.init(
+            node: Node(key: key, parent: object.node),
+            options: options.with(db: object.database)
         )
         self.parent = object
+    }
+
+    public required init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {
+        super.init(node: node, options: options)
+    }
+
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.init(data: data, event: event)
     }
 
     @discardableResult
@@ -567,7 +602,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         let linksWillNotBeRemovedInAncestor = node?.parent == ancestor
         let links: Links = Links(
             in: self.node.map { Node(key: InternalKeys.linkItems, parent: $0.linksNode) },
-            options: [.database: database as Any, .representer: Availability.required(Representer<[SourceLink]>.links)]
+            options: .required(Representer<[SourceLink]>.links, db: database, initial: [])
         ).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
             _ = links.loadValue().listening({ (event) in
@@ -917,12 +952,14 @@ extension Object: Reverting {
 }
 
 public extension Object {
+    /* TODO: creates objects with `Object` type and get EXC_BAD_ACCESS crash on runtime, because `_RealtimeValue.init` is not required
     /// Creates new instance associated with database node
     ///
     /// - Parameter node: Node location for value
-    convenience init(in node: Node?) { self.init(in: node, options: [:]) }
+    convenience init(in node: Node?) { self.init(in: node, options: RealtimeValueOptions()) }
     /// Creates new standalone instance with undefined node
     convenience init() { self.init(in: nil) }
+     */
 }
 
 public extension Object {
