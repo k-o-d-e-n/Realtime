@@ -659,7 +659,8 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
 
     // storage
 
-    func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (Data?) -> Void, onCancel: ((Error) -> Void)?) -> RealtimeStorageTask {
+    func load(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask {
+        var task = CacheStorageTask(result: .error(RealtimeError(source: .cache, description: "Unexpected behavior")))
         if node == location {
             fatalError("Cannot load file from root")
         } else if let node = child(by: node) {
@@ -667,21 +668,22 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             case .file(let file):
                 do {
                     let data = try file.value?.typed(as: Data.self)
-                    completion(data)
+                    task.result = .value((data, nil))
                 } catch let e {
-                    onCancel?(e)
+                    task.result = .error(e)
                 }
-            default: completion(nil)
+            default: task.result = .value((nil, nil))
             }
         } else {
-            completion(nil)
+            task.result = .value((nil, nil))
         }
-        return CacheStorageTask()
+        return task
     }
 
     struct CacheStorageTask: RealtimeStorageTask {
+        var result: ListenEvent<SuccessResult>
         var progress: AnyListenable<Progress> { return AnyListenable(Constant(Progress(totalUnitCount: 0))) }
-        var success: AnyListenable<RealtimeMetadata?> { return AnyListenable(Constant(nil)) }
+        var success: AnyListenable<SuccessResult> { return AnyListenable(result) }
         func pause() {}
         func cancel() {}
         func resume() {}

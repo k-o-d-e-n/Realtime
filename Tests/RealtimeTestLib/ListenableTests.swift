@@ -526,8 +526,8 @@ public final class ListenableTests: XCTestCase {
         var property = ValueStorage<Double>.unsafe(strong: .pi, repeater: .unsafe())
         property.repeater!
             .map { $0.exponent }
-            .mapAsync { v, exp in
-                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill("\(v)") })
+            .mapAsync { v, assign in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { assign(.value("\(v)")) })
             }
             .listening(onValue: {
                 exponentValue = $0
@@ -560,11 +560,11 @@ public final class ListenableTests: XCTestCase {
         var property = ValueStorage<Double>.unsafe(strong: .pi, repeater: .unsafe())
         property.repeater!
             .map { $0.exponent }
-            .mapAsync { v, exp in
-                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { exp.fulfill("\(v)") })
+            .mapAsync { v, assign in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { assign(.value("\(v)")) })
             }
-            .mapAsync({ (v, promise) in
-                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { promise.fulfill(v.count) })
+            .mapAsync({ (v, assign) in
+                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: { assign(.value(v.count)) })
             })
             .listening(onValue: {
                 exponentValue = $0

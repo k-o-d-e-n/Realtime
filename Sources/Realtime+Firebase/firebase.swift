@@ -567,7 +567,7 @@ extension StorageReference {
     }
 }
 
-extension StorageDownloadTask: RealtimeStorageTask {
+extension StorageDownloadTask {
     public var progress: AnyListenable<Progress> {
         return AnyListenable(Status(task: self, statuses: [.progress]).compactMap({ $0.progress }))
     }
@@ -600,12 +600,32 @@ extension StorageDownloadTask {
 }
 
 extension Storage: RealtimeStorage {
-    public func load(
-        for node: Node,
-        timeout: DispatchTimeInterval,
-        completion: @escaping (Data?) -> Void,
-        onCancel: ((Error) -> Void)?
-        ) -> RealtimeStorageTask {
+    struct DownloadTask: RealtimeStorageTask {
+        let firTask: StorageDownloadTask
+        let resultRepeater: Repeater<SuccessResult>
+        let resultStorage: Preprocessor<Memoize<Repeater<SuccessResult>>, SuccessResult>
+
+        var progress: AnyListenable<Progress> { return firTask.progress }
+        var success: AnyListenable<SuccessResult> { return resultStorage.asAny() }
+
+        init(_ task: StorageDownloadTask) {
+            self.firTask = task
+            let repeater: Repeater<SuccessResult> = .unsafe()
+            self.resultRepeater = repeater
+            self.resultStorage = repeater.memoizeOne(sendLast: true)
+        }
+
+        func pause() {
+            firTask.pause()
+        }
+        func resume() {
+            firTask.resume()
+        }
+        func cancel() {
+            firTask.cancel()
+        }
+    }
+    public func load(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask {
         //        var invalidated: Int32 = 0
         let ref = node.file(for: self)
         //        let invalidate = { (task: StorageDownloadTask?) -> Bool in
@@ -616,20 +636,19 @@ extension Storage: RealtimeStorage {
         //                return false
         //            }
         //        }
-        var task: StorageDownloadTask!
-        task = ref.getData(maxSize: .max) { (data, error) in
+        var task: DownloadTask!
+        task = DownloadTask(ref.getData(maxSize: .max) { (data, error) in
             //            guard invalidate(nil) else { return }
             switch error {
-            case .none: completion(data)
-            case .some(let nsError as NSError):
-                if let code = StorageErrorCode(rawValue: nsError.code), code == .objectNotFound {
-                    completion(nil)
+            case .none: task.resultRepeater.send((data, nil))
+            case .some(let error):
+                if case let nsError as NSError = error, let code = StorageErrorCode(rawValue: nsError.code), code == .objectNotFound {
+                    task.resultRepeater.send((nil, nil))
                 } else {
-                    onCancel?(nsError)
+                    task.resultRepeater.send(.error(error))
                 }
-            default: onCancel?(error!)
             }
-        }
+        })
 
         //        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: {
         //            if invalidate(task) {

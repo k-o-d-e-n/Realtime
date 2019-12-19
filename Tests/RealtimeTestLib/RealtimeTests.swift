@@ -2104,36 +2104,28 @@ extension RealtimeTests {
             }
         }
         class NextLevelTask: RealtimeStorageTask {
-            let _completion: (Data?, Bool) -> Void
-
-            init(_ completion: @escaping (Data?, Bool) -> Void) {
-                self._completion = completion
-            }
-
             func pause() {}
             func cancel() {}
             func resume() {
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(1), execute: {
                     let data = "Realtime".data(using: .utf8)
-                    self._completion(data, false)
-                    self.delayed.send(.value(["Realtime": data as Any]))
+                    self.delayed.send(.value((data: data, metadata: ["Realtime": data as Any])))
                 })
             }
 
-            let delayed = Repeater<RealtimeMetadata?>.unsafe()
+            let delayed = Repeater<SuccessResult>.unsafe()
             var progress: AnyListenable<Progress> { return Constant(Progress(totalUnitCount: 100)).asAny() }
-            var success: AnyListenable<RealtimeMetadata?> {
+            var success: AnyListenable<SuccessResult> {
                 return delayed.asAny()
             }
 
-            static func running(completion: @escaping (Data?, Bool) -> Void) -> NextLevelTask { let t = NextLevelTask(completion); t.resume(); return t }
+            static func running() -> NextLevelTask { let t = NextLevelTask(); t.resume(); return t }
         }
 
         let exp = expectation(description: "")
-        let cacheTask = CachedFileDownloadTask(nextLevel: NextLevelTask.running, cache: RSCache(), node: .root) { (data, cached) in
-        }
+        let cacheTask = CachedFileDownloadTask(cache: RSCache(), node: .root, nextLevel: NextLevelTask.running)
 
-        cacheTask.success.listening(onValue: { metadata in
+        cacheTask.success.listening(onValue: { (data, metadata) in
             XCTAssertEqual("Realtime", String(data: metadata!["Realtime"] as! Data, encoding: .utf8))
             exp.fulfill()
         }).add(to: self.store)
