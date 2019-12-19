@@ -412,6 +412,16 @@ extension ValueStorage where T: AnyObject {
     }
 }
 
+public struct ErrorListenable<T>: Listenable {
+    let error: Error
+    public init(_ error: Error) {
+        self.error = error
+    }
+    public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
+        assign.call(.error(error))
+        return EmptyDispose()
+    }
+}
 public struct Constant<T>: Listenable {
     let value: T
     public init(_ value: T) {

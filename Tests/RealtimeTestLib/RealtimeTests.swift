@@ -491,7 +491,7 @@ extension RealtimeTests {
 //            XCTAssertEqual(object.file.unwrapped.flatMap { UIImageJPEGRepresentation($0, 1.0) }, UIImageJPEGRepresentation(#imageLiteral(resourceName: "pw"), 1.0))
             XCTAssertNotNil(object.readonlyFile.unwrapped)
             XCTAssertEqual(object.readonlyFile.unwrapped, rofileData)
-            XCTAssertEqual(object.readonlyProperty.wrapped, Int64())
+            XCTAssertEqual(object.readonlyProperty.wrappedValue, Int64())
             XCTAssertEqual(object.property.unwrapped, element.property.unwrapped)
             XCTAssertEqual(object.nestedObject.lazyProperty.unwrapped, element.nestedObject.lazyProperty.unwrapped)
         } catch let e {
@@ -616,8 +616,8 @@ extension RealtimeTests {
                     let userCopy = try User(data: Cache.root.child(forNode: user.node!), event: .child(.added))
 
                     XCTAssertTrue(userCopy.ownedGroups.first?.dbKey == group.dbKey)
-                    XCTAssertTrue(group._manager.wrapped?.dbKey == userCopy.dbKey)
-                    XCTAssertTrue(groupCopy._manager.wrapped?.dbKey == userCopy.dbKey)
+                    XCTAssertTrue(group._manager.wrappedValue?.dbKey == userCopy.dbKey)
+                    XCTAssertTrue(groupCopy._manager.wrappedValue?.dbKey == userCopy.dbKey)
 
                     let remove = Transaction(database: Cache.root)
                     try groupCopy._manager.setValue(nil, in: remove)
@@ -744,9 +744,9 @@ extension RealtimeTests {
                 do {
                     try copyRelation.apply(Cache.root.child(by: copyRelation.node!)!.asUpdateNode(), event: .value)
 
-                    XCTAssertEqual(copyRelation.wrapped, relation.wrapped)
-                    XCTAssertEqual(copyRelation.wrapped.raw?.debug as? Int, relation.wrapped.raw?.debug as? Int)
-                    XCTAssertEqual(copyRelation.wrapped.payload, relation.wrapped.payload)
+                    XCTAssertEqual(copyRelation.wrappedValue, relation.wrappedValue)
+                    XCTAssertEqual(copyRelation.wrappedValue.raw?.debug as? Int, relation.wrappedValue.raw?.debug as? Int)
+                    XCTAssertEqual(copyRelation.wrappedValue.payload, relation.wrappedValue.payload)
                     exp.fulfill()
                 } catch let e {
                     XCTFail(e.describingErrorDescription)
@@ -1403,7 +1403,7 @@ extension RealtimeTests {
                 let ownedGroup = Relation<Group?>.readonly(in: user.ownedGroup.node, config: user.ownedGroup.options)
                 do {
                     try ownedGroup.apply(Cache.root.child(forNode: user.ownedGroup.node!), event: .value)
-                    XCTAssertEqual(ownedGroup.wrapped, user.ownedGroup.wrapped)
+                    XCTAssertEqual(ownedGroup.wrappedValue, user.ownedGroup.wrappedValue)
                     exp.fulfill()
                 } catch let e {
                     XCTFail(e.localizedDescription)
@@ -1438,7 +1438,7 @@ extension RealtimeTests {
                 )
                 do {
                     try chairman.apply(Cache.root.child(forNode: conversation.chairman.node!), event: .value)
-                    XCTAssertEqual(chairman.wrapped, conversation.chairman.wrapped)
+                    XCTAssertEqual(chairman.wrappedValue, conversation.chairman.wrappedValue)
                     exp.fulfill()
                 } catch let e {
                     XCTFail(e.localizedDescription)
@@ -1768,7 +1768,7 @@ class VersionableObjectV2: Object {
         if old.major == 2 {
             if old.minor == 0 {
                 if !requiredPropertyV2.hasChanges {
-                    if let value = requiredPropertyV2.wrapped {
+                    if let value = requiredPropertyV2.wrappedValue {
                         // migration called before update operation because value doesn't add explicitly to transaction
                         requiredPropertyV2 <== value
                     } else {
@@ -1909,7 +1909,7 @@ extension RealtimeTests {
 
             XCTAssertTrue(versionableObj._calledMigration)
             XCTAssertNotNil(versionableObj._version)
-            XCTAssertTrue(versionableObj.renamedToVariable.wrapped == "renamed")
+            XCTAssertTrue(versionableObj.renamedToVariable.wrappedValue == "renamed")
         }
     }
 
@@ -1937,8 +1937,8 @@ extension RealtimeTests {
                         switch versionableValue {
                         case .v1(let obj):
                             XCTAssertNotNil(obj._version)
-                            XCTAssertTrue(obj.firstMinorVersionVariable.wrapped == "null")
-                            XCTAssertTrue(obj.renamedToVariable.wrapped == "renamed")
+                            XCTAssertTrue(obj.firstMinorVersionVariable.wrappedValue == "null")
+                            XCTAssertTrue(obj.renamedToVariable.wrappedValue == "renamed")
                             exp.fulfill()
                         case .v2: XCTFail("Unexpected version")
                         }
@@ -1957,7 +1957,7 @@ extension RealtimeTests {
 
             XCTAssertTrue(versionableObj._calledMigration)
             XCTAssertNotNil(versionableObj._version)
-            XCTAssertTrue(versionableObj.renamedToVariable.wrapped == "renamed")
+            XCTAssertTrue(versionableObj.renamedToVariable.wrappedValue == "renamed")
         }
     }
 
@@ -1984,7 +1984,7 @@ extension RealtimeTests {
                         let representer = Representer.dateV2()
                         XCTAssertNotNil(obj._version)
                         XCTAssertEqual(
-                            obj.requiredPropertyV2.wrapped?.timeIntervalSince1970.rounded(),
+                            obj.requiredPropertyV2.wrappedValue?.timeIntervalSince1970.rounded(),
                             try! representer.encode(now).map({ try! representer.decode(ValueNode(node: .root, value: $0)) })?
                                 .timeIntervalSince1970.rounded()
                         )
@@ -2027,7 +2027,7 @@ extension RealtimeTests {
                     case .v2(let obj):
                         XCTAssertNotNil(obj._version)
                         XCTAssertEqual(
-                            obj.requiredPropertyV2.wrapped?.timeIntervalSince1970.rounded(),
+                            obj.requiredPropertyV2.wrappedValue?.timeIntervalSince1970.rounded(),
                             try! representer.encode(now).map({ try! representer.decode(ValueNode(node: .root, value: $0)) })?
                                 .timeIntervalSince1970.rounded()
                         )

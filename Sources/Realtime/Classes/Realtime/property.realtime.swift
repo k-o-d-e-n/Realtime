@@ -458,7 +458,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
     ///
     /// - Parameter using: Mutation closure
     public func change(_ using: (T?) -> T) {
-        _setLocalValue(using(wrapped))
+        _setLocalValue(using(wrappedValue))
     }
 
     /// Removes property value.
@@ -565,7 +565,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 prefix operator §
 public extension ReadonlyProperty {
     static prefix func § (prop: ReadonlyProperty) -> T? {
-        return prop.wrapped
+        return prop.wrappedValue
     }
 }
 
@@ -616,7 +616,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     }
 
     public var wrappedValue: T? {
-        return wrapped
+        return _value.wrapped
     }
     public var projectedValue: ReadonlyProperty { return self }
     
@@ -799,29 +799,29 @@ public extension ReadonlyProperty {
     /// `nil` if property has no value, or has been removed
     @available(*, deprecated, renamed: "wrappedValue")
     var wrapped: T? {
-        return _value.wrapped
+        return wrappedValue
     }
 }
 public extension ReadonlyProperty {
     static func ?? (optional: ReadonlyProperty, defaultValue: @autoclosure () throws -> T) rethrows -> T {
-        return try optional.wrapped ?? defaultValue()
+        return try optional.wrappedValue ?? defaultValue()
     }
     static func ?? (optional: ReadonlyProperty, defaultValue: @autoclosure () throws -> T?) rethrows -> T? {
-        return try optional.wrapped ?? defaultValue()
+        return try optional.wrappedValue ?? defaultValue()
     }
     static func <==(_ value: inout T?, _ prop: ReadonlyProperty) {
-        value = prop.wrapped
+        value = prop.wrappedValue
     }
 }
 public func <== <T>(_ value: inout T?, _ prop: ReadonlyProperty<T>?) {
-    value = prop?.wrapped
+    value = prop?.wrappedValue
 }
 public extension ReadonlyProperty {
     func mapValue<U>(_ transform: (T) throws -> U) rethrows -> U? {
-        return try wrapped.map(transform)
+        return try wrappedValue.map(transform)
     }
     func flatMapValue<U>(_ transform: (T) throws -> U?) rethrows -> U? {
-        return try wrapped.flatMap(transform)
+        return try wrappedValue.flatMap(transform)
     }
 }
 public extension ReadonlyProperty where T: _Optional {
@@ -840,7 +840,7 @@ public func <== <T>(_ value: inout T.Wrapped?, _ prop: ReadonlyProperty<T>?) whe
 }
 public extension ReadonlyProperty where T: HasDefaultLiteral {
     static func <==(_ value: inout T, _ prop: ReadonlyProperty) {
-        value = prop.wrapped ?? T()
+        value = prop.wrappedValue ?? T()
     }
 }
 public extension ReadonlyProperty where T: _Optional, T.Wrapped: HasDefaultLiteral {
@@ -852,20 +852,20 @@ infix operator ====: ComparisonPrecedence
 infix operator !===: ComparisonPrecedence
 public extension ReadonlyProperty where T: Equatable {
     static func ====(lhs: T, rhs: ReadonlyProperty) -> Bool {
-        switch (lhs, rhs.wrapped) {
+        switch (lhs, rhs.wrappedValue) {
         case (_, .none): return false
         case (let l, .some(let r)): return l == r
         }
     }
     static func ====(lhs: ReadonlyProperty, rhs: T) -> Bool {
-        switch (rhs, lhs.wrapped) {
+        switch (rhs, lhs.wrappedValue) {
         case (_, .none): return false
         case (let l, .some(let r)): return l == r
         }
     }
     static func ====(lhs: ReadonlyProperty, rhs: ReadonlyProperty) -> Bool {
         guard lhs !== rhs else { return true }
-        return rhs.wrapped == lhs.wrapped
+        return rhs.wrappedValue == lhs.wrappedValue
     }
     static func !===(lhs: T, rhs: ReadonlyProperty) -> Bool {
         return !(lhs ==== rhs)
@@ -877,14 +877,14 @@ public extension ReadonlyProperty where T: Equatable {
         return !(lhs ==== rhs)
     }
     static func ====(lhs: T?, rhs: ReadonlyProperty) -> Bool {
-        switch (lhs, rhs.wrapped) {
+        switch (lhs, rhs.wrappedValue) {
         case (.none, .none): return true
         case (.none, .some), (.some, .none): return false
         case (.some(let l), .some(let r)): return l == r
         }
     }
     static func ====(lhs: ReadonlyProperty, rhs: T?) -> Bool {
-        switch (rhs, lhs.wrapped) {
+        switch (rhs, lhs.wrappedValue) {
         case (.none, .none): return true
         case (.none, .some), (.some, .none): return false
         case (.some(let l), .some(let r)): return l == r
@@ -899,7 +899,7 @@ public extension ReadonlyProperty where T: Equatable {
 }
 public extension ReadonlyProperty where T: Equatable & _Optional {
     static func ====(lhs: T, rhs: ReadonlyProperty) -> Bool {
-        return rhs.wrapped == lhs
+        return rhs.wrappedValue == lhs
     }
     static func ====(lhs: ReadonlyProperty, rhs: T) -> Bool {
         return lhs.mapValue({ $0 == rhs }) ?? (rhs.wrapped == nil)
@@ -907,7 +907,7 @@ public extension ReadonlyProperty where T: Equatable & _Optional {
 }
 public extension ReadonlyProperty where T: HasDefaultLiteral & _ComparableWithDefaultLiteral {
     static func <==(_ value: inout T, _ prop: ReadonlyProperty) {
-        value = prop.wrapped ?? T()
+        value = prop.wrappedValue ?? T()
     }
     func defaultOnEmpty() -> Self {
         self.representer = Representer(defaultOnEmpty: representer)
