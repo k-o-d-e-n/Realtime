@@ -60,7 +60,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         get { return dynamicValues[member] as? T }
     }
 
-    open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) { // TODO: Row<View, Model> replace with Self (swift 5.1)
+    open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
         _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 

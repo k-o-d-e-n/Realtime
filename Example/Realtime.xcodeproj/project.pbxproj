@@ -73,6 +73,7 @@
 		A41FD588211EF890006DC3F7 /* other.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = other.swift; sourceTree = "<group>"; };
 		A432591523740FB30011B0B6 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
 		A44331B52020E9E900BA2FDE /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
+		A44866B823A422D6006500ED /* Realtime_FDB.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Realtime_FDB.entitlements; sourceTree = "<group>"; };
 		A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTableController.swift; sourceTree = "<group>"; };
 		A491423E21D0F535006F6858 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
 		A4AAA56E21A1F1300085C3BA /* _concepts_.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _concepts_.swift; sourceTree = "<group>"; };
@@ -214,6 +215,7 @@
 		A4FF24482347C4C70093C109 /* Realtime_FDB */ = {
 			isa = PBXGroup;
 			children = (
+				A44866B823A422D6006500ED /* Realtime_FDB.entitlements */,
 				A4FF24492347C4C70093C109 /* AppDelegate.swift */,
 				A4FF24502347C4CA0093C109 /* Assets.xcassets */,
 				A4FF24552347C4CA0093C109 /* Info.plist */,
@@ -887,9 +889,11 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = Realtime_FDB/Realtime_FDB.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
 				DEVELOPMENT_TEAM = 39RU298KG9;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -904,7 +908,9 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "ru.koden.realtime-fdb.Realtime-FDB";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_ENFORCE_EXCLUSIVE_ACCESS = off;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -923,8 +929,10 @@
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = Realtime_FDB/Realtime_FDB.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = YES;
 				DEVELOPMENT_TEAM = 39RU298KG9;
 				ENABLE_TESTABILITY = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -939,6 +947,8 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "ru.koden.realtime-fdb.Realtime-FDB";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
+				SWIFT_ENFORCE_EXCLUSIVE_ACCESS = off;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

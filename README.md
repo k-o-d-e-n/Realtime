@@ -92,13 +92,11 @@ transaction.commit(with: { state, err in
 
 ***Property*** - stored property for any value.
 
-***SharedProperty*** - stored property similar `Property`, but uses concurrency transaction to update value. Use this property if value assumes shared access (for example 'number of likes' value).
-
 ### References
 
 ***Reference*** - stores reference on any database value. Doesn't imply referential integrity. Use it if record won't be removed or else other reason that doesn't need referential integrity.
 
-***Relation*** - stores reference on any database value. It creates link on side related object. On deletion related object will be deleted reference.
+***Relation*** - stores reference on any database value.
 
 ### Files
 
@@ -106,7 +104,7 @@ transaction.commit(with: { state, err in
 
 ***File*** - stored property for file in Firebase Storage.
 
-All properties adopt `@propertyWrapper` feature, but while Swift unsupported access to `self` in custom lazy properties, this way to define properties generally useless.
+All properties adopt `@propertyWrapper` feature, but while Swift is unsupported access to `self` in custom lazy properties, this way to define properties generally useless.
 
 ### Collections
 ```swift
@@ -118,10 +116,10 @@ class Some: Object {
 ```
 Some mutable operations of collections can require `isSynced` state. To achieve this state use `func runObserving()` function or set property `keepSynced: Bool` to `true`.
 
-***References*** is array that stores objects as references.
+***(Distributed)References*** is array that stores objects as references.
 Source elements must locate in the same reference. On insertion of object to this array creates link on side object.
 
-***Values*** is array that stores objects by value in itself location.
+***(Explicit)Values*** is array that stores objects by value in itself location. 'Explicit' prefix is used in collection that stores elements without collection view.
 
 `References`, `Values` mutating:
 ```swift
@@ -142,7 +140,7 @@ do {
 }
 ```
 
-***AssociatedValues*** is dictionary where keys are references, but values are objects. On save value creates link on side key object.
+***(Explicit)AssociatedValues*** is dictionary where keys are references, but values are objects. On save value creates link on side key object.
 
 `AssociatedValues` mutating:
 ```swift
@@ -182,11 +180,11 @@ Almost all data changes perform using this object.
 The most mutable operations just take transaction as parameter, but to create custom complex operations you can use this methods:
 ```swift
 /// adds operation of save RealtimeValue as single value as is
-func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Node)
+func set<T>(_ value: T, by node: Node) where T: RealtimeValue & RealtimeValueEvents
 /// adds operation of delete RealtimeValue
-func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T)
+func delete<T>(_ value: T) where T: RealtimeValue & RealtimeValueEvents
 /// adds operation of update RealtimeValue
-func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T)
+func update<T>(_ value: T) where T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting
 /// method to merge actions of other transaction
 func merge(_ other: Transaction)
 ```
@@ -323,7 +321,7 @@ Xcode 9+, Swift 4.1+.
 
 SwiftPM
 ```swift
-    .package(url: "https://github.com/k-o-d-e-n/realtime.git", .branch("master"))
+.package(url: "https://github.com/k-o-d-e-n/realtime.git", .branch("master"))
 ```
 
 Realtime is available through [CocoaPods](http://cocoapods.org). To install
@@ -335,7 +333,7 @@ pod 'Realtime'
 
 ## Author
 
-Koryttsev Denis, koden.u8800@gmail.com
+Koryttsev Denis, koden.u8800@gmail.com  
 Twitter: [@K_o_D_e_N](https://twitter.com/K_o_D_e_N)
 
 ## License
