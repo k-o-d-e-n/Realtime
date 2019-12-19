@@ -714,7 +714,7 @@ public struct Memoize<T: Listenable>: Listenable {
     }
 
     private func sendLastIfNeeded(_ assign: Closure<ListenEvent<[T.Out]>, Void>) {
-        let current = storage.value
+        let current = storage.wrappedValue
         if current.1 {
             assign.call(.value(current.0))
         }
@@ -778,7 +778,7 @@ public struct Shared<T: Listenable>: Listenable {
         case .repeatable:
             let connectionStorage = ValueStorage<(UInt, ListeningDispose?)>.unsafe(strong: (0, nil))
             self.liveStrategy = .repeatable(source, connectionStorage, ListeningDispose({
-                connectionStorage.value = (connectionStorage.value.0, nil) // disposes when shared deinitialized
+                connectionStorage.wrappedValue = (connectionStorage.wrappedValue.0, nil) // disposes when shared deinitialized
             }))
         case .continuous:
             self.liveStrategy = .continuous(source.bind(to: repeater))
@@ -786,19 +786,19 @@ public struct Shared<T: Listenable>: Listenable {
     }
 
     private func increment(_ storage: ValueStorage<(UInt, ListeningDispose?)>, source: T) {
-        if storage.value.1 == nil {
-            storage.value = (1, ListeningDispose(source.bind(to: repeater)))
+        if storage.wrappedValue.1 == nil {
+            storage.wrappedValue = (1, ListeningDispose(source.bind(to: repeater)))
         } else {
-            storage.value = (storage.value.0 + 1, storage.value.1)
+            storage.wrappedValue = (storage.wrappedValue.0 + 1, storage.wrappedValue.1)
         }
     }
 
     private static func decrement(_ storage: ValueStorage<(UInt, ListeningDispose?)>) {
-        let current = storage.value
+        let current = storage.wrappedValue
         if current.0 == 1 {
-            storage.value = (0, nil)
+            storage.wrappedValue = (0, nil)
         } else {
-            storage.value = (current.0 - 1, current.1)
+            storage.wrappedValue = (current.0 - 1, current.1)
         }
     }
 
@@ -858,11 +858,11 @@ public struct Share<T: Listenable>: Listenable {
         switch self.liveStrategy {
         case .continuous(let d): dispose = d
         case .repeatable(let source, let disposeStorage):
-            if let disp = disposeStorage.value, !disp.isDisposed {
+            if let disp = disposeStorage.wrappedValue, !disp.isDisposed {
                 dispose = disp
             } else {
                 dispose = ListeningDispose(source.bind(to: repeater))
-                disposeStorage.value = dispose
+                disposeStorage.wrappedValue = dispose
             }
         }
         return dispose

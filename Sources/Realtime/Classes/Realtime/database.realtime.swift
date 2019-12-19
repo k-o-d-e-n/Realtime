@@ -364,7 +364,7 @@ class PagingController {
             return false
         }
 
-        var disposable: Disposable?
+        let disposable: Disposable?
         disposable = database.observe(
             .child([]), // with .child([]) disposable has no significance
             on: node,
@@ -415,7 +415,7 @@ class PagingController {
             return false
         }
 
-        var disposable: Disposable?
+        let disposable: Disposable?
         disposable = database.observe(
             .child([]), // with .child([]) disposable has no significance
             on: node,

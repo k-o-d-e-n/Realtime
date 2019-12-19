@@ -149,7 +149,7 @@ class CachedFileDownloadTask: RealtimeStorageTask {
         self._success = success
         let source = ValueStorage<AnyListenable<RealtimeMetadata?>?>.unsafe(strong: nil, repeater: .unsafe())
         self.currentSource = source
-        let memoizedSuccess = source.repeater!.then({ $0! }).combine(with: switcher).memoizeOne(sendLast: true).filter({ $1 }).map({ $0.0 })
+        let memoizedSuccess = source.then({ $0! }).combine(with: switcher).memoizeOne(sendLast: true).filter({ $1 }).map({ $0.0 })
         self._memoizedSuccess = memoizedSuccess
         self.nextLevelTask = task
         self.cache = cache
@@ -171,7 +171,7 @@ class CachedFileDownloadTask: RealtimeStorageTask {
                 if let d = data {
                     self.state = .finish
                     self.completion(d, true)
-                    self.currentSource.value = self._success.asAny()
+                    self.currentSource.wrappedValue = self._success.asAny()
                     self._success.send(.value(nil)) // TODO: Metadata in cache unsupported
                 } else {
                     let compl = self.completion
@@ -181,7 +181,7 @@ class CachedFileDownloadTask: RealtimeStorageTask {
                         compl(data, cached)
                         switcher.send(.value(true))
                     })
-                    self.currentSource.value = task.success.do({ [weak self] _ in self?.state = .finish }).asAny()
+                    self.currentSource.wrappedValue = task.success.do({ [weak self] _ in self?.state = .finish }).asAny()
                     self._nextTask = task
                 }
             }

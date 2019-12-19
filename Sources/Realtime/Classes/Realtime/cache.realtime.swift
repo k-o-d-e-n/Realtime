@@ -347,7 +347,7 @@ extension ObjectNode {
 
     fileprivate func replaceNode(with dbNode: CacheNode) throws {
         if case .some(.object(let parent)) = child(by: dbNode.location.parent!) {
-            parent.childs.remove(at: parent.childs.index(where: { $0.asUpdateNode().location === dbNode.location })!)
+            parent.childs.remove(at: parent.childs.firstIndex(where: { $0.asUpdateNode().location === dbNode.location })!)
             if !dbNode.isEmpty {
                 parent.childs.append(dbNode)
             }
@@ -363,7 +363,7 @@ extension ObjectNode {
         case (.object(let l), .object(let r)):
             try l._mergeWithObject(theSameReference: r, conflictResolver: conflictResolver, didAppend: didAppend)
         default:
-            let index = self.childs.index(where: { $0.location == node })!
+            let index = self.childs.firstIndex(where: { $0.location == node })!
             let resolved = conflictResolver(current, update)
             if resolved.isEmpty {
                 self.childs.remove(at: index)
@@ -447,7 +447,7 @@ extension ObjectNode {
                         switch update {
                         case .object(let o): current = o
                         case .value, .file:
-                            let index = current.childs.index(where: { $0.location == n })!
+                            let index = current.childs.firstIndex(where: { $0.location == n })!
                             let leftNodes = node.after(ancestor: n)
                             current.childs[index] = .object(leftNodes.reversed().dropLast().reduce(ObjectNode(node: node, childs: [other]), { objNode, ref in
                                 let child = CacheNode.object(objNode)

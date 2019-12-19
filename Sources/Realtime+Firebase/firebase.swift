@@ -133,6 +133,8 @@ extension FirebaseDataSnapshot where Self: RealtimeDataProtocol {
             case .float32Type, .floatType: return RealtimeDatabaseValue(value.floatValue)
             case .float64Type, .doubleType, .cgFloatType:
                 return RealtimeDatabaseValue(value.doubleValue)
+            @unknown default:
+                throw RealtimeError(decoding: RealtimeDatabaseValue.self, value, reason: "Unexpected number type")
             }
         case _ as NSNull: return nil
         default: return nil

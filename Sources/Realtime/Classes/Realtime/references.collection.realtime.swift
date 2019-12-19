@@ -200,10 +200,10 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     override var _hasChanges: Bool { return view._hasChanges }
 
     public func write(_ element: Element, in transaction: Transaction) throws {
-        try write(element: element, with: Int64(count), in: transaction)
+        try write(element: element, in: transaction)
     }
     public func write(_ element: Element) throws -> Transaction {
-        return try write(element: element, with: Int64(count), in: nil)
+        return try write(element: element, in: nil)
     }
 
     public func erase(at index: Int, in transaction: Transaction) {
@@ -224,8 +224,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     ///   - transaction: Write transaction to keep the changes
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    func write(element: Element, with priority: Int64? = nil,
-                in transaction: Transaction? = nil) throws -> Transaction {
+    func write(element: Element, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
         guard element.node?.parent == spaceNode else { fatalError("Element must be located in elements node") }
         guard isSynced else {
@@ -241,7 +240,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
                         ))
                     } else {
                         do {
-                            try self._write(element, with: priority, in: database, in: transaction)
+                            try self._write(element, in: database, in: transaction)
                             promise.fulfill()
                         } catch let e {
                             promise.reject(e)
@@ -258,7 +257,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
                 description: "Element already contains. Element: \(element)"
             )
         }
-        return try _write(element, with: priority, in: database, in: transaction)
+        return try _write(element, in: database, in: transaction)
     }
 
     /// Adds element with default sorting priority index or if `nil` to end of collection
@@ -269,7 +268,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     /// - Parameters:
     ///   - element: The element to write
     ///   - index: Priority value or `nil` if you want to add to end of collection.
-    public func insert(element: Element, with priority: Int64? = nil) {
+    public func insert(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard element.node?.parent == spaceNode else { fatalError("Element must be located in elements node") }
         let contains = element.node.map { n in storage[n.key] != nil } ?? false
@@ -277,9 +276,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
             fatalError("Element with such key already exists")
         }
 
-        let index = priority ?? Int64(view.count)
-        var item = RCItem(key: nil, value: element)
-        item.priority = index
+        let item = RCItem(key: nil, value: element)
         storage.set(value: element, for: item.dbKey)
         view.insert(item)
     }
@@ -351,19 +348,16 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
 
     @discardableResult
     internal func _write(
-        _ element: Element, with priority: Int64?,
-        in database: RealtimeDatabase, in transaction: Transaction? = nil
-        ) throws -> Transaction {
+        _ element: Element, in database: RealtimeDatabase, in transaction: Transaction? = nil
+    ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, with: priority ?? view.last.flatMap { $0.priority.map { $0 + 1 } } ?? 0, by: node!, in: transaction)
+        try _write(element, by: node!, in: transaction)
         return transaction
     }
 
-    internal func _write(_ element: Element, with priority: Int64,
-                         by location: Node, in transaction: Transaction) throws {
+    internal func _write(_ element: Element, by location: Node, in transaction: Transaction) throws {
         let itemNode = location.child(with: element.dbKey)
-        var item = RCItem(key: itemNode.key, value: element)
-        item.priority = priority
+        let item = RCItem(key: itemNode.key, value: element)
 
         transaction.addReversion({ [weak self] in
             self?.storage.remove(for: item.dbKey)

@@ -190,7 +190,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         self.options = options
 
         if let ownerNode = node?.ancestor(onLevelUp: self.options.ownerLevelsUp) {
-            self.options.ownerNode.value = ownerNode
+            self.options.ownerNode.wrappedValue = ownerNode
         }
 
         super.init(in: node, options: PropertyOptions(
@@ -214,7 +214,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     override func _write(to transaction: Transaction, by node: Node) throws {
         _write_RealtimeValue(to: transaction, by: node)
         if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
-            options.ownerNode.value = ownerNode
+            options.ownerNode.wrappedValue = ownerNode
             try super._write(to: transaction, by: node)
         } else {
             throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
@@ -797,6 +797,7 @@ public extension ReadonlyProperty {
 
     /// Current value of property
     /// `nil` if property has no value, or has been removed
+    @available(*, deprecated, renamed: "wrappedValue")
     var wrapped: T? {
         return _value.wrapped
     }

@@ -940,7 +940,7 @@ public extension Representer where V: RealtimeValue {
     static func relation(_ mode: RelationProperty, rootLevelsUp: UInt?, ownerNode: ValueStorage<Node?>, database: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, V>) -> Representer<V> {
         return Representer<V>(
             encoding: { v in
-                guard let owner = ownerNode.value else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
+                guard let owner = ownerNode.wrappedValue else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation owner node") }
                 guard let node = v.node else { throw RealtimeError(encoding: V.self, reason: "Can`t get relation value node.") }
                 let anchorNode = try rootLevelsUp.map { level -> Node in
                     if let ancestor = owner.ancestor(onLevelUp: level) {
@@ -957,7 +957,7 @@ public extension Representer where V: RealtimeValue {
                 ).defaultRepresentation()
             },
             decoding: { d in
-                guard let owner = ownerNode.value
+                guard let owner = ownerNode.wrappedValue
                 else { throw RealtimeError(decoding: V.self, d, reason: "Can`t get relation owner node") }
                 let anchorNode = try rootLevelsUp.map { level -> Node in
                     if let ancestor = owner.ancestor(onLevelUp: level) {

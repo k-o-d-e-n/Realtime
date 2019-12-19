@@ -50,27 +50,27 @@ public final class ListenableTests: XCTestCase {
     func testStrongProperty() {
         let valueWrapper = ValueStorage<Int>.unsafe(strong: 0)
         valueWrapper.replace(with: 1)
-        XCTAssertEqual(valueWrapper.value, 1)
+        XCTAssertEqual(valueWrapper.wrappedValue, 1)
         valueWrapper.replace(with: 20)
-        XCTAssertEqual(valueWrapper.value, 20)
+        XCTAssertEqual(valueWrapper.wrappedValue, 20)
     }
 
     func testWeakProperty() {
         var object: NSObject? = NSObject()
         let valueWrapper = ValueStorage<NSObject?>.unsafe(weak: object)
-        XCTAssertEqual(valueWrapper.value, object)
+        XCTAssertEqual(valueWrapper.wrappedValue, object)
         object = nil
-        XCTAssertEqual(valueWrapper.value, nil)
+        XCTAssertEqual(valueWrapper.wrappedValue, nil)
     }
 
     func testWeakProperty2() {
         var object: NSObject? = NSObject()
         let valueWrapper = ValueStorage<NSObject?>.unsafe(weak: nil)
-        XCTAssertEqual(valueWrapper.value, nil)
+        XCTAssertEqual(valueWrapper.wrappedValue, nil)
         valueWrapper.replace(with: object)
-        XCTAssertEqual(valueWrapper.value, object)
+        XCTAssertEqual(valueWrapper.wrappedValue, object)
         object = nil
-        XCTAssertEqual(valueWrapper.value, nil)
+        XCTAssertEqual(valueWrapper.wrappedValue, nil)
     }
 
     func testProperty() {
@@ -280,7 +280,7 @@ public final class ListenableTests: XCTestCase {
         let timer: Timer
         if #available(iOS 10.0, OSX 10.12, *) {
             timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { (_) in
-                counter.value += 1
+                counter.wrappedValue += 1
             }
         } else {
             fatalError()
@@ -304,11 +304,11 @@ public final class ListenableTests: XCTestCase {
         var doubleValue = 0.0
         let dispose = propertyDouble.repeater!.listening(onValue: { doubleValue = $0 })
 
-        propertyDouble.value = 10.0
+        propertyDouble.wrappedValue = 10.0
         XCTAssertEqual(doubleValue, 10.0)
         dispose.dispose()
 
-        propertyDouble.value = .infinity
+        propertyDouble.wrappedValue = .infinity
         XCTAssertEqual(doubleValue, 10.0)
     }
 
@@ -318,11 +318,11 @@ public final class ListenableTests: XCTestCase {
 
         var doubleValue = 0.0
         propertyDouble.repeater!.listening(onValue: { doubleValue = $0 }).add(to: store)
-        propertyDouble.value = 10.0
+        propertyDouble.wrappedValue = 10.0
         XCTAssertEqual(doubleValue, 10.0)
 
         store.dispose()
-        propertyDouble.value = .infinity
+        propertyDouble.wrappedValue = .infinity
         XCTAssertEqual(doubleValue, 10.0)
     }
 
@@ -335,10 +335,10 @@ public final class ListenableTests: XCTestCase {
         }
         propertyDouble.repeater!.filter { $0 != .infinity }.map { print($0); return $0 }.listening(onValue: { doubleValue = $0 }).add(to: store)
 
-        propertyDouble.value = 10.0
+        propertyDouble.wrappedValue = 10.0
         XCTAssertEqual(doubleValue, 10.0)
 
-        propertyDouble.value = .infinity
+        propertyDouble.wrappedValue = .infinity
         XCTAssertEqual(doubleValue, 10.0)
     }
 
@@ -355,7 +355,7 @@ public final class ListenableTests: XCTestCase {
         XCTAssertEqual(counter, 1)
         property <== -100.5
         XCTAssertEqual(counter, 2)
-        XCTAssertEqual(property.value, -100.5)
+        XCTAssertEqual(property.wrappedValue, -100.5)
         property <== .pi
         XCTAssertEqual(counter, 3)
         property <== .pi
@@ -375,10 +375,10 @@ public final class ListenableTests: XCTestCase {
                 })
             .add(to: store)
 
-        propertyDouble.value = "Test #1"
+        propertyDouble.wrappedValue = "Test #1"
         XCTAssertEqual(value, "Test #1" + " is successful")
 
-        propertyDouble.value = "Test #2154"
+        propertyDouble.wrappedValue = "Test #2154"
         XCTAssertEqual(value, "Test #2154" + " is successful")
     }
 
@@ -395,10 +395,10 @@ public final class ListenableTests: XCTestCase {
         }
         map(propertyDouble.repeater!.filter { $0 != .infinity }, { print($0); return $0 }).listening(onValue: .just { doubleValue = $0 }).add(to: store)
 
-        propertyDouble.value = 10.0
+        propertyDouble.wrappedValue = 10.0
         XCTAssertEqual(doubleValue, 10.0)
 
-        propertyDouble.value = .infinity
+        propertyDouble.wrappedValue = .infinity
         XCTAssertEqual(doubleValue, 10.0)
     }
 
@@ -413,16 +413,16 @@ public final class ListenableTests: XCTestCase {
             .listening { textLength = $0 }
             .add(to: store)
 
-        property.value = "10.0"
+        property.wrappedValue = "10.0"
         XCTAssertEqual(textLength, 4)
 
-        property.value = ""
+        property.wrappedValue = ""
         XCTAssertEqual(textLength, 4)
 
-        property.value = "Text with many characters"
+        property.wrappedValue = "Text with many characters"
         XCTAssertEqual(textLength, 4)
 
-        property.value = "Passed"
+        property.wrappedValue = "Passed"
         XCTAssertEqual(textLength, 6)
     }
 
@@ -437,16 +437,16 @@ public final class ListenableTests: XCTestCase {
             .listening { textLength = $0 }
             .add(to: store)
 
-        property.value = "10.0"
+        property.wrappedValue = "10.0"
         XCTAssertEqual(textLength, "4")
 
-        property.value = ""
+        property.wrappedValue = ""
         XCTAssertEqual(textLength, "4")
 
-        property.value = "Text with many characters"
-        XCTAssertEqual(textLength, "\(property.value.count)")
+        property.wrappedValue = "Text with many characters"
+        XCTAssertEqual(textLength, "\(property.wrappedValue.count)")
 
-        property.value = "Passed"
+        property.wrappedValue = "Passed"
         XCTAssertEqual(textLength, "6")
     }
 
@@ -466,16 +466,16 @@ public final class ListenableTests: XCTestCase {
         let exp = expectation(description: "")
         property <== 0
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
-            XCTAssertEqual(property.value, 0)
-            XCTAssertEqual(exponentValue, property.value.exponent)
+            XCTAssertEqual(property.wrappedValue, 0)
+            XCTAssertEqual(exponentValue, property.wrappedValue.exponent)
             property <== 21
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
-                XCTAssertEqual(exponentValue, property.value.exponent)
-                XCTAssertEqual(property.value, 21)
+                XCTAssertEqual(exponentValue, property.wrappedValue.exponent)
+                XCTAssertEqual(property.wrappedValue, 21)
                 property <== -100.5
                 DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
-                    XCTAssertEqual(exponentValue, property.value.exponent)
-                    XCTAssertEqual(property.value, -100.5)
+                    XCTAssertEqual(exponentValue, property.wrappedValue.exponent)
+                    XCTAssertEqual(property.wrappedValue, -100.5)
                     exp.fulfill()
                 })
             })
@@ -503,16 +503,16 @@ public final class ListenableTests: XCTestCase {
         let exp = expectation(description: "")
         property <== 0
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
-            XCTAssertEqual(property.value, 0)
-            XCTAssertEqual(exponentValue, property.value.exponent)
+            XCTAssertEqual(property.wrappedValue, 0)
+            XCTAssertEqual(exponentValue, property.wrappedValue.exponent)
             property <== 21
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
-                XCTAssertEqual(exponentValue, property.value.exponent)
-                XCTAssertEqual(property.value, 21)
+                XCTAssertEqual(exponentValue, property.wrappedValue.exponent)
+                XCTAssertEqual(property.wrappedValue, 21)
                 property <== -100.5
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
-                    XCTAssertEqual(exponentValue, property.value.exponent)
-                    XCTAssertEqual(property.value, -100.5)
+                    XCTAssertEqual(exponentValue, property.wrappedValue.exponent)
+                    XCTAssertEqual(property.wrappedValue, -100.5)
                     exp.fulfill()
                 })
             })
@@ -537,16 +537,16 @@ public final class ListenableTests: XCTestCase {
         let exp = expectation(description: "")
         property <== 0
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
-            XCTAssertEqual(property.value, 0)
-            XCTAssertEqual(exponentValue, "\(property.value.exponent)")
+            XCTAssertEqual(property.wrappedValue, 0)
+            XCTAssertEqual(exponentValue, "\(property.wrappedValue.exponent)")
             property <== 21
             DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
-                XCTAssertEqual(exponentValue, "\(property.value.exponent)")
-                XCTAssertEqual(property.value, 21)
+                XCTAssertEqual(exponentValue, "\(property.wrappedValue.exponent)")
+                XCTAssertEqual(property.wrappedValue, 21)
                 property <== -100.5
                 DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: {
-                    XCTAssertEqual(exponentValue, "\(property.value.exponent)")
-                    XCTAssertEqual(property.value, -100.5)
+                    XCTAssertEqual(exponentValue, "\(property.wrappedValue.exponent)")
+                    XCTAssertEqual(property.wrappedValue, -100.5)
                     exp.fulfill()
                 })
             })
@@ -574,16 +574,16 @@ public final class ListenableTests: XCTestCase {
         let exp = expectation(description: "")
         property <== 0
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
-            XCTAssertEqual(property.value, 0)
-            XCTAssertEqual(exponentValue, "\(property.value.exponent)".count)
+            XCTAssertEqual(property.wrappedValue, 0)
+            XCTAssertEqual(exponentValue, "\(property.wrappedValue.exponent)".count)
             property <== 21
             DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
-                XCTAssertEqual(exponentValue, "\(property.value.exponent)".count)
-                XCTAssertEqual(property.value, 21)
+                XCTAssertEqual(exponentValue, "\(property.wrappedValue.exponent)".count)
+                XCTAssertEqual(property.wrappedValue, 21)
                 property <== -100.5
                 DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2) + .milliseconds(100), execute: {
-                    XCTAssertEqual(exponentValue, "\(property.value.exponent)".count)
-                    XCTAssertEqual(property.value, -100.5)
+                    XCTAssertEqual(exponentValue, "\(property.wrappedValue.exponent)".count)
+                    XCTAssertEqual(property.wrappedValue, -100.5)
                     exp.fulfill()
                 })
             })
@@ -599,7 +599,7 @@ public final class ListenableTests: XCTestCase {
 
         backgroundProperty <== .red
 
-        XCTAssertEqual(otherBackgroundProperty.value, .red)
+        XCTAssertEqual(otherBackgroundProperty.wrappedValue, .red)
     }
 }
 
@@ -627,12 +627,12 @@ extension ListenableTests {
             if color.value == .yellow {
                 XCTAssertNil(owner)
             }
-            })
+        })
 
         let unownedOwner: View? = View()
         _ = backgroundProperty.listening(.unowned(unownedOwner!) { (color, owner) in
             owner.backgroundColor = color.value
-            })
+        })
 
         backgroundProperty.send(.value(.red))
         backgroundProperty.send(.value(.green))
@@ -701,10 +701,10 @@ extension ListenableTests {
     func testAvoidSimultaneousAccessInP() {
         let backgroundProperty = ValueStorage<View.Color>.unsafe(strong: .white, repeater: .unsafe())
         _ = backgroundProperty.repeater!.listening { val in
-            XCTAssertEqual(val, backgroundProperty.value)
+            XCTAssertEqual(val, backgroundProperty.wrappedValue)
         }
 
-        backgroundProperty.value = .red // backgroundProperty <== .red will be crash with simultaneous access error, because inout parameter
+        backgroundProperty.wrappedValue = .red // backgroundProperty <== .red will be crash with simultaneous access error, because inout parameter
     }
 
     @available(iOS 10.0, OSX 10.12, *)
@@ -972,7 +972,7 @@ extension ListenableTests {
         switch shareSource!.liveStrategy {
         case .continuous: XCTFail("Unexpected strategy")
         case .repeatable(_, let disposeStorage, _):
-            XCTAssertNil(disposeStorage.value.1, "\(disposeStorage.value as Any)")
+            XCTAssertNil(disposeStorage.wrappedValue.1, "\(disposeStorage.wrappedValue as Any)")
         }
 
         let disposable3 = shareSource!.listening(onValue: { value in
@@ -1023,7 +1023,7 @@ extension ListenableTests {
         switch shareSource!.liveStrategy {
         case .continuous: XCTFail("Unexpected strategy")
         case .repeatable(_, let disposeStorage):
-            XCTAssertNil(disposeStorage.value, "\(disposeStorage.value as Any)")
+            XCTAssertNil(disposeStorage.wrappedValue, "\(disposeStorage.wrappedValue as Any)")
         }
 
         let disposable3 = shareSource!.listening(onValue: { value in

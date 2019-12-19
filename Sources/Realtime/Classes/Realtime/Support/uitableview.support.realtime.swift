@@ -16,8 +16,8 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
 
     open internal(set) weak var view: View? {
-        set { self._view.value = newValue }
-        get { return self._view.value }
+        set { self._view.wrappedValue = newValue }
+        get { return self._view.wrappedValue }
     }
 
     public init() {}
@@ -93,7 +93,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 
     func free() {
         disposeStorage.dispose()
-        _view.value = nil
+        _view.wrappedValue = nil
     }
 }
 extension ReuseItem {

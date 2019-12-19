@@ -340,7 +340,7 @@ public extension Listenable {
     func bind(to other: ValueStorage<Out>) -> Disposable {
         return listening({ (e) in
             switch e {
-            case .value(let v): other.value = v
+            case .value(let v): other.wrappedValue = v
             case .error(let e): other.sendError(e)
             }
         })

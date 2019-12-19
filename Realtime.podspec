@@ -32,6 +32,7 @@ Pod::Spec.new do |s|
   s.osx.deployment_target = '10.10'
   s.swift_version = '5.0'
   s.source_files = 'Sources/Realtime/**/*'
+  s.exclude_files = 'Sources/Realtime/support.databaseValue.realtime.swift.gyb'
   s.dependency 'Promise.swift', '~> 0.6.1'
   s.static_framework = true
   s.default_subspec = 'Core'

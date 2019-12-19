@@ -162,6 +162,7 @@ extension URLSessionTask {
         switch state {
         case .canceling, .completed: return true
         case .running, .suspended: return false
+        @unknown default: return true
         }
     }
 }
@@ -171,7 +172,7 @@ extension URLSession: RealtimeCompatible {
             if let e = error {
                 storage.sendError(e)
             } else {
-                storage.value = (data, response)
+                storage.wrappedValue = (data, response)
             }
         }
     }

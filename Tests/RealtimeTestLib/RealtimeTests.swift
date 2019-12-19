@@ -1173,56 +1173,48 @@ extension RealtimeTests {
     func testRealtimeDatabaseValueExtractBool() {
         let value = true
         let dbValue = RealtimeDatabaseValue(value)
-        do {
-            let extracted: Bool? = try dbValue.extract(
-                bool: { $0 },
-                int8: { _ in nil },
-                int16: { _ in nil },
-                int32: { _ in nil },
-                int64: { _ in nil },
-                uint8: { _ in nil },
-                uint16: { _ in nil },
-                uint32: { _ in nil },
-                uint64: { _ in nil },
-                double: { _ in nil },
-                float: { _ in nil },
-                string: { _ in nil },
-                data: { _ in nil },
-                pair: { (_, _) in nil },
-                collection: { _ in nil }
-            )
+        let extracted: Bool? = dbValue.extract(
+            bool: { $0 },
+            int8: { _ in nil },
+            int16: { _ in nil },
+            int32: { _ in nil },
+            int64: { _ in nil },
+            uint8: { _ in nil },
+            uint16: { _ in nil },
+            uint32: { _ in nil },
+            uint64: { _ in nil },
+            double: { _ in nil },
+            float: { _ in nil },
+            string: { _ in nil },
+            data: { _ in nil },
+            pair: { (_, _) in nil },
+            collection: { _ in nil }
+        )
 
-            XCTAssertEqual(extracted, value)
-        } catch let e {
-            XCTFail(e.localizedDescription)
-        }
+        XCTAssertEqual(extracted, value)
     }
     func testRealtimeDatabaseValueExtractData() {
         let value = "Some text that converted to data".data(using: .utf8)!
         let dbValue = RealtimeDatabaseValue(value)
-        do {
-            let extracted: Data? = try dbValue.extract(
-                bool: { _ in nil },
-                int8: { _ in nil },
-                int16: { _ in nil },
-                int32: { _ in nil },
-                int64: { _ in nil },
-                uint8: { _ in nil },
-                uint16: { _ in nil },
-                uint32: { _ in nil },
-                uint64: { _ in nil },
-                double: { _ in nil },
-                float: { _ in nil },
-                string: { _ in nil },
-                data: { $0 },
-                pair: { (_, _) in nil },
-                collection: { _ in nil }
-            )
-
-            XCTAssertEqual(extracted, value)
-        } catch let e {
-            XCTFail(e.localizedDescription)
-        }
+        let extracted: Data? = dbValue.extract(
+            bool: { _ in nil },
+            int8: { _ in nil },
+            int16: { _ in nil },
+            int32: { _ in nil },
+            int64: { _ in nil },
+            uint8: { _ in nil },
+            uint16: { _ in nil },
+            uint32: { _ in nil },
+            uint64: { _ in nil },
+            double: { _ in nil },
+            float: { _ in nil },
+            string: { _ in nil },
+            data: { $0 },
+            pair: { (_, _) in nil },
+            collection: { _ in nil }
+        )
+        
+        XCTAssertEqual(extracted, value)
     }
 }
 

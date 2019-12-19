@@ -267,7 +267,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.absolutePath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
-            elements: \(view.map { (key: $0.dbKey, index: $0.priority) })
+            elements: \(view.map { $0.dbKey })
         }
         """
     }
@@ -331,8 +331,7 @@ extension AssociatedValues {
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
-        var item = RDItem(key: key, value: element)
-        item.priority = Int64(view.count)
+        let item = RDItem(key: key, value: element)
         _ = view.insert(item)
         storage.set(value: element, for: key)
     }
@@ -429,12 +428,10 @@ extension AssociatedValues {
                    by: (storage: node!, itms: view.node!), in: transaction)
     }
 
-    func _write(_ element: Value, for key: Key,
-                by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
+    func _write(_ element: Value, for key: Key, by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
         let itemNode = location.itms.child(with: key.dbKey)
         let elementNode = location.storage.child(with: key.dbKey)
         var item = RDItem(key: key, value: element)
-        item.priority = Int64(count)
 
         transaction.addReversion({ [weak self] in
             _ = self?.storage.remove(for: key)

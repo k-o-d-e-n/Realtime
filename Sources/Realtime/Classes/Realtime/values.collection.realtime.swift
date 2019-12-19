@@ -177,7 +177,6 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         self.view.removeAll()
         for item in view {
             try _write(elems[item.dbKey]!,
-                       with: item.priority ?? 0,
                        by: (storage: node,
                             itms: Node(key: InternalKeys.items, parent: node.linksNode)),
                        in: transaction)
@@ -211,7 +210,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
         \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
             ref: \(node?.absolutePath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
-            elements: \(view.map { (key: $0.dbKey, index: $0.priority) })
+            elements: \(view.map { $0.dbKey })
         }
         """
     }
@@ -248,7 +247,7 @@ extension Values {
                         ))
                     } else {
                         do {
-                            try self._insert(element, with: priority, in: database, in: transaction)
+                            try self._insert(element, in: database, in: transaction)
                             promise.fulfill()
                         } catch let e {
                             promise.reject(e)
@@ -265,7 +264,7 @@ extension Values {
                 fatalError("Element with such key already exists")
         }
 
-        return try _insert(element, with: priority, in: database, in: transaction)
+        return try _insert(element, in: database, in: transaction)
     }
 
     /// Adds element with default sorting priority or if `nil` to end of collection
@@ -276,7 +275,7 @@ extension Values {
     /// - Parameters:
     ///   - element: The element to write
     ///   - priority: Priority value or `nil` if you want to add to end of collection.
-    public func insert(element: Element, with priority: Int64? = nil) {
+    public func insert(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard !element.isReferred || element.node!.parent == node
             else { fatalError("Element must not be referred in other location") }
@@ -285,11 +284,9 @@ extension Values {
             fatalError("Element with such key already exists")
         }
 
-        let index = priority ?? Int64(view.count)
         let key = element.node.map { $0.key } ?? Node(parent: nil).key
         storage[key] = element
-        var item = RCItem(key: key, value: element)
-        item.priority = index
+        let item = RCItem(key: key, value: element)
         _ = view.insert(item)
     }
 
@@ -359,22 +356,18 @@ extension Values {
 
     @discardableResult
     func _insert(
-        _ element: Element, with priority: Int64? = nil,
-        in database: RealtimeDatabase, in transaction: Transaction? = nil
-        ) throws -> Transaction {
+        _ element: Element, in database: RealtimeDatabase, in transaction: Transaction? = nil
+    ) throws -> Transaction {
         let transaction = transaction ?? Transaction(database: database)
-        try _write(element, with: priority ?? (isAscending ? view.last : view.first).flatMap { $0.priority.map { $0 + 1 } } ?? 0,
-                   by: (storage: node!, itms: view.node!), in: transaction)
+        try _write(element, by: (storage: node!, itms: view.node!), in: transaction)
         return transaction
     }
 
-    func _write(_ element: Element, with priority: Int64,
-                by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
+    func _write(_ element: Element, by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
         let elementNode = element.node.map { $0.moveTo(location.storage); return $0 } ?? location.storage.childByAutoId()
         let itemNode = location.itms.child(with: elementNode.key)
         let link = elementNode.generate(linkTo: itemNode)
         var item = RCItem(key: elementNode.key, value: element)
-        item.priority = priority
         item.linkID = link.link.id
 
         transaction.addReversion({ [weak self] in

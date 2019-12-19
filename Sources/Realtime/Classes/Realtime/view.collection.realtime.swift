@@ -11,7 +11,6 @@ public struct RCItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue?
     public var payload: RealtimeDatabaseValue?
     public let node: Node?
-    var priority: Int64?
     var linkID: String?
 
     init(key: String?, value: RealtimeValue) {
@@ -30,7 +29,6 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         self.node = Node(key: key)
         self.raw = try valueData.rawValue()
         self.linkID = try dataContainer.decodeIfPresent(String.self, forKey: .link)
-        self.priority = try dataContainer.decodeIfPresent(Int64.self, forKey: .index)
         self.payload = try valueData.payload()
     }
 
@@ -42,9 +40,6 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         var representation: [RealtimeDatabaseValue] = []
         if let l = linkID {
             representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.link.rawValue), RealtimeDatabaseValue(l))))
-        }
-        if let p = priority {
-            representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.index.rawValue), RealtimeDatabaseValue(p))))
         }
         var value: [RealtimeDatabaseValue] = []
         if let p = self.payload {
@@ -63,13 +58,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         return lhs.dbKey == rhs.dbKey
     }
     public static func < (lhs: RCItem, rhs: RCItem) -> Bool {
-        if (lhs.priority ?? 0) < (rhs.priority ?? 0) {
-            return true
-        } else if (lhs.priority ?? 0) > (rhs.priority ?? 0) {
-            return false
-        } else {
-            return lhs.dbKey < rhs.dbKey
-        }
+        return lhs.dbKey < rhs.dbKey
     }
 }
 
@@ -80,10 +69,6 @@ public struct RDItem: WritableRealtimeValue, Comparable {
     var rcItem: RCItem
 
     public var dbKey: String! { return rcItem.dbKey }
-    var priority: Int64? {
-        set { rcItem.priority = newValue }
-        get { return rcItem.priority }
-    }
     var linkID: String? {
         set { rcItem.linkID = newValue }
         get { return rcItem.linkID }
@@ -112,9 +97,6 @@ public struct RDItem: WritableRealtimeValue, Comparable {
         if let l = rcItem.linkID {
             representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.link.rawValue), RealtimeDatabaseValue(l))))
         }
-        if let p = rcItem.priority {
-            representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.index.rawValue), RealtimeDatabaseValue(p))))
-        }
         var value: [RealtimeDatabaseValue] = []
         if let p = rcItem.payload {
             value.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.payload.rawValue), RealtimeDatabaseValue(p))))
@@ -141,13 +123,7 @@ public struct RDItem: WritableRealtimeValue, Comparable {
         return lhs.dbKey == rhs.dbKey
     }
     public static func < (lhs: RDItem, rhs: RDItem) -> Bool {
-        if (lhs.priority ?? 0) < (rhs.priority ?? 0) {
-            return true
-        } else if (lhs.priority ?? 0) > (rhs.priority ?? 0) {
-            return false
-        } else {
-            return lhs.dbKey < rhs.dbKey
-        }
+        return lhs.dbKey < rhs.dbKey
     }
 }
 

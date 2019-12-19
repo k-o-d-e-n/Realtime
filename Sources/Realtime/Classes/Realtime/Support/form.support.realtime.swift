@@ -40,8 +40,8 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     open var indexPath: IndexPath?
 
     open internal(set) weak var model: Model? {
-        set { _model.value = newValue }
-        get { return _model.value }
+        set { _model.wrappedValue = newValue }
+        get { return _model.wrappedValue }
     }
 
     let cellBuilder: CellBuilder<View>
@@ -70,7 +70,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
 
     override func free() {
         super.free()
-        _model.value = nil
+        _model.wrappedValue = nil
     }
 
     public func sendSelectEvent(at indexPath: IndexPath) {
@@ -112,7 +112,7 @@ extension Row: CustomDebugStringConvertible {
         return """
         \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             view: \(view as Any),
-            model: \(_model.value as Any),
+            model: \(_model.wrappedValue as Any),
             state: \(state),
             values: \(dynamicValues)
         }
@@ -124,7 +124,7 @@ extension Row {
         if !state.contains(.displaying) || self.view !== view {
             self.indexPath = indexPath
             self.view = view
-            _model.value = model
+            _model.wrappedValue = model
             state.insert(.displaying)
             state.remove(.free)
         }
