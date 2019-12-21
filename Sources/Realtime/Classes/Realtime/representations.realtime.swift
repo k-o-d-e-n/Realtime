@@ -15,6 +15,15 @@ public enum ReferenceMode {
     case fullPath
     case path(from: Node)
 }
+internal extension ReferenceMode {
+    init(anchor node: Node) {
+        if node.isRoot {
+            self = .fullPath
+        } else {
+            self = .path(from: node)
+        }
+    }
+}
 
 /// Link value describing reference to some location of database.
 struct ReferenceRepresentation: RealtimeDataRepresented {

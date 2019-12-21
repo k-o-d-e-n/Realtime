@@ -254,8 +254,11 @@ public struct ValueStorage<T> {
     }
 }
 extension ValueStorage: Listenable {
+    /// Sends current value immediately and each next value.
+    /// If you want receive only new values use `repeater` property explicitly.
     public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
         guard let r = repeater else { return EmptyDispose() } // May be send error?
+        defer { assign.call(.value(get())) }
         return r.listening(assign)
     }
 }

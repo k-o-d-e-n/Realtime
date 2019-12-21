@@ -20,17 +20,6 @@ public extension RawRepresentable where RawValue == String {
     }
 }
 
-public extension Values {
-    convenience init(in node: Node?, elements: References<Element>) {
-        let db = elements.database
-        self.init(
-            in: node,
-            options: Options(database: db, builder: elements.builder),
-            view: elements.view
-        )
-    }
-}
-
 public extension Values where Element: Object {
     /// Create new instance with default element builder
     ///

@@ -370,7 +370,7 @@ public final class File<T>: Property<T> {
                     }
                     self._currentDownloadTask = nil
                 })
-                .shared(connectionLive: .continuous)
+                .memoizeOne(sendLast: true)
                 .asAny()
             )
             _currentDownloadTask = task

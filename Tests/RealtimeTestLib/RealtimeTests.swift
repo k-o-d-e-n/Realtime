@@ -89,7 +89,7 @@ public final class RealtimeTests: XCTestCase {
 class TestObject: Object {
     lazy var property: Property<String?> = "prop".property(in: self)
     lazy var readonlyProperty: ReadonlyProperty<Int64> = "readonlyProp".readonlyProperty(in: self, representer: .realtimeDataValue).defaultOnEmpty()
-    lazy var linkedArray: MutableReferences<TestObject> = "linked_array".references(in: self, elements: .root)
+    lazy var linkedArray: MutableReferences<TestObject> = "linked_array".references(in: self, mode: .fullPath)
     lazy var array: Values<TestObject> = "array".values(in: self)
     lazy var dictionary: AssociatedValues<TestObject, TestObject> = "dict".dictionary(in: self, keys: .root)
     lazy var nestedObject: NestedObject = "nestedObject".nested(in: self)
@@ -1262,7 +1262,7 @@ extension AssociatedValues: Reverting {
 
 extension RealtimeTests {
     func testLocalChangesLinkedArray() {
-        let linkedArray: MutableReferences<TestObject> = "l_array".references(in: nil, elements: .root, database: Cache.root)
+        let linkedArray: MutableReferences<TestObject> = "l_array".references(in: nil, mode: .fullPath, database: Cache.root)
 
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
         linkedArray.insert(element: TestObject(in: Node.root.childByAutoId()))
@@ -2076,9 +2076,10 @@ extension RealtimeTests {
     func testLoadFileState() {
         let exp = expectation(description: "")
         let object = TestObject(in: .root)
-        _ = object.file.loadState().listening(onValue: { _ in
+        object.file.loadState().listening(onValue: { _ in
             exp.fulfill()
         })
+        .add(to: store)
 
         waitForExpectations(timeout: 2) { (err) in
             err.map({ XCTFail($0.describingErrorDescription) })

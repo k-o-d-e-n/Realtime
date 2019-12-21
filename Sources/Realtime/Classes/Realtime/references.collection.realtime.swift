@@ -8,21 +8,21 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func references<C, Element: Object>(in parentNode: Node?, elements: Node, database: RealtimeDatabase?) -> C where C: References<Element> {
+    func references<C, Element: Object>(in parentNode: Node?, mode: ReferenceMode, database: RealtimeDatabase?) -> C where C: References<Element> {
         return C(
             in: Node(key: rawValue, parent: parentNode),
-            options: C.Options(database: database, elements: elements, builder: { node, database, options in
+            options: C.Options(database: database, mode: mode, builder: { node, database, options in
                 return Element(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
             })
         )
     }
-    func references<C, Element: Object>(in object: Object, elements: Node) -> C where C: References<Element> {
-        return references(in: object.node, elements: elements, database: object.database)
+    func references<C, Element: Object>(in object: Object, mode: ReferenceMode) -> C where C: References<Element> {
+        return references(in: object.node, mode: mode, database: object.database)
     }
-    func references<C, Element>(in object: Object, elements: Node, builder: @escaping RCElementBuilder<RealtimeValueOptions, Element>) -> C where C: References<Element> {
+    func references<C, Element>(in object: Object, mode: ReferenceMode, builder: @escaping RCElementBuilder<RealtimeValueOptions, Element>) -> C where C: References<Element> {
         return C(
             in: Node(key: rawValue, parent: object.node),
-            options: C.Options(database: object.database, elements: elements, builder: builder)
+            options: C.Options(database: object.database, mode: mode, builder: builder)
         )
     }
 }
@@ -141,20 +141,16 @@ public class __RepresentableCollection<Element, Ref: WritableRealtimeValue & Com
         fatalError("Override")
     }
 }
-
-// TODO: DistributedReferences has the same target, but has no linking with source object. This has, but is not used.
-public class References<Element: RealtimeValue>: __RepresentableCollection<Element, RCItem>, WritableRealtimeCollection {
-    internal let builder: RCElementBuilder<RealtimeValueOptions, Element>
-    internal let spaceNode: Node
+public class RepresentableCollection<Element: RealtimeValue, Ref: WritableRealtimeValue & Comparable>: __RepresentableCollection<Element, Ref> {
+    public typealias Builder = RCElementBuilder<Ref, Element>
+    internal let builder: Builder
 
     public struct Options {
         let base: RealtimeValueOptions
-        let elementsNode: Node
-        let builder: RCElementBuilder<RealtimeValueOptions, Element>
+        let builder: Builder
 
-        public init(database: RealtimeDatabase?, elements: Node, builder: @escaping RCElementBuilder<RealtimeValueOptions, Element>) {
+        public init(database: RealtimeDatabase?, builder: @escaping Builder) {
             self.base = RealtimeValueOptions(database: database)
-            self.elementsNode = elements
             self.builder = builder
         }
     }
@@ -162,26 +158,19 @@ public class References<Element: RealtimeValue>: __RepresentableCollection<Eleme
     /// Creates new instance associated with database node
     ///
     /// Available options:
-    /// - elementsNode(**required**): Database node where source elements are located.
     /// - database: Database reference
-    /// - elementBuilder: Closure that calls to build elements lazily.
+    /// - representableBuilder: Closure that calls to build elements lazily.
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required init(in node: Node?, options: Options) {
+    public init(in node: Node?, options: Options) {
         self.builder = options.builder
-        self.spaceNode = options.elementsNode
         super.init(view: SortedCollectionView(node: node, options: options.base), options: options.base)
     }
 
-    init(view: SortedCollectionView<RCItem>, options: Options) {
+    init(view: SortedCollectionView<Ref>, options: Options) {
         self.builder = options.builder
-        self.spaceNode = options.elementsNode
         super.init(view: view, options: options.base)
-    }
-
-    override func buildElement(with item: RCItem) -> Element {
-        return builder(spaceNode.child(with: item.dbKey), database, RealtimeValueOptions(database: database, raw: item.raw, payload: item.payload))
     }
 
     /// Currently, no available.
@@ -192,11 +181,15 @@ public class References<Element: RealtimeValue>: __RepresentableCollection<Eleme
         throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
         #endif
     }
+
+    override func buildElement(with item: Ref) -> Element {
+        return builder(item.node, database, item)
+    }
 }
 
 // MARK: Mutating
 
-public final class MutableReferences<Element: RealtimeValue>: References<Element>, MutableRealtimeCollection {
+public final class MutableReferences<Element: RealtimeValue>: References<Element>, MutableRealtimeCollection, WritableRealtimeCollection {
     override var _hasChanges: Bool { return view._hasChanges }
 
     public func write(_ element: Element, in transaction: Transaction) throws {
@@ -226,7 +219,7 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     @discardableResult
     func write(element: Element, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
-        guard element.node?.parent == spaceNode else { fatalError("Element must be located in elements node") }
+        guard element.node?.hasAncestor(node: anchorNode) == true else { fatalError("Element must be located in elements node") }
         guard isSynced else {
             let transaction = transaction ?? Transaction(database: database)
             transaction.addPrecondition { [unowned transaction] promise in
@@ -270,20 +263,20 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
     ///   - index: Priority value or `nil` if you want to add to end of collection.
     public func insert(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
-        guard element.node?.parent == spaceNode else { fatalError("Element must be located in elements node") }
+        guard element.node?.hasAncestor(node: anchorNode) == true else { fatalError("Element must be located in elements node") }
         let contains = element.node.map { n in storage[n.key] != nil } ?? false
         guard !contains else {
             fatalError("Element with such key already exists")
         }
 
-        let item = RCItem(key: nil, value: element)
+        let item = RCRef(mode: ReferenceMode(anchor: anchorNode), value: element)
         storage.set(value: element, for: item.dbKey)
         view.insert(item)
     }
 
     public func delete(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
-        guard element.node?.parent == spaceNode else { fatalError("Element must be located in elements node") }
+        guard element.node?.hasAncestor(node: anchorNode) == true else { fatalError("Element must be located in elements node") }
         let contains = element.node.map { n in storage[n.key] != nil } ?? false
         guard contains else {
             fatalError("Element with such key does not exist")
@@ -374,26 +367,21 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
         }
     }
 
-    private func _remove(for item: RCItem, in transaction: Transaction) {
-        if let linkID = item.linkID {
-            let elementLinksNode = spaceNode.child(with: item.dbKey).linksItemsNode.child(with: linkID)
-            transaction.removeValue(by: elementLinksNode) /// remove link from element
-        }
+    private func _remove(for item: RCRef, in transaction: Transaction) {
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) /// remove item
     }
 }
 
-// MARK: DistributedReferences
+// MARK: References
 
 public struct RCRef: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue? { return reference?.payload.raw }
     public var payload: RealtimeDatabaseValue? { return reference?.payload.user }
     public var node: Node?
-    public let dbKey: String!
     var reference: ReferenceRepresentation!
 
     init(mode: ReferenceMode, value: RealtimeValue) {
-        self.dbKey = value.dbKey
+        self.node = Node(key: value.dbKey)
         let raw = value.raw
         let payload = value.payload
         let ref: String
@@ -408,9 +396,9 @@ public struct RCRef: WritableRealtimeValue, Comparable {
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        guard let key = data.key else { throw RealtimeError(initialization: RCRef.self, data) }
+        guard let node = data.node else { throw RealtimeError(initialization: RCRef.self, data) }
 
-        self.dbKey = key
+        self.node = node
         self.reference = try ReferenceRepresentation(data: data, event: event)
     }
 
@@ -420,52 +408,7 @@ public struct RCRef: WritableRealtimeValue, Comparable {
     public static func < (lhs: RCRef, rhs: RCRef) -> Bool { return lhs.dbKey < rhs.dbKey }
 }
 
-public class RepresentableCollection<Element: RealtimeValue, Ref: WritableRealtimeValue & Comparable>: __RepresentableCollection<Element, Ref> {
-    public typealias Builder = RCElementBuilder<Ref, Element>
-    internal let builder: Builder
-
-    public struct Options {
-        let base: RealtimeValueOptions
-        let builder: Builder
-
-        public init(database: RealtimeDatabase?, builder: @escaping Builder) {
-            self.base = RealtimeValueOptions(database: database)
-            self.builder = builder
-        }
-    }
-
-    /// Creates new instance associated with database node
-    ///
-    /// Available options:
-    /// - database: Database reference
-    /// - representableBuilder: Closure that calls to build elements lazily.
-    ///
-    /// - Parameter node: Node location for value
-    /// - Parameter options: Dictionary of options
-    public init(in node: Node?, options: Options) {
-        self.builder = options.builder
-        super.init(view: SortedCollectionView(node: node, options: options.base), options: options.base)
-    }
-
-    init(view: SortedCollectionView<Ref>, options: Options) {
-        self.builder = options.builder
-        super.init(view: view, options: options.base)
-    }
-
-    /// Currently, no available.
-    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        #if DEBUG
-        fatalError("DistributedReferences does not supported init(data:event:) yet. Use `init(data:event:options:)` instead")
-        #else
-        throw RealtimeError(source: .collection, description: "DistributedReferences does not supported init(data:event:) yet.")
-        #endif
-    }
-
-    override func buildElement(with item: Ref) -> Element {
-        return builder(item.node, database, item)
-    }
-}
-public final class DistributedReferences<Element: RealtimeValue>: __RepresentableCollection<Element, RCRef> {
+public class References<Element: RealtimeValue>: __RepresentableCollection<Element, RCRef> {
     let anchorNode: Node
     let builder: RCElementBuilder<RealtimeValueOptions, Element>
 
