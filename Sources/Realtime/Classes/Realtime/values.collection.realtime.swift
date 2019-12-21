@@ -207,7 +207,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
 
     override public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.absolutePath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
             elements: \(view.map { $0.dbKey })
@@ -501,7 +501,7 @@ where Element: WritableRealtimeValue & Comparable {
 
     override public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
         ref: \(node?.absolutePath ?? "not referred"),
         synced: \(isSynced), keep: \(keepSynced),
         elements: \(view.map { $0.dbKey })

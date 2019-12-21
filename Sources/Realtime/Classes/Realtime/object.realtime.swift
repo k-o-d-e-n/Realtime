@@ -432,7 +432,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     
     public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.absolutePath ?? "not referred"),
             raw: \(raw.map(String.init(describing:)) ?? "null"),
             hasChanges: \(_hasChanges)

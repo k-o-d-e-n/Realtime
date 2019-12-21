@@ -1077,7 +1077,7 @@ public extension Listenable where Out: _Optional, Out.Wrapped: HasDefaultLiteral
 
 public typealias Suspend<Out> = Preprocessor<Memoize<Combine<(Out, Bool)>>, [Out]>
 public extension Listenable {
-    /// Creates retained storage that saves last values, but emits result conditionally.
+    /// Creates retained listening point that saves last values, but emits result conditionally.
     ///
     /// - Parameters:
     ///   - controller: Source of emitting control

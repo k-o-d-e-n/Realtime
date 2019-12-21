@@ -766,7 +766,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 
     public override var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.debugDescription ?? "not referred"),
             keepSynced: \(keepSynced),
             value: \(_value as Any)

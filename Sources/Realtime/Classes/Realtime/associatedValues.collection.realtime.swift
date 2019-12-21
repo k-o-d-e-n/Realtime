@@ -264,7 +264,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
 
     override public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.absolutePath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
             elements: \(view.map { $0.dbKey })
@@ -671,7 +671,7 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable
 
     override public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
         ref: \(node?.absolutePath ?? "not referred"),
         synced: \(isSynced), keep: \(keepSynced),
         elements: \(view.map { $0.dbKey })

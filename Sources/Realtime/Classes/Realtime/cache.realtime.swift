@@ -408,7 +408,7 @@ extension ObjectNode {
                         if n === node {
                             debugFatalError(condition: type(of: old) != type(of: v), "Tries to insert database value to storage node or conversely")
                             old.value = v.value
-                            debugPrintLog("Replaced value by node: \(node) with value: \(v.value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
+                            debugPrintLog("Replaced value by node: \(node) with value: \(v.value as Any) in transaction: \(withUnsafePointer(to: self, String.init(describing:)))")
                         } else {
                             fatalError("Tries insert value lower than earlier writed single value")
                         }
