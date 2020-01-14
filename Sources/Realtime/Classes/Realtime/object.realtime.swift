@@ -649,9 +649,10 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     }
     private func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent, to mirror: Mirror, errorsContainer: inout [String: Error]) {
         mirror.children.forEach { (child) in
-            guard isNotIgnoredLabel(child.label) else { return }
+            let lbl = cleaned(label: child.label)
+            guard isNotIgnoredLabel(lbl) else { return }
 
-            if var value: _RealtimeValue = forceValue(from: child, mirror: mirror), conditionForRead(of: value) {
+            if var value: _RealtimeValue = forceValue(from: (lbl, child.value, lbl?.count != child.label?.count), mirror: mirror), conditionForRead(of: value) {
                 do {
                     try value.apply(parentDataIfNeeded: data, parentEvent: event)
                 } catch let e {
@@ -763,10 +764,11 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         try super._write(to: transaction, by: node)
         try Reflector(reflecting: self, to: Object.self).forEach { mirror in
             try mirror.children.forEach({ (child) in
-                guard isNotIgnoredLabel(child.label) else { return }
+                let lbl = cleaned(label: child.label)
+                guard isNotIgnoredLabel(lbl) else { return }
 
                 if
-                    let value: _RealtimeValue = forceValue(from: child, mirror: mirror),
+                    let value: _RealtimeValue = forceValue(from: (lbl, child.value, lbl?.count != child.label?.count), mirror: mirror),
                     conditionForWrite(of: value)
                 {
                     if let valNode = value.node {
@@ -783,7 +785,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
 //        super._writeChanges(to: transaction, by: node)
         try Reflector(reflecting: self, to: Object.self).lazy.flatMap({ $0.children })
             .forEach { (child) in
-                guard isNotIgnoredLabel(child.label) else { return }
+                guard isNotIgnoredLabel(cleaned(label: (child.label))) else { return }
 
                 if let value: _RealtimeValue = realtimeValue(from: child.value) {
                     if let valNode = value.node {
@@ -802,25 +804,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
 
         return child
     }
-    private func forceValue<T>(from mirrorChild: (label: String?, value: Any), mirror: Mirror) -> T? {
+    private func forceValue<T>(from mirrorChild: (label: String?, value: Any, lazy: Bool), mirror: Mirror) -> T? {
         guard let value: T = realtimeValue(from: mirrorChild.value) else {
-            #if swift(>=5.0)
-            guard
-                var label = mirrorChild.label,
-                label.hasPrefix(lazyStoragePath)
-            else { return nil }
-            #else
-            guard
-                var label = mirrorChild.label,
-                label.hasSuffix(lazyStoragePath)
-            else { return nil }
-            #endif
-
-            #if swift(>=5.0)
-            label = String(label.suffix(from: label.index(label.startIndex, offsetBy: lazyStoragePath.count)))
-            #else
-            label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
-            #endif
+            guard let label = mirrorChild.label, mirrorChild.lazy else { return nil }
 
             guard let keyPath = (mirror.subjectType as! Object.Type).lazyPropertyKeyPath(for: label) else {
                 return nil
@@ -836,77 +822,70 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     func forceEnumerateAllChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
         Reflector(reflecting: self, to: type).forEach { mirror in
             mirror.children.forEach({ (child) in
-                guard isNotIgnoredLabel(child.label) else { return }
-                guard let value: As = forceValue(from: child, mirror: mirror) else { return }
+                let lbl = cleaned(label: child.label)
+                guard isNotIgnoredLabel(lbl) else { return }
+                guard let value: As = forceValue(from: (lbl, child.value, lbl?.count != child.label?.count), mirror: mirror) else { return }
 
-                block(child.label, value)
+                block(lbl, value)
             })
         }
     }
     fileprivate func enumerateLoadedChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
         Reflector(reflecting: self, to: type).lazy.flatMap({ $0.children })
             .forEach { (child) in
-                guard isNotIgnoredLabel(child.label) else { return }
+                let lbl = cleaned(label: child.label)
+                guard isNotIgnoredLabel(lbl) else { return }
                 guard case let value as As = child.value else { return }
 
-                block(child.label, value)
+                block(lbl, value)
         }
     }
     private func containsInLoadedChild<As>(from type: Any.Type = Object.self, where block: (String?, As) -> Bool) -> Bool {
         return Reflector(reflecting: self, to: type).lazy.flatMap({ $0.children })
             .contains { (child) -> Bool in
-                guard isNotIgnoredLabel(child.label) else { return false }
+                let lbl = cleaned(label: child.label)
+                guard isNotIgnoredLabel(lbl) else { return false }
                 guard case let value as As = child.value else { return false }
 
-                return block(child.label, value)
+                return block(lbl, value)
         }
     }
     private func isNotIgnoredLabel(_ label: String?) -> Bool {
         return label.map { lbl -> Bool in
+            return !ignoredLabels.contains(lbl)
+        } ?? true
+    }
+    private func cleaned(label: String?) -> String? {
+        return label.map { lbl -> String in
             #if swift(>=5.0)
             if lbl.hasPrefix(lazyStoragePath) {
-                return !ignoredLabels.contains(String(lbl.suffix(from: lbl.index(lbl.startIndex, offsetBy: lazyStoragePath.count))))
+                return String(lbl.suffix(from: lbl.index(lbl.startIndex, offsetBy: lazyStoragePath.count)))
             } else {
-                return !ignoredLabels.contains(lbl)
+                return lbl
             }
             #else
             if lbl.hasSuffix(lazyStoragePath) {
-                return !ignoredLabels.contains(String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count))))
+                return String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count)))
             } else {
-                return !ignoredLabels.contains(lbl)
+                return lbl
             }
             #endif
-        } ?? true
+        }
     }
     
     override public var debugDescription: String {
         var values: String = ""
         enumerateLoadedChilds { (label, val: _RealtimeValue) in
-            let l = label.map({ lbl -> String in
-                #if swift(>=5.0)
-                if lbl.hasPrefix(lazyStoragePath) {
-                    return String(lbl.suffix(from: lbl.index(lbl.startIndex, offsetBy: lazyStoragePath.count)))
-                } else {
-                    return lbl
-                }
-                #else
-                if lbl.hasSuffix(lazyStoragePath) {
-                    return String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count)))
-                } else {
-                    return lbl
-                }
-                #endif
-            })
             if values.isEmpty {
                 values.append(
                     """
-                    \(l ?? ""): \(val.debugDescription)
+                    \(label ?? ""): \(val.debugDescription)
                     """
                 )
             } else {
                 values.append(
                     """
-                    \t\t\(l ?? ""): \(val.debugDescription)
+                    \t\t\(label ?? ""): \(val.debugDescription)
                     """
                 )
                 values.append(",\n")

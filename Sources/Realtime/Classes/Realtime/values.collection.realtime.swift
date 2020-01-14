@@ -47,7 +47,7 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
     public override var raw: RealtimeDatabaseValue? { return nil }
     public override var payload: RealtimeDatabaseValue? { return nil }
     /// Stores an abstract elements
-    public let view: SortedCollectionView<RCItem> 
+    public let view: SortedCollectionView<RCItem>
     public var isSynced: Bool { return view.isSynced }
     public override var isObserved: Bool { return view.isObserved }
     public override var canObserve: Bool { return view.canObserve }
