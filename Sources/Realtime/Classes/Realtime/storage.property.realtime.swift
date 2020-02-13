@@ -134,7 +134,7 @@ final class CachedFileDownloadTask: RealtimeStorageTask {
         self.cacheStorage = cacheStorage
         let source = ValueStorage<AnyListenable<SuccessResult>?>.unsafe(strong: nil, repeater: .unsafe())
         self.currentSource = source
-        let memoizedSuccess = source.then({ $0! })
+        let memoizedSuccess = source.then({ $0 ?? EmptyListenable().asAny() })
         self._memoizedSuccess = memoizedSuccess
 
         self.nextLevelTask = task

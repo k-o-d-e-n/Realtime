@@ -425,6 +425,11 @@ public struct ErrorListenable<T>: Listenable {
         return EmptyDispose()
     }
 }
+public struct EmptyListenable<T>: Listenable {
+    public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
+        return EmptyDispose()
+    }
+}
 public struct Constant<T>: Listenable {
     let value: T
     public init(_ value: T) {
