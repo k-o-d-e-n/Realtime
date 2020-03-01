@@ -1,13 +1,10 @@
 # Realtime
 
-[![CI Status](http://img.shields.io/travis/k-o-d-e-n/Realtime.svg?style=flat)](https://travis-ci.org/k-o-d-e-n/Realtime)
 [![Version](https://img.shields.io/cocoapods/v/Realtime.svg?style=flat)](http://cocoapods.org/pods/Realtime)
 [![License](https://img.shields.io/cocoapods/l/Realtime.svg?style=flat)](http://cocoapods.org/pods/Realtime)
 [![Platform](https://img.shields.io/cocoapods/p/Realtime.svg?style=flat)](http://cocoapods.org/pods/Realtime)
 
-Realtime is database framework based on Firebase that makes the creation of complex database structures is simple.
-Realtime can help you to create app quicker than if use clear Firebase API herewith to apply complex structures to store data in Firebase database, to update UI using reactive behaviors.
-Realtime provides lightweight data traffic, lazy initialization of data, good distribution of data.
+Realtime is ORM framework that makes the creation of complex database structures is simple.
 
 ## Features
 
@@ -19,7 +16,15 @@ Realtime provides lightweight data traffic, lazy initialization of data, good di
 
 :point_right:  **References**
 
-:point_right:  **UI support**
+:point_right:  **UI, Form**
+
+### Support Firebase Database
+Firebase Realtime Database is fully supported and uses in production.
+If you use clean Firebase API, Realtime can help to create app quicker, herewith to apply complex structures to store data, to update UI using reactive behaviors.
+Realtime provides lightweight data traffic, lazy initialization of data, good distribution of data.
+
+### Support FoundationDB
+FoundationDB is supported, but with some limitations, because FDB has no native observing mechanisms.
 
 ## Usage
 
@@ -45,7 +50,7 @@ To create any model data structure you can make by subclassing `Object`.
 You can define child properties using classes:
 + `Object` subclasses;
 + `ReadonlyProperty`, `Property`, `Reference`, `Relation`, `ReadonlyFile`, `File`;
-+ `References`, `Values`, `AssociatedValues`;
++ `References`, `Values`, `AssociatedValues`, and so on;
 If you use lazy properties, you need implement class function `lazyPropertyKeyPath(for:)`. (Please tell me if you know how avoid it, without inheriting NSObject).
 This function called for each subclass, therefore you don't need call super implementation. 
 Example:
@@ -87,19 +92,19 @@ transaction.commit(with: { state, err in
 
 ***Property*** - stored property for any value.
 
-***SharedProperty*** - stored property similar `Property`, but uses concurrency transaction to update value. Use this property if value assumes shared access (for example 'number of likes' value).
-
 ### References
 
 ***Reference*** - stores reference on any database value. Doesn't imply referential integrity. Use it if record won't be removed or else other reason that doesn't need referential integrity.
 
-***Relation*** - stores reference on any database value. It creates link on side related object. On deletion related object will be deleted reference.
+***Relation*** - stores reference on any database value.
 
 ### Files
 
 ***ReadonlyFile*** - readonly stored property for file in Firebase Storage.
 
 ***File*** - stored property for file in Firebase Storage.
+
+All properties adopt `@propertyWrapper` feature, but while Swift is unsupported access to `self` in custom lazy properties, this way to define properties generally useless.
 
 ### Collections
 ```swift
@@ -109,12 +114,12 @@ class Some: Object {
     lazy var dictionary: AssociatedValues<Object> = "some_dictionary".dictionary(in: self, keys: .keyObjects)
 }
 ```
-Some mutable operations of collections can require `isSynced` state. To achieve current state use `func runObserving()` function or set property `keepSynced: Bool` to `true`.
+Some mutable operations of collections can require `isSynced` state. To achieve this state use `func runObserving()` function or set property `keepSynced: Bool` to `true`.
 
-***References*** is array that stores objects as references.
+***(Distributed)References*** is array that stores objects as references.
 Source elements must locate in the same reference. On insertion of object to this array creates link on side object.
 
-***Values*** is array that stores objects by value in itself location.
+***(Explicit)Values*** is array that stores objects by value in itself location. 'Explicit' prefix is used in collection that stores elements without collection view.
 
 `References`, `Values` mutating:
 ```swift
@@ -135,7 +140,7 @@ do {
 }
 ```
 
-***AssociatedValues*** is dictionary where keys are references, but values are objects. On save value creates link on side key object.
+***(Explicit)AssociatedValues*** is dictionary where keys are references, but values are objects. On save value creates link on side key object.
 
 `AssociatedValues` mutating:
 ```swift
@@ -175,11 +180,11 @@ Almost all data changes perform using this object.
 The most mutable operations just take transaction as parameter, but to create custom complex operations you can use this methods:
 ```swift
 /// adds operation of save RealtimeValue as single value as is
-func set<T: RealtimeValue & RealtimeValueEvents>(_ value: T, by node: Node)
+func set<T>(_ value: T, by node: Node) where T: RealtimeValue & RealtimeValueEvents
 /// adds operation of delete RealtimeValue
-func delete<T: RealtimeValue & RealtimeValueEvents>(_ value: T)
+func delete<T>(_ value: T) where T: RealtimeValue & RealtimeValueEvents
 /// adds operation of update RealtimeValue
-func update<T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting>(_ value: T)
+func update<T>(_ value: T) where T: ChangeableRealtimeValue & RealtimeValueEvents & Reverting
 /// method to merge actions of other transaction
 func merge(_ other: Transaction)
 ```
@@ -189,6 +194,99 @@ For more details see Example project.
 
 ***SingleSectionTableViewDelegate*** -  provides single section data source for UITableView with auto update.
 ***SectionedTableViewDelegate*** -  provides sectioned data source for UITableView with auto update.
+***CollectionViewDelegate*** - provides data source for UICollectionView with auto update.
+```swift
+delegate.register(UITableViewCell.self) { (item, cell, user, ip) in
+    item.bind(
+        user.name, { cell, name in
+            cell.textLabel?.text = name 
+        }, 
+        { err in
+            print(err)
+        }
+    )
+}
+delegate.bind(tableView)
+delegate.tableDelegate = self
+
+// data
+users.changes
+    .listening(
+        onValue: { [weak tableView] (e) in
+            guard let tv = tableView else { return }
+            switch e {
+            case .initial: tv.reloadData()
+            case .updated(let deleted, let inserted, let modified, let moved):
+                tv.beginUpdates()
+                tv.insertRows(at: inserted.map({ IndexPath(row: $0, section: 0) }), with: .automatic)
+                tv.deleteRows(at: deleted.map({ IndexPath(row: $0, section: 0) }), with: .automatic)
+                tv.reloadRows(at: modified.map({ IndexPath(row: $0, section: 0) }), with: .automatic)
+                moved.forEach { from, to in
+                    tv.moveRow(at: IndexPath(row: from, section: 0), to: IndexPath(row: to, section: 0))
+                }
+                tv.endUpdates()
+            }
+        },
+        onError: onError
+    )
+    .add(to: listeningCollector)
+```
+
+### Forms
+
+```swift
+class User: Object {
+    var name: Property<String>
+    var age: Property<Int>
+}
+
+class FormViewController: UIViewController {
+    var form: Form<User>
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        let name = Row<TextCell, Model>.inputRow(
+            "input",
+            title: Localized.name,
+            keyboard: .name,
+            placeholder: .inputPlaceholder(Localized.name),
+            onText: { $0.name <== $1 }
+        )
+        name.onUpdate { (args, row) in
+            args.view.textField.text <== args.model.name
+        }
+        let age = Row<TextCell, Model>.inputRow(
+            "input",
+            title: Localized.age,
+            keyboard: .numberPad,
+            placeholder: requiredPlaceholder,
+            onText: { $0.age <== $1 }
+        )
+        age.onUpdate { (args, row) in
+            args.view.textField.text <== args.model.age
+        }
+        let button: Row<ButtonCell, Model> = Row(reuseIdentifier: "button")
+        button.onUpdate { (args, row) in
+            args.view.titleLabel.text = Localized.login
+        }
+        button.onSelect { [unowned self] (_, row) in
+            self.submit()
+        }
+
+        let fieldsSection: StaticSection<Model> = StaticSection(headerTitle: nil, footerTitle: nil)
+        fieldsSection.addRow(name)
+        fieldsSection.addRow(age)
+
+        let buttonSection: StaticSection<Model> = StaticSection(headerTitle: nil, footerTitle: nil)
+        buttonSection.addRow(button)
+
+        form = Form(model: User(), sections: [fieldsSection, buttonSection])
+        form.tableView = tableView
+        form.tableDelegate = self
+    }
+}
+```
 
 ### Local listening
 
@@ -205,6 +303,9 @@ public protocol Listenable {
 ### Debugging
 Add debug argument 'REALTIME_CRASH_ON_ERROR' passed on launch, to catch internal errors.
 
+### JS
+Also exists NodeJS module, created for Vue.js application. Source code you can found in `js` folder.
+
 ## Limitations
 Realtime objects should not passed between threads.
 
@@ -218,6 +319,11 @@ Xcode 9+, Swift 4.1+.
 
 ## Installation
 
+SwiftPM
+```swift
+.package(url: "https://github.com/k-o-d-e-n/realtime.git", .branch("master"))
+```
+
 Realtime is available through [CocoaPods](http://cocoapods.org). To install
 it, simply add the following line to your Podfile:
 
@@ -227,7 +333,7 @@ pod 'Realtime'
 
 ## Author
 
-Koryttsev Denis, koden.u8800@gmail.com
+Koryttsev Denis, koden.u8800@gmail.com  
 Twitter: [@K_o_D_e_N](https://twitter.com/K_o_D_e_N)
 
 ## License

@@ -29,7 +29,7 @@ public final class Transaction {
     let database: RealtimeDatabase
     let storage: RealtimeStorage
     internal var updateNode: ObjectNode = ObjectNode(node: .root)
-    fileprivate var preconditions: [(Promise) -> Void] = []
+    fileprivate var preconditions: [(PromiseVoid) -> Void] = []
     fileprivate var completions: [(Bool) -> Void] = []
     fileprivate var cancelations: [() -> Void] = []
     fileprivate var fileCancelations: [Node: () -> Void] = [:]
@@ -104,14 +104,11 @@ extension Transaction {
             lock.unlock()
         }
 
-        let failPromise = Promise(
-            action: group.leave,
-            error: { e in
-                addError(e)
-                group.leave()
-            }
-        )
-        currentPreconditions.forEach { $0(failPromise) }
+        currentPreconditions.forEach { action in
+            let failPromise = PromiseVoid()
+            failPromise.resolve(addError).always(group.leave)
+            action(failPromise)
+        }
 
         group.notify(queue: .main) {
             self.runPreconditions({ (errs) in
@@ -346,7 +343,7 @@ public extension Transaction {
     }
 
     /// registers new precondition action
-    func addPrecondition(_ precondition: @escaping (Promise) -> Void) {
+    func addPrecondition(_ precondition: @escaping (PromiseVoid) -> Void) {
         if let merged = mergedToTransaction {
             merged.addPrecondition(precondition)
         } else {

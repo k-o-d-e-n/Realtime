@@ -228,12 +228,7 @@ public protocol RealtimeStorageCache {
 }
 
 public protocol RealtimeStorage {
-    func load(
-        for node: Node,
-        timeout: DispatchTimeInterval,
-        completion: @escaping (Data?) -> Void,
-        onCancel: ((Error) -> Void)?
-        ) -> RealtimeStorageTask
+    func load(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask
     func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) // TODO: Replace transaction parameter with UpdateNode
 }
 
@@ -242,8 +237,9 @@ public protocol RealtimeTask {
 }
 
 public protocol RealtimeStorageTask: RealtimeTask {
+    typealias SuccessResult = (data: Data?, metadata: RealtimeMetadata?)
     var progress: AnyListenable<Progress> { get }
-    var success: AnyListenable<RealtimeMetadata?> { get }
+    var success: AnyListenable<SuccessResult> { get }
 
     func pause()
     func cancel()
@@ -309,6 +305,11 @@ class PagingController {
         self.pageSize = pageSize
         self.delegate = delegate
     }
+    deinit {
+        startPage?.dispose()
+        pages.forEach({ $0.value.dispose() })
+        endPage?.dispose()
+    }
 
     func start(observeNew observe: Bool = true, completion: (() -> Void)? = nil) {
         guard startPage == nil else {
@@ -359,7 +360,7 @@ class PagingController {
             return false
         }
 
-        var disposable: Disposable?
+        let disposable: Disposable?
         disposable = database.observe(
             .child([]), // with .child([]) disposable has no significance
             on: node,
@@ -410,7 +411,7 @@ class PagingController {
             return false
         }
 
-        var disposable: Disposable?
+        let disposable: Disposable?
         disposable = database.observe(
             .child([]), // with .child([]) disposable has no significance
             on: node,
@@ -451,11 +452,5 @@ class PagingController {
         )
 
         return true
-    }
-
-    deinit {
-        startPage?.dispose()
-        pages.forEach({ $0.value.dispose() })
-        endPage?.dispose()
     }
 }

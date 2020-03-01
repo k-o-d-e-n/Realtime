@@ -8,10 +8,10 @@
 #if os(iOS)
 import UIKit
 
-public enum CellBuilder {
+public enum CellBuilder<View> {
     case reuseIdentifier(String)
-    case `static`(UITableViewCell)
-    case custom((UITableView, IndexPath) -> UITableViewCell)
+    case `static`(View)
+    case custom((UITableView, IndexPath) -> View)
 }
 
 struct RowState: OptionSet {
@@ -28,24 +28,25 @@ extension RowState {
     static let removed: RowState = RowState(rawValue: 1 << 3)
 }
 
-// probably `ReuseItem` should be a subclass of static item
-// can add row dependency didSelect to hide/show optional cells
+@dynamicMemberLookup
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
-    var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
-    lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil)
-    lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap(), _model.compactMap())
-    lazy var _didSelect: Repeater<IndexPath> = .unsafe()
+    fileprivate var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
+    fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe())
+    fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.repeater!.compactMap(), _model.repeater!.compactMap())
+    fileprivate lazy var _didSelect: Repeater<IndexPath> = .unsafe()
 
+    var dynamicValues: [String: Any] = [:]
     var state: RowState = [.free, .pending]
+    open var indexPath: IndexPath?
 
     open internal(set) weak var model: Model? {
-        set { _model.value = newValue }
-        get { return _model.value }
+        set { _model.wrappedValue = newValue }
+        get { return _model.wrappedValue }
     }
 
-    let cellBuilder: CellBuilder
+    let cellBuilder: CellBuilder<View>
 
-    public required init(cellBuilder: CellBuilder) {
+    public required init(cellBuilder: CellBuilder<View>) {
         self.cellBuilder = cellBuilder
     }
     deinit {}
@@ -54,21 +55,37 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         self.init(cellBuilder: .reuseIdentifier(reuseIdentifier))
     }
 
+    open subscript<T>(dynamicMember member: String) -> T? {
+        set { dynamicValues[member] = newValue }
+        get { return dynamicValues[member] as? T }
+    }
+
     open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
         _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 
-    open func onSelect(_ doit: @escaping ((IndexPath), Row<View, Model>) -> Void) {
+    open func onSelect(_ doit: @escaping (IndexPath, Row<View, Model>) -> Void) {
         _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 
     override func free() {
         super.free()
-        _model.value = nil
-        internalDispose.dispose()
+        _model.wrappedValue = nil
     }
 
-    func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
+    public func sendSelectEvent(at indexPath: IndexPath) {
+        _didSelect.send(.value(indexPath))
+    }
+
+    public func removeAllValues() {
+        dynamicValues.removeAll()
+    }
+}
+extension Row where View: UITableViewCell {
+    public convenience init(static view: View) {
+        self.init(cellBuilder: .static(view))
+    }
+    internal func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
         switch cellBuilder {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath)
@@ -76,42 +93,73 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         case .custom(let closure): return closure(tableView, indexPath)
         }
     }
-
-    public func sendSelectEvent(at indexPath: IndexPath) {
-        _didSelect.send(.value(indexPath))
-    }
-}
-extension Row where View: UITableViewCell {
-    public convenience init(static view: View) {
-        self.init(cellBuilder: .static(view))
-    }
 }
 public extension Row where View: UIView {
     var isVisible: Bool {
         return state.contains(.displaying) && super._isVisible
     }
+    internal func build(for tableView: UITableView, at section: Int) -> UIView? {
+        switch cellBuilder {
+        case .reuseIdentifier(let identifier):
+            return tableView.dequeueReusableHeaderFooterView(withIdentifier: identifier)
+        case .static(let view): return view
+        case .custom(let closure): return closure(tableView, IndexPath(row: 0, section: 0))
+        }
+    }
 }
 extension Row: CustomDebugStringConvertible {
     public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             view: \(view as Any),
-            model: \(_model.value as Any),
-            state: \(state)
+            model: \(_model.wrappedValue as Any),
+            state: \(state),
+            values: \(dynamicValues)
         }
         """
+    }
+}
+extension Row {
+    func willDisplay(with view: View, model: Model, indexPath: IndexPath) {
+        if !state.contains(.displaying) || self.view !== view {
+            self.indexPath = indexPath
+            self.view = view
+            _model.wrappedValue = model
+            state.insert(.displaying)
+            state.remove(.free)
+        }
+    }
+    func didEndDisplay(with view: View, indexPath: IndexPath) {
+        if !state.contains(.free) && self.view === view {
+            self.indexPath = nil
+            state.remove(.displaying)
+            free()
+            state.insert([.pending, .free])
+        } else {
+//                debugLog("\(row.state) \n \(row.view as Any) \n\(cell)")
+        }
     }
 }
 
 open class Section<Model: AnyObject>: RandomAccessCollection {
     open var footerTitle: String?
     open var headerTitle: String?
+    open internal(set) var headerRow: Row<UIView, Model>?
+    open internal(set) var footerRow: Row<UIView, Model>?
 
     var numberOfItems: Int { fatalError("override") }
 
     public init(headerTitle: String?, footerTitle: String?) {
         self.headerTitle = headerTitle
         self.footerTitle = footerTitle
+    }
+
+    // TODO: set_Row does not recognize with code completer
+    open func setHeaderRow<V: UIView>(_ row: Row<V, Model>) {
+        self.headerRow = unsafeBitCast(row, to: Row<UIView, Model>.self)
+    }
+    open func setFooterRow<V: UIView>(_ row: Row<V, Model>) {
+        self.footerRow = unsafeBitCast(row, to: Row<UIView, Model>.self)
     }
 
     internal func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) { fatalError() }
@@ -130,6 +178,19 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
     func willDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
     func didEndDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
 
+    func willDisplayHeaderView(_ view: UIView, at section: Int, with model: Model) {
+        headerRow?.willDisplay(with: view, model: model, indexPath: IndexPath(row: -1, section: section))
+    }
+    func didEndDisplayHeaderView(_ view: UIView, at section: Int, with model: Model) {
+        headerRow?.didEndDisplay(with: view, indexPath: IndexPath(row: -1, section: section))
+    }
+    func willDisplayFooterView(_ view: UIView, at section: Int, with model: Model) {
+        footerRow?.willDisplay(with: view, model: model, indexPath: IndexPath(row: .max, section: section))
+    }
+    func didEndDisplayFooterView(_ view: UIView, at section: Int, with model: Model) {
+        footerRow?.didEndDisplay(with: view, indexPath: IndexPath(row: .max, section: section))
+    }
+
     public typealias Element = Row<UITableViewCell, Model>
     open var startIndex: Int { fatalError("override") }
     open var endIndex: Int { fatalError("override") }
@@ -141,6 +202,11 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
     }
     open subscript(position: Int) -> Row<UITableViewCell, Model> {
         fatalError("override")
+    }
+}
+public extension Section {
+    var visibleIndexPaths: [IndexPath] {
+        return compactMap({ $0.indexPath })
     }
 }
 
@@ -187,25 +253,13 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
             }
         } else if rows.indices.contains(indexPath.row) {
             let row = rows[indexPath.row]
-            if !row.state.contains(.free) && row.view === cell {
-                row.state.remove(.displaying)
-                row.free()
-                row.state.insert([.pending, .free])
-            } else {
-//                debugLog("\(row.state) \n \(row.view as Any) \n\(cell)")
-            }
+            row.didEndDisplay(with: cell, indexPath: indexPath)
         }
     }
 
     override func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
         let item = rows[indexPath.row]
-
-        if !item.state.contains(.displaying) || item.view !== cell {
-            item.view = cell
-            item._model.value = model
-            item.state.insert(.displaying)
-            item.state.remove(.free)
-        }
+        item.willDisplay(with: cell, model: model, indexPath: indexPath)
     }
 
     override func willDisplaySection(_ tableView: UITableView, at index: Int) {}
@@ -246,7 +300,7 @@ open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, 
         super.init(cellBuilder: .custom({ _,_  in fatalError("Reuse form row does not responsible for cell building") }))
     }
 
-    public required init(cellBuilder: CellBuilder) {
+    public required init(cellBuilder: CellBuilder<View>) {
         fatalError("Use init() initializer instead")
     }
 
@@ -636,7 +690,7 @@ extension Form: RandomAccessCollection {
     }
 }
 extension Form {
-    class Table: NSObject, UITableViewDelegate, UITableViewDataSource {
+    final class Table: NSObject, UITableViewDelegate, UITableViewDataSource {
         unowned var form: Form
 
         init(_ form: Form) {
@@ -652,7 +706,7 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-            return form.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? 44.0
+            return form.tableDelegate?.tableView?(tableView, heightForRowAt: indexPath) ?? tableView.rowHeight
         }
 
         func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
@@ -667,8 +721,16 @@ extension Form {
             return form.sections[section].headerTitle
         }
 
+        func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+            return form.sections[section].headerRow?.build(for: tableView, at: section)
+        }
+
         func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
             return form.sections[section].footerTitle
+        }
+
+        func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
+            return form.sections[section].footerRow?.build(for: tableView, at: section)
         }
 
         func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -690,14 +752,31 @@ extension Form {
             }
         }
 
+        // (will/didEnd)DisplaySection calls only for header, but it doesn't correct
         func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
-            form[section].willDisplaySection(tableView, at: section)
+            let s = form[section]
+            s.willDisplaySection(tableView, at: section) // if section has no header willDisplay won't called
+            s.willDisplayHeaderView(view, at: section, with: form.model)
             form.tableDelegate?.tableView?(tableView, willDisplayHeaderView: view, forSection: section)
         }
 
         func tableView(_ tableView: UITableView, didEndDisplayingHeaderView view: UIView, forSection section: Int) {
-            form[section].didEndDisplaySection(tableView, at: section)
+            let s = form[section]
+            s.didEndDisplaySection(tableView, at: section)
+            s.didEndDisplayHeaderView(view, at: section, with: form.model)
             form.tableDelegate?.tableView?(tableView, didEndDisplayingHeaderView: view, forSection: section)
+        }
+
+        func tableView(_ tableView: UITableView, willDisplayFooterView view: UIView, forSection section: Int) {
+            let s = form[section]
+            s.willDisplayFooterView(view, at: section, with: form.model)
+            form.tableDelegate?.tableView?(tableView, willDisplayFooterView: view, forSection: section)
+        }
+
+        func tableView(_ tableView: UITableView, didEndDisplayingFooterView view: UIView, forSection section: Int) {
+            let s = form[section]
+            s.didEndDisplayFooterView(view, at: section, with: form.model)
+            form.tableDelegate?.tableView?(tableView, didEndDisplayingFooterView: view, forSection: section)
         }
 
         func tableView(_ tableView: UITableView, shouldHighlightRowAt indexPath: IndexPath) -> Bool {

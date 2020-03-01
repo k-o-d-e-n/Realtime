@@ -85,31 +85,6 @@ extension Versionable {
 
 // MARK: RealtimeValue
 
-/// Key of RealtimeValue option
-public struct ValueOption: Hashable {
-    let rawValue: String
-
-    public init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-}
-public extension ValueOption {
-    /// Key for `RealtimeDatabase` instance
-    static let database: ValueOption = ValueOption("realtime.database")
-    /// Key for `RealtimeDatabaseValue?` value,
-    /// use it only when you need added required information for lazy initialization of `RealtimeValue`
-    static let payload: ValueOption = ValueOption("realtime.value.payload")
-    /// Key for `RealtimeDatabaseValue` value
-    static let rawValue: ValueOption = ValueOption("realtime.value.raw")
-}
-public extension Dictionary where Key == ValueOption {
-    var rawValue: RealtimeDatabaseValue? {
-        return self[.rawValue] as? RealtimeDatabaseValue
-    }
-    var payload: RealtimeDatabaseValue? {
-        return self[.payload] as? RealtimeDatabaseValue
-    }
-}
 public extension RealtimeDataProtocol {
     internal func version() throws -> String? {
         let container = try self.container(keyedBy: InternalKeys.self)
@@ -151,14 +126,17 @@ public protocol RealtimeValue: DatabaseKeyRepresentable, RealtimeDataRepresented
     var payload: RealtimeDatabaseValue? { get }
     /// Node location in database
     var node: Node? { get }
-
+}
+/// RealtimeValue that can be initialized as standalone object
+public protocol LazyRealtimeValue: RealtimeValue { // TODO: Unused
+    associatedtype Options
     /// Creates new instance associated with database node
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    init(in node: Node?, options: [ValueOption: Any])
+    init(in node: Node?, options: Options)
 }
-extension RealtimeValue {
+extension LazyRealtimeValue {
     /// Use current initializer if `RealtimeValue` has required user-defined options
     ///
     /// - Parameters:
@@ -166,19 +144,9 @@ extension RealtimeValue {
     ///   - event: Event associated with data
     ///   - options: User-defined options
     /// - Throws: If data cannot be applied
-    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent, options: [ValueOption: Any]) throws {
-        self.init(in: data.node, options: options.merging([.database: data.database as Any], uniquingKeysWith: { _, new in new }))
+    public init(data: RealtimeDataProtocol, event: DatabaseDataEvent, options: Options) throws {
+        self.init(in: data.node, options: options)
         try apply(data, event: event)
-    }
-    var defaultOptions: [ValueOption: Any] {
-        var options: [ValueOption: Any] = [:]
-        if let r = self.raw {
-            options[.rawValue] = r
-        }
-        if let upl = self.payload {
-            options[.payload] = upl
-        }
-        return options
     }
 }
 
@@ -186,9 +154,7 @@ extension Optional: RealtimeValue, DatabaseKeyRepresentable, _RealtimeValueUtili
     public var raw: RealtimeDatabaseValue? { return self?.raw }
     public var payload: RealtimeDatabaseValue? { return self?.payload }
     public var node: Node? { return self?.node }
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self = .some(Wrapped(in: node, options: options))
-    }
+
     public mutating func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         try self?.apply(data, event: event)
     }
@@ -231,6 +197,9 @@ public extension RealtimeValue {
     }
 }
 
+/// A type that can used as key in `AssociatedValues` collection.
+public typealias HashableValue = Hashable & RealtimeValue
+
 public extension Equatable where Self: RealtimeValue {
     static func ==(lhs: Self, rhs: Self) -> Bool {
         return lhs.node == rhs.node
@@ -251,11 +220,6 @@ public extension Comparable where Self: RealtimeValue {
         case (.some(let l), .some(let r)): return l.key < r.key
         default: return false
         }
-    }
-}
-public extension RawRepresentable where Self.RawValue == String {
-    func value<T: RealtimeValue>(in object: Object, options: [ValueOption: Any] = [:]) -> T {
-        return T(in: object.node?.child(with: rawValue), options: options)
     }
 }
 
@@ -354,7 +318,7 @@ extension RealtimeValueEvents where Self: RealtimeValue {
     }
 }
 
-/// Values that can writes as single values
+/// Value that can writes as single values
 public protocol WritableRealtimeValue: RealtimeValue {
     /// Writes all local stored data to transaction as is. You shouldn't call it directly.
     ///
@@ -390,7 +354,7 @@ extension WritableRealtimeValue where Self: Versionable {
     }
 }
 
-/// Values that can be changed partially
+/// Value that can be changed partially
 public protocol ChangeableRealtimeValue: RealtimeValue {
     /// Indicates that value was changed
     var hasChanges: Bool { get }

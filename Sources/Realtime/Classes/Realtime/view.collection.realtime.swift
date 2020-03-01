@@ -11,19 +11,12 @@ public struct RCItem: WritableRealtimeValue, Comparable {
     public var raw: RealtimeDatabaseValue?
     public var payload: RealtimeDatabaseValue?
     public let node: Node?
-    var priority: Int64?
     var linkID: String?
 
     init(key: String?, value: RealtimeValue) {
         self.raw = value.raw
         self.payload = value.payload
         self.node = Node(key: key ?? value.dbKey)
-    }
-
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self.node = node
-        self.raw = options[.rawValue] as? RealtimeDatabaseValue
-        self.payload = options[.payload] as? RealtimeDatabaseValue
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -35,8 +28,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         let dataContainer = try data.container(keyedBy: InternalKeys.self)
         self.node = Node(key: key)
         self.raw = try valueData.rawValue()
-        self.linkID = try dataContainer.decode(String.self, forKey: .link)
-        self.priority = try dataContainer.decodeIfPresent(Int64.self, forKey: .index)
+        self.linkID = try dataContainer.decodeIfPresent(String.self, forKey: .link)
         self.payload = try valueData.payload()
     }
 
@@ -48,9 +40,6 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         var representation: [RealtimeDatabaseValue] = []
         if let l = linkID {
             representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.link.rawValue), RealtimeDatabaseValue(l))))
-        }
-        if let p = priority {
-            representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.index.rawValue), RealtimeDatabaseValue(p))))
         }
         var value: [RealtimeDatabaseValue] = []
         if let p = self.payload {
@@ -69,13 +58,7 @@ public struct RCItem: WritableRealtimeValue, Comparable {
         return lhs.dbKey == rhs.dbKey
     }
     public static func < (lhs: RCItem, rhs: RCItem) -> Bool {
-        if (lhs.priority ?? 0) < (rhs.priority ?? 0) {
-            return true
-        } else if (lhs.priority ?? 0) > (rhs.priority ?? 0) {
-            return false
-        } else {
-            return lhs.dbKey < rhs.dbKey
-        }
+        return lhs.dbKey < rhs.dbKey
     }
 }
 
@@ -86,10 +69,6 @@ public struct RDItem: WritableRealtimeValue, Comparable {
     var rcItem: RCItem
 
     public var dbKey: String! { return rcItem.dbKey }
-    var priority: Int64? {
-        set { rcItem.priority = newValue }
-        get { return rcItem.priority }
-    }
     var linkID: String? {
         set { rcItem.linkID = newValue }
         get { return rcItem.linkID }
@@ -99,10 +78,6 @@ public struct RDItem: WritableRealtimeValue, Comparable {
         self.rcItem = RCItem(key: key.dbKey, value: value)
         self.raw = key.raw
         self.payload = key.payload
-    }
-
-    public init(in node: Node?, options: [ValueOption : Any]) {
-        self.rcItem = RCItem(in: node, options: options)
     }
 
     public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -121,9 +96,6 @@ public struct RDItem: WritableRealtimeValue, Comparable {
 
         if let l = rcItem.linkID {
             representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.link.rawValue), RealtimeDatabaseValue(l))))
-        }
-        if let p = rcItem.priority {
-            representation.append(RealtimeDatabaseValue((RealtimeDatabaseValue(InternalKeys.index.rawValue), RealtimeDatabaseValue(p))))
         }
         var value: [RealtimeDatabaseValue] = []
         if let p = rcItem.payload {
@@ -151,13 +123,7 @@ public struct RDItem: WritableRealtimeValue, Comparable {
         return lhs.dbKey == rhs.dbKey
     }
     public static func < (lhs: RDItem, rhs: RDItem) -> Bool {
-        if (lhs.priority ?? 0) < (rhs.priority ?? 0) {
-            return true
-        } else if (lhs.priority ?? 0) > (rhs.priority ?? 0) {
-            return false
-        } else {
-            return lhs.dbKey < rhs.dbKey
-        }
+        return lhs.dbKey < rhs.dbKey
     }
 }
 
@@ -239,12 +205,8 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
         }
     }
 
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        super.init(in: node, options: options)
-    }
-
     public required convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        self.init(in: data.node, options: [.database: data.database as Any, .storage: data.storage as Any])
+        self.init(node: data.node, options: RealtimeValueOptions(database: data.database, raw: nil, payload: nil))
         try apply(data, event: event)
     }
 

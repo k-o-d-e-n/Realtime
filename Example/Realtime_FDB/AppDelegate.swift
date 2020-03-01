@@ -17,7 +17,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         let remoteDatabase = RFDatabase(url: URL(string: "ws://192.168.0.151:8080")!)
         remoteDatabase.connect()
-        let configuration = RealtimeApp.Configuration(linksNode: BranchNode(key: "___tests/__links"))
+        let configuration = RealtimeApp.Configuration()
         RealtimeApp.initialize(with: remoteDatabase, storage: RealtimeApp.cache, configuration: configuration)
         return true
     }

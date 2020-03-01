@@ -76,6 +76,31 @@ public extension Listenable {
             property <== value
         })
     }
+    func bind<T>(to obj: T, _ keyPath: WritableKeyPath<T, Out>, onError: ((Error) -> Void)? = nil) -> Disposable {
+        var object = obj
+        return listening({ (state) in
+            switch state {
+            case .value(let v): object[keyPath: keyPath] = v
+            case .error(let e): onError?(e)
+            }
+        })
+    }
+    func bind<T: AnyObject>(toWeak obj: T, _ keyPath: WritableKeyPath<T, Out>, onError: ((Error) -> Void)? = nil) -> Disposable {
+        return listening({ [weak obj] (state) in
+            switch state {
+            case .value(let v): obj?[keyPath: keyPath] = v
+            case .error(let e): onError?(e)
+            }
+        })
+    }
+    func bind<T: AnyObject>(toUnowned obj: T, _ keyPath: ReferenceWritableKeyPath<T, Out>, onError: ((Error) -> Void)? = nil) -> Disposable {
+        return listening({ [unowned obj] (state) in
+            switch state {
+            case .value(let v): obj[keyPath: keyPath] = v
+            case .error(let e): onError?(e)
+            }
+        })
+    }
 }
 
 #if os(macOS) || os(iOS)
@@ -100,7 +125,8 @@ public extension RTime where Base: URLSession {
         let task: URLSessionDataTask
         let storage: ValueStorage<(Data?, URLResponse?)>
 
-        init(session: URLSession, request: URLRequest, storage: ValueStorage<(Data?, URLResponse?)> = .unsafe(strong: (nil, nil))) {
+        init(session: URLSession, request: URLRequest, storage: ValueStorage<(Data?, URLResponse?)> = .unsafe(strong: (nil, nil), repeater: .unsafe())) {
+            precondition(storage.repeater != nil, "Storage must have repeater")
             self.session = session
             self.task = session.dataTask(for: request, storage: storage)
             self.storage = storage
@@ -108,7 +134,7 @@ public extension RTime where Base: URLSession {
 
         public func listening(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> Disposable {
             task.resume()
-            return storage.listening(assign)
+            return storage.repeater!.listening(assign)
         }
     }
 
@@ -136,6 +162,7 @@ extension URLSessionTask {
         switch state {
         case .canceling, .completed: return true
         case .running, .suspended: return false
+        @unknown default: return true
         }
     }
 }
@@ -145,7 +172,7 @@ extension URLSession: RealtimeCompatible {
             if let e = error {
                 storage.sendError(e)
             } else {
-                storage.value = (data, response)
+                storage.wrappedValue = (data, response)
             }
         }
     }
@@ -178,6 +205,14 @@ public extension Listenable where Self.Out == String? {
     }
     func bindWithUpdateLayout(to label: UILabel) -> Disposable {
         return bind(to: label, didSet: { v, _ in v.superview?.setNeedsLayout() })
+    }
+    func bind(to label: UITextField, default def: String? = nil) -> Disposable {
+        return listening(onValue: .weak(label) { data, l in l?.text = data ?? def })
+    }
+    func bind(to label: UITextField, default def: String? = nil, didSet: @escaping (UITextField, Out) -> Void) -> Disposable {
+        return listening(onValue: .weak(label) { data, l in
+            l.map { $0.text = data ?? def; didSet($0, data) }
+        })
     }
 }
 public extension Listenable where Self.Out == String {
@@ -367,7 +402,7 @@ extension AnyCancellable: Disposable {
 
 @available(iOS 13.0, macOS 10.15, *)
 extension Publisher where Self: Listenable, Output == Out {
-    func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<Out>>) -> Disposable {
         return sink(
             receiveCompletion: { (completion) in
                 if case .failure(let err) = completion {

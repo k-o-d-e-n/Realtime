@@ -8,51 +8,63 @@
 import Foundation
 
 public extension RawRepresentable where RawValue == String {
-    func dictionary<Key, Value>(in object: Object, keys: Node) -> AssociatedValues<Key, Value> {
+    func dictionary<Key: Object, Value: Object>(in object: Object, keys: Node) -> AssociatedValues<Key, Value> {
         return AssociatedValues(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .keysNode: keys
-            ]
+            options: AssociatedValues.Options(
+                database: object.database, keys: keys,
+                key: { node, database, options in
+                    return Key(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+                },
+                value: { node, database, options in
+                    return Value(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+                }
+            )
         )
     }
-    func dictionary<Key, Value>(in object: Object, keys: Node, elementOptions: [ValueOption: Any]) -> AssociatedValues<Key, Value> {
-        let db = object.database as Any
-        return dictionary(in: object, keys: keys, builder: { (node, options) in
-            var compoundOptions = options.merging(elementOptions, uniquingKeysWith: { remote, local in remote })
-            compoundOptions[.database] = db
-            return Value(in: node, options: compoundOptions)
-        })
+    func dictionary<Key: Object, Value>(in object: Object, keys: Node, builder: @escaping RCElementBuilder<RealtimeValueOptions, Value>) -> AssociatedValues<Key, Value> {
+        return AssociatedValues(in: Node(key: rawValue, parent: object.node), database: object.database, keys: keys, value: builder)
     }
-    func dictionary<Key, Value>(in object: Object, keys: Node, builder: @escaping RCElementBuilder<Value>) -> AssociatedValues<Key, Value> {
-        return AssociatedValues(
-            in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .keysNode: keys,
-                .elementBuilder: builder
-            ]
+}
+
+extension AssociatedValues where Key: Object, Value: Object {
+    convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node) {
+        self.init(
+            in: node,
+            database: database, keys: keys,
+            value: { node, database, options in
+                return Value(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+            }
         )
     }
 }
 
-extension ValueOption {
-    public static let keysNode = ValueOption("realtime.dictionary.keys")
+extension AssociatedValues where Key: Object {
+    convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node, value: @escaping RCElementBuilder<RealtimeValueOptions, Value>) {
+        self.init(
+            in: node,
+            options: Options(
+                database: database, keys: keys,
+                key: { node, database, options in
+                    return Key(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+                },
+                value: value
+            )
+        )
+    }
 }
-
-/// A type that can used as key in `AssociatedValues` collection.
-public typealias HashableValue = Hashable & RealtimeValue
 
 /// A Realtime database collection that stores elements in own database node as is,
 /// as full objects, that keyed by database key of `Key` element.
 public final class AssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
 where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
-    var storage: RCDictionaryStorage<Key, Value>
-    internal private(set) var valueBuilder: RealtimeValueBuilder<Value>
-    internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
 
+    internal let keysNode: Node
+    internal let valueBuilder: RCElementBuilder<RealtimeValueOptions, Value>
+    internal let keyBuilder: RCElementBuilder<RealtimeValueOptions, Key>
+
+    var storage: RCDictionaryStorage<Key, Value>
     public override var raw: RealtimeDatabaseValue? { return nil }
     public override var payload: RealtimeDatabaseValue? { return nil }
     public let view: SortedCollectionView<RDItem>
@@ -86,6 +98,21 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
         didSet { view.didChange(dataExplorer: dataExplorer) }
     }
 
+    public struct Options {
+        let base: RealtimeValueOptions
+        let keysNode: Node
+        let keyBuilder: RCElementBuilder<RealtimeValueOptions, Key>
+        let valueBuilder: RCElementBuilder<RealtimeValueOptions, Value>
+
+        init(database: RealtimeDatabase?, keys: Node, key: @escaping RCElementBuilder<RealtimeValueOptions, Key>, value: @escaping RCElementBuilder<RealtimeValueOptions, Value>) {
+            guard keys.isRooted else { fatalError("Keys must has rooted location") }
+            self.base = RealtimeValueOptions(database: database)
+            self.keysNode = keys
+            self.keyBuilder = key
+            self.valueBuilder = value
+        }
+    }
+
     /// Creates new instance associated with database node
     ///
     /// Available options:
@@ -96,18 +123,14 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        guard case let keysNode as Node = options[.keysNode] else { fatalError("Skipped required options") }
-        guard keysNode.isRooted else { fatalError("Keys must has rooted location") }
-
+    public required init(in node: Node?, options: Options) {
         let viewParentNode = node.flatMap { $0.isRooted ? $0.linksNode : nil }
-        let valueBuilder = options[.elementBuilder] as? RCElementBuilder<Value> ?? Value.init
-        self.valueBuilder = RealtimeValueBuilder(spaceNode: node, impl: valueBuilder)
-        let keyBuilder = options[.keyBuilder] as? RCElementBuilder<Key> ?? Key.init
-        self.keyBuilder = RealtimeValueBuilder(spaceNode: keysNode, impl: keyBuilder)
+        self.valueBuilder = options.valueBuilder
+        self.keyBuilder = options.keyBuilder
+        self.keysNode = options.keysNode
         self.storage = RCDictionaryStorage()
-        self.view = SortedCollectionView(in: Node(key: InternalKeys.items, parent: viewParentNode), options: [.database: options[.database] as Any])
-        super.init(in: node, options: options)
+        self.view = SortedCollectionView(node: Node(key: InternalKeys.items, parent: viewParentNode), options: options.base)
+        super.init(node: node, options: options.base)
     }
 
     /// Currently no available
@@ -123,15 +146,22 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
 
     public typealias Element = (key: Key, value: Value)
 
-    private var shouldLinking = true // TODO: Fix it
+    private var shouldLinking = true // TODO: Move to Options
     public func unlinked() -> AssociatedValues<Key, Value> { shouldLinking = false; return self }
+
+    fileprivate func _buildKey(_ item: RDItem) -> Key {
+        return keyBuilder(keysNode.child(with: item.dbKey), database, RealtimeValueOptions(database: database, raw: item.raw, payload: item.payload))
+    }
+    fileprivate func _buildValue(_ item: RDItem) -> Value {
+        return valueBuilder(node?.child(with: item.dbKey), database, RealtimeValueOptions(database: database, raw: item.rcItem.raw, payload: item.rcItem.payload))
+    }
 
     public func makeIterator() -> IndexingIterator<AssociatedValues> { return IndexingIterator(_elements: self) } // iterator is not safe
     public subscript(position: Int) -> Element {
         let item = view[position]
         guard let element = storage.element(for: item.dbKey) else {
-            let key = keyBuilder.buildKey(with: item)
-            let value = valueBuilder.buildValue(with: item)
+            let key = _buildKey(item)
+            let value = _buildValue(item)
             storage.set(value: value, for: key)
             return (key, value)
         }
@@ -142,7 +172,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
             guard let item = view.first(where: { $0.dbKey == key.dbKey }) else {
                 return nil
             }
-            let value = valueBuilder.buildValue(with: item)
+            let value = _buildValue(item)
             storage.set(value: value, for: key)
             return value
         }
@@ -178,8 +208,8 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
             if var element = storage.first(where: { $0.0.dbKey == key.dbKey })?.value {
                 try element.apply(childData, event: event)
             } else {
-                let keyEntity = keyBuilder.buildKey(with: key)
-                var value = valueBuilder.buildValue(with: key)
+                let keyEntity = _buildKey(key)
+                var value = _buildValue(key)
                 try value.apply(childData, event: event)
                 storage.set(value: value, for: keyEntity)
             }
@@ -208,9 +238,8 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
         super.didSave(in: database, in: parent, by: key)
         if let node = self.node {
             view.didSave(in: database, in: node.linksNode)
-            valueBuilder.spaceNode = node
+            storage.forEach { $0.value.didSave(in: database, in: node, by: $0.key.dbKey) }
         }
-        storage.forEach { $0.value.didSave(in: database, in: valueBuilder.spaceNode, by: $0.key.dbKey) }
     }
 
     public override func willRemove(in transaction: Transaction, from ancestor: Node) {
@@ -224,7 +253,7 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
     override public func didRemove(from ancestor: Node) {
         super.didRemove(from: ancestor)
         view.didRemove()
-        storage.forEach { $0.value.didRemove(from: valueBuilder.spaceNode) }
+        storage.forEach { $0.value.didRemove() }
     }
 
     private func didRemoveElement(by key: String) {
@@ -235,44 +264,16 @@ where Value: WritableRealtimeValue & RealtimeValueEvents, Key: HashableValue & C
 
     override public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.absolutePath ?? "not referred"),
             synced: \(isSynced), keep: \(keepSynced),
-            elements: \(view.map { (key: $0.dbKey, index: $0.priority) })
+            elements: \(view.map { $0.dbKey })
         }
         """
     }
 }
 extension AssociatedValues {
-    public final class __Elements<Element: RealtimeValue>: __RepresentableCollection<Element, RDItem> {
-        internal let builder: RealtimeValueBuilder<Element>
-
-        override init(view: SortedCollectionView<RDItem>, options: [ValueOption : Any]) {
-            guard case let elements as Node = options[.elementsNode] else { fatalError("Skipped required options") }
-            let builder = options[.elementBuilder] as? RCElementBuilder<Element> ?? Element.init
-            self.builder = RealtimeValueBuilder(spaceNode: elements, impl: builder)
-            super.init(view: view, options: options)
-        }
-
-        override func buildElement(with item: RDItem) -> Element {
-            return builder.buildKey(with: item)
-        }
-
-        /// Currently, no available.
-        public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-            #if DEBUG
-            fatalError("References does not supported init(data:event:) yet.")
-            #else
-            throw RealtimeError(source: .collection, description: "References does not supported init(data:event:) yet.")
-            #endif
-        }
-
-        public required init(in node: Node?, options: [ValueOption : Any]) {
-            fatalError("init(in:options:) cannot be used")
-        }
-    }
-
-    public typealias Keys = __Elements<Key>
+    public typealias Keys = RepresentableCollection<Key, RDItem>
     /// Returns `RealtimeCollection` that has itself storage
     ///
     /// Use it if you need only key objects, and you want to avoid allocating `Value` values.
@@ -280,11 +281,16 @@ extension AssociatedValues {
     ///
     /// - Returns: `RealtimeCollection` of key objects
     public func keys() -> Keys {
+        let builder = keyBuilder
+        let anchor = keysNode
         return Keys(
             view: view,
-            options: [.database: database as Any,
-                      .elementsNode: keyBuilder.spaceNode,
-                      .elementBuilder: keyBuilder.impl]
+            options: RepresentableCollection<Key, RDItem>.Options(
+                database: database,
+                builder: { (node, database, item) -> Key in
+                    return builder(node.map({ Node(key: $0.key, parent: anchor) }), database, RealtimeValueOptions(database: database, raw: item.raw, payload: item.payload))
+                }
+            )
         )
     }
     /// Returns `RealtimeCollection` that has itself storage
@@ -297,8 +303,7 @@ extension AssociatedValues {
         // TODO: avoid using `Values` type because it is mutable
         return Values(
             in: node,
-            options: [.database: database as Any,
-                      .elementBuilder: valueBuilder.impl]
+            options: Values.Options(database: database, builder: valueBuilder)
         )
     }
 }
@@ -322,12 +327,11 @@ extension AssociatedValues {
     ///   - key: The element to get database key.
     public func set(element: Value, for key: Key) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:for:in:)") }
-        guard keyBuilder.spaceNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
-        var item = RDItem(key: key, value: element)
-        item.priority = Int64(view.count)
+        let item = RDItem(key: key, value: element)
         _ = view.insert(item)
         storage.set(value: element, for: key)
     }
@@ -345,7 +349,7 @@ extension AssociatedValues {
     @discardableResult
     public func write(element: Value, for key: Key, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method set(element:for:)") }
-        guard keyBuilder.spaceNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         guard element.node.map({ $0.parent == nil && $0.key == key.dbKey }) ?? true
             else { fatalError("Element is referred to incorrect location") }
 
@@ -390,7 +394,7 @@ extension AssociatedValues {
     @discardableResult
     public func remove(for key: Key, in transaction: Transaction? = nil) -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects") }
-        guard keyBuilder.spaceNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
+        guard keysNode == key.node?.parent else { fatalError("Key is not contained in keys node") }
         let transaction = transaction ?? Transaction(database: database)
         guard isSynced else {
             transaction.addPrecondition { [unowned transaction] promise in
@@ -424,12 +428,10 @@ extension AssociatedValues {
                    by: (storage: node!, itms: view.node!), in: transaction)
     }
 
-    func _write(_ element: Value, for key: Key,
-                by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
+    func _write(_ element: Value, for key: Key, by location: (storage: Node, itms: Node), in transaction: Transaction) throws {
         let itemNode = location.itms.child(with: key.dbKey)
         let elementNode = location.storage.child(with: key.dbKey)
         var item = RDItem(key: key, value: element)
-        item.priority = Int64(count)
 
         transaction.addReversion({ [weak self] in
             _ = self?.storage.remove(for: key)
@@ -456,17 +458,17 @@ extension AssociatedValues {
             if let element = storage.remove(for: key) {
                 return element
             } else {
-                return valueBuilder.buildValue(with: item)
+                return _buildValue(item)
             }
         }
         let value = removedValue
-        value.willRemove(in: transaction, from: valueBuilder.spaceNode)
+        value.willRemove(in: transaction)
 
         transaction.addReversion { [weak self] in
             self?.storage.set(value: value, for: key)
         }
         transaction.removeValue(by: view.node!.child(with: item.dbKey)) // remove item element
-        transaction.removeValue(by: valueBuilder.spaceNode.child(with: item.dbKey)) // remove element
+        transaction.removeValue(by: node!.child(with: item.dbKey)) // remove element
         if let linkID = item.linkID {
             transaction.removeValue(by: key.node!.linksItemsNode.child(with: linkID)) // remove link from key object
         }
@@ -478,12 +480,31 @@ extension AssociatedValues {
     }
 }
 
+public extension ExplicitAssociatedValues where Key: Object {
+    convenience init(in object: Object, keyedBy key: String, keys: Node) {
+        self.init(in: Node(key: key, parent: object.node), database: object.database, keys: keys)
+    }
+    convenience init(in node: Node?, database: RealtimeDatabase?, keys: Node) {
+        self.init(in: node, options: Options(database: database, keys: keys, keyBuilder: { node, database, options in
+            return Key(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+        }))
+    }
+    convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, keys: Node) throws {
+        self.init(in: data.node, options: Options(database: data.database, keys: keys, keyBuilder: { node, database, options in
+            return Key(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+        }))
+        try apply(data, event: event)
+    }
+}
+
 public final class ExplicitAssociatedValues<Key, Value>: _RealtimeValue, ChangeableRealtimeValue, RealtimeCollection
 where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable {
     override var _hasChanges: Bool { return view._hasChanges }
-    var storage: RCDictionaryStorage<Key, Value>
-    internal private(set) var keyBuilder: RealtimeValueBuilder<Key>
 
+    internal let keysNode: Node
+    internal let keyBuilder: RCElementBuilder<RealtimeValueOptions, Key>
+
+    var storage: RCDictionaryStorage<Key, Value>
     public override var raw: RealtimeDatabaseValue? { return nil }
     public override var payload: RealtimeDatabaseValue? { return nil }
     public let view: SortedCollectionView<Value>
@@ -523,6 +544,19 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable
         didSet { view.didChange(dataExplorer: dataExplorer) }
     }
 
+    public struct Options {
+        let base: RealtimeValueOptions
+        let keysNode: Node
+        let keyBuilder: RCElementBuilder<RealtimeValueOptions, Key>
+
+        public init(database: RealtimeDatabase?, keys: Node, keyBuilder: @escaping RCElementBuilder<RealtimeValueOptions, Key>) {
+            guard keys.isRooted else { fatalError("Keys must has rooted location") }
+            self.base = RealtimeValueOptions(database: database)
+            self.keysNode = keys
+            self.keyBuilder = keyBuilder
+        }
+    }
+
     /// Creates new instance associated with database node
     ///
     /// Available options:
@@ -532,15 +566,12 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable
     ///
     /// - Parameter node: Node location for value
     /// - Parameter options: Dictionary of options
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        guard case let keysNode as Node = options[.keysNode] else { fatalError("Skipped required options") }
-        guard keysNode.isRooted else { fatalError("Keys must has rooted location") }
-
-        let keyBuilder = options[.keyBuilder] as? RCElementBuilder<Key> ?? Key.init
-        self.keyBuilder = RealtimeValueBuilder(spaceNode: keysNode, impl: keyBuilder)
+    public required init(in node: Node?, options: Options) {
+        self.keyBuilder = options.keyBuilder
+        self.keysNode = options.keysNode
         self.storage = RCDictionaryStorage()
-        self.view = SortedCollectionView(in: node, options: [.database: options[.database] as Any])
-        super.init(in: node, options: options)
+        self.view = SortedCollectionView(node: node, options: RealtimeValueOptions(database: options.base.database))
+        super.init(node: node, options: options.base)
     }
 
     /// Currently no available
@@ -552,14 +583,13 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable
         #endif
     }
 
-    public convenience init(data: RealtimeDataProtocol, event: DatabaseDataEvent, keysNode: Node) throws {
-        self.init(in: data.node, options: [.keysNode: keysNode, .database: data.database as Any])
-        try apply(data, event: event)
-    }
-
     // MARK: Implementation
 
     public typealias Element = (key: Key, value: Value)
+
+    fileprivate func _buildKey(_ item: Value) -> Key {
+        return keyBuilder(keysNode.child(with: item.dbKey), database, RealtimeValueOptions(database: database, raw: nil, payload: nil))
+    }
 
     public func makeIterator() -> IndexingIterator<ExplicitAssociatedValues> {
         return IndexingIterator(_elements: self)
@@ -572,7 +602,7 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable
             guard let element = storage.element(for: value.dbKey) else {
                 // TODO: Payload does not write, and values are not always object
 //                let keyPayload = value.payload?[InternalKeys.key.rawValue] as? [String: RealtimeDataValue]
-                let key = keyBuilder.build(with: value.dbKey, options: [:])
+                let key = _buildKey(value)
 //                    .rawValue: keyPayload?[InternalKeys.raw.rawValue] as Any,
 //                    .payload: keyPayload?[InternalKeys.payload.rawValue] as Any
 //                ])
@@ -641,7 +671,7 @@ where Value: WritableRealtimeValue & Comparable, Key: HashableValue & Comparable
 
     override public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
         ref: \(node?.absolutePath ?? "not referred"),
         synced: \(isSynced), keep: \(keepSynced),
         elements: \(view.map { $0.dbKey })
@@ -663,7 +693,7 @@ extension ExplicitAssociatedValues {
     public func set(_ value: Value, for key: Key) -> Int {
         guard isStandalone else { fatalError("Cannot be written, because collection is rooted") }
         storage.set(value: value, for: key)
-        guard let index = view.index(of: value) else { return view.insert(value) }
+        guard let index = view.firstIndex(of: value) else { return view.insert(value) }
         return index
     }
     @discardableResult
@@ -710,6 +740,7 @@ extension ExplicitAssociatedValues {
 
 extension AnyRealtimeCollection: RealtimeCollectionView {}
 
+/*
 class KeyedCollection<Key, Value>: _RealtimeValue, RealtimeCollection where Key: RealtimeValue, Value: RealtimeValue {
     typealias View = AnyRealtimeCollection<Key>
     typealias Element = (key: Key, value: Value)
@@ -734,7 +765,7 @@ class KeyedCollection<Key, Value>: _RealtimeValue, RealtimeCollection where Key:
     required init(in node: Node?, options: [ValueOption : Any]) {
         guard case let keys as AnyRealtimeCollection<Key> = options[.keysNode] else { fatalError("Unexpected parameter") }
         self.view = keys
-        super.init(in: node, options: options)
+        super.init(in: node, options: RealtimeValueOptions(from: options))
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -761,3 +792,4 @@ class KeyedCollection<Key, Value>: _RealtimeValue, RealtimeCollection where Key:
         return v
     }
 }
+*/

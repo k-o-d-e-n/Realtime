@@ -12,17 +12,12 @@ protocol ReuseItemProtocol {
 }
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
-    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, dispatcher: .queue(.main)) // why ValueStorage used? if it is not used
+    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe(with: .queue(.main)))
     public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
 
     open internal(set) weak var view: View? {
-        set {
-            if self._view.value !== newValue {
-                reload()
-            }
-            self._view.value = newValue
-        }
-        get { return self._view.value }
+        set { self._view.wrappedValue = newValue }
+        get { return self._view.wrappedValue }
     }
 
     public init() {}
@@ -98,11 +93,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 
     func free() {
         disposeStorage.dispose()
-        _view.value = nil
-    }
-
-    open func reload() {
-        disposeStorage.resume()
+        _view.wrappedValue = nil
     }
 }
 extension ReuseItem {

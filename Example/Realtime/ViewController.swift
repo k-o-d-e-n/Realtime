@@ -92,7 +92,7 @@ extension ViewController {
                     for: node,
                     timeout: .seconds(5),
                     completion: { (data) in
-                        print(data)
+                        print(data.asDict())
                         let alert = UIAlertController(title: "", message: "\(data)", preferredStyle: .alert)
                         alert.addAction(UIAlertAction(title: "ok", style: .default, handler: nil))
                         self.present(alert, animated: true, completion: nil)
@@ -117,5 +117,18 @@ extension ViewController {
             #endif
         default: break
         }
+    }
+}
+
+extension RealtimeDataProtocol {
+    func asDict() -> [String: Any] {
+        guard let n = node else { return [:] }
+        guard hasChildren() else { return [n.key: try! asDatabaseValue()] }
+
+        return reduce(into: [String: Any](), updateAccumulatingResult: { res, dataNode in
+            if let n = dataNode.node {
+                res[n.key] = dataNode.asDict()
+            }
+        })
     }
 }
