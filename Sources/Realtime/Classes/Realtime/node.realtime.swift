@@ -97,7 +97,6 @@ public class Node: Hashable, Comparable {
         override var isRooted: Bool { return true }
         override var root: Node? { return nil }
         override var first: Node? { return nil }
-        override var rootPath: String { return "" }
         override func path(from node: Node) -> String { fatalError("Root node cannot have parent nodes") }
         override func hasAncestor(node: Node) -> Bool { return false }
         override func move(toNodeKeyedBy key: String) -> Node { fatalError("Root node cannot be moved") }
@@ -162,9 +161,6 @@ public class Node: Hashable, Comparable {
     public var path: String {
         return parent.map { $0.isAnchor ? key : $0.path + "/" + key } ?? key
     }
-
-    @available(*, renamed: "absolutePath", deprecated, message: "Use `path` or `absolutePath` instead.")
-    public var rootPath: String { return absolutePath }
 
     /// Returns path from passed node.
     ///
