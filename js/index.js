@@ -14,6 +14,7 @@ export {
     Relations,
 
     Transaction,
+    PagingDataExplorer,
 
     setReactivityEnvironment,
   } from "./realtime.js";
