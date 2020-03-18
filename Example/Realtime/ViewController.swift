@@ -92,7 +92,7 @@ extension ViewController {
                     for: node,
                     timeout: .seconds(5),
                     completion: { (data) in
-                        print(data)
+                        print(data.asDict())
                         let alert = UIAlertController(title: "", message: "\(data)", preferredStyle: .alert)
                         alert.addAction(UIAlertAction(title: "ok", style: .default, handler: nil))
                         self.present(alert, animated: true, completion: nil)
@@ -109,7 +109,7 @@ extension ViewController {
         case 4:
             #if canImport(SwiftUI) && FIREBASE
             if #available(iOS 13.0, *) {
-                let user = User(in: Node.root("users/0312be1d-06b2-4ec8-a49d-84ab27c28ed1"))
+                let user = User1(in: Node.root("users/0312be1d-06b2-4ec8-a49d-84ab27c28ed1"))
                 let view = SwiftUIView(user: user)
                 let controller = UIHostingController(rootView: view)
                 navigationController?.pushViewController(controller, animated: true)
@@ -117,5 +117,18 @@ extension ViewController {
             #endif
         default: break
         }
+    }
+}
+
+extension RealtimeDataProtocol {
+    func asDict() -> [String: Any] {
+        guard let n = node else { return [:] }
+        guard hasChildren() else { return [n.key: try! asDatabaseValue()] }
+
+        return reduce(into: [String: Any](), updateAccumulatingResult: { res, dataNode in
+            if let n = dataNode.node {
+                res[n.key] = dataNode.asDict()
+            }
+        })
     }
 }

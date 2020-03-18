@@ -228,12 +228,7 @@ public protocol RealtimeStorageCache {
 }
 
 public protocol RealtimeStorage {
-    func load(
-        for node: Node,
-        timeout: DispatchTimeInterval,
-        completion: @escaping (Data?) -> Void,
-        onCancel: ((Error) -> Void)?
-        ) -> RealtimeStorageTask
+    func load(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask
     func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) // TODO: Replace transaction parameter with UpdateNode
 }
 
@@ -242,8 +237,9 @@ public protocol RealtimeTask {
 }
 
 public protocol RealtimeStorageTask: RealtimeTask {
+    typealias SuccessResult = (data: Data?, metadata: RealtimeMetadata?)
     var progress: AnyListenable<Progress> { get }
-    var success: AnyListenable<RealtimeMetadata?> { get }
+    var success: AnyListenable<SuccessResult> { get }
 
     func pause()
     func cancel()
@@ -364,7 +360,7 @@ class PagingController {
             return false
         }
 
-        var disposable: Disposable?
+        let disposable: Disposable?
         disposable = database.observe(
             .child([]), // with .child([]) disposable has no significance
             on: node,
@@ -415,7 +411,7 @@ class PagingController {
             return false
         }
 
-        var disposable: Disposable?
+        let disposable: Disposable?
         disposable = database.observe(
             .child([]), // with .child([]) disposable has no significance
             on: node,

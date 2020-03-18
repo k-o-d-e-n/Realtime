@@ -8,7 +8,7 @@
 
 Pod::Spec.new do |s|
   s.name             = 'Realtime'
-  s.version          = '0.9.5'
+  s.version          = '0.9.7'
   s.summary          = 'Firebase Realtime Database framework.'
 
 # This description is used to generate tags and improve search results.
@@ -26,12 +26,13 @@ Pod::Spec.new do |s|
   s.homepage         = 'https://github.com/k-o-d-e-n/Realtime'
   s.license          = { :type => 'MIT', :file => 'LICENSE' }
   s.author           = { 'k-o-d-e-n' => 'koden.u8800@gmail.com' }
-  s.source           = { :git => 'https://github.com/k-o-d-e-n/Realtime.git', :tag => '0.9.5' }
+  s.source           = { :git => 'https://github.com/k-o-d-e-n/Realtime.git', :tag => '0.9.7' }
   s.social_media_url = 'https://twitter.com/K_o_D_e_N'
   s.ios.deployment_target = '9.0'
   s.osx.deployment_target = '10.10'
   s.swift_version = '5.0'
   s.source_files = 'Sources/Realtime/**/*'
+  s.exclude_files = 'Sources/Realtime/support.databaseValue.realtime.swift.gyb'
   s.dependency 'Promise.swift', '~> 0.6.1'
   s.static_framework = true
   s.default_subspec = 'Core'

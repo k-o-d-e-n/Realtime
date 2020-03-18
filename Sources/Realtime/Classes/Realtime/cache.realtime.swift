@@ -347,7 +347,7 @@ extension ObjectNode {
 
     fileprivate func replaceNode(with dbNode: CacheNode) throws {
         if case .some(.object(let parent)) = child(by: dbNode.location.parent!) {
-            parent.childs.remove(at: parent.childs.index(where: { $0.asUpdateNode().location === dbNode.location })!)
+            parent.childs.remove(at: parent.childs.firstIndex(where: { $0.asUpdateNode().location === dbNode.location })!)
             if !dbNode.isEmpty {
                 parent.childs.append(dbNode)
             }
@@ -363,7 +363,7 @@ extension ObjectNode {
         case (.object(let l), .object(let r)):
             try l._mergeWithObject(theSameReference: r, conflictResolver: conflictResolver, didAppend: didAppend)
         default:
-            let index = self.childs.index(where: { $0.location == node })!
+            let index = self.childs.firstIndex(where: { $0.location == node })!
             let resolved = conflictResolver(current, update)
             if resolved.isEmpty {
                 self.childs.remove(at: index)
@@ -408,7 +408,7 @@ extension ObjectNode {
                         if n === node {
                             debugFatalError(condition: type(of: old) != type(of: v), "Tries to insert database value to storage node or conversely")
                             old.value = v.value
-                            debugPrintLog("Replaced value by node: \(node) with value: \(v.value as Any) in transaction: \(ObjectIdentifier(self).memoryAddress)")
+                            debugPrintLog("Replaced value by node: \(node) with value: \(v.value as Any) in transaction: \(withUnsafePointer(to: self, String.init(describing:)))")
                         } else {
                             fatalError("Tries insert value lower than earlier writed single value")
                         }
@@ -447,7 +447,7 @@ extension ObjectNode {
                         switch update {
                         case .object(let o): current = o
                         case .value, .file:
-                            let index = current.childs.index(where: { $0.location == n })!
+                            let index = current.childs.firstIndex(where: { $0.location == n })!
                             let leftNodes = node.after(ancestor: n)
                             current.childs[index] = .object(leftNodes.reversed().dropLast().reduce(ObjectNode(node: node, childs: [other]), { objNode, ref in
                                 let child = CacheNode.object(objNode)
@@ -659,7 +659,8 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
 
     // storage
 
-    func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (Data?) -> Void, onCancel: ((Error) -> Void)?) -> RealtimeStorageTask {
+    func load(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask {
+        var task = CacheStorageTask(result: .error(RealtimeError(source: .cache, description: "Unexpected behavior")))
         if node == location {
             fatalError("Cannot load file from root")
         } else if let node = child(by: node) {
@@ -667,21 +668,22 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
             case .file(let file):
                 do {
                     let data = try file.value?.typed(as: Data.self)
-                    completion(data)
+                    task.result = .value((data, nil))
                 } catch let e {
-                    onCancel?(e)
+                    task.result = .error(e)
                 }
-            default: completion(nil)
+            default: task.result = .value((nil, nil))
             }
         } else {
-            completion(nil)
+            task.result = .value((nil, nil))
         }
-        return CacheStorageTask()
+        return task
     }
 
     struct CacheStorageTask: RealtimeStorageTask {
+        var result: ListenEvent<SuccessResult>
         var progress: AnyListenable<Progress> { return AnyListenable(Constant(Progress(totalUnitCount: 0))) }
-        var success: AnyListenable<RealtimeMetadata?> { return AnyListenable(Constant(nil)) }
+        var success: AnyListenable<SuccessResult> { return AnyListenable(result) }
         func pause() {}
         func cancel() {}
         func resume() {}

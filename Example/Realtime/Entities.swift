@@ -33,7 +33,7 @@ class Conversation: Object {
 
 class Group: Object {
     lazy var name: Property<String> = "name".property(in: self)
-    lazy var users: MutableReferences<User> = "users".references(in: self, elements: Global.rtUsers.node!)
+    lazy var users: MutableReferences<User> = "users".references(in: self, mode: .path(from: Global.rtUsers.node!))
     lazy var conversations: AssociatedValues<User, User> = "conversations".dictionary(in: self, keys: Global.rtUsers.node!)
     lazy var manager: Relation<User?> = "manager".relation(in: self, .one(name: "ownedGroup"))
 
@@ -55,8 +55,8 @@ class User: Object {
     lazy var name: Property<String> = "name".property(in: self)
     lazy var age: Property<UInt8> = "age".property(in: self)
     lazy var photo: File<Data?> = "photo".file(in: self, representer: .realtimeDataValue)
-    lazy var groups: MutableReferences<Group> = "groups".references(in: self, elements: Global.rtGroups.node!)
-    lazy var followers: MutableReferences<User> = "followers".references(in: self, elements: Global.rtUsers.node!)
+    lazy var groups: MutableReferences<Group> = "groups".references(in: self, mode: .path(from: Global.rtGroups.node!))
+    lazy var followers: MutableReferences<User> = "followers".references(in: self, mode: .path(from: Global.rtUsers.node!))
     lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".values(in: self)
 
     lazy var ownedGroup: Relation<Group?> = "ownedGroup".relation(in: self, .one(name: "manager"))

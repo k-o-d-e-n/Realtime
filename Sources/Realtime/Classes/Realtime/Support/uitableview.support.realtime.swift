@@ -17,15 +17,34 @@ protocol ReuseItemProtocol {
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     #if canImport(Combine)
+    @available(iOS 13.0, macOS 10.15, *)
     lazy var _view: CurrentValueSubject<View?, Never> = CurrentValueSubject(nil)
     #else
-    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, dispatcher: .queue(.main)) // why ValueStorage used? if it is not used
+    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe(with: .queue(.main)))
     #endif
     public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
 
     open internal(set) weak var view: View? {
-        set { self._view.value = newValue }
-        get { return self._view.value }
+        set {
+            #if canImport(Combine)
+            if #available(iOS 13.0, macOS 10.15, *) {
+                self._view.value = newValue
+            }
+            #else
+            self._view.value = newValue
+            #endif
+        }
+        get {
+            #if canImport(Combine)
+            if #available(iOS 13.0, macOS 10.15, *) {
+                return self._view.value
+            } else {
+                fatalError()
+            }
+            #else
+            return self._view.value
+            #endif
+        }
     }
 
     public init() {}
@@ -101,7 +120,13 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 
     func free() {
         disposeStorage.dispose()
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            _view.value = nil
+        }
+        #else
         _view.value = nil
+        #endif
     }
 }
 extension ReuseItem {

@@ -129,18 +129,11 @@ extension Repeater {
 }
 
 /// Stores value and sends event on his change
-public struct ValueStorage<T>: Listenable, ValueWrapper {
-    public typealias Dispatcher = Repeater<T>.Dispatcher
-
+@propertyWrapper
+public struct ValueStorage<T> {
     let get: () -> T
     let mutate: ((inout T) -> Void) -> Void
-    let attachBehavior: AttachBehavior
-    let repeater: Repeater<T> // TODO: Make repeater as public { get set } property (or func ), in shortly, make optional to create possibility to use ValueStorage as just storage
-
-    enum AttachBehavior {
-        case unsafe
-        case locked(NSLocking)
-    }
+    var repeater: Repeater<T>?
 
     /// Stored value
     @available(*, deprecated, renamed: "wrappedValue")
@@ -148,24 +141,21 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
         get { return get() }
         nonmutating set {
             mutate({ $0 = newValue })
-            repeater.send(.value(newValue))
+            repeater?.send(.value(newValue))
         }
     }
     public var wrappedValue: T {
         get { return get() }
         nonmutating set {
             mutate({ $0 = newValue })
-            repeater.send(.value(newValue))
+            repeater?.send(.value(newValue))
         }
     }
+    public var projectedValue: Self { return self }
 
-    init(repeater: Repeater<T>,
-         get: @escaping () -> T, set: @escaping ((inout T) -> Void) -> Void,
-         attachBehavior: AttachBehavior) {
+    init(get: @escaping () -> T, set: @escaping ((inout T) -> Void) -> Void) {
         self.get = get
         self.mutate = set
-        self.attachBehavior = attachBehavior
-        self.repeater = repeater
     }
 
     /// Creates new instance with `strong` reference that has no thread-safe working context
@@ -173,15 +163,17 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    init(unsafeStrong value: T, dispatcher: Dispatcher) {
-        let repeater = Repeater(dispatcher: dispatcher)
+    init(unsafeStrong value: T, repeater: Repeater<T>?) {
         var val: T = value
 
-        self.init(
-            repeater: repeater,
-            get: { val }, set: { $0(&val) },
-            attachBehavior: .unsafe
-        )
+        self.init(get: { val }, set: { $0(&val) })
+        self.repeater = repeater
+    }
+    public init<U>(strongWith repeater: Repeater<T>?) where U? == T {
+        self.init(unsafeStrong: nil, repeater: repeater)
+    }
+    public init(wrappedValue: T) {
+        self.init(unsafeStrong: wrappedValue, repeater: .unsafe())
     }
 
     /// Creates new instance with `strong` reference that has thread-safe implementation
@@ -191,12 +183,10 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - value: Initial value.
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    init(strong value: T, lock: NSLocking, dispatcher: Dispatcher) {
-        let repeater = Repeater(dispatcher: dispatcher)
+    init(strong value: T, lock: NSLocking) {
         var val: T = value
 
         self.init(
-            repeater: repeater,
             get: {
                 lock.lock(); defer { lock.unlock() }
                 return val
@@ -205,8 +195,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
                 lock.lock()
                 $0(&val)
                 lock.unlock()
-            },
-            attachBehavior: .locked(lock)
+            }
         )
     }
 
@@ -215,14 +204,13 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    init<O: AnyObject>(unsafeWeak value: O?, dispatcher: Dispatcher) where Optional<O> == T {
-        let repeater = Repeater(dispatcher: dispatcher)
+    init<O: AnyObject>(unsafeWeak value: O?) where Optional<O> == T {
         weak var val = value
-        self.init(
-            repeater: repeater,
-            get: { val }, set: { $0(&val) },
-            attachBehavior: .unsafe
-        )
+        self.init(get: { val }, set: { $0(&val) })
+    }
+    public init<O: AnyObject>(weakWith repeater: Repeater<T>?) where O? == T {
+        self.init(unsafeWeak: nil)
+        self.repeater = repeater
     }
 
     /// Creates new instance with `weak` reference that has thread-safe implementation
@@ -232,12 +220,10 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///   - value: Initial value.
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    init<O: AnyObject>(weak value: O?, lock: NSLocking, dispatcher: Dispatcher) where Optional<O> == T {
-        let repeater = Repeater(dispatcher: dispatcher)
+    init<O: AnyObject>(weak value: O?, lock: NSLocking) where Optional<O> == T {
         weak var val = value
 
         self.init(
-            repeater: repeater,
             get: {
                 lock.lock(); defer { lock.unlock() }
                 return val
@@ -246,8 +232,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
                 lock.lock()
                 $0(&val)
                 lock.unlock()
-            },
-            attachBehavior: .locked(lock)
+            }
         )
     }
 
@@ -255,7 +240,7 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     ///
     /// - Parameter error: Error instance
     public func sendError(_ error: Error) {
-        repeater.sender(.error(error))
+        repeater?.sender(.error(error))
     }
 
     /// Replaces stored value with new value without emitting change event
@@ -267,20 +252,30 @@ public struct ValueStorage<T>: Listenable, ValueWrapper {
     func mutate(with mutator: (inout T) -> Void) {
         self.mutate(mutator)
     }
-
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        switch attachBehavior {
-        case .unsafe: return repeater.listening(assign)
-        case .locked(let lock):
-            lock.lock(); defer { lock.unlock() }
-
-            let d = repeater.listening(assign)
-            return ListeningDispose {
-                lock.lock()
-                d.dispose()
-                lock.unlock()
-            }
-        }
+}
+extension ValueStorage: Listenable {
+    /// Sends current value immediately and each next value.
+    /// If you want receive only new values use `repeater` property explicitly.
+    public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
+        guard let r = repeater else { return EmptyDispose() } // May be send error?
+        defer { assign.call(.value(get())) }
+        return r.listening(assign)
+    }
+}
+public extension ValueStorage {
+    static func <==(_ prop: inout Self, _ value: T) {
+        prop.wrappedValue = value
+    }
+    static func <==(_ value: inout T, _ prop: Self) {
+        value = prop.wrappedValue
+    }
+    static func <==(_ value: inout T?, _ prop: Self) {
+        value = prop.wrappedValue
+    }
+}
+extension ValueStorage where T: HasDefaultLiteral {
+    public init(strongWith repeater: Repeater<T>?)  {
+        self.init(unsafeStrong: T(), repeater: repeater)
     }
 }
 extension ValueStorage {
@@ -289,20 +284,11 @@ extension ValueStorage {
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-//    public static func unsafe(uninitializedWith dispatcher: Dispatcher = .default) -> ValueStorage {
-//        return ValueStorage(unsafeStrong: .uninitialized, dispatcher: dispatcher)
-//    }
-    public static func unsafe(
-        strong value: T,
-        dispatcher: Dispatcher = .default
-        ) -> ValueStorage {
-        return ValueStorage(unsafeStrong: value, dispatcher: dispatcher)
+    public static func unsafe(strong value: T, repeater: Repeater<T>? = nil) -> ValueStorage {
+        return ValueStorage(unsafeStrong: value, repeater: repeater)
     }
-    public static func unsafe<Wrapped>(
-        strong value: T,
-        dispatcher: Dispatcher = .default
-        ) -> ValueStorage where Optional<Wrapped> == T {
-        return ValueStorage(unsafeStrong: value, dispatcher: dispatcher)
+    public static func unsafe<Wrapped>(strong value: T, repeater: Repeater<T>? = nil) -> ValueStorage where Optional<Wrapped> == T {
+        return ValueStorage(unsafeStrong: value, repeater: repeater)
     }
 
     /// Returns storage with `strong` reference that has thread-safe implementation
@@ -312,25 +298,23 @@ extension ValueStorage {
     ///   - value: Initial value.
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-//    public static func locked(
-//        uninitializedWith lock: NSLocking = NSRecursiveLock(),
-//        dispatcher: Dispatcher = .default
-//        ) -> ValueStorage {
-//        return ValueStorage(strong: .uninitialized, lock: lock, dispatcher: dispatcher)
-//    }
     public static func locked(
         strong value: T,
         lock: NSLocking = NSRecursiveLock(),
-        dispatcher: Dispatcher = .default
-        ) -> ValueStorage {
-        return ValueStorage(strong: value, lock: lock, dispatcher: dispatcher)
+        repeater: Repeater<T>? = nil
+    ) -> ValueStorage {
+        var storage = ValueStorage(strong: value, lock: lock)
+        storage.repeater = repeater
+        return storage
     }
     public static func locked<Wrapped>(
         strong value: T,
         lock: NSLocking = NSRecursiveLock(),
-        dispatcher: Dispatcher = .default
-        ) -> ValueStorage where Optional<Wrapped> == T {
-        return ValueStorage(strong: value, lock: lock, dispatcher: dispatcher)
+        repeater: Repeater<T>? = nil
+    ) -> ValueStorage where Optional<Wrapped> == T {
+        var storage = ValueStorage(strong: value, lock: lock)
+        storage.repeater = repeater
+        return storage
     }
 
     /// Returns storage with `weak` reference that has no thread-safe working context
@@ -339,10 +323,11 @@ extension ValueStorage {
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func unsafe<O: AnyObject>(
-        weak value: O?,
-        dispatcher: Dispatcher = .default
-        ) -> ValueStorage where Optional<O> == T {
-        return ValueStorage(unsafeWeak: value, dispatcher: dispatcher)
+        weak value: O?, repeater: Repeater<T>? = nil
+    ) -> ValueStorage where Optional<O> == T {
+        var storage = ValueStorage(unsafeWeak: value)
+        storage.repeater = repeater
+        return storage
     }
     /// Returns storage with `weak` reference that has thread-safe implementation
     /// using lock object.
@@ -354,9 +339,11 @@ extension ValueStorage {
     public static func locked<O: AnyObject>(
         weak value: O?,
         lock: NSLocking = NSRecursiveLock(),
-        dispatcher: Dispatcher = .default
-        ) -> ValueStorage where Optional<O> == T {
-        return ValueStorage(weak: value, lock: lock, dispatcher: dispatcher)
+        repeater: Repeater<T>? = nil
+    ) -> ValueStorage where Optional<O> == T {
+        var storage = ValueStorage(weak: value, lock: lock)
+        storage.repeater = repeater
+        return storage
     }
 }
 extension ValueStorage where T: AnyObject {
@@ -365,15 +352,14 @@ extension ValueStorage where T: AnyObject {
     /// - Parameters:
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    init(unsafeUnowned value: T, dispatcher: Dispatcher) {
-        let repeater = Repeater(dispatcher: dispatcher)
+    init(unsafeUnowned value: T) {
         unowned var val = value
 
-        self.init(
-            repeater: repeater,
-            get: { val }, set: { $0(&val) },
-            attachBehavior: .unsafe
-        )
+        self.init(get: { val }, set: { $0(&val) })
+    }
+    public init(unownedWith value: T, repeater: Repeater<T>?) {
+        self.init(unsafeUnowned: value)
+        self.repeater = repeater
     }
 
     /// Creates new instance with `unowned` reference that has thread-safe implementation
@@ -383,12 +369,10 @@ extension ValueStorage where T: AnyObject {
     ///   - value: Initial value.
     ///   - lock: Lock object.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
-    init(unowned value: T, lock: NSLocking, dispatcher: Dispatcher) {
-        let repeater = Repeater(dispatcher: dispatcher)
+    init(unowned value: T, lock: NSLocking) {
         unowned var val = value
 
         self.init(
-            repeater: repeater,
             get: {
                 lock.lock(); defer { lock.unlock() }
                 return val
@@ -397,8 +381,7 @@ extension ValueStorage where T: AnyObject {
                 lock.lock()
                 $0(&val)
                 lock.unlock()
-            },
-            attachBehavior: .locked(lock)
+            }
         )
     }
 
@@ -408,10 +391,11 @@ extension ValueStorage where T: AnyObject {
     ///   - value: Initial value.
     ///   - dispatcher: Closure that implements method of dispatch events to listeners.
     public static func unsafe(
-        unowned value: T,
-        dispatcher: Dispatcher = .default
-        ) -> ValueStorage {
-        return ValueStorage(unsafeUnowned: value, dispatcher: dispatcher)
+        unowned value: T, repeater: Repeater<T>? = nil
+    ) -> ValueStorage {
+        var storage = ValueStorage(unsafeUnowned: value)
+        storage.repeater = repeater
+        return storage
     }
     /// Returns storage with `unowned` reference that has thread-safe implementation
     /// using lock object.
@@ -423,12 +407,29 @@ extension ValueStorage where T: AnyObject {
     public static func locked(
         unowned value: T,
         lock: NSLocking = NSRecursiveLock(),
-        dispatcher: Dispatcher = .default
-        ) -> ValueStorage {
-        return ValueStorage(unowned: value, lock: lock, dispatcher: dispatcher)
+        repeater: Repeater<T>? = nil
+    ) -> ValueStorage {
+        var storage = ValueStorage(unowned: value, lock: lock)
+        storage.repeater = repeater
+        return storage
     }
 }
 
+public struct ErrorListenable<T>: Listenable {
+    let error: Error
+    public init(_ error: Error) {
+        self.error = error
+    }
+    public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
+        assign.call(.error(error))
+        return EmptyDispose()
+    }
+}
+public struct EmptyListenable<T>: Listenable {
+    public func listening(_ assign: Closure<ListenEvent<T>, Void>) -> Disposable {
+        return EmptyDispose()
+    }
+}
 public struct Constant<T>: Listenable {
     let value: T
     public init(_ value: T) {

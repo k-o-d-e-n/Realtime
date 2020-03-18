@@ -7,11 +7,6 @@
 
 import Foundation
 
-public extension ValueOption {
-    static let elementBuilder = ValueOption("realtime.collection.builder")
-    static let keyBuilder = ValueOption("realtime.collection.keyBuilder")
-}
-
 /// Post processing data event for any `RealtimeCollection`.
 ///
 /// - initial: Event for start data

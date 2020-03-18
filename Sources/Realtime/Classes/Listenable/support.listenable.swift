@@ -125,7 +125,8 @@ public extension RTime where Base: URLSession {
         let task: URLSessionDataTask
         let storage: ValueStorage<(Data?, URLResponse?)>
 
-        init(session: URLSession, request: URLRequest, storage: ValueStorage<(Data?, URLResponse?)> = .unsafe(strong: (nil, nil))) {
+        init(session: URLSession, request: URLRequest, storage: ValueStorage<(Data?, URLResponse?)> = .unsafe(strong: (nil, nil), repeater: .unsafe())) {
+            precondition(storage.repeater != nil, "Storage must have repeater")
             self.session = session
             self.task = session.dataTask(for: request, storage: storage)
             self.storage = storage
@@ -133,7 +134,7 @@ public extension RTime where Base: URLSession {
 
         public func listening(_ assign: Closure<ListenEvent<(Data?, URLResponse?)>, Void>) -> Disposable {
             task.resume()
-            return storage.listening(assign)
+            return storage.repeater!.listening(assign)
         }
     }
 
@@ -161,6 +162,7 @@ extension URLSessionTask {
         switch state {
         case .canceling, .completed: return true
         case .running, .suspended: return false
+        @unknown default: return true
         }
     }
 }
@@ -170,7 +172,7 @@ extension URLSession: RealtimeCompatible {
             if let e = error {
                 storage.sendError(e)
             } else {
-                storage.value = (data, response)
+                storage.wrappedValue = (data, response)
             }
         }
     }
@@ -413,9 +415,11 @@ extension Publisher where Self: Listenable, Output == Out {
         )
     }
 }
-@available(iOS 13.0, *)
+@available(iOS 13.0, macOS 10.15, *)
 extension PassthroughSubject: Listenable {}
+@available(iOS 13.0, macOS 10.15, *)
 extension CurrentValueSubject: Listenable {}
+@available(iOS 13.0, macOS 10.15, *)
 extension AnyPublisher: Listenable {}
 
 @available(iOS 13.0, macOS 10.15, *)

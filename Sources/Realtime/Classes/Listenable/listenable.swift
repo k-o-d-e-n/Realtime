@@ -10,31 +10,6 @@ import Foundation
 
 /// -------------------------------------------------------------------
 
-public struct Promise {
-    let action: () -> Void
-    let error: (Error) -> Void
-
-    public func fulfill() {
-        action()
-    }
-
-    public func reject(_ error: Error) {
-        self.error(error)
-    }
-}
-public struct ResultPromise<T> {
-    let receiver: (T) -> Void
-    let error: (Error) -> Void
-
-    public func fulfill(_ result: T) {
-        receiver(result)
-    }
-
-    public func reject(_ error: Error) {
-        self.error(error)
-    }
-}
-
 protocol ClosureProtocol {
     associatedtype Arg
     associatedtype Returns
@@ -56,6 +31,11 @@ extension ClosureProtocol {
 extension Closure: ClosureProtocol {
     func call(_ arg: I, error: UnsafeMutablePointer<Error?>?) -> O {
         return closure(arg)
+    }
+}
+public extension Closure where I == Void {
+    func call() -> O {
+        return call(())
     }
 }
 extension ThrowsClosure: ClosureProtocol {
@@ -335,40 +315,6 @@ public struct AnyListenable<Out>: Listenable {
     }
 }
 
-/// Common protocol for entities that represents some data
-public protocol ValueWrapper {
-    associatedtype V
-    var value: V { get set }
-}
-
-public extension ValueWrapper {
-    static func <==(_ prop: inout Self, _ value: V) {
-        prop.value = value
-    }
-    static func <==(_ value: inout V, _ prop: Self) {
-        value = prop.value
-    }
-    static func <==(_ value: inout V?, _ prop: Self) {
-        value = prop.value
-    }
-}
-public extension ValueWrapper {
-    func mapValue<U>(_ transform: (V) -> U) -> U {
-        return transform(value)
-    }
-}
-public extension ValueWrapper where V: _Optional {
-    static func <==(_ value: inout V?, _ prop: Self) {
-        value = prop.value
-    }
-    func mapValue<U>(_ transform: (V.Wrapped) -> U) -> U? {
-        return value.map(transform)
-    }
-    func flatMapValue<U>(_ transform: (V.Wrapped) -> U?) -> U? {
-        return value.flatMap(transform)
-    }
-}
-
 public extension Repeater {
     /// Makes notification depending
     ///
@@ -379,17 +325,6 @@ public extension Repeater {
     }
 }
 public extension Listenable {
-    /// Binds values new values to value wrapper
-    ///
-    /// - Parameter other: Value wrapper that will be receive value
-    /// - Returns: Disposable
-    @available(*, deprecated, message: "has unsafe behavior")
-    func bind<Other: AnyObject & ValueWrapper>(to other: Other) -> Disposable where Other.V == Self.Out {
-        return livetime(of: other).listening(onValue: { [weak other] val in
-            other?.value = val
-        })
-    }
-
     /// Binds events to repeater
     ///
     /// - Parameter other: Repeater that will be receive value
@@ -405,7 +340,7 @@ public extension Listenable {
     func bind(to other: ValueStorage<Out>) -> Disposable {
         return listening({ (e) in
             switch e {
-            case .value(let v): other.value = v
+            case .value(let v): other.wrappedValue = v
             case .error(let e): other.sendError(e)
             }
         })

@@ -26,7 +26,7 @@ let package = Package(
     dependencies: [
         // Dependencies declare other packages that this package depends on.
         .package(url: "https://github.com/glessard/swift-atomics.git", from: "5.0.1"),
-        .package(url: "https://github.com/k-o-d-e-n/promise.swift.git", ._branchItem("master"))
+        .package(url: "https://github.com/k-o-d-e-n/promise.swift.git", .branch("master"))
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.

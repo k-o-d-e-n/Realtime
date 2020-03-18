@@ -36,11 +36,14 @@ extension RowState {
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     fileprivate var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
     #if canImport(Combine)
+    @available(iOS 13.0, macOS 10.15, *)
     fileprivate lazy var _model: CurrentValueSubject<Model?, Never> = CurrentValueSubject(nil)
+    @available(iOS 13.0, macOS 10.15, *)
     fileprivate lazy var _update: AnyPublisher<(View, Model), Never> = _view.compactMap({ $0 }).combineLatest(_model.compactMap({ $0 })).eraseToAnyPublisher()
+    @available(iOS 13.0, macOS 10.15, *)
     fileprivate lazy var _didSelect: PassthroughSubject<IndexPath, Never> = PassthroughSubject()
     #else
-    fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil)
+    fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe())
     fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap({ $0 }), _model.compactMap({ $0 }))
     fileprivate lazy var _didSelect: Repeater<IndexPath> = .unsafe()
     #endif
@@ -50,8 +53,26 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     open var indexPath: IndexPath?
 
     open internal(set) weak var model: Model? {
-        set { _model.value = newValue }
-        get { return _model.value }
+        set {
+            #if canImport(Combine)
+            if #available(iOS 13.0, macOS 10.15, *) {
+                _model.value = newValue
+            }
+            #else
+            _model.value = newValue
+            #endif
+        }
+        get {
+            #if canImport(Combine)
+            if #available(iOS 13.0, macOS 10.15, *) {
+                return _model.value
+            } else {
+                fatalError()
+            }
+            #else
+            return _model.value
+            #endif
+        }
     }
 
     let cellBuilder: CellBuilder<View>
@@ -70,21 +91,45 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         get { return dynamicValues[member] as? T }
     }
 
-    open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) { // TODO: Row<View, Model> replace with Self (swift 5.1)
+    open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        }
+        #else
         _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        #endif
     }
 
     open func onSelect(_ doit: @escaping (IndexPath, Row<View, Model>) -> Void) {
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        }
+        #else
         _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        #endif
     }
 
     override func free() {
         super.free()
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            _model.value = nil
+        }
+        #else
         _model.value = nil
+        #endif
     }
 
     public func sendSelectEvent(at indexPath: IndexPath) {
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            _didSelect.send(indexPath)
+        }
+        #else
         _didSelect.send(indexPath)
+        #endif
     }
 
     public func removeAllValues() {
@@ -122,7 +167,7 @@ extension Row: CustomDebugStringConvertible {
         return """
         \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             view: \(view as Any),
-            model: \(_model.value as Any),
+            model: \(model as Any),
             state: \(state),
             values: \(dynamicValues)
         }
@@ -134,7 +179,7 @@ extension Row {
         if !state.contains(.displaying) || self.view !== view {
             self.indexPath = indexPath
             self.view = view
-            _model.value = model
+            self.model = model
             state.insert(.displaying)
             state.remove(.free)
         }
@@ -277,7 +322,13 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 
     override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            rows[indexPath.row]._didSelect.send(indexPath)
+        }
+        #else
         rows[indexPath.row]._didSelect.send(indexPath)
+        #endif
     }
 
     override func reloadCell(at indexPath: IndexPath) {
@@ -305,6 +356,7 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 
 open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, Model> {
     #if canImport(Combine)
+    @available(iOS 13.0, macOS 10.15, *)
     lazy var _rowModel: PassthroughSubject<RowModel, Never> = PassthroughSubject()
     #else
     lazy var _rowModel: Repeater<RowModel> = Repeater.unsafe()
@@ -319,7 +371,13 @@ open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, 
     }
 
     public func onRowModel(_ doit: @escaping (RowModel, ReuseFormRow<View, Model, RowModel>) -> Void) {
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            _rowModel.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        }
+        #else
         _rowModel.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        #endif
     }
 }
 
@@ -444,7 +502,13 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         if !item.state.contains(.displaying) || item.view !== cell {
             item.view = cell
             item.model = model
+            #if canImport(Combine)
+            if #available(iOS 13.0, macOS 10.15, *) {
+                item._rowModel.send(dataSource.collection[indexPath.row])
+            }
+            #else
             item._rowModel.send(dataSource.collection[indexPath.row])
+            #endif
             item.state.insert(.displaying)
             item.state.remove(.free)
         }
@@ -459,7 +523,13 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
 
     override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         if let cell = tableView.cellForRow(at: indexPath) {
+            #if canImport(Combine)
+            if #available(iOS 13.0, macOS 10.15, *) {
+                reuseController.active(at: cell)?._didSelect.send(indexPath)
+            }
+            #else
             reuseController.active(at: cell)?._didSelect.send(indexPath)
+            #endif
         }
     }
 

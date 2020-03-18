@@ -37,7 +37,22 @@ struct Bridge<I, O> {
             switch e {
             case .value(let v):
                 do {
-                    try event(v, ResultPromise(receiver: { assign(.value($0)) }, error: { assign(.error($0)) }))
+                    let promise: ResultPromise<O> = ResultPromise()
+                    promise.do({ assign(.value($0)) }).resolve({ assign(.error($0)) })
+                    try event(v, promise)
+                } catch let e {
+                    assign(.error(e))
+                }
+            case .error(let e): assign(.error(e))
+            }
+        })
+    }
+    init(event: @escaping (I, @escaping (ListenEvent<O>) -> Void) throws -> Void) {
+        self.init(bridge: { e, assign in
+            switch e {
+            case .value(let v):
+                do {
+                    try event(v, assign)
                 } catch let e {
                     assign(.error(e))
                 }
@@ -58,12 +73,14 @@ extension Bridge where I == O {
             }
         })
     }
-    init(event: @escaping (O, Promise) throws -> Void) {
+    init(event: @escaping (O, PromiseVoid) throws -> Void) {
         self.init(bridge: { e, assign in
             switch e {
             case .value(let v):
                 do {
-                    try event(v, Promise(action: { assign(.value(v)) }, error: { assign(.error($0)) }))
+                    let promise = PromiseVoid()
+                    promise.do({ assign(.value(v)) }).resolve({ assign(.error($0)) })
+                    try event(v, promise)
                 } catch let e {
                     assign(.error(e))
                 }
@@ -111,7 +128,7 @@ public extension Listenable {
     /// - Warning: This does not preserve the sequence of events
     ///
     /// - Parameter event: Closure to run async work.
-    func doAsync(_ event: @escaping (Out, Promise) throws -> Void) -> Preprocessor<Self, Out> {
+    func doAsync(_ event: @escaping (Out, PromiseVoid) throws -> Void) -> Preprocessor<Self, Out> {
         return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(event: event))
     }
@@ -119,7 +136,7 @@ public extension Listenable {
     /// and waits when is received signal in `ResultPromise`
     ///
     /// - Parameter event: Closure to run async work.
-    func mapAsync<Result>(_ event: @escaping (Out, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result> {
+    func mapAsync<Result>(_ event: @escaping (Out, @escaping (ListenEvent<Result>) -> Void) throws -> Void) -> Preprocessor<Self, Result> {
         return Preprocessor(listenable: self,
                             bridgeMaker: Bridge(event: event))
     }
@@ -605,7 +622,7 @@ public extension Listenable {
     func memoize(buffer: Memoize<Self>.Buffer) -> Memoize<Self> {
         return Memoize(
             self,
-            storage: .unsafe(strong: ([], false)),
+            storage: .unsafe(strong: ([], false), repeater: .unsafe()),
             buffer: buffer
         )
     }
@@ -693,6 +710,7 @@ public struct Memoize<T: Listenable>: Listenable {
     }
 
     init(_ base: T, storage: ValueStorage<([T.Out], Bool)>, buffer: Buffer) {
+        precondition(storage.repeater != nil, "Storage must have repeater")
         self.dispose = ListeningDispose(base.listening(
             onValue: { (value) in
                 var result: [T.Out]?
@@ -700,7 +718,7 @@ public struct Memoize<T: Listenable>: Listenable {
                     result = buffer.mapper(&currentValue, value)
                 }
                 if let toSend = result {
-                    storage.repeater.send(.value((toSend, true)))
+                    storage.repeater?.send(.value((toSend, true)))
                 }
             },
             onError: storage.sendError
@@ -709,7 +727,7 @@ public struct Memoize<T: Listenable>: Listenable {
     }
 
     private func sendLastIfNeeded(_ assign: Closure<ListenEvent<[T.Out]>, Void>) {
-        let current = storage.value
+        let current = storage.wrappedValue
         if current.1 {
             assign.call(.value(current.0))
         }
@@ -717,7 +735,7 @@ public struct Memoize<T: Listenable>: Listenable {
 
     public func listening(_ assign: Closure<ListenEvent<[T.Out]>, Void>) -> Disposable {
         defer { sendLastIfNeeded(assign) }
-        let disposer = storage.map({ $0.0 }).listening(assign)
+        let disposer = storage.repeater!.map({ $0.0 }).listening(assign)
         let unmanaged = Unmanaged.passUnretained(dispose).retain()
         return ListeningDispose.init({
             unmanaged.release()
@@ -773,7 +791,7 @@ public struct Shared<T: Listenable>: Listenable {
         case .repeatable:
             let connectionStorage = ValueStorage<(UInt, ListeningDispose?)>.unsafe(strong: (0, nil))
             self.liveStrategy = .repeatable(source, connectionStorage, ListeningDispose({
-                connectionStorage.value = (connectionStorage.value.0, nil) // disposes when shared deinitialized
+                connectionStorage.wrappedValue = (connectionStorage.wrappedValue.0, nil) // disposes when shared deinitialized
             }))
         case .continuous:
             self.liveStrategy = .continuous(source.bind(to: repeater))
@@ -781,19 +799,19 @@ public struct Shared<T: Listenable>: Listenable {
     }
 
     private func increment(_ storage: ValueStorage<(UInt, ListeningDispose?)>, source: T) {
-        if storage.value.1 == nil {
-            storage.value = (1, ListeningDispose(source.bind(to: repeater)))
+        if storage.wrappedValue.1 == nil {
+            storage.wrappedValue = (1, ListeningDispose(source.bind(to: repeater)))
         } else {
-            storage.value = (storage.value.0 + 1, storage.value.1)
+            storage.wrappedValue = (storage.wrappedValue.0 + 1, storage.wrappedValue.1)
         }
     }
 
     private static func decrement(_ storage: ValueStorage<(UInt, ListeningDispose?)>) {
-        let current = storage.value
+        let current = storage.wrappedValue
         if current.0 == 1 {
-            storage.value = (0, nil)
+            storage.wrappedValue = (0, nil)
         } else {
-            storage.value = (current.0 - 1, current.1)
+            storage.wrappedValue = (current.0 - 1, current.1)
         }
     }
 
@@ -853,11 +871,11 @@ public struct Share<T: Listenable>: Listenable {
         switch self.liveStrategy {
         case .continuous(let d): dispose = d
         case .repeatable(let source, let disposeStorage):
-            if let disp = disposeStorage.value, !disp.isDisposed {
+            if let disp = disposeStorage.wrappedValue, !disp.isDisposed {
                 dispose = disp
             } else {
                 dispose = ListeningDispose(source.bind(to: repeater))
-                disposeStorage.value = dispose
+                disposeStorage.wrappedValue = dispose
             }
         }
         return dispose
@@ -920,14 +938,9 @@ public extension Listenable {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
-        return mapAsync { (event, promise: ResultPromise<L.Out>) in
+        return mapAsync { (event, assign: @escaping (ListenEvent<L.Out>) -> Void) in
             let next = try transform(event)
-            disposable = next.listening({ (out) in
-                switch out {
-                case .error(let e): promise.reject(e)
-                case .value(let v): promise.fulfill(v)
-                }
-            })
+            disposable = next.listening(assign)
         }
     }
 }
@@ -936,27 +949,19 @@ public extension Listenable where Out: _Optional {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
-        return flatMapAsync { (event, promise: ResultPromise<L.Out>) in
+        return flatMapAsync { (event, assign: @escaping (ListenEvent<L.Out>) -> Void) in
             let next = try transform(event)
-            disposable = next.listening({ (out) in
-                switch out {
-                case .error(let e): promise.reject(e)
-                case .value(let v): promise.fulfill(v)
-                }
-            })
+            disposable = next.listening(assign)
         }
     }
     func then<L: Listenable>(_ transform: @escaping (Out.Wrapped) throws -> L?) -> Preprocessor<Self, L.Out?> {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
-        return flatMapAsync { (event, promise: ResultPromise<L.Out?>) in
-            guard let next = try transform(event) else { return promise.fulfill(nil) }
-            disposable = next.listening({ (out) in
-                switch out {
-                case .error(let e): promise.reject(e)
-                case .value(let v): promise.fulfill(v)
-                }
+        return flatMapAsync { (event, assign: @escaping (ListenEvent<L.Out?>) -> Void) in
+            guard let next = try transform(event) else { return assign(.value(nil)) }
+            disposable = next.listening({ res in
+                assign(res.map({ $0 }))
             })
         }
     }
@@ -964,13 +969,10 @@ public extension Listenable where Out: _Optional {
         var disposable: Disposable? {
             didSet { oldValue?.dispose() }
         }
-        return flatMapAsync { (event, promise: ResultPromise<L.Out.Wrapped?>) in
-            guard let next = try transform(event) else { return promise.fulfill(nil) }
+        return flatMapAsync { (event, assign: @escaping (ListenEvent<L.Out.Wrapped?>) -> Void) in
+            guard let next = try transform(event) else { return assign(.value(nil)) }
             disposable = next.listening({ (out) in
-                switch out {
-                case .error(let e): promise.reject(e)
-                case .value(let v): promise.fulfill(v.wrapped)
-                }
+                assign(out.map({ $0.wrapped }))
             })
         }
     }
@@ -990,17 +992,18 @@ public extension Listenable where Out: _Optional {
         return flatMap({ $0 })
     }
 
-    func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result>) throws -> Void) -> Preprocessor<Self, Result?> {
-        return mapAsync({ (out, promise) in
-            guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
-            let wrappedPromise = ResultPromise<Result>(receiver: promise.fulfill, error: promise.reject)
-            try event(wrapped, wrappedPromise)
+    func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, @escaping (ListenEvent<Result>) -> Void) throws -> Void) -> Preprocessor<Self, Result?> {
+        return mapAsync({ (out, assign) in
+            guard let wrapped = out.wrapped else { return assign(.value(nil)) }
+            try event(wrapped, { (res: ListenEvent<Result>) in
+                assign(res.map({ $0 }))
+            })
         })
     }
-    func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, ResultPromise<Result?>) throws -> Void) -> Preprocessor<Self, Result?> {
-        return mapAsync({ (out, promise) in
-            guard let wrapped = out.wrapped else { return promise.fulfill(nil) }
-            try event(wrapped, promise)
+    func flatMapAsync<Result>(_ event: @escaping (Out.Wrapped, @escaping (ListenEvent<Result?>) -> Void) throws -> Void) -> Preprocessor<Self, Result?> {
+        return mapAsync({ (out, assign) in
+            guard let wrapped = out.wrapped else { return assign(.value(nil)) }
+            try event(wrapped, assign)
         })
     }
 
@@ -1072,16 +1075,16 @@ public extension Listenable where Out: _Optional, Out.Wrapped: HasDefaultLiteral
     }
 }
 
+public typealias Suspend<Out> = Preprocessor<Memoize<Combine<(Out, Bool)>>, [Out]>
 public extension Listenable {
-    /// Creates retained storage that saves last values, but emits result conditionally.
+    /// Creates retained listening point that saves last values, but emits result conditionally.
     ///
     /// - Parameters:
     ///   - controller: Source of emitting control
     ///   - maxBufferSize: Maximum elements that can store in storage
     ///   - initially: Initial state.
     /// - Returns: Retained preprocessor object
-    typealias Suspend = Preprocessor<Memoize<Combine<(Self.Out, Bool)>>, [Self.Out]>
-    func suspend<L: Listenable>(controller: L, maxBufferSize: Int = .max, initially: Bool = true) -> Suspend where L.Out == Bool {
+    func suspend<L: Listenable>(controller: L, maxBufferSize: Int = .max, initially: Bool = true) -> Suspend<Self.Out> where L.Out == Bool {
         debugFatalError(condition: maxBufferSize <= 0, "`size` must be more than 0")
         return Combine(accumulator: Accumulator(repeater: .unsafe(), self, default: nil, controller, default: initially))
             .memoize(buffer: .custom({ (storage, last) -> [(Self.Out, Bool)]? in

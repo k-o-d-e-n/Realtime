@@ -15,6 +15,15 @@ public enum ReferenceMode {
     case fullPath
     case path(from: Node)
 }
+internal extension ReferenceMode {
+    init(anchor node: Node) {
+        if node.isRoot {
+            self = .fullPath
+        } else {
+            self = .path(from: node)
+        }
+    }
+}
 
 /// Link value describing reference to some location of database.
 struct ReferenceRepresentation: RealtimeDataRepresented {
@@ -58,13 +67,8 @@ struct ReferenceRepresentation: RealtimeDataRepresented {
     }
 }
 extension ReferenceRepresentation {
-    func make<V: RealtimeValue>(fromAnchor node: Node = .root, options: [ValueOption: Any]) -> V {
-        var options = options
-        options[.rawValue] = payload.raw
-        if let pl = payload.user {
-            options[.payload] = pl
-        }
-        return V(in: node.child(with: source), options: options)
+    func options(_ db: RealtimeDatabase?) -> RealtimeValueOptions {
+        return RealtimeValueOptions(database: db, raw: payload.raw, payload: payload.user)
     }
 }
 
@@ -193,13 +197,8 @@ public struct RelationRepresentation: RealtimeDataRepresented {
     }
 }
 extension RelationRepresentation {
-    func make<V: RealtimeValue>(fromAnchor node: Node, options: [ValueOption: Any]) -> V {
-        var options = options
-        options[.rawValue] = payload.raw
-        if let pl = payload.user {
-            options[.payload] = pl
-        }
-        return V(in: node.child(with: targetPath), options: options)
+    func options(_ db: RealtimeDatabase?) -> RealtimeValueOptions {
+        return RealtimeValueOptions(database: db, raw: payload.raw, payload: payload.user)
     }
 }
 

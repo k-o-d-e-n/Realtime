@@ -12,38 +12,26 @@ public extension RawRepresentable where Self.RawValue == String {
     func property<T>(in object: Object, representer: Representer<T>) -> Property<T> {
         return Property(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability<T>.required(representer)
-            ]
+            options: .required(representer, db: object.database)
         )
     }
     func property<T>(in object: Object, representer: Representer<T>) -> Property<T?> {
         return Property(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability<T?>.optional(representer)
-            ]
+            options: .optional(representer, db: object.database)
         )
     }
 
     func readonlyProperty<T>(in object: Object, representer: Representer<T>) -> ReadonlyProperty<T> {
         return ReadonlyProperty(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability<T>.required(representer)
-            ]
+            options: .required(representer, db: object.database)
         )
     }
     func readonlyProperty<T>(in object: Object, representer: Representer<T>) -> ReadonlyProperty<Optional<T>> {
         return ReadonlyProperty(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .representer: Availability<T?>.optional(representer)
-            ]
+            options: .optional(representer, db: object.database)
         )
     }
     func readonlyProperty<T>(in object: Object) -> ReadonlyProperty<T> where T: ExpressibleByRealtimeDatabaseValue & RealtimeDataRepresented {
@@ -78,74 +66,70 @@ public extension RawRepresentable where Self.RawValue == String {
         return property(in: object, representer: Representer<V>.codable)
     }
 
-    func reference<V: Object>(in object: Object, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V> {
+    func reference<V: Object>(in object: Object, mode: ReferenceMode) -> Reference<V> {
         return Reference(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .reference: Reference<V>.Mode.required(mode, options: options)
-            ]
+            options: Reference<V>.Mode.required(mode, db: object.database, builder: { node, database, options in
+                return V(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+            })
         )
     }
-    func reference<V: Object>(in object: Object, mode: ReferenceMode, options: [ValueOption: Any] = [:]) -> Reference<V?> {
+    func reference<V: Object>(in object: Object, mode: ReferenceMode) -> Reference<V?> {
         return Reference(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .reference: Reference<V?>.Mode.optional(mode, options: options)
-            ]
+            options: Reference<V?>.Mode.optional(mode, db: object.database, builder: { node, database, options in
+                return V(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+            })
         )
     }
     func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relation<V> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .relation: Relation<V>.Options.required(
-                    rootLevelsUp: rootLevelsUp,
-                    ownerLevelsUp: ownerLevelsUp,
-                    property: property
-                )
-            ]
+            options: Relation<V>.Options.required(
+                db: object.database,
+                rootLevelsUp: rootLevelsUp,
+                ownerLevelsUp: ownerLevelsUp,
+                property: property,
+                builder: { node, database, options in
+                    return V(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+                }
+            )
         )
     }
     func relation<V: Object>(in object: Object, rootLevelsUp: UInt? = nil, ownerLevelsUp: UInt = 1, _ property: RelationProperty) -> Relation<V?> {
         return Relation(
             in: Node(key: rawValue, parent: object.node),
-            options: [
-                .database: object.database as Any,
-                .relation: Relation<V?>.Options.optional(
-                    rootLevelsUp: rootLevelsUp,
-                    ownerLevelsUp: ownerLevelsUp,
-                    property: property
-                )
-            ]
+            options: Relation<V?>.Options.optional(
+                db: object.database,
+                rootLevelsUp: rootLevelsUp,
+                ownerLevelsUp: ownerLevelsUp,
+                property: property,
+                builder: { node, database, options in
+                    return V(in: node, options: RealtimeValueOptions(database: database, raw: options.raw, payload: options.payload))
+                }
+            )
         )
     }
-
-    func nested<Type: Object>(in object: Object, options: [ValueOption: Any] = [:]) -> Type {
-        let property = Type(
-            in: Node(key: rawValue, parent: object.node),
-            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
-        )
-        property.parent = object
-        return property
-    }
-}
-
-public extension ValueOption {
-    static let relation = ValueOption("realtime.relation")
-    static let reference = ValueOption("realtime.reference")
 }
 
 /// Defines read/write property where value is Realtime database reference
+@propertyWrapper
 public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities>: Property<Referenced> {
     public override var raw: RealtimeDatabaseValue? { return super._raw }
     public override var payload: RealtimeDatabaseValue? { return super._payload }
 
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        guard case let o as Mode = options[.reference] else { fatalError("Skipped required options") }
-        super.init(in: node, options: options.merging([.representer: o.availability], uniquingKeysWith: { _, new in new }))
+    public override var wrappedValue: Referenced? {
+        get { super.wrappedValue }
+        set { super.wrappedValue = newValue }
+    }
+    public override var projectedValue: Reference<Referenced> { self }
+
+    public required init(in node: Node?, options: Mode) {
+        super.init(in: node, options: PropertyOptions(
+            database: options.database,
+            representer: options.availability,
+            initial: nil
+        ))
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -170,46 +154,56 @@ public final class Reference<Referenced: RealtimeValue & _RealtimeValueUtilities
     }
 
     public struct Mode {
-        let availability: Availability<Referenced>
+        let database: RealtimeDatabase?
+        let availability: Representer<Referenced?>
 
-        public static func required(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode {
-            return Mode(availability: Availability<Referenced>.required(Representer.reference(mode, options: options)))
+        public static func required(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, Referenced>) -> Mode {
+            return Mode(database: db, availability: Representer.reference(mode, database: db, builder: builder).requiredProperty())
         }
-        public static func writeRequired<U: RealtimeValue>(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode where Referenced == Optional<U> {
-            return Mode(availability: Availability<Referenced>.writeRequired(Representer<U>.reference(mode, options: options)))
+        public static func writeRequired<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, U>) -> Mode where Referenced == Optional<U> {
+            return Mode(database: db, availability: Representer<U>.reference(mode, database: db, builder: builder).writeRequiredProperty())
         }
-        public static func optional<U: RealtimeValue>(_ mode: ReferenceMode, options: [ValueOption: Any]) -> Mode where Referenced == Optional<U> {
-            return Mode(availability: Availability<Referenced>.optional(Representer<U>.reference(mode, options: options)))
+        public static func optional<U: RealtimeValue>(_ mode: ReferenceMode, db: RealtimeDatabase?, builder: @escaping RCElementBuilder<RealtimeValueOptions, U>) -> Mode where Referenced == Optional<U> {
+            return Mode(database: db, availability: Representer<U>.reference(mode, database: db, builder: builder).optionalProperty())
         }
     }
 
     public static func readonly(in node: Node?, mode: Mode) -> ReadonlyProperty<Referenced> {
-        return ReadonlyProperty(in: node, options: [.representer: mode.availability])
+        return ReadonlyProperty(in: node, options: PropertyOptions(database: nil, representer: mode.availability, initial: nil))
     }
 }
 
 /// Defines read/write property where value is Realtime database relation
+@propertyWrapper
 public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: Property<Related> {
     var options: Options
     public override var raw: RealtimeDatabaseValue? { return super._raw }
     public override var payload: RealtimeDatabaseValue? { return super._payload }
 
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        guard case let relation as Relation<Related>.Options = options[.relation] else { fatalError("Skipped required options") }
+    public override var wrappedValue: Related? {
+        get { super.wrappedValue }
+        set { super.wrappedValue = newValue }
+    }
+    public override var projectedValue: Relation<Related> { self }
 
-        self.options = relation
+    public required init(in node: Node?, options: Options) {
+        self.options = options
 
         if let ownerNode = node?.ancestor(onLevelUp: self.options.ownerLevelsUp) {
-            self.options.ownerNode.value = ownerNode
+            self.options.ownerNode.wrappedValue = ownerNode
         }
 
-        super.init(in: node, options: options.merging([.representer: relation.availability], uniquingKeysWith: { _, new in new }))
+        super.init(in: node, options: PropertyOptions(
+            database: options.database,
+            representer: options.availability,
+            initial: nil
+        ))
     }
 
     required public init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
         fatalError("init(data:event:) cannot be called. Use combination init(in:options:) and apply(_:event:) instead")
     }
-
+    
     @discardableResult
     public override func setValue(_ value: Related, in transaction: Transaction? = nil) throws -> Transaction {
         guard Related._isValid(asRelation: value) else { fatalError("Value must with rooted node") }
@@ -220,7 +214,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     override func _write(to transaction: Transaction, by node: Node) throws {
         _write_RealtimeValue(to: transaction, by: node)
         if let ownerNode = node.ancestor(onLevelUp: options.ownerLevelsUp) {
-            options.ownerNode.value = ownerNode
+            options.ownerNode.wrappedValue = ownerNode
             try super._write(to: transaction, by: node)
         } else {
             throw RealtimeError(source: .value, description: "Cannot get owner node from levels up: \(options.ownerLevelsUp)")
@@ -240,6 +234,7 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     }
 
     public struct Options {
+        let database: RealtimeDatabase?
         /// Levels up by hierarchy to relation owner of this property
         let ownerLevelsUp: UInt
         /// String path from related object to his relation property
@@ -248,36 +243,39 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
         let rootLevelsUp: UInt?
 
         let ownerNode: ValueStorage<Node?>
-        let availability: Availability<Related>
+        let availability: Representer<Related?>
 
-        public static func required(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options {
+        public static func required(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<RealtimeValueOptions, Related>) -> Options {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
+                database: db,
                 ownerLevelsUp: ownerLevelsUp,
                 property: property,
                 rootLevelsUp: rootLevelsUp,
                 ownerNode: ownerNode,
-                availability: Availability.required(Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
+                availability: Representer.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode, database: db, builder: builder).requiredProperty()
             )
         }
-        public static func writeRequired<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options where Related == Optional<U> {
+        public static func writeRequired<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<RealtimeValueOptions, U>) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
+                database: db,
                 ownerLevelsUp: ownerLevelsUp,
                 property: property,
                 rootLevelsUp: rootLevelsUp,
                 ownerNode: ownerNode,
-                availability: Availability.writeRequired(Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
+                availability: Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode, database: db, builder: builder).writeRequiredProperty()
             )
         }
-        public static func optional<U>(rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty) -> Options where Related == Optional<U> {
+        public static func optional<U>(db: RealtimeDatabase?, rootLevelsUp: UInt?, ownerLevelsUp: UInt, property: RelationProperty, builder: @escaping RCElementBuilder<RealtimeValueOptions, U>) -> Options where Related == Optional<U> {
             let ownerNode = ValueStorage<Node?>.unsafe(strong: nil)
             return Options(
+                database: db,
                 ownerLevelsUp: ownerLevelsUp,
                 property: property,
                 rootLevelsUp: rootLevelsUp,
                 ownerNode: ownerNode,
-                availability: Availability.optional(Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode))
+                availability: Representer<U>.relation(property, rootLevelsUp: rootLevelsUp, ownerNode: ownerNode, database: db, builder: builder).optionalProperty()
             )
         }
     }
@@ -294,16 +292,11 @@ public final class Relation<Related: RealtimeValue & _RealtimeValueUtilities>: P
     }
 
     public static func readonly(in node: Node?, config: Options) -> ReadonlyProperty<Related> {
-        return ReadonlyProperty(in: node, options: [.representer: config.availability])
+        return ReadonlyProperty(in: node, options: PropertyOptions(database: nil, representer: config.availability, initial: nil))
     }
 }
 
 // MARK: Listenable realtime property
-
-public extension ValueOption {
-    static let representer: ValueOption = ValueOption("realtime.property.representer")
-    static let initialValue: ValueOption = ValueOption("realtime.property.initialValue")
-}
 
 public enum PropertyState<T> {
     case none
@@ -399,12 +392,33 @@ public extension PropertyState where T: _Optional {
 }
 
 /// Defines read/write property with any value
+@propertyWrapper
 public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, WritableRealtimeValue, Reverting {
     fileprivate var _oldValue: PropertyState<T>?
     override var _hasChanges: Bool {
         return _oldValue != nil
     }
     public var oldValue: PropertyState<T>? { return _oldValue }
+
+    override public var wrappedValue: T? {
+        get { return super.wrappedValue }
+        set {
+            if let v = newValue {
+                _setLocalValue(v)
+            } else {
+                _setRemoved(isLocal: true)
+            }
+        }
+    }
+    override public var projectedValue: Property { return self }
+
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.init(data: data, event: event)
+    }
+
+    public override init(in node: Node?, options: PropertyOptions) {
+        super.init(in: node, options: options)
+    }
 
     public func revert() {
         if let old = _oldValue {
@@ -444,7 +458,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
     ///
     /// - Parameter using: Mutation closure
     public func change(_ using: (T?) -> T) {
-        _setLocalValue(using(wrapped))
+        _setLocalValue(using(wrappedValue))
     }
 
     /// Removes property value.
@@ -551,7 +565,7 @@ public class Property<T>: ReadonlyProperty<T>, ChangeableRealtimeValue, Writable
 prefix operator §
 public extension ReadonlyProperty {
     static prefix func § (prop: ReadonlyProperty) -> T? {
-        return prop.wrapped
+        return prop.wrappedValue
     }
 }
 
@@ -580,31 +594,8 @@ public extension Property where T: Equatable {
     }
 }
 
-public struct Availability<T> {
-    let property: () -> Representer<T?>
-    public var representer: Representer<T?> { return property() }
-
-    init(_ property: @escaping () -> Representer<T?>) {
-        self.property = property
-    }
-
-    public static func required(_ representer: Representer<T>) -> Availability {
-        return Availability(Representer.requiredProperty(representer))
-    }
-    public static func writeRequired<V>(_ representer: Representer<V>) -> Availability where Optional<V> == T {
-        return Availability(Representer.writeRequiredProperty(representer))
-    }
-    public static func optional<V>(_ representer: Representer<V>) -> Availability where Optional<V> == T {
-        return Availability(Representer.optionalProperty(representer))
-    }
-}
-extension Availability where T: HasDefaultLiteral & _ComparableWithDefaultLiteral {
-    func defaultOnEmpty() -> Availability {
-        return Availability({ self.representer.defaultOnEmpty() })
-    }
-}
-
 /// Defines readonly property with any value
+@propertyWrapper
 public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     fileprivate var _value: PropertyState<T>
     fileprivate(set) var representer: Representer<T?>
@@ -623,17 +614,38 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
             else { stopObserving() }
         }
     }
+
+    public var wrappedValue: T? {
+        return _value.wrapped
+    }
+    public var projectedValue: ReadonlyProperty { return self }
     
     // MARK: Initializers, deinitializer
 
-    public static func required(in node: Node?, representer: Representer<T>, options: [ValueOption: Any] = [:]) -> Self {
-        return self.init(in: node, options: options.merging([.representer: Availability.required(representer)], uniquingKeysWith: { _, new in new }))
+    public struct PropertyOptions {
+        let base: RealtimeValueOptions
+        let representer: Representer<T?>
+        let initialValue: T? // TODO: Remove, because initial value set as local value, though on step initialization as @propertyWrapper may be useful
+
+        init(database: RealtimeDatabase?, representer: Representer<T?>, initial value: T? = nil) {
+            self.base = RealtimeValueOptions(database: database)
+            self.representer = representer
+            self.initialValue = value
+        }
+
+        public static func required(_ representer: Representer<T>, db: RealtimeDatabase? = nil, initial: T? = nil) -> Self {
+            return Self.init(database: db, representer: representer.requiredProperty(), initial: initial)
+        }
+        public static func optional<U>(_ representer: Representer<U>, db: RealtimeDatabase? = nil, initial: T? = nil) -> Self where Optional<U> == T {
+            return Self.init(database: db, representer: representer.optionalProperty(), initial: initial)
+        }
+        public static func writeRequired<U>(_ representer: Representer<U>, db: RealtimeDatabase? = nil, initial: T? = nil) -> Self where Optional<U> == T {
+            return Self.init(database: db, representer: representer.writeRequiredProperty(), initial: initial)
+        }
     }
-    public static func optional<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) -> Self where Optional<U> == T {
-        return self.init(in: node, options: options.merging([.representer: Availability.optional(representer)], uniquingKeysWith: { _, new in new }))
-    }
-    public static func writeRequired<U>(in node: Node?, representer: Representer<U>, options: [ValueOption: Any] = [:]) -> Self where Optional<U> == T {
-        return self.init(in: node, options: options.merging([.representer: Availability.writeRequired(representer)], uniquingKeysWith: { _, new in new }))
+
+    public convenience init<U>(in node: Node?, representer: Representer<U>) where U? == T {
+        self.init(in: node, options: .optional(representer))
     }
 
     /// Designed initializer
@@ -650,16 +662,14 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
     /// - Parameters:
     ///   - node: Database node reference
     ///   - options: Option values
-    public required init(in node: Node?, options: [ValueOption: Any]) {
-        guard case let availability as Availability<T> = options[.representer] else { fatalError("Bad options") }
-
-        if let inital = options[.initialValue], let v = inital as? T {
-            self._value = .local(v)
+    public init(in node: Node?, options: PropertyOptions) {
+        if let inital = options.initialValue {
+            self._value = .local(inital)
         } else {
             self._value = .none
         }
-        self.representer = availability.representer
-        super.init(in: node, options: options)
+        self.representer = options.representer
+        super.init(node: node, options: options.base)
     }
 
     public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
@@ -756,7 +766,7 @@ public class ReadonlyProperty<T>: _RealtimeValue, RealtimeValueActions {
 
     public override var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.debugDescription ?? "not referred"),
             keepSynced: \(keepSynced),
             value: \(_value as Any)
@@ -787,30 +797,31 @@ public extension ReadonlyProperty {
 
     /// Current value of property
     /// `nil` if property has no value, or has been removed
+    @available(*, deprecated, renamed: "wrappedValue")
     var wrapped: T? {
-        return _value.wrapped
+        return wrappedValue
     }
 }
 public extension ReadonlyProperty {
     static func ?? (optional: ReadonlyProperty, defaultValue: @autoclosure () throws -> T) rethrows -> T {
-        return try optional.wrapped ?? defaultValue()
+        return try optional.wrappedValue ?? defaultValue()
     }
     static func ?? (optional: ReadonlyProperty, defaultValue: @autoclosure () throws -> T?) rethrows -> T? {
-        return try optional.wrapped ?? defaultValue()
+        return try optional.wrappedValue ?? defaultValue()
     }
     static func <==(_ value: inout T?, _ prop: ReadonlyProperty) {
-        value = prop.wrapped
+        value = prop.wrappedValue
     }
 }
 public func <== <T>(_ value: inout T?, _ prop: ReadonlyProperty<T>?) {
-    value = prop?.wrapped
+    value = prop?.wrappedValue
 }
 public extension ReadonlyProperty {
     func mapValue<U>(_ transform: (T) throws -> U) rethrows -> U? {
-        return try wrapped.map(transform)
+        return try wrappedValue.map(transform)
     }
     func flatMapValue<U>(_ transform: (T) throws -> U?) rethrows -> U? {
-        return try wrapped.flatMap(transform)
+        return try wrappedValue.flatMap(transform)
     }
 }
 public extension ReadonlyProperty where T: _Optional {
@@ -829,7 +840,7 @@ public func <== <T>(_ value: inout T.Wrapped?, _ prop: ReadonlyProperty<T>?) whe
 }
 public extension ReadonlyProperty where T: HasDefaultLiteral {
     static func <==(_ value: inout T, _ prop: ReadonlyProperty) {
-        value = prop.wrapped ?? T()
+        value = prop.wrappedValue ?? T()
     }
 }
 public extension ReadonlyProperty where T: _Optional, T.Wrapped: HasDefaultLiteral {
@@ -841,20 +852,20 @@ infix operator ====: ComparisonPrecedence
 infix operator !===: ComparisonPrecedence
 public extension ReadonlyProperty where T: Equatable {
     static func ====(lhs: T, rhs: ReadonlyProperty) -> Bool {
-        switch (lhs, rhs.wrapped) {
+        switch (lhs, rhs.wrappedValue) {
         case (_, .none): return false
         case (let l, .some(let r)): return l == r
         }
     }
     static func ====(lhs: ReadonlyProperty, rhs: T) -> Bool {
-        switch (rhs, lhs.wrapped) {
+        switch (rhs, lhs.wrappedValue) {
         case (_, .none): return false
         case (let l, .some(let r)): return l == r
         }
     }
     static func ====(lhs: ReadonlyProperty, rhs: ReadonlyProperty) -> Bool {
         guard lhs !== rhs else { return true }
-        return rhs.wrapped == lhs.wrapped
+        return rhs.wrappedValue == lhs.wrappedValue
     }
     static func !===(lhs: T, rhs: ReadonlyProperty) -> Bool {
         return !(lhs ==== rhs)
@@ -866,14 +877,14 @@ public extension ReadonlyProperty where T: Equatable {
         return !(lhs ==== rhs)
     }
     static func ====(lhs: T?, rhs: ReadonlyProperty) -> Bool {
-        switch (lhs, rhs.wrapped) {
+        switch (lhs, rhs.wrappedValue) {
         case (.none, .none): return true
         case (.none, .some), (.some, .none): return false
         case (.some(let l), .some(let r)): return l == r
         }
     }
     static func ====(lhs: ReadonlyProperty, rhs: T?) -> Bool {
-        switch (rhs, lhs.wrapped) {
+        switch (rhs, lhs.wrappedValue) {
         case (.none, .none): return true
         case (.none, .some), (.some, .none): return false
         case (.some(let l), .some(let r)): return l == r
@@ -888,7 +899,7 @@ public extension ReadonlyProperty where T: Equatable {
 }
 public extension ReadonlyProperty where T: Equatable & _Optional {
     static func ====(lhs: T, rhs: ReadonlyProperty) -> Bool {
-        return rhs.wrapped == lhs
+        return rhs.wrappedValue == lhs
     }
     static func ====(lhs: ReadonlyProperty, rhs: T) -> Bool {
         return lhs.mapValue({ $0 == rhs }) ?? (rhs.wrapped == nil)
@@ -896,7 +907,7 @@ public extension ReadonlyProperty where T: Equatable & _Optional {
 }
 public extension ReadonlyProperty where T: HasDefaultLiteral & _ComparableWithDefaultLiteral {
     static func <==(_ value: inout T, _ prop: ReadonlyProperty) {
-        value = prop.wrapped ?? T()
+        value = prop.wrappedValue ?? T()
     }
     func defaultOnEmpty() -> Self {
         self.representer = Representer(defaultOnEmpty: representer)

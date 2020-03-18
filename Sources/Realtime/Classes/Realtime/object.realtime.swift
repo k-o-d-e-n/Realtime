@@ -149,6 +149,22 @@ struct Reflector: Sequence {
     }
 }
 
+public struct RealtimeValueOptions {
+    public let database: RealtimeDatabase?
+    public let raw: RealtimeDatabaseValue?
+    public let payload: RealtimeDatabaseValue?
+
+    public init(database: RealtimeDatabase? = nil, raw: RealtimeDatabaseValue? = nil, payload: RealtimeDatabaseValue? = nil) {
+        self.database = database
+        self.raw = raw
+        self.payload = payload
+    }
+
+    func with(db: RealtimeDatabase?) -> RealtimeValueOptions {
+        return .init(database: db, raw: raw, payload: payload)
+    }
+}
+
 /// Base class for any database value
 open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugStringConvertible {
     /// Remote version of model
@@ -168,21 +184,21 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
 
     internal var observing: [DatabaseDataEvent: (token: UInt, counter: Int)] = [:]
 
-    public convenience init(in object: _RealtimeValue, keyedBy key: String, options: [ValueOption: Any] = [:]) {
+    public convenience init(in object: _RealtimeValue, keyedBy key: String, options: RealtimeValueOptions = .init()) {
         self.init(
-            in: Node(key: key, parent: object.node),
-            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
+            node: Node(key: key, parent: object.node),
+            options: options.with(db: object.database)
         )
     }
 
-    public required init(in node: Node?, options: [ValueOption : Any]) {
-        self.database = options[.database] as? RealtimeDatabase ?? RealtimeApp.app.database
+    init(node: Node?, options: RealtimeValueOptions) {
+        self.database = options.database ?? RealtimeApp.app.database
         self.node = node
-        if case let pl as RealtimeDatabaseValue = options[.payload] {
+        if let pl = options.payload {
             self.payload = pl
         }
-        if case let ipl as RealtimeDatabaseValue = options[.rawValue] {
-            self.raw = ipl
+        if let r = options.raw {
+            self.raw = r
         }
     }
 
@@ -416,7 +432,7 @@ open class _RealtimeValue: RealtimeValue, RealtimeValueEvents, CustomDebugString
     
     public var debugDescription: String {
         return """
-        \(type(of: self)): \(ObjectIdentifier(self).memoryAddress) {
+        \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.absolutePath ?? "not referred"),
             raw: \(raw.map(String.init(describing:)) ?? "null"),
             hasChanges: \(_hasChanges)
@@ -433,6 +449,17 @@ extension ChangeableRealtimeValue where Self: _RealtimeValue {
     public var hasChanges: Bool { return _hasChanges }
     public func writeChanges(to transaction: Transaction, by node: Node) throws {
         try _writeChanges(to: transaction, by: node)
+    }
+}
+
+public extension RawRepresentable where Self.RawValue == String {
+    func nested<Type: Object>(in object: Object, options: RealtimeValueOptions = .init()) -> Type {
+        let property = Type(
+            in: Node(key: rawValue, parent: object.node),
+            options: RealtimeValueOptions(database: object.database, raw: options.raw, payload: options.payload)
+        )
+        property.parent = object
+        return property
     }
 }
 
@@ -492,12 +519,20 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         return []
     }
 
-    public convenience init(in object: Object, keyedBy key: String, options: [ValueOption: Any] = [:]) {
-        self.init(
-            in: Node(key: key, parent: object.node),
-            options: options.merging([.database: object.database as Any], uniquingKeysWith: { _, new in new })
+    public init(in object: Object, keyedBy key: String, options: RealtimeValueOptions) {
+        super.init(
+            node: Node(key: key, parent: object.node),
+            options: options.with(db: object.database)
         )
         self.parent = object
+    }
+
+    public required init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {
+        super.init(node: node, options: options)
+    }
+
+    public required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.init(data: data, event: event)
     }
 
     @discardableResult
@@ -567,7 +602,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         let linksWillNotBeRemovedInAncestor = node?.parent == ancestor
         let links: Links = Links(
             in: self.node.map { Node(key: InternalKeys.linkItems, parent: $0.linksNode) },
-            options: [.database: database as Any, .representer: Availability.required(Representer<[SourceLink]>.links)]
+            options: .required(Representer<[SourceLink]>.links, db: database, initial: [])
         ).defaultOnEmpty()
         transaction.addPrecondition { [unowned transaction] (promise) in
             _ = links.loadValue().listening({ (event) in
@@ -614,9 +649,10 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     }
     private func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent, to mirror: Mirror, errorsContainer: inout [String: Error]) {
         mirror.children.forEach { (child) in
-            guard isNotIgnoredLabel(child.label) else { return }
+            let lbl = cleaned(label: child.label)
+            guard isNotIgnoredLabel(lbl) else { return }
 
-            if var value: _RealtimeValue = forceValue(from: child, mirror: mirror), conditionForRead(of: value) {
+            if var value: _RealtimeValue = forceValue(from: (lbl, child.value, lbl?.count != child.label?.count), mirror: mirror), conditionForRead(of: value) {
                 do {
                     try value.apply(parentDataIfNeeded: data, parentEvent: event)
                 } catch let e {
@@ -728,10 +764,11 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         try super._write(to: transaction, by: node)
         try Reflector(reflecting: self, to: Object.self).forEach { mirror in
             try mirror.children.forEach({ (child) in
-                guard isNotIgnoredLabel(child.label) else { return }
+                let lbl = cleaned(label: child.label)
+                guard isNotIgnoredLabel(lbl) else { return }
 
                 if
-                    let value: _RealtimeValue = forceValue(from: child, mirror: mirror),
+                    let value: _RealtimeValue = forceValue(from: (lbl, child.value, lbl?.count != child.label?.count), mirror: mirror),
                     conditionForWrite(of: value)
                 {
                     if let valNode = value.node {
@@ -748,7 +785,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
 //        super._writeChanges(to: transaction, by: node)
         try Reflector(reflecting: self, to: Object.self).lazy.flatMap({ $0.children })
             .forEach { (child) in
-                guard isNotIgnoredLabel(child.label) else { return }
+                guard isNotIgnoredLabel(cleaned(label: (child.label))) else { return }
 
                 if let value: _RealtimeValue = realtimeValue(from: child.value) {
                     if let valNode = value.node {
@@ -767,25 +804,9 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
 
         return child
     }
-    private func forceValue<T>(from mirrorChild: (label: String?, value: Any), mirror: Mirror) -> T? {
+    private func forceValue<T>(from mirrorChild: (label: String?, value: Any, lazy: Bool), mirror: Mirror) -> T? {
         guard let value: T = realtimeValue(from: mirrorChild.value) else {
-            #if swift(>=5.0)
-            guard
-                var label = mirrorChild.label,
-                label.hasPrefix(lazyStoragePath)
-            else { return nil }
-            #else
-            guard
-                var label = mirrorChild.label,
-                label.hasSuffix(lazyStoragePath)
-            else { return nil }
-            #endif
-
-            #if swift(>=5.0)
-            label = String(label.suffix(from: label.index(label.startIndex, offsetBy: lazyStoragePath.count)))
-            #else
-            label = String(label.prefix(upTo: label.index(label.endIndex, offsetBy: -lazyStoragePath.count)))
-            #endif
+            guard let label = mirrorChild.label, mirrorChild.lazy else { return nil }
 
             guard let keyPath = (mirror.subjectType as! Object.Type).lazyPropertyKeyPath(for: label) else {
                 return nil
@@ -801,77 +822,70 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
     func forceEnumerateAllChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
         Reflector(reflecting: self, to: type).forEach { mirror in
             mirror.children.forEach({ (child) in
-                guard isNotIgnoredLabel(child.label) else { return }
-                guard let value: As = forceValue(from: child, mirror: mirror) else { return }
+                let lbl = cleaned(label: child.label)
+                guard isNotIgnoredLabel(lbl) else { return }
+                guard let value: As = forceValue(from: (lbl, child.value, lbl?.count != child.label?.count), mirror: mirror) else { return }
 
-                block(child.label, value)
+                block(lbl, value)
             })
         }
     }
     fileprivate func enumerateLoadedChilds<As>(from type: Any.Type = Object.self, _ block: (String?, As) -> Void) {
         Reflector(reflecting: self, to: type).lazy.flatMap({ $0.children })
             .forEach { (child) in
-                guard isNotIgnoredLabel(child.label) else { return }
+                let lbl = cleaned(label: child.label)
+                guard isNotIgnoredLabel(lbl) else { return }
                 guard case let value as As = child.value else { return }
 
-                block(child.label, value)
+                block(lbl, value)
         }
     }
     private func containsInLoadedChild<As>(from type: Any.Type = Object.self, where block: (String?, As) -> Bool) -> Bool {
         return Reflector(reflecting: self, to: type).lazy.flatMap({ $0.children })
             .contains { (child) -> Bool in
-                guard isNotIgnoredLabel(child.label) else { return false }
+                let lbl = cleaned(label: child.label)
+                guard isNotIgnoredLabel(lbl) else { return false }
                 guard case let value as As = child.value else { return false }
 
-                return block(child.label, value)
+                return block(lbl, value)
         }
     }
     private func isNotIgnoredLabel(_ label: String?) -> Bool {
         return label.map { lbl -> Bool in
+            return !ignoredLabels.contains(lbl)
+        } ?? true
+    }
+    private func cleaned(label: String?) -> String? {
+        return label.map { lbl -> String in
             #if swift(>=5.0)
             if lbl.hasPrefix(lazyStoragePath) {
-                return !ignoredLabels.contains(String(lbl.suffix(from: lbl.index(lbl.startIndex, offsetBy: lazyStoragePath.count))))
+                return String(lbl.suffix(from: lbl.index(lbl.startIndex, offsetBy: lazyStoragePath.count)))
             } else {
-                return !ignoredLabels.contains(lbl)
+                return lbl
             }
             #else
             if lbl.hasSuffix(lazyStoragePath) {
-                return !ignoredLabels.contains(String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count))))
+                return String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count)))
             } else {
-                return !ignoredLabels.contains(lbl)
+                return lbl
             }
             #endif
-        } ?? true
+        }
     }
     
     override public var debugDescription: String {
         var values: String = ""
         enumerateLoadedChilds { (label, val: _RealtimeValue) in
-            let l = label.map({ lbl -> String in
-                #if swift(>=5.0)
-                if lbl.hasPrefix(lazyStoragePath) {
-                    return String(lbl.suffix(from: lbl.index(lbl.startIndex, offsetBy: lazyStoragePath.count)))
-                } else {
-                    return lbl
-                }
-                #else
-                if lbl.hasSuffix(lazyStoragePath) {
-                    return String(lbl.prefix(upTo: lbl.index(lbl.endIndex, offsetBy: -lazyStoragePath.count)))
-                } else {
-                    return lbl
-                }
-                #endif
-            })
             if values.isEmpty {
                 values.append(
                     """
-                    \(l ?? ""): \(val.debugDescription)
+                    \(label ?? ""): \(val.debugDescription)
                     """
                 )
             } else {
                 values.append(
                     """
-                    \t\t\(l ?? ""): \(val.debugDescription)
+                    \t\t\(label ?? ""): \(val.debugDescription)
                     """
                 )
                 values.append(",\n")
@@ -917,12 +931,14 @@ extension Object: Reverting {
 }
 
 public extension Object {
+    /* TODO: creates objects with `Object` type and get EXC_BAD_ACCESS crash on runtime, because `_RealtimeValue.init` is not required
     /// Creates new instance associated with database node
     ///
     /// - Parameter node: Node location for value
-    convenience init(in node: Node?) { self.init(in: node, options: [:]) }
+    convenience init(in node: Node?) { self.init(in: node, options: RealtimeValueOptions()) }
     /// Creates new standalone instance with undefined node
     convenience init() { self.init(in: nil) }
+     */
 }
 
 public extension Object {
