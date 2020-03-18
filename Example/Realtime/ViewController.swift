@@ -109,7 +109,7 @@ extension ViewController {
         case 4:
             #if canImport(SwiftUI) && FIREBASE
             if #available(iOS 13.0, *) {
-                let user = User(in: Node.root("users/0312be1d-06b2-4ec8-a49d-84ab27c28ed1"))
+                let user = User1(in: Node.root("users/0312be1d-06b2-4ec8-a49d-84ab27c28ed1"))
                 let view = SwiftUIView(user: user)
                 let controller = UIHostingController(rootView: view)
                 navigationController?.pushViewController(controller, animated: true)
