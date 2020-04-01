@@ -39,15 +39,17 @@ struct SwiftUIView: View {
             } else {
                 ActivityIndicator(isAnimating: $loading, style: .large)
             }
-        }.onAppear {
-            self.loading = true
-            self.model
-                .load()
-                .delay(for: .seconds(1), scheduler: DispatchQueue.main)
-                .map({ _ in false })
-                .bind(to: self, \.loading, onCompletion: { _ in self.loading = false })
-                .add(to: self.cancels)
-        }
+        }.onAppear(perform: onAppear)
+    }
+
+    func onAppear() {
+        self.loading = true
+        self.model
+            .load()
+            .delay(for: .seconds(1), scheduler: DispatchQueue.main)
+            .map({ _ in false })
+            .bind(to: self, \.loading, onCompletion: { _ in self.loading = false })
+            .add(to: self.cancels)
     }
 }
 
