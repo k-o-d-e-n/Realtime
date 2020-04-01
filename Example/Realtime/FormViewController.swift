@@ -9,15 +9,6 @@
 import UIKit
 import Realtime
 
-class Label: UILabel {
-    var didSet: Repeater<String?> = .unsafe()
-    override var text: String? {
-        didSet {
-            didSet.send(.value(text))
-        }
-    }
-}
-
 class TextCell: UITableViewCell {
     var listenings: [Disposable] = []
     lazy var titleLabel: UILabel = self.textLabel!.add(to: self.contentView)
@@ -72,20 +63,12 @@ let defaultCellIdentifier = "default"
 let textInputCellIdentifier = "input"
 let valueCellIdentifier = "value"
 
-class FormViewController: UIViewController {
-    var store = ListeningDisposeStore()
-    var delegate: SingleSectionTableViewDelegate<User>!
-    var tableView: UITableView { return view as! UITableView }
-
+class FormViewController: UITableViewController {
+    let store = ListeningDisposeStore()
     var form: Form<User>!
-    var validator: Accumulator<(String?, UInt8?)>!
 
     deinit {
         print("deinit \(self)")
-    }
-
-    override func loadView() {
-        view = UITableView()
     }
 
     override func viewDidLoad() {
@@ -103,9 +86,9 @@ class FormViewController: UIViewController {
 
         let name: Row<TextCell, User> = Row(reuseIdentifier: textInputCellIdentifier)
         name.onUpdate { (args, row) in
-            args.0.titleLabel.text = "Name"
-            args.0.textField.text <== args.1.name
-            args.0.textField.realtime
+            args.view.titleLabel.text = "Name"
+            args.view.textField.text <== args.model.name
+            args.view.textField.realtime
                 .onEvent(.editingDidEnd)
                 .map({ $0.0.text })
                 .compactMap()
@@ -116,10 +99,10 @@ class FormViewController: UIViewController {
         }
         let age: Row<TextCell, User> = Row(reuseIdentifier: textInputCellIdentifier)
         age.onUpdate { (args, row) in
-            args.0.titleLabel.text = "Age"
-            args.0.textField.keyboardType = .numberPad
-            args.0.textField.text = args.1.age.wrapped.map(String.init)
-            args.0.textField.realtime
+            args.view.titleLabel.text = "Age"
+            args.view.textField.keyboardType = .numberPad
+            args.view.textField.text = args.model.age.wrappedValue.map(String.init)
+            args.view.textField.realtime
                 .onEvent(.editingDidEnd)
                 .map({ $0.0.text })
                 .flatMap(UInt8.init)
@@ -130,56 +113,43 @@ class FormViewController: UIViewController {
                 .add(to: row.disposeStorage)
         }
         let photo: Row<UITableViewCell, User> = Row(reuseIdentifier: defaultCellIdentifier)
-        photo.onUpdate { [weak self] (args, row) in
-            let (cell, user) = args
-            cell.textLabel?.text = "Pick image"
-            cell.imageView?.image = args.1.photo.unwrapped.flatMap(UIImage.init)
-            row.onSelect({ (ip, row) in
-                let picker = UIImagePickerController()
-                picker.realtime.image.listening(onValue: { [unowned row] (args) in
-                    guard case let originalImage as UIImage = args.1[.originalImage] else {
-                        fatalError()
-                    }
-                    user.photo <== originalImage.pngData()
-                    row.view?.imageView?.image = originalImage
-                    row.view?.setNeedsLayout()
-                }).add(to: row.disposeStorage)
-                self?.present(picker, animated: true, completion: nil)
-            })
+        photo.onUpdate { (args, row) in
+            args.view.textLabel?.text = "Pick image"
+            args.model.photo
+                .flatMap()
+                .flatMap(UIImage.init)
+                .listening(onValue: { args.view.imageView?.image = $0 })
+                .add(to: row.disposeStorage)
         }
+        photo.onSelect({ [weak self] (ip, row) in
+            let picker = UIImagePickerController()
+            picker.realtime.image
+                .map({ (args) -> UIImage in
+                    guard case let originalImage as UIImage = args.1[.originalImage] else {
+                        throw NSError()
+                    }
+                    return originalImage
+                })
+                .listening(onValue: { [unowned row] (originalImage) in
+                    row.model?.photo <== originalImage.pngData()
+                    row.view?.setNeedsLayout()
+                })
+                .add(to: row.disposeStorage)
+            self?.present(picker, animated: true, completion: nil)
+        })
 
         let ownedGroup: Row<SubtitleCell, User> = Row(reuseIdentifier: valueCellIdentifier)
-        ownedGroup.onUpdate { [weak self] (args, row) in
-            let (cell, user) = args
-            cell.accessoryType = .disclosureIndicator
-            cell.textLabel?.text = "Owned group"
-            cell.detailTextLabel?.text = "none"
-            row.onSelect({ (_, row) in
-                let delegate = SingleSectionTableViewDelegate(Global.rtGroups, cell: { (tv, ip, _) -> UITableViewCell in
-                    return tv.dequeueReusableCell(withIdentifier: NSStringFromClass(UITableViewCell.self), for: ip)
-                })
-                delegate.register(UITableViewCell.self, binding: { (item, _, group, ip) in
-                    item.bind(group.name, { (cell, name) in
-                        cell.textLabel?.text <== name
-                    }, nil)
-                })
-                let groupPicker = PickTableViewController(delegate: delegate)
-                groupPicker.didSelect = { [unowned row] _,_, group in
-                    user.ownedGroup <== group
-                    user.ownedGroups.insert(element: group)
-                    row.view?.detailTextLabel?.text <== group.name
-                    row.view?.setNeedsLayout()
-                    Global.rtGroups.stopObserving()
-                    return (true, nil)
-                }
-                groupPicker.onDismiss = Global.rtGroups.changes.listening(onValue: { (event) in
-                    groupPicker.tableView.reloadData()
-                }).dispose
-                Global.rtGroups.runObserving()
-                groupPicker.title = "Groups"
-                self?.present(UINavigationController(rootViewController: groupPicker), animated: true, completion: nil)
-            })
+        ownedGroup.onUpdate { (args, row) in
+            args.view.accessoryType = .disclosureIndicator
+            args.view.textLabel?.text = "Owned group"
+            args.model.ownedGroup
+                .then({ $0?.name })
+                .listening(onValue: { args.view.detailTextLabel?.text = $0 })
+                .add(to: row.disposeStorage)
         }
+        ownedGroup.onSelect({ [weak self] (_, row) in
+            self?.pickOwnedGroup(row)
+        })
 
         let section = StaticSection<User>(headerTitle: "Regular fields", footerTitle: nil)
         section.addRow(name)
@@ -190,53 +160,29 @@ class FormViewController: UIViewController {
         let followers = ReuseRowSection<User, User>(
             ReuseRowSectionDataSource(collection: Global.rtUsers),
             cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) },
-            row: { () -> ReuseFormRow<UITableViewCell, User, User> in
-            let row: ReuseFormRow<UITableViewCell, User, User> = ReuseFormRow()
-            row.onRowModel({ (user, row) in
-                row.view?.textLabel?.text <== user.name
-                row.bind(user.name, { (cell, name) in
-                    cell.textLabel?.text <== name
-                }, nil)
-            })
-            row.onUpdate { (args, row) in
-                // let (cell, user) = args
-            }
-            row.onSelect({ (ip, row) in
-                if let c = row.view {
-                    guard let user = row.model else { return }
-
-                    let isAdded = c.accessoryType == .none
-                    c.accessoryType = isAdded ? .checkmark : .none
-                    let follower = Global.rtUsers[ip.row]
-                    let contains = user.followers.contains(follower)
-                    if isAdded, !contains {
-                        user.followers.insert(element: follower)
-                    } else if contains {
-                        user.followers.delete(element: follower)
-                    }
-                } else {
-                    fatalError("View must be not nil")
-                }
-            })
-            return row
-        })
+            row: FormViewController.followerRow
+        )
         followers.headerTitle = "Followers"
 
         let user = User()
         self.form = Form(model: user, sections: [section, followers])
         form.tableView = tableView
+        form.tableDelegate = self
 
-        validator = Accumulator(repeater: .unsafe(), user.name.flatMap(), user.age.flatMap())
-        validator.listening(onValue: { [unowned self] (val) in
-            var isEnabled: Bool
-            switch val {
-            case (.some(let name), .some(let age)):
-                isEnabled = !name.isEmpty && age != 0
-            default:
-                isEnabled = false
-            }
-            self.navigationItem.rightBarButtonItem?.isEnabled = isEnabled
-        }).add(to: store)
+        user.name.flatMap()
+            .combine(with: user.age.flatMap())
+            .map({ (val) -> Bool in
+                switch val {
+                case (let name?, let age?):
+                    return !name.isEmpty && age != 0
+                default:
+                    return false
+                }
+            })
+            .listening(onValue: { [unowned self] (isEnabled) in
+                self.navigationItem.rightBarButtonItem?.isEnabled = isEnabled
+            })
+            .add(to: store)
     }
 
     @objc func saveUser() {
@@ -259,5 +205,59 @@ class FormViewController: UIViewController {
             fatalError(e.localizedDescription)
         }
     }
+
+    private func pickOwnedGroup(_ row: Row<SubtitleCell, User>) {
+        let delegate = SingleSectionTableViewDelegate(Global.rtGroups, cell: { (tv, ip, _) -> UITableViewCell in
+            return tv.dequeueReusableCell(withIdentifier: NSStringFromClass(UITableViewCell.self), for: ip)
+        })
+        delegate.register(UITableViewCell.self, binding: { (item, _, group, ip) in
+            item.bind(group.name, { (cell, name) in
+                cell.textLabel?.text <== name
+            }, nil)
+        })
+        let groupPicker = PickTableViewController(delegate: delegate)
+        groupPicker.didSelect = { [unowned row] _,_, group in
+            row.model?.ownedGroup <== group
+            row.model?.ownedGroups.insert(element: group)
+            row.view?.setNeedsLayout()
+            Global.rtGroups.stopObserving()
+            return (true, nil)
+        }
+        groupPicker.onDismiss = Global.rtGroups.changes.listening(onValue: { (event) in
+            groupPicker.tableView.reloadData()
+        }).dispose
+        Global.rtGroups.runObserving()
+        groupPicker.title = "Groups"
+        present(UINavigationController(rootViewController: groupPicker), animated: true, completion: nil)
+    }
+
+    private static func followerRow() -> ReuseFormRow<UITableViewCell, User, User> {
+        let row: ReuseFormRow<UITableViewCell, User, User> = ReuseFormRow()
+        row.onRowModel({ (user, row) in
+            row.view?.textLabel?.text <== user.name
+            row.bind(user.name, { (cell, name) in
+                cell.textLabel?.text <== name
+            }, nil)
+        })
+        row.onSelect({ (ip, row) in
+            guard let c = row.view, let user = row.model else { return }
+
+            let isAdded = c.accessoryType == .none
+            c.accessoryType = isAdded ? .checkmark : .none
+            let follower = Global.rtUsers[ip.row]
+            let contains = user.followers.contains(follower)
+            if isAdded, !contains {
+                user.followers.insert(element: follower)
+            } else if contains {
+                user.followers.delete(element: follower)
+            }
+        })
+        return row
+    }
+}
+
+extension FormViewController {
+    override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat { tableView.sectionHeaderHeight }
+    override func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat { 0.0 }
 }
 

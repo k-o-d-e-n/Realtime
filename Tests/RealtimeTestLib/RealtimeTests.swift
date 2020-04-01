@@ -2171,9 +2171,9 @@ extension RealtimeTests {
 final class PropertyWrappers: Object {
     @Property(in: Node(key: "wrapper1"), options: .required(.realtimeDataValue))
     var wrapper1: String?
-    @Property(in: Node(key: "wrapper2"), options: .optional(.date(.secondsSince1970)))
+    @Property<Date?>(in: Node(key: "wrapper2"), options: .optional(.date(.secondsSince1970)))
     var wrapper2: Date??
-    @File(in: Node(key: "wrapper3"), options: .optional(.realtimeDataValue))
+    @File<Data?>(in: Node(key: "wrapper3"), options: .optional(.realtimeDataValue))
     var wrapper3: Data??
 
     required init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {

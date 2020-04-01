@@ -1,39 +1,7 @@
 'use strict';
 
-const InternalKeys = {
-  /// version of RealtimeValue
-  modelVersion: "__mv",
-  /// root database key for links hierarchy
-  links: "__lnks",
-  /// key of RealtimeValue in 'links' branch which stores all external links to this values
-  linkItems: "__l_itms",
-  /// key of RealtimeCollection in 'links' branch which stores prototypes of all collection elements
-  items: "__itms",
-  /// key of collection element prototype which indicates priority
-  index: "__i",
-  /// key to store user payload data
-  payload: "__pl",
-  /// key of associated collection element prototype
-  key: "__key",
-  /// key of associated collection element prototype
-  value: "__val",
-  /// ket of collection element prototype to store link key
-  link: "__lnk",
-  /// Indicates raw value of enum, or subclass
-  raw: "__raw",
-  /// key of reference to source location
-  source: "__src",
-  targetPath: "t_pth",
-  relatedProperty: "r_prop"
-};
-
-const DataEvents = {
-  value: "value",
-  childAdded: "child_added",
-  childRemoved: "child_removed",
-  childChanged: "child_changed",
-  childMoved: "child_moved"
-};
+const dev = require("./dev/realtime-dev");
+exports.Utilities = dev.Utilities;
 
 function fatalError(condition, message) {
   if (condition) {
@@ -64,57 +32,7 @@ function debug(doit) {
 // Realtime
 
 function linksRef(ref) {
-  return ref.root.child(InternalKeys.links + "/" + Utilities.rootPath(ref));
-}
-
-export class Utilities {
-  static dbPath(fromRef, toRef) {
-    const toPath = toRef.toString();
-    const fromPath = fromRef.toString();
-    if (!toPath.startsWith(fromPath)) {
-      debug(() => {
-        console.error(
-          "Cannot get relative path, because references locate in different branches:",
-          fromPath,
-          toPath
-        );
-      });
-      throw Error(
-        "Cannot get relative path, because references locate in different branches"
-      );
-    }
-    return toPath.slice(
-      fromPath.length + (fromRef.isEqual(fromRef.root) ? 0 : 1)
-    );
-  }
-  static rootPath(toRef) {
-    return this.dbPath(toRef.root, toRef);
-  }
-  static refThatHasParentWith(key, ref, sliced) {
-    let parts = Utilities.rootPath(ref)
-      .split("/")
-      .slice(sliced);
-    while (parts.length > 1 && parts[parts.length - 2] != key) {
-      parts.pop();
-    }
-
-    if (parts.length == 1) return null;
-    return ref.root.child(parts.join("/"));
-  }
-  static ancestorOnLevelUp(ref, levelsUp) {
-    while (levelsUp != 0 && ref.parent) {
-      ref = ref.parent;
-      levelsUp -= 1;
-    }
-    return ref;
-  }
-  static hasAncestor(ref, ancestor) {
-    return this.pathHasAncestor(ref.toString(), ancestor);
-  }
-  static pathHasAncestor(toPath, ancestor) {
-    const fromPath = ancestor.toString();
-    return toPath.startsWith(fromPath);
-  }
+  return ref.root.child(dev.InternalKeys.links + "/" + dev.Utilities.rootPath(ref));
 }
 
 Number.fromSnapshot = function(snapshot) {
@@ -125,7 +43,7 @@ String.fromSnapshot = function(snapshot) {
 };
 
 let reactivityEnvironment;
-export function setReactivityEnvironment(environment) {
+exports.setReactivityEnvironment = function(environment) {
   reactivityEnvironment = environment;
 }
 
@@ -133,7 +51,7 @@ function isPrimitive(test) {
   return test !== Object(test);
 }
 
-export class RealtimeValue {
+class RealtimeValue {
   constructor(ref, { raw, payload } = {}) {
     fatalError(ref == null, "Reference cannot be null");
     Object.defineProperty(this, "$_ref_", {
@@ -217,19 +135,19 @@ export class RealtimeValue {
   }
 
   load() {
-    return this.$_ref_.once(DataEvents.value).then(this.apply.bind(this));
+    return this.$_ref_.once(dev.DataEvents.value).then(this.apply.bind(this));
   }
 
   forceStopObserving() {
-    this._forceStopObserving(DataEvents.value);
-    this._forceStopObserving(DataEvents.childAdded);
-    this._forceStopObserving(DataEvents.childRemoved);
-    this._forceStopObserving(DataEvents.childChanged);
-    this._forceStopObserving(DataEvents.childMoved);
+    this._forceStopObserving(dev.DataEvents.value);
+    this._forceStopObserving(dev.DataEvents.childAdded);
+    this._forceStopObserving(dev.DataEvents.childRemoved);
+    this._forceStopObserving(dev.DataEvents.childChanged);
+    this._forceStopObserving(dev.DataEvents.childMoved);
   }
 
   apply(snapshot) {
-    // console.log("Apply", snapshot.val(), Utilities.rootPath(snapshot.ref));
+    // console.log("Apply", snapshot.val(), dev.Utilities.rootPath(snapshot.ref));
     return this;
   }
 
@@ -239,7 +157,7 @@ export class RealtimeValue {
 
   remove(transaction) {
     this.willRemove(transaction, this.ref.parent);
-    transaction.addValue(Utilities.rootPath(this.ref), null);
+    transaction.addValue(dev.Utilities.rootPath(this.ref), null);
   }
 
   write(transaction) {}
@@ -247,13 +165,13 @@ export class RealtimeValue {
   _writeSystemValues(transaction) {
     if (this.raw != undefined) {
       transaction.addValue(
-        Utilities.rootPath(this.ref.child(InternalKeys.raw)),
+        dev.Utilities.rootPath(this.ref.child(dev.InternalKeys.raw)),
         this.raw
       );
     }
     if (this.payload && Object.keys(this.payload).length != 0) {
       transaction.addValue(
-        Utilities.rootPath(this.ref.child(InternalKeys.payload), this.payload)
+        dev.Utilities.rootPath(this.ref.child(dev.InternalKeys.payload), this.payload)
       );
     }
   }
@@ -263,7 +181,7 @@ export class RealtimeValue {
   }
 
   get path() {
-    return Utilities.rootPath(this.$_ref_);
+    return dev.Utilities.rootPath(this.$_ref_);
   }
 
   get ref() {
@@ -271,7 +189,7 @@ export class RealtimeValue {
   }
 
   generateParentObjectWith(parentKey, objClass, sliced, options) {
-    const ref = Utilities.refThatHasParentWith(parentKey, this.ref, sliced);
+    const ref = dev.Utilities.refThatHasParentWith(parentKey, this.ref, sliced);
     if (!ref) return null;
     return new objClass.prototype.constructor(ref, options);
   }
@@ -286,20 +204,21 @@ RealtimeValue.prototype.updaterWith = function(database, storage) {
 
 RealtimeValue.fromSnapshot = function(snapshot) {
   let options = {};
-  if (snapshot.hasChild(InternalKeys.raw)) {
-    options.raw = snapshot.child(InternalKeys.raw).val();
+  if (snapshot.hasChild(dev.InternalKeys.raw)) {
+    options.raw = snapshot.child(dev.InternalKeys.raw).val();
   }
-  if (snapshot.hasChild(InternalKeys.payload)) {
-    options.payload = snapshot.child(InternalKeys.payload).val();
+  if (snapshot.hasChild(dev.InternalKeys.payload)) {
+    options.payload = snapshot.child(dev.InternalKeys.payload).val();
   }
   const instance = new this.prototype.constructor(snapshot.ref, options);
   instance.apply(snapshot);
   return instance;
 };
+exports.RealtimeValue = RealtimeValue;
 
 // Properties
 
-export class Property extends RealtimeValue {
+class Property extends RealtimeValue {
   constructor(
     ref,
     { val, optional = false, readonly = false, representer } = {}
@@ -333,15 +252,15 @@ export class Property extends RealtimeValue {
   }
 
   runObserving() {
-    return this._observe(DataEvents.value);
+    return this._observe(dev.DataEvents.value);
   }
 
   stopObserving() {
-    return this._stopObserving(DataEvents.value);
+    return this._stopObserving(dev.DataEvents.value);
   }
 
   get isObserved() {
-    return this._isObserved(DataEvents.value);
+    return this._isObserved(dev.DataEvents.value);
   }
 
   updater(transaction) {
@@ -374,7 +293,7 @@ export class Property extends RealtimeValue {
       debugWarn(
         !this.optional && !snapshot.exists(),
         "Get empty data for required property",
-        Utilities.rootPath(snapshot.ref),
+        dev.Utilities.rootPath(snapshot.ref),
         snapshot.val()
       );
     });
@@ -408,8 +327,9 @@ Property.prototype.map = function(transform) {
   if (this.value === undefined || this.value === null) return;
   return transform(this.value);
 };
+exports.Property = Property;
 
-export class Reference extends Property {
+exports.Reference = class Reference extends Property {
   constructor(ref, options) {
     super(ref, options);
     Object.defineProperty(this, "aboutValue", {
@@ -424,24 +344,24 @@ export class Reference extends Property {
     if (value) {
       if (this.aboutValue.obsoleteMode) {
         return this.aboutValue.path
-          ? Utilities.dbPath(
+          ? dev.Utilities.dbPath(
               this.ref.root.child(this.aboutValue.path),
               value.ref
             )
           : value.path;
       }
       let representation = {};
-      representation[InternalKeys.source] = this.aboutValue.path
-        ? Utilities.dbPath(this.ref.root.child(this.aboutValue.path), value.ref)
+      representation[dev.InternalKeys.source] = this.aboutValue.path
+        ? dev.Utilities.dbPath(this.ref.root.child(this.aboutValue.path), value.ref)
         : value.path;
       let valuePayload = {};
       if (value.raw) {
-        valuePayload[InternalKeys.raw] = value.raw;
+        valuePayload[dev.InternalKeys.raw] = value.raw;
       }
       if (value.payload) {
-        valuePayload[InternalKeys.payload] = value.payload;
+        valuePayload[dev.InternalKeys.payload] = value.payload;
       }
-      representation[InternalKeys.value] = valuePayload;
+      representation[dev.InternalKeys.value] = valuePayload;
       return representation;
     }
     return null;
@@ -451,12 +371,12 @@ export class Reference extends Property {
     if (snapshot.exists()) {
       if (this.aboutValue.obsoleteMode) {
         return this.__setValueWithRef(snapshot.val());
-      } else if (snapshot.hasChild(InternalKeys.source)) {
+      } else if (snapshot.hasChild(dev.InternalKeys.source)) {
         const snapVal = snapshot.val();
-        const valueDescriptor = snapVal[InternalKeys.value] || {};
-        const raw = valueDescriptor[InternalKeys.raw];
-        const payload = valueDescriptor[InternalKeys.payload];
-        const src = snapVal[InternalKeys.source];
+        const valueDescriptor = snapVal[dev.InternalKeys.value] || {};
+        const raw = valueDescriptor[dev.InternalKeys.raw];
+        const payload = valueDescriptor[dev.InternalKeys.payload];
+        const src = snapVal[dev.InternalKeys.source];
         return this.__setValueWithRef(src, raw, payload);
       } else {
         throw Error("Unexpected reference value");
@@ -485,7 +405,7 @@ export class Reference extends Property {
   }
 }
 
-export class Relation extends Property {
+exports.Relation = class Relation extends Property {
   constructor(ref, options) {
     super(ref, options);
     Object.defineProperty(this, "aboutValue", {
@@ -499,13 +419,13 @@ export class Relation extends Property {
   encode(value) {
     if (value) {
       let representation = {};
-      representation[InternalKeys.targetPath] = this.aboutValue.path
-        ? Utilities.dbPath(this.ref.root.child(this.aboutValue.path), value.ref)
+      representation[dev.InternalKeys.targetPath] = this.aboutValue.path
+        ? dev.Utilities.dbPath(this.ref.root.child(this.aboutValue.path), value.ref)
         : value.path;
-      representation[InternalKeys.relatedProperty] =
+      representation[dev.InternalKeys.relatedProperty] =
         typeof this.aboutValue.property == "function"
           ? this.aboutValue.property(
-              Utilities.ancestorOnLevelUp(
+              dev.Utilities.ancestorOnLevelUp(
                 this.ref,
                 this.aboutValue.ownerLevelsUp || 1
               ).key
@@ -513,12 +433,12 @@ export class Relation extends Property {
           : this.aboutValue.property;
       let valuePayload = {};
       if (value.raw) {
-        valuePayload[InternalKeys.raw] = value.raw;
+        valuePayload[dev.InternalKeys.raw] = value.raw;
       }
       if (value.payload) {
-        valuePayload[InternalKeys.payload] = value.payload;
+        valuePayload[dev.InternalKeys.payload] = value.payload;
       }
-      representation[InternalKeys.value] = valuePayload;
+      representation[dev.InternalKeys.value] = valuePayload;
       return representation;
     }
     return null;
@@ -527,9 +447,9 @@ export class Relation extends Property {
   apply(snapshot) {
     if (snapshot.exists() && snapshot.hasChild("t_pth")) {
       const snapVal = snapshot.val();
-      const valueDescriptor = snapVal[InternalKeys.value] || {};
-      const raw = valueDescriptor[InternalKeys.raw];
-      const payload = valueDescriptor[InternalKeys.payload];
+      const valueDescriptor = snapVal[dev.InternalKeys.value] || {};
+      const raw = valueDescriptor[dev.InternalKeys.raw];
+      const payload = valueDescriptor[dev.InternalKeys.payload];
       const src = snapVal.t_pth;
       const v = new this.aboutValue.class.prototype.constructor(
         snapshot.ref.root.child(src),
@@ -544,7 +464,7 @@ export class Relation extends Property {
   }
 }
 
-export class File extends Property {
+class File extends Property {
   constructor(ref, options) {
     super(ref, options);
     Object.defineProperty(this, "metadata", {
@@ -615,24 +535,25 @@ File.jpeg = function(ref, options) {
   options.metadata = { contentType: "image/jpeg" };
   return new File(ref, options);
 };
+exports.File = File;
 
 // Object
 
-export class RealtimeObject extends RealtimeValue {
+exports.RealtimeObject = class RealtimeObject extends RealtimeValue {
   get excludedKeys() {
     return [];
   }
 
   runObserving() {
-    return this._observe(DataEvents.value);
+    return this._observe(dev.DataEvents.value);
   }
 
   stopObserving() {
-    return this._stopObserving(DataEvents.value);
+    return this._stopObserving(dev.DataEvents.value);
   }
 
   get isObserved() {
-    return this._isObserved(DataEvents.value);
+    return this._isObserved(dev.DataEvents.value);
   }
 
   updater(transaction) {
@@ -648,19 +569,19 @@ export class RealtimeObject extends RealtimeValue {
     });
     let linksWillNotBeRemovedInAncestor = this.ref.parent.isEqual(ancestor);
     let linksProp = new Property(
-      linksRef(this.ref.child(InternalKeys.linkItems))
+      linksRef(this.ref.child(dev.InternalKeys.linkItems))
     );
     transaction.addPrecondition(transaction => {
       return linksProp.load().then(links => {
         Object.keys(links || {})
           .flatMap(linkKey => links[linkKey])
           .forEach(link => {
-            if (!Utilities.pathHasAncestor(link, ancestor)) {
+            if (!dev.Utilities.pathHasAncestor(link, ancestor)) {
               transaction.addValue(link, null);
             }
           });
         if (linksWillNotBeRemovedInAncestor) {
-          transaction.addValue(Utilities.rootPath(linksProp.ref), null);
+          transaction.addValue(dev.Utilities.rootPath(linksProp.ref), null);
         }
       });
     });
@@ -674,7 +595,7 @@ export class RealtimeObject extends RealtimeValue {
       if (prop instanceof RealtimeValue) {
         prop.write(transaction);
       } else if (prop !== undefined) {
-        transaction.addValue(Utilities.rootPath(this.ref.child(label)), prop);
+        transaction.addValue(dev.Utilities.rootPath(this.ref.child(label)), prop);
       }
     });
   }
@@ -742,13 +663,13 @@ class RealtimeCollection extends RealtimeValue {
   }
 
   runObserving() {
-    return this._observe(DataEvents.value);
+    return this._observe(dev.DataEvents.value);
   }
   stopObserving() {
-    return this._stopObserving(DataEvents.value);
+    return this._stopObserving(dev.DataEvents.value);
   }
   get isObserved() {
-    return this._isObserved(DataEvents.value);
+    return this._isObserved(dev.DataEvents.value);
   }
 
   [Symbol.iterator]() {
@@ -831,7 +752,7 @@ class RealtimeCollection extends RealtimeValue {
   }
 }
 
-export class Values extends RealtimeCollection {
+exports.Values = class Values extends RealtimeCollection {
   constructor(ref, { elementClass, ascending, viewWritable }) {
     super(ref, ascending);
     Object.defineProperty(this, "elementClass", {
@@ -852,7 +773,7 @@ export class Values extends RealtimeCollection {
   get view() {
     if (this._view) return this._view;
     this._view = new CollectionView(
-      linksRef(this.ref).child(InternalKeys.items),
+      linksRef(this.ref).child(dev.InternalKeys.items),
       this.ascending
     );
     viewedCollections.set(this._view, this);
@@ -870,9 +791,9 @@ export class Values extends RealtimeCollection {
   _viewDidChange(viewElements) {
     this.elements = viewElements.map(item => {
       let options = {};
-      if (item[1][InternalKeys.value]) {
-        options.raw = item[1][InternalKeys.value][InternalKeys.raw];
-        options.payload = item[1][InternalKeys.value][InternalKeys.payload];
+      if (item[1][dev.InternalKeys.value]) {
+        options.raw = item[1][dev.InternalKeys.value][dev.InternalKeys.raw];
+        options.payload = item[1][dev.InternalKeys.value][dev.InternalKeys.payload];
       }
       return new this.elementClass.prototype.constructor(
         this.ref.child(item[0]),
@@ -918,17 +839,17 @@ export class Values extends RealtimeCollection {
     if (this.viewWritable) {
       const linkKey = this.view.ref.push().key;
       let viewElement = {};
-      viewElement[InternalKeys.index] = this.length;
-      viewElement[InternalKeys.link] = linkKey;
+      viewElement[dev.InternalKeys.index] = this.length;
+      viewElement[dev.InternalKeys.link] = linkKey;
       let valuePayload = {};
       if (element.raw) {
-        valuePayload[InternalKeys.raw] = element.raw;
+        valuePayload[dev.InternalKeys.raw] = element.raw;
       }
       if (element.payload) {
-        valuePayload[InternalKeys.payload] = element.payload;
+        valuePayload[dev.InternalKeys.payload] = element.payload;
       }
-      viewElement[InternalKeys.value] = valuePayload;
-      const viewElementPath = Utilities.rootPath(
+      viewElement[dev.InternalKeys.value] = valuePayload;
+      const viewElementPath = dev.Utilities.rootPath(
         this.view.ref.child(element.key)
       );
       transaction.addValue(viewElementPath, viewElement);
@@ -936,9 +857,9 @@ export class Values extends RealtimeCollection {
       // element link
       const links = [viewElementPath];
       transaction.addValue(
-        Utilities.rootPath(
+        dev.Utilities.rootPath(
           linksRef(element.ref)
-            .child(InternalKeys.linkItems)
+            .child(dev.InternalKeys.linkItems)
             .child(linkKey)
         ),
         links
@@ -950,12 +871,12 @@ export class Values extends RealtimeCollection {
     element.remove(transaction);
     if (this.viewWritable) {
       transaction.addValue(
-        Utilities.rootPath(this.view.ref.child(element.key)),
+        dev.Utilities.rootPath(this.view.ref.child(element.key)),
         null
       );
-      // transaction.addValue(Utilities.rootPath(
+      // transaction.addValue(dev.Utilities.rootPath(
       //   linksRef(element.ref)
-      //     .child(InternalKeys.linkItems)
+      //     .child(dev.InternalKeys.linkItems)
       //     .child(linkKey)
       // ), null);
     }
@@ -966,7 +887,7 @@ export class Values extends RealtimeCollection {
   }
 }
 
-export class AssociatedValues extends RealtimeCollection {
+exports.AssociatedValues = class AssociatedValues extends RealtimeCollection {
   constructor(
     ref,
     { keyObject, valueClass, ascending, viewWritable, shouldLinking }
@@ -1005,7 +926,7 @@ export class AssociatedValues extends RealtimeCollection {
   get view() {
     if (this._view) return this._view;
     this._view = new CollectionView(
-      linksRef(this.ref).child(InternalKeys.items),
+      linksRef(this.ref).child(dev.InternalKeys.items),
       this.ascending
     );
     viewedCollections.set(this._view, this);
@@ -1023,15 +944,15 @@ export class AssociatedValues extends RealtimeCollection {
   _viewDidChange(viewElements) {
     this.elements = viewElements.map(item => {
       let valueOptions = {};
-      if (item[1][InternalKeys.value]) {
-        valueOptions.raw = item[1][InternalKeys.value][InternalKeys.raw];
+      if (item[1][dev.InternalKeys.value]) {
+        valueOptions.raw = item[1][dev.InternalKeys.value][dev.InternalKeys.raw];
         valueOptions.payload =
-          item[1][InternalKeys.value][InternalKeys.payload];
+          item[1][dev.InternalKeys.value][dev.InternalKeys.payload];
       }
       let keyOptions = {};
-      if (item[1][InternalKeys.key]) {
-        keyOptions.raw = item[1][InternalKeys.key][InternalKeys.raw];
-        keyOptions.payload = item[1][InternalKeys.key][InternalKeys.payload];
+      if (item[1][dev.InternalKeys.key]) {
+        keyOptions.raw = item[1][dev.InternalKeys.key][dev.InternalKeys.raw];
+        keyOptions.payload = item[1][dev.InternalKeys.key][dev.InternalKeys.payload];
       }
       return [
         new this.keyObject.class.prototype.constructor(
@@ -1089,51 +1010,51 @@ export class AssociatedValues extends RealtimeCollection {
       element[1].write(transaction);
     } else {
       transaction.addValue(
-        Utilities.rootPath(this.ref.child(element[0].key)),
+        dev.Utilities.rootPath(this.ref.child(element[0].key)),
         element[1]
       );
     }
     if (this.viewWritable && isRealtimeValue) {
       const linkKey = this.view.ref.push().key;
       let viewElement = {};
-      viewElement[InternalKeys.index] = this.length;
-      viewElement[InternalKeys.link] = linkKey;
+      viewElement[dev.InternalKeys.index] = this.length;
+      viewElement[dev.InternalKeys.link] = linkKey;
       let keyPayload = {};
       if (element[0].raw) {
-        keyPayload[InternalKeys.raw] = element[0].raw;
+        keyPayload[dev.InternalKeys.raw] = element[0].raw;
       }
       if (element[0].payload) {
-        keyPayload[InternalKeys.payload] = element[0].payload;
+        keyPayload[dev.InternalKeys.payload] = element[0].payload;
       }
-      viewElement[InternalKeys.key] = keyPayload;
+      viewElement[dev.InternalKeys.key] = keyPayload;
       let valuePayload = {};
       if (element[1].raw) {
-        valuePayload[InternalKeys.raw] = element[1].raw;
+        valuePayload[dev.InternalKeys.raw] = element[1].raw;
       }
       if (element[1].payload) {
-        valuePayload[InternalKeys.payload] = element[1].payload;
+        valuePayload[dev.InternalKeys.payload] = element[1].payload;
       }
-      viewElement[InternalKeys.value] = valuePayload;
-      const viewElementPath = Utilities.rootPath(
+      viewElement[dev.InternalKeys.value] = valuePayload;
+      const viewElementPath = dev.Utilities.rootPath(
         this.view.ref.child(element[1].key)
       );
       transaction.addValue(viewElementPath, viewElement);
 
       // element link
-      const valueLinksPath = Utilities.rootPath(
+      const valueLinksPath = dev.Utilities.rootPath(
         linksRef(element[1].ref)
-          .child(InternalKeys.linkItems)
+          .child(dev.InternalKeys.linkItems)
           .child(linkKey)
       );
       if (this.shouldLinking) {
-        const keyLinksPath = Utilities.rootPath(
+        const keyLinksPath = dev.Utilities.rootPath(
           linksRef(element[0].ref)
-            .child(InternalKeys.linkItems)
+            .child(dev.InternalKeys.linkItems)
             .child(linkKey)
         );
         let links = [];
-        links.push(Utilities.rootPath(element[1].ref));
-        links.push(Utilities.rootPath(linksRef(element[1].ref)));
+        links.push(dev.Utilities.rootPath(element[1].ref));
+        links.push(dev.Utilities.rootPath(linksRef(element[1].ref)));
         links.push(viewElementPath);
         transaction.addValue(keyLinksPath, links);
         transaction.addValue(valueLinksPath, [viewElementPath, keyLinksPath]);
@@ -1149,12 +1070,12 @@ export class AssociatedValues extends RealtimeCollection {
       element[1].remove(transaction);
     } else {
       transaction.addValue(
-        Utilities.rootPath(this.ref.child(element[0].key)),
+        dev.Utilities.rootPath(this.ref.child(element[0].key)),
         null
       );
     }
     if (this.viewWritable && isRealtimeValue) {
-      const viewElementPath = Utilities.rootPath(
+      const viewElementPath = dev.Utilities.rootPath(
         this.view.ref.child(element[1].key)
       );
       transaction.addValue(viewElementPath, null);
@@ -1167,17 +1088,17 @@ export class AssociatedValues extends RealtimeCollection {
             if (!viewElement) {
               throw Error("Element has no reference in view collection");
             }
-            const keyLinksPath = Utilities.rootPath(
+            const keyLinksPath = dev.Utilities.rootPath(
               linksRef(element[0].ref)
-                .child(InternalKeys.linkItems)
-                .child(viewElement[1][InternalKeys.link])
+                .child(dev.InternalKeys.linkItems)
+                .child(viewElement[1][dev.InternalKeys.link])
             );
             transaction.addValue(keyLinksPath, null);
           });
         });
       }
-      // const valueLinksPath = Utilities.rootPath(
-      //   linksRef(element[1].ref).child(InternalKeys.linkItems)
+      // const valueLinksPath = dev.Utilities.rootPath(
+      //   linksRef(element[1].ref).child(dev.InternalKeys.linkItems)
       // );
       // transaction.addValue(valueLinksPath, null);
     }
@@ -1210,7 +1131,7 @@ export class AssociatedValues extends RealtimeCollection {
   }
 }
 
-export class Relations extends RealtimeCollection {
+class Relations extends RealtimeCollection {
   constructor(ref, { element, ascending }) {
     super(ref, ascending);
     Object.defineProperty(this, "aboutElement", {
@@ -1242,16 +1163,16 @@ export class Relations extends RealtimeCollection {
 
   writeElement(element, transaction) {
     let representation = {};
-    representation[InternalKeys.targetPath] = this.aboutElement.path
-      ? Utilities.dbPath(
+    representation[dev.InternalKeys.targetPath] = this.aboutElement.path
+      ? dev.Utilities.dbPath(
           this.ref.root.child(this.aboutElement.path),
           element.ref
         )
       : element.path;
-    representation[InternalKeys.relatedProperty] =
+    representation[dev.InternalKeys.relatedProperty] =
       typeof this.aboutElement.property == "function"
         ? this.aboutElement.property(
-            Utilities.ancestorOnLevelUp(
+            dev.Utilities.ancestorOnLevelUp(
               this.ref,
               this.aboutElement.ownerLevelsUp || 1
             ).key
@@ -1259,28 +1180,28 @@ export class Relations extends RealtimeCollection {
         : this.aboutElement.property;
     let valuePayload = {};
     if (element.raw) {
-      valuePayload[InternalKeys.raw] = element.raw;
+      valuePayload[dev.InternalKeys.raw] = element.raw;
     }
     if (element.payload) {
-      valuePayload[InternalKeys.payload] = element.payload;
+      valuePayload[dev.InternalKeys.payload] = element.payload;
     }
-    representation[InternalKeys.value] = valuePayload;
+    representation[dev.InternalKeys.value] = valuePayload;
     transaction.addValue(
-      Utilities.rootPath(this.ref.child(element.key)),
+      dev.Utilities.rootPath(this.ref.child(element.key)),
       representation
     );
   }
 
   removeElement(element, transaction) {
-    transaction.addValue(Utilities.rootPath(this.ref.child(element.key)), null);
+    transaction.addValue(dev.Utilities.rootPath(this.ref.child(element.key)), null);
   }
 
   _elementFrom(snapshot) {
     const relation = snapshot.val();
     let valueOptions = {};
-    if (relation[InternalKeys.value]) {
-      valueOptions.raw = relation[InternalKeys.value][InternalKeys.raw];
-      valueOptions.payload = relation[InternalKeys.value][InternalKeys.payload];
+    if (relation[dev.InternalKeys.value]) {
+      valueOptions.raw = relation[dev.InternalKeys.value][dev.InternalKeys.raw];
+      valueOptions.payload = relation[dev.InternalKeys.value][dev.InternalKeys.payload];
     }
     return new this.aboutElement.class.prototype.constructor(
       this.ref.root.child(relation.t_pth),
@@ -1300,6 +1221,7 @@ Relations.prototype.containsWithKey = function(key) {
     .once("value")
     .then(snap => snap.exists());
 };
+exports.Relations = Relations;
 
 var viewedCollections = new WeakMap();
 class CollectionView extends RealtimeCollection {
@@ -1336,7 +1258,7 @@ class CollectionView extends RealtimeCollection {
   }
 }
 
-export class PagingDataExplorer {
+exports.PagingDataExplorer = class PagingDataExplorer {
   constructor(ref, pageSize, ascending) {
     this.ref = ref;
     this.pageSize = pageSize;
@@ -1344,11 +1266,11 @@ export class PagingDataExplorer {
   }
 
   next(lastKey) {
-    return this._observe(DataEvents.value, this.ascending ? null : lastKey, this.ascending ? lastKey : null, this.ascending, this.pageSize);
+    return this._observe(dev.DataEvents.value, this.ascending ? null : lastKey, this.ascending ? lastKey : null, this.ascending, this.pageSize);
   }
 
   previuos(firstKey) {
-    return this._observe(DataEvents.value, this.ascending ? firstKey : null, this.ascending ? null : firstKey, this.ascending, this.pageSize);
+    return this._observe(dev.DataEvents.value, this.ascending ? firstKey : null, this.ascending ? null : firstKey, this.ascending, this.pageSize);
   }
 
   _observe(event, before, after, ascending, limit) {
@@ -1367,7 +1289,7 @@ export class PagingDataExplorer {
   }
 }
 
-export class Transaction {
+exports.Transaction = class Transaction {
   constructor(database, storage) {
     this.database = database;
     this.storage = storage;
@@ -1489,13 +1411,8 @@ export class Transaction {
 }
 
 class ObjectUpdaterHandler {
-  #transaction;
   constructor(transaction) {
-    this.#transaction = transaction;
-  }
-
-  get transaction() {
-    return this.#transaction;
+    this.transaction = transaction;
   }
 
   toJSON() {
@@ -1511,7 +1428,7 @@ class ObjectUpdaterHandler {
   }
 
   commit(concurrency) {
-    const trans = this.#transaction;
+    const trans = this.transaction;
     this.writeChanges(trans);
     return trans.commit(concurrency);
   }
@@ -1537,7 +1454,7 @@ class ObjectUpdaterHandler {
     }
     const propValue = Reflect.get(target, property);
     if (propValue instanceof RealtimeValue) {
-      const proxy = propValue.updater(this.#transaction);
+      const proxy = propValue.updater(this.transaction);
       reactivityEnvironment.set(this, property, proxy);
       return proxy;
     } else {
@@ -1567,18 +1484,18 @@ class ObjectUpdaterHandler {
 }
 
 class PropertyUpdaterHandler {
-  #encoded = undefined;
   constructor() {
+    this.encoded = undefined;
     this.value = undefined;
   }
 
   toJSON() {
-    return this.#encoded ? this.#encoded.value : undefined;
+    return this.encoded ? this.encoded.value : undefined;
   }
 
   writeChanges(transaction) {
-    if (this.#encoded) {
-      this.___add(transaction, this.#encoded);
+    if (this.encoded) {
+      this.___add(transaction, this.encoded);
     }
   }
 
@@ -1604,7 +1521,7 @@ class PropertyUpdaterHandler {
     if (property in this) {
       const result = Reflect.set(this, property, newValue);
       if (property === "value") {
-        this.#encoded = { path: target.path, value: target.encode(newValue) };
+        this.encoded = { path: target.path, value: target.encode(newValue) };
       }
       return result;
     }
@@ -1632,9 +1549,8 @@ class RealtimeFileUpdater extends PropertyUpdaterHandler {
 }
 
 class RealtimeCollectionUpdater {
-  #transaction;
   constructor(transaction) {
-    this.#transaction = transaction;
+    this.transaction = transaction;
   }
 
   toJSON() {
@@ -1643,15 +1559,12 @@ class RealtimeCollectionUpdater {
 }
 
 class RepresentableCollectionMutator {
-  #transaction;
-  #changes = { added: [], removed: [] };
-  #target;
-  #finder;
   constructor(transaction, target, finder, elements = []) {
-    this.#transaction = transaction;
-    this.#target = target;
-    this.#finder = finder;
+    this.transaction = transaction;
+    this.target = target;
+    this.finder = finder;
     this.elements = elements; // TODO: Probably it does not need
+    this.changes = { added: [], removed: [] };
   }
 
   get length() {
@@ -1659,24 +1572,24 @@ class RepresentableCollectionMutator {
   }
 
   commit(concurrency) {
-    const trans = this.#transaction;
+    const trans = this.transaction;
     this.writeChanges(trans);
     return trans.commit(concurrency);
   }
 
   writeChanges(transaction) {
-    this.#changes.added.forEach(el => {
-      this.#target.writeElement(el, transaction);
+    this.changes.added.forEach(el => {
+      this.target.writeElement(el, transaction);
     });
-    this.#changes.removed.forEach(el => {
-      this.#target.removeElement(el, transaction);
+    this.changes.removed.forEach(el => {
+      this.target.removeElement(el, transaction);
     });
   }
 
   push(element) {
-    const find = this.#finder(element);
+    const find = this.finder(element);
     debug(() => {
-      if (this.#changes.added.find(find) || this.elements.find(find)) {
+      if (this.changes.added.find(find) || this.elements.find(find)) {
         console.warn(
           "Tries push element that already exists",
           this.elements,
@@ -1684,22 +1597,22 @@ class RepresentableCollectionMutator {
         );
       }
     });
-    this.#changes.added.push(element);
+    this.changes.added.push(element);
     this.elements.push(element);
 
-    const removedIndex = this.#changes.removed.findIndex(find);
+    const removedIndex = this.changes.removed.findIndex(find);
     if (removedIndex != -1) {
-      this.#changes.removed.splice(removedIndex, 1);
+      this.changes.removed.splice(removedIndex, 1);
     }
   }
 
   remove(element) {
-    const find = this.#finder(element);
-    const addedIndex = this.#changes.added.findIndex(find);
+    const find = this.finder(element);
+    const addedIndex = this.changes.added.findIndex(find);
     if (addedIndex != -1) {
-      this.#changes.added.splice(addedIndex, 1);
+      this.changes.added.splice(addedIndex, 1);
     } else {
-      this.#changes.removed.push(element);
+      this.changes.removed.push(element);
     }
     const elementsIndex = this.elements.findIndex(find);
     if (elementsIndex != -1) {

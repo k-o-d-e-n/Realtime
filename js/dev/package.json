@@ -1,0 +1,10 @@
+{
+  "name": "dev",
+  "version": "0.9.0",
+  "description": "Development backend of Realtime library",
+  "main": "realtime-dev.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Denis Koryttsev"
+}
