@@ -1258,38 +1258,35 @@ class CollectionView extends RealtimeCollection {
   }
 }
 
-class PagingDataExplorer {
-  constructor(ref, pageSize, ascending, receiver) {
+export class PagingDataExplorer {
+  constructor(ref, pageSize, ascending) {
     this.ref = ref;
     this.pageSize = pageSize;
     this.ascending = ascending;
-    this.receiver = receiver;
   }
 
   next(lastKey) {
-    let query = this.ref.orderByKey();
-    const size = lastKey ? this.pageSize + 1 : this.pageSize;
-    query = this.ascending ? query.limitToFirst(size) : query.limitToLast(size);
-    if (lastKey && !this.ascending) {
-      query = query.endAt(lastKey);
-    }
-    if (lastKey && this.ascending) {
-      query = query.startAt(lastKey);
-    }
-
-    return query
-      .once(dev.DataEvents.value)
-      .then(snapshot => {
-        let result = snapshot.val();
-        if (lastKey) {
-          delete result[lastKey];
-        }
-        return result;
-      })
-      .then(this.receiver);
+    return this._observe(DataEvents.value, this.ascending ? null : lastKey, this.ascending ? lastKey : null, this.ascending, this.pageSize);
   }
 
-  previuos() {}
+  previuos(firstKey) {
+    return this._observe(DataEvents.value, this.ascending ? firstKey : null, this.ascending ? null : firstKey, this.ascending, this.pageSize);
+  }
+
+  _observe(event, before, after, ascending, limit) {
+    let query = this.ref.orderByKey();
+    if (before) {
+        query = query.endAt(before);
+        limit += 1;
+    }
+    if (after) {
+        query = query.startAt(after);
+        limit += 1;
+    }
+    query = ascending ? query.limitToFirst(limit) : query.limitToLast(limit);
+
+    return query.once(event);
+  }
 }
 
 exports.Transaction = class Transaction {
