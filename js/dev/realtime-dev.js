@@ -1,4 +1,6 @@
-exports.InternalKeys = {
+'use strict';
+
+exports.InternalKeys = Object.freeze({
     /// version of RealtimeValue
     modelVersion: "__mv",
     /// root database key for links hierarchy
@@ -23,15 +25,15 @@ exports.InternalKeys = {
     source: "__src",
     targetPath: "t_pth",
     relatedProperty: "r_prop"
-  };
+  });
   
-  exports.DataEvents = {
+  exports.DataEvents = Object.freeze({
     value: "value",
     childAdded: "child_added",
     childRemoved: "child_removed",
     childChanged: "child_changed",
     childMoved: "child_moved"
-  };
+  });
 
   exports.Utilities = class Utilities {
     static dbPath(fromRef, toRef) {

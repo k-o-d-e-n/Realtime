@@ -32,7 +32,7 @@ function debug(doit) {
 // Realtime
 
 function linksRef(ref) {
-  return ref.root.child(dev.InternalKeys.links + "/" + Utilities.rootPath(ref));
+  return ref.root.child(dev.InternalKeys.links + "/" + dev.Utilities.rootPath(ref));
 }
 
 Number.fromSnapshot = function(snapshot) {
@@ -147,7 +147,7 @@ class RealtimeValue {
   }
 
   apply(snapshot) {
-    // console.log("Apply", snapshot.val(), Utilities.rootPath(snapshot.ref));
+    // console.log("Apply", snapshot.val(), dev.Utilities.rootPath(snapshot.ref));
     return this;
   }
 
@@ -157,7 +157,7 @@ class RealtimeValue {
 
   remove(transaction) {
     this.willRemove(transaction, this.ref.parent);
-    transaction.addValue(Utilities.rootPath(this.ref), null);
+    transaction.addValue(dev.Utilities.rootPath(this.ref), null);
   }
 
   write(transaction) {}
@@ -165,13 +165,13 @@ class RealtimeValue {
   _writeSystemValues(transaction) {
     if (this.raw != undefined) {
       transaction.addValue(
-        Utilities.rootPath(this.ref.child(dev.InternalKeys.raw)),
+        dev.Utilities.rootPath(this.ref.child(dev.InternalKeys.raw)),
         this.raw
       );
     }
     if (this.payload && Object.keys(this.payload).length != 0) {
       transaction.addValue(
-        Utilities.rootPath(this.ref.child(dev.InternalKeys.payload), this.payload)
+        dev.Utilities.rootPath(this.ref.child(dev.InternalKeys.payload), this.payload)
       );
     }
   }
@@ -181,7 +181,7 @@ class RealtimeValue {
   }
 
   get path() {
-    return Utilities.rootPath(this.$_ref_);
+    return dev.Utilities.rootPath(this.$_ref_);
   }
 
   get ref() {
@@ -189,7 +189,7 @@ class RealtimeValue {
   }
 
   generateParentObjectWith(parentKey, objClass, sliced, options) {
-    const ref = Utilities.refThatHasParentWith(parentKey, this.ref, sliced);
+    const ref = dev.Utilities.refThatHasParentWith(parentKey, this.ref, sliced);
     if (!ref) return null;
     return new objClass.prototype.constructor(ref, options);
   }
@@ -293,7 +293,7 @@ class Property extends RealtimeValue {
       debugWarn(
         !this.optional && !snapshot.exists(),
         "Get empty data for required property",
-        Utilities.rootPath(snapshot.ref),
+        dev.Utilities.rootPath(snapshot.ref),
         snapshot.val()
       );
     });
@@ -344,7 +344,7 @@ exports.Reference = class Reference extends Property {
     if (value) {
       if (this.aboutValue.obsoleteMode) {
         return this.aboutValue.path
-          ? Utilities.dbPath(
+          ? dev.Utilities.dbPath(
               this.ref.root.child(this.aboutValue.path),
               value.ref
             )
@@ -352,7 +352,7 @@ exports.Reference = class Reference extends Property {
       }
       let representation = {};
       representation[dev.InternalKeys.source] = this.aboutValue.path
-        ? Utilities.dbPath(this.ref.root.child(this.aboutValue.path), value.ref)
+        ? dev.Utilities.dbPath(this.ref.root.child(this.aboutValue.path), value.ref)
         : value.path;
       let valuePayload = {};
       if (value.raw) {
@@ -420,12 +420,12 @@ exports.Relation = class Relation extends Property {
     if (value) {
       let representation = {};
       representation[dev.InternalKeys.targetPath] = this.aboutValue.path
-        ? Utilities.dbPath(this.ref.root.child(this.aboutValue.path), value.ref)
+        ? dev.Utilities.dbPath(this.ref.root.child(this.aboutValue.path), value.ref)
         : value.path;
       representation[dev.InternalKeys.relatedProperty] =
         typeof this.aboutValue.property == "function"
           ? this.aboutValue.property(
-              Utilities.ancestorOnLevelUp(
+              dev.Utilities.ancestorOnLevelUp(
                 this.ref,
                 this.aboutValue.ownerLevelsUp || 1
               ).key
@@ -576,12 +576,12 @@ exports.RealtimeObject = class RealtimeObject extends RealtimeValue {
         Object.keys(links || {})
           .flatMap(linkKey => links[linkKey])
           .forEach(link => {
-            if (!Utilities.pathHasAncestor(link, ancestor)) {
+            if (!dev.Utilities.pathHasAncestor(link, ancestor)) {
               transaction.addValue(link, null);
             }
           });
         if (linksWillNotBeRemovedInAncestor) {
-          transaction.addValue(Utilities.rootPath(linksProp.ref), null);
+          transaction.addValue(dev.Utilities.rootPath(linksProp.ref), null);
         }
       });
     });
@@ -595,7 +595,7 @@ exports.RealtimeObject = class RealtimeObject extends RealtimeValue {
       if (prop instanceof RealtimeValue) {
         prop.write(transaction);
       } else if (prop !== undefined) {
-        transaction.addValue(Utilities.rootPath(this.ref.child(label)), prop);
+        transaction.addValue(dev.Utilities.rootPath(this.ref.child(label)), prop);
       }
     });
   }
@@ -849,7 +849,7 @@ exports.Values = class Values extends RealtimeCollection {
         valuePayload[dev.InternalKeys.payload] = element.payload;
       }
       viewElement[dev.InternalKeys.value] = valuePayload;
-      const viewElementPath = Utilities.rootPath(
+      const viewElementPath = dev.Utilities.rootPath(
         this.view.ref.child(element.key)
       );
       transaction.addValue(viewElementPath, viewElement);
@@ -857,7 +857,7 @@ exports.Values = class Values extends RealtimeCollection {
       // element link
       const links = [viewElementPath];
       transaction.addValue(
-        Utilities.rootPath(
+        dev.Utilities.rootPath(
           linksRef(element.ref)
             .child(dev.InternalKeys.linkItems)
             .child(linkKey)
@@ -871,10 +871,10 @@ exports.Values = class Values extends RealtimeCollection {
     element.remove(transaction);
     if (this.viewWritable) {
       transaction.addValue(
-        Utilities.rootPath(this.view.ref.child(element.key)),
+        dev.Utilities.rootPath(this.view.ref.child(element.key)),
         null
       );
-      // transaction.addValue(Utilities.rootPath(
+      // transaction.addValue(dev.Utilities.rootPath(
       //   linksRef(element.ref)
       //     .child(dev.InternalKeys.linkItems)
       //     .child(linkKey)
@@ -1010,7 +1010,7 @@ exports.AssociatedValues = class AssociatedValues extends RealtimeCollection {
       element[1].write(transaction);
     } else {
       transaction.addValue(
-        Utilities.rootPath(this.ref.child(element[0].key)),
+        dev.Utilities.rootPath(this.ref.child(element[0].key)),
         element[1]
       );
     }
@@ -1035,26 +1035,26 @@ exports.AssociatedValues = class AssociatedValues extends RealtimeCollection {
         valuePayload[dev.InternalKeys.payload] = element[1].payload;
       }
       viewElement[dev.InternalKeys.value] = valuePayload;
-      const viewElementPath = Utilities.rootPath(
+      const viewElementPath = dev.Utilities.rootPath(
         this.view.ref.child(element[1].key)
       );
       transaction.addValue(viewElementPath, viewElement);
 
       // element link
-      const valueLinksPath = Utilities.rootPath(
+      const valueLinksPath = dev.Utilities.rootPath(
         linksRef(element[1].ref)
           .child(dev.InternalKeys.linkItems)
           .child(linkKey)
       );
       if (this.shouldLinking) {
-        const keyLinksPath = Utilities.rootPath(
+        const keyLinksPath = dev.Utilities.rootPath(
           linksRef(element[0].ref)
             .child(dev.InternalKeys.linkItems)
             .child(linkKey)
         );
         let links = [];
-        links.push(Utilities.rootPath(element[1].ref));
-        links.push(Utilities.rootPath(linksRef(element[1].ref)));
+        links.push(dev.Utilities.rootPath(element[1].ref));
+        links.push(dev.Utilities.rootPath(linksRef(element[1].ref)));
         links.push(viewElementPath);
         transaction.addValue(keyLinksPath, links);
         transaction.addValue(valueLinksPath, [viewElementPath, keyLinksPath]);
@@ -1070,12 +1070,12 @@ exports.AssociatedValues = class AssociatedValues extends RealtimeCollection {
       element[1].remove(transaction);
     } else {
       transaction.addValue(
-        Utilities.rootPath(this.ref.child(element[0].key)),
+        dev.Utilities.rootPath(this.ref.child(element[0].key)),
         null
       );
     }
     if (this.viewWritable && isRealtimeValue) {
-      const viewElementPath = Utilities.rootPath(
+      const viewElementPath = dev.Utilities.rootPath(
         this.view.ref.child(element[1].key)
       );
       transaction.addValue(viewElementPath, null);
@@ -1088,7 +1088,7 @@ exports.AssociatedValues = class AssociatedValues extends RealtimeCollection {
             if (!viewElement) {
               throw Error("Element has no reference in view collection");
             }
-            const keyLinksPath = Utilities.rootPath(
+            const keyLinksPath = dev.Utilities.rootPath(
               linksRef(element[0].ref)
                 .child(dev.InternalKeys.linkItems)
                 .child(viewElement[1][dev.InternalKeys.link])
@@ -1097,7 +1097,7 @@ exports.AssociatedValues = class AssociatedValues extends RealtimeCollection {
           });
         });
       }
-      // const valueLinksPath = Utilities.rootPath(
+      // const valueLinksPath = dev.Utilities.rootPath(
       //   linksRef(element[1].ref).child(dev.InternalKeys.linkItems)
       // );
       // transaction.addValue(valueLinksPath, null);
@@ -1164,7 +1164,7 @@ class Relations extends RealtimeCollection {
   writeElement(element, transaction) {
     let representation = {};
     representation[dev.InternalKeys.targetPath] = this.aboutElement.path
-      ? Utilities.dbPath(
+      ? dev.Utilities.dbPath(
           this.ref.root.child(this.aboutElement.path),
           element.ref
         )
@@ -1172,7 +1172,7 @@ class Relations extends RealtimeCollection {
     representation[dev.InternalKeys.relatedProperty] =
       typeof this.aboutElement.property == "function"
         ? this.aboutElement.property(
-            Utilities.ancestorOnLevelUp(
+            dev.Utilities.ancestorOnLevelUp(
               this.ref,
               this.aboutElement.ownerLevelsUp || 1
             ).key
@@ -1187,13 +1187,13 @@ class Relations extends RealtimeCollection {
     }
     representation[dev.InternalKeys.value] = valuePayload;
     transaction.addValue(
-      Utilities.rootPath(this.ref.child(element.key)),
+      dev.Utilities.rootPath(this.ref.child(element.key)),
       representation
     );
   }
 
   removeElement(element, transaction) {
-    transaction.addValue(Utilities.rootPath(this.ref.child(element.key)), null);
+    transaction.addValue(dev.Utilities.rootPath(this.ref.child(element.key)), null);
   }
 
   _elementFrom(snapshot) {
@@ -1258,7 +1258,7 @@ class CollectionView extends RealtimeCollection {
   }
 }
 
-export class PagingDataExplorer {
+exports.PagingDataExplorer = class PagingDataExplorer {
   constructor(ref, pageSize, ascending) {
     this.ref = ref;
     this.pageSize = pageSize;
@@ -1266,11 +1266,11 @@ export class PagingDataExplorer {
   }
 
   next(lastKey) {
-    return this._observe(DataEvents.value, this.ascending ? null : lastKey, this.ascending ? lastKey : null, this.ascending, this.pageSize);
+    return this._observe(dev.DataEvents.value, this.ascending ? null : lastKey, this.ascending ? lastKey : null, this.ascending, this.pageSize);
   }
 
   previuos(firstKey) {
-    return this._observe(DataEvents.value, this.ascending ? firstKey : null, this.ascending ? null : firstKey, this.ascending, this.pageSize);
+    return this._observe(dev.DataEvents.value, this.ascending ? firstKey : null, this.ascending ? null : firstKey, this.ascending, this.pageSize);
   }
 
   _observe(event, before, after, ascending, limit) {
@@ -1413,10 +1413,6 @@ exports.Transaction = class Transaction {
 class ObjectUpdaterHandler {
   constructor(transaction) {
     this.transaction = transaction;
-  }
-
-  get transaction() {
-    return this.transaction;
   }
 
   toJSON() {
