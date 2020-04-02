@@ -4,16 +4,12 @@ platform :ios, '9.0'
 target 'Realtime_Example' do
   pod 'Realtime', :path => '../', :testspecs => ['Tests']
   pod 'Realtime/Firebase', :path => '../'
+  pod 'Realtime/UI', :path => '../'
 
   pod 'Firebase/Auth'
-  pod 'Firebase/Core'
-#  pod 'Firebase/Database'
-#  pod 'Firebase/Storage'
 
   target 'Realtime_Tests' do
     inherit! :search_paths
-
-
   end
 end
 

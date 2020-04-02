@@ -246,6 +246,3 @@ extension DispatchPromise: Listenable {
         return EmptyDispose()
     }
 }
-extension _Promise: RealtimeTask {
-    public var completion: AnyListenable<Void> { return AnyListenable(map({ _ in () })) }
-}

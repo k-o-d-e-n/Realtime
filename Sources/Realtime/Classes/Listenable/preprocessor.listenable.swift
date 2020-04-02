@@ -1069,11 +1069,6 @@ public extension Listenable where Out: _Optional {
         return map({ $0.wrapped ?? defaultValue })
     }
 }
-public extension Listenable where Out: _Optional, Out.Wrapped: HasDefaultLiteral {
-    func `default`() -> Preprocessor<Self, Out.Wrapped> {
-        return map({ $0.wrapped ?? Out.Wrapped() })
-    }
-}
 
 public typealias Suspend<Out> = Preprocessor<Memoize<Combine<(Out, Bool)>>, [Out]>
 public extension Listenable {
