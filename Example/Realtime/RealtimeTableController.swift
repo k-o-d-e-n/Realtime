@@ -226,7 +226,7 @@ class RealtimeTableController: UITableViewController {
 
 extension RealtimeTableController: RealtimeEditingTableDataSource {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        print("Did select row at \(indexPath)")
+        print("Did select row at \(indexPath): \(Global.rtUsers[indexPath.row])")
     }
 
     override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {

@@ -188,7 +188,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
     }
 }
 
-class FileNode: ValueNode {
+final class FileNode: ValueNode {
     var metadata: [String: Any] = [:]
 
     required init(node: Node, value: RealtimeDatabaseValue?) {
@@ -550,7 +550,7 @@ extension CacheNode {
     }
 }
 
-class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
+final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     var isConnectionActive: AnyListenable<Bool> { return AnyListenable(Constant(true)) }
 
     static let root: Cache = Cache(node: .root)
