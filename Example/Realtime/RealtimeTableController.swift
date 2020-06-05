@@ -150,9 +150,7 @@ class RealtimeTableController: UITableViewController {
     let listeningControl: Repeater<Bool> = .unsafe()
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        #if FIREBASE
-        Global.rtUsers.dataExplorer = .viewByPages(control: pagingControl, size: 2, ascending: ascending)
-        #endif
+        Global.rtUsers.dataExplorer = .viewByPages(control: pagingControl, size: 5, ascending: ascending)
         listeningControl.send(.value(true))
         Global.rtUsers.runObserving()
     }

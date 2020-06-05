@@ -1229,3 +1229,103 @@ extension ListenableTests {
     }
 }
 #endif
+
+extension ListenableTests {
+    func testCallbackQueueEnqueueDequeue() {
+        let queue = CallbackQueue<String>()
+
+        let cb = queue.enqueue(.just({ (string) in
+            print(string)
+        }))
+
+        XCTAssertTrue(queue.head.next === cb)
+        XCTAssertTrue(queue.tail.previous === cb)
+
+        let point = queue.dequeue()
+
+        XCTAssertTrue(point === cb)
+        XCTAssertNil(point?.next)
+        XCTAssertNil(point?.previous)
+        XCTAssertTrue(queue.head.next === queue.tail)
+        XCTAssertTrue(queue.tail.previous === queue.head)
+    }
+
+    func testCallbackQueueEnqueueCollapse() {
+        let queue = CallbackQueue<String>()
+
+        let cb = queue.enqueue(.just({ (string) in
+            print(string)
+        }))
+
+        XCTAssertTrue(queue.head.next === cb)
+        XCTAssertTrue(queue.tail.previous === cb)
+
+        cb.collapse()
+
+        XCTAssertNil(cb.next)
+        XCTAssertNil(cb.previous)
+        XCTAssertTrue(queue.head.next === queue.tail)
+        XCTAssertTrue(queue.tail.previous === queue.head)
+    }
+
+    func testCallbackQueueIteration() {
+        let queue = CallbackQueue<Int>()
+
+        var counter: Int = 0
+        for i in 0..<10_000 {
+            let _ = queue.enqueue(.just({ (num) in
+                counter += 1
+                XCTAssertEqual(i, num.value)
+            }))
+        }
+
+        while let callback = queue.dequeue() {
+            callback.call(back: .value(counter))
+        }
+
+        XCTAssertEqual(counter, 10_000)
+    }
+
+    func _testCallbackQueuePerformance() {
+        let queue = CallbackQueue<Int>()
+
+        for _ in 0..<10_000_000 {
+            let _ = queue.enqueue(.just({ _ in
+            }))
+        }
+
+        measure {
+            queue.send(.value(0))
+        }
+    }
+    func _testRepeaterPerformance() {
+        let repeater = Repeater<Int>(dispatcher: .default)
+
+        for _ in 0..<10_000_000 {
+            let _ = repeater.add(.just({ _ in
+            }))
+        }
+
+        measure {
+            repeater.send(.value(0))
+        }
+    }
+    #if canImport(Combine)
+    @available(iOS 13.0, *)
+    func _testCombinePassthroughSubjectPerformance() { /// fails
+        var disposes: [Disposable] = []
+        let repeater = PassthroughSubject<Int, Error>()
+
+        for _ in 0..<10_000_000 {
+            repeater.sink(
+                receiveCompletion: { _ in },
+                receiveValue: { _ in }
+            ).add(to: &disposes)
+        }
+
+        measure {
+            repeater.send(0)
+        }
+    }
+    #endif
+}
