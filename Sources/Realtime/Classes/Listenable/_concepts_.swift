@@ -271,15 +271,16 @@ protocol CallbackProtocol: CallbackPoint {
     associatedtype T
     func call(back event: ListenEvent<T>)
 }
-struct CallbackQueue<T> {
+#warning("TODO: Add threadsafe callback version with atomic references")
+public struct CallbackQueue<T> {
     let head: Head = Head()
     let tail: Tail = Tail()
 
-    class Point: CallbackProtocol {
+    public class Point: CallbackProtocol {
         var next: Point?
         var previous: Point?
 
-        func call(back event: ListenEvent<T>) {}
+        public func call(back event: ListenEvent<T>) {}
     }
 
     final class Head: Point {
@@ -300,6 +301,10 @@ struct CallbackQueue<T> {
 
         init(_ sink: Assign<ListenEvent<T>>) {
             self.sink = sink
+        }
+
+        deinit {
+            collapse()
         }
 
         override func call(back event: ListenEvent<T>) {
@@ -331,12 +336,13 @@ struct CallbackQueue<T> {
 }
 
 extension CallbackQueue.Point: Disposable {
-    func dispose() {
+    var isCollapsed: Bool { next == nil && previous == nil }
+    public func dispose() {
         collapse()
     }
 }
 extension CallbackQueue: Listenable {
-    func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
         enqueue(assign)
     }
 

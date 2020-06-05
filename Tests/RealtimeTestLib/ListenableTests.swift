@@ -713,7 +713,7 @@ extension ListenableTests {
         exp.expectedFulfillmentCount = 20
         exp.assertForOverFulfill = true
         var store = ListeningDisposeStore()
-        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock(), dispatcher: .queue(DispatchQueue(label: "repeater")))
+        let repeater = _Repeater<Int>(lockedBy: NSRecursiveLock(), dispatcher: .queue(DispatchQueue(label: "repeater")))
         let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { (_) in
             repeater.send(.value(5))
         }
@@ -743,7 +743,7 @@ extension ListenableTests {
         exp.expectedFulfillmentCount = 20
         exp.assertForOverFulfill = true
         var store = ListeningDisposeStore()
-        let repeater = Repeater<Int>.locked(by: NSRecursiveLock())
+        let repeater = _Repeater<Int>.locked(by: NSRecursiveLock())
         let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { (_) in
             DispatchQueue.global().async {
                 repeater.send(.value(5))
@@ -776,7 +776,7 @@ extension ListenableTests {
         var value: Int?
         let repeater = Repeater<Int>(dispatcher: .custom({ (assign, e) in
             RunLoop.current.perform {
-                assign.assign(e)
+                assign.call(back: e)
             }
         }))
         repeater.listening({
@@ -923,7 +923,8 @@ extension ListenableTests {
         XCTAssertEqual(value_counter, 3)
 
         switch sharedSource!.liveStrategy {
-        case .continuous(let dispose): XCTAssertFalse((dispose as? ListeningDispose)?.isDisposed ?? true)
+        case .continuous(let dispose):
+            XCTAssertFalse((dispose as? SingleDispose<CallbackQueue<Int>.Callback>)?.isDisposed ?? true)
         case .repeatable: XCTFail("Unexpected strategy")
         }
 
@@ -1299,7 +1300,7 @@ extension ListenableTests {
         }
     }
     func _testRepeaterPerformance() {
-        let repeater = Repeater<Int>(dispatcher: .default)
+        let repeater = _Repeater<Int>(dispatcher: .default)
 
         for _ in 0..<10_000_000 {
             let _ = repeater.add(.just({ _ in
