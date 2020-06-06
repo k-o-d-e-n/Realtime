@@ -569,7 +569,6 @@ public extension ReadonlyProperty {
     }
 }
 
-infix operator <==: AssignmentPrecedence
 public extension Property {
     static func <== (_ prop: Property, _ value: @autoclosure () throws -> T) rethrows {
         prop._setLocalValue(try value())
@@ -976,3 +975,12 @@ public extension MutationPoint where T: Codable {
         return transaction
     }
 }
+
+#if canImport(Combine)
+import Combine
+
+extension ReadonlyProperty: Publisher {
+    public typealias Output = PropertyState<T>
+    public typealias Failure = Error
+}
+#endif
