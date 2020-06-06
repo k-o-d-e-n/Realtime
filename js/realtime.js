@@ -839,7 +839,6 @@ exports.Values = class Values extends RealtimeCollection {
     if (this.viewWritable) {
       const linkKey = this.view.ref.push().key;
       let viewElement = {};
-      viewElement[dev.InternalKeys.index] = this.length;
       viewElement[dev.InternalKeys.link] = linkKey;
       let valuePayload = {};
       if (element.raw) {
@@ -1017,7 +1016,6 @@ exports.AssociatedValues = class AssociatedValues extends RealtimeCollection {
     if (this.viewWritable && isRealtimeValue) {
       const linkKey = this.view.ref.push().key;
       let viewElement = {};
-      viewElement[dev.InternalKeys.index] = this.length;
       viewElement[dev.InternalKeys.link] = linkKey;
       let keyPayload = {};
       if (element[0].raw) {
