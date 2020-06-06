@@ -278,7 +278,7 @@ public struct CallbackQueue<T> {
 
     public class Point: CallbackProtocol {
         var next: Point?
-        var previous: Point?
+        weak var previous: Point?
 
         public func call(back event: ListenEvent<T>) {}
     }
