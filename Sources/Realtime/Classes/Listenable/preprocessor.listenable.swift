@@ -277,7 +277,7 @@ public struct Once<T: Listenable>: Listenable {
     }
 
     public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
-        let disposable: SingleDispose = SingleDispose(weak: nil)
+        let disposable: SingleDispose<ListeningDispose> = SingleDispose(weak: nil)
         let dispose = ListeningDispose(
             listenable
                 .filter({ _ in disposable.isDisposed == false })

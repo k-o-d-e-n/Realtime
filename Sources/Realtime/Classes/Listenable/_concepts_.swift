@@ -246,3 +246,105 @@ extension DispatchPromise: Listenable {
         return EmptyDispose()
     }
 }
+extension _Promise: RealtimeTask {
+    public var completion: AnyListenable<Void> { return AnyListenable(map({ _ in () })) }
+}
+
+/// New `Repeater` type
+
+protocol CallbackPoint: AnyObject {
+    associatedtype Point: CallbackPoint
+    var next: Point? { get set }
+    var previous: Point? { get set }
+}
+extension CallbackPoint where Self.Point.Point == Self.Point {
+    func collapse() {
+        guard let prev = previous else { return }
+        self.previous = nil
+        guard let next = next else { return }
+        prev.next = next
+        next.previous = prev
+        self.next = nil
+    }
+}
+protocol CallbackProtocol: CallbackPoint {
+    associatedtype T
+    func call(back event: ListenEvent<T>)
+}
+struct CallbackQueue<T> {
+    let head: Head = Head()
+    let tail: Tail = Tail()
+
+    class Point: CallbackProtocol {
+        var next: Point?
+        var previous: Point?
+
+        func call(back event: ListenEvent<T>) {}
+    }
+
+    final class Head: Point {
+        override var previous: Point? {
+            get { nil }
+            set { fatalError("Cannot set previous in head") }
+        }
+    }
+    final class Tail: Point {
+        override var next: Point? {
+            get { nil }
+            set { fatalError("Cannot set next in tail") }
+        }
+    }
+
+    final class Callback: Point {
+        let sink: Assign<ListenEvent<T>>
+
+        init(_ sink: Assign<ListenEvent<T>>) {
+            self.sink = sink
+        }
+
+        override func call(back event: ListenEvent<T>) {
+            sink.call(event)
+        }
+    }
+
+    func enqueue(_ assign: Assign<ListenEvent<T>>) -> Callback {
+        let callback = Callback(assign)
+        if let last = tail.previous {
+            last.next = callback
+            callback.previous = last
+        } else {
+            head.next = callback
+            callback.previous = head
+        }
+        tail.previous = callback
+        callback.next = tail
+        return callback
+    }
+
+    func dequeue() -> Point? {
+        guard head.next !== tail else { return nil }
+        return head.next.map { (cb) -> Point in
+            cb.collapse()
+            return cb
+        }
+    }
+}
+
+extension CallbackQueue.Point: Disposable {
+    func dispose() {
+        collapse()
+    }
+}
+extension CallbackQueue: Listenable {
+    func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        enqueue(assign)
+    }
+
+    func send(_ event: ListenEvent<T>) {
+        var point: Point = head
+        while let next = point.next {
+            next.call(back: event)
+            point = next
+        }
+    }
+}

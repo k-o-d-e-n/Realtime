@@ -71,7 +71,7 @@ public enum DatabaseDataEvent: Hashable, CustomDebugStringConvertible {
 @available(*, deprecated, renamed: "DatabaseDataEvent", message: "Use DatabaseDataEvent instead")
 public typealias DatabaseObservingEvent = DatabaseDataEvent
 
-public enum RealtimeDataOrdering: Equatable {
+public enum RealtimeDataOrdering: Hashable {
     case key
     case value
     case child(String)
@@ -229,7 +229,7 @@ public protocol RealtimeStorageCache {
 
 public protocol RealtimeStorage {
     func load(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask
-    func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) // TODO: Replace transaction parameter with UpdateNode
+    func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void); #warning("Replace transaction parameter with UpdateNode")
 }
 
 public protocol RealtimeTask {

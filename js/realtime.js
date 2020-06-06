@@ -224,7 +224,7 @@ class Property extends RealtimeValue {
     { val, optional = false, readonly = false, representer } = {}
   ) {
     super(ref);
-    this.value = val;
+    this.value = val; // TODO: remove?
     Object.defineProperty(this, "value", {
       value: val,
       writable: !readonly,

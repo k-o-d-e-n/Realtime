@@ -270,14 +270,14 @@ public final class SortedCollectionView<Element: WritableRealtimeValue & Compara
     }
 
     public override func apply(_ data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        let event = try _apply(data, event: event)
+        let collectionEvent = try _apply(data, event: event)
         switch dataExplorer {
         case .value:
             if isSynced {
-                changes.send(.value(event))
+                changes.send(.value(collectionEvent))
             }
         case .page:
-            changes.send(.value(event))
+            changes.send(.value(collectionEvent))
         }
     }
 
