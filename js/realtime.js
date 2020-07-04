@@ -1287,7 +1287,7 @@ exports.PagingDataExplorer = class PagingDataExplorer {
   }
 }
 
-exports.Transaction = class Transaction {
+class Transaction {
   constructor(database, storage) {
     this.database = database;
     this.storage = storage;
@@ -1407,6 +1407,7 @@ exports.Transaction = class Transaction {
     });
   }
 }
+exports.Transaction = Transaction;
 
 class ObjectUpdaterHandler {
   constructor(transaction) {
