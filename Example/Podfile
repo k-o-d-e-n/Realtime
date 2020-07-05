@@ -1,28 +1,26 @@
 use_frameworks!
 platform :ios, '9.0'
 
-target 'Realtime_Example' do
+abstract_target 'Example' do
   pod 'Realtime', :path => '../', :testspecs => ['Tests']
-  pod 'Realtime/Firebase', :path => '../'
+  pod 'Realtime/UI', :path => '../'
 
-  pod 'Firebase/Auth'
-  pod 'Firebase/Core'
-#  pod 'Firebase/Database'
-#  pod 'Firebase/Storage'
+  target 'Realtime_Example' do
+    pod 'Realtime/Firebase', :path => '../'
 
-  target 'Realtime_Tests' do
-    inherit! :search_paths
+    pod 'Firebase/Auth'
 
-
+    target 'Realtime_Tests' do
+      inherit! :search_paths
+    end
   end
-end
 
-target 'Realtime_FDB' do
-  pod 'Starscream', '~> 3.0.2'
-  pod 'RFDatabaseClient', :path => '../../Realtime+FoundationDB'
-  pod 'ClientServerAPI', :path => '../../Realtime+FoundationDB'
-  pod 'Realtime+FoundationDBModels', :path => '../../Realtime+FoundationDB'
-  pod 'FoundationDBModels', :path => '../../Realtime+FoundationDB'
+  target 'Realtime_FDB' do
+    pod 'RFDatabaseClient', :path => '../../Realtime+FoundationDB'
+    pod 'ClientServerAPI', :path => '../../Realtime+FoundationDB'
+    pod 'Realtime+FoundationDBModels', :path => '../../Realtime+FoundationDB'
+    pod 'FoundationDBModels', :path => '../../Realtime+FoundationDB'
+  end
 end
 
 post_install do |installer|

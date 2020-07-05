@@ -208,18 +208,16 @@ public final class Values<Element>: _RealtimeValue, ChangeableRealtimeValue, Rea
 // MARK: Mutating
 
 extension Values {
-    /// Adds element to collection with default sorting priority,
-    /// and writes a changes to transaction.
+    /// Adds element to collection and writes a changes to transaction.
     ///
     /// If collection is standalone, use **func insert(element:with:)** instead.
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - priority: Priority value or `nil` if you want to add to end of collection.
     ///   - transaction: Write transaction to keep the changes
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
-    public func write(element: Element, with priority: Int64? = nil, in transaction: Transaction? = nil) throws -> Transaction {
+    public func write(element: Element, in transaction: Transaction? = nil) throws -> Transaction {
         guard isRooted, let database = self.database else { fatalError("This method is available only for rooted objects. Use method insert(element:at:)") }
         guard !element.isReferred || element.node!.parent == node
             else { fatalError("Element must not be referred in other location") }
@@ -256,14 +254,13 @@ extension Values {
         return try _insert(element, in: database, in: transaction)
     }
 
-    /// Adds element with default sorting priority or if `nil` to end of collection
+    /// Adds element
     ///
     /// This method is available only if collection is **standalone**,
     /// otherwise use **func write(element:with:in:)**
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - priority: Priority value or `nil` if you want to add to end of collection.
     public func insert(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard !element.isReferred || element.node!.parent == node

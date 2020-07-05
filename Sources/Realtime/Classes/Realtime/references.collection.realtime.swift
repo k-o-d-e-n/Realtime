@@ -206,14 +206,12 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
         return remove(at: index, in: nil)
     }
 
-    /// Adds element to collection at passed priority,
-    /// and writes a changes to transaction.
+    /// Adds element to collection and writes a changes to transaction.
     ///
     /// If collection is standalone, use **func insert(element:with:)** instead.
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - priority: Priority value or `nil` if you want to add to end of collection.
     ///   - transaction: Write transaction to keep the changes
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
@@ -253,14 +251,13 @@ public final class MutableReferences<Element: RealtimeValue>: References<Element
         return try _write(element, in: database, in: transaction)
     }
 
-    /// Adds element with default sorting priority index or if `nil` to end of collection
+    /// Adds element
     ///
     /// This method is available only if collection is **standalone**,
     /// otherwise use **func write(element:with:in:)**
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - index: Priority value or `nil` if you want to add to end of collection.
     public func insert(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         guard element.node?.hasAncestor(node: anchorNode) == true else { fatalError("Element must be located in elements node") }
@@ -683,14 +680,12 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
         return remove(at: index, in: nil)
     }
 
-    /// Adds element to collection at passed priority,
-    /// and writes a changes to transaction.
+    /// Adds element to collection and writes a changes to transaction.
     ///
     /// If collection is standalone, use **func insert(element:with:)** instead.
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - priority: Priority value or `nil` if you want to add to end of collection.
     ///   - transaction: Write transaction to keep the changes
     /// - Returns: A passed transaction or created inside transaction.
     @discardableResult
@@ -733,14 +728,13 @@ extension Relations: MutableRealtimeCollection, ChangeableRealtimeValue {
         return try _write(element, in: anchorNode, in: database, in: transaction)
     }
 
-    /// Adds element with default sorting priority index or if `nil` to end of collection
+    /// Adds element
     ///
     /// This method is available only if collection is **standalone**,
     /// otherwise use **func write(element:with:in:)**
     ///
     /// - Parameters:
     ///   - element: The element to write
-    ///   - index: Priority value or `nil` if you want to add to end of collection.
     public func insert(element: Element) {
         guard isStandalone else { fatalError("This method is available only for standalone objects. Use method write(element:at:in:)") }
         let contains = element.node.map { n in storage[n.key] != nil } ?? false

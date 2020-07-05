@@ -318,11 +318,6 @@ public extension ValueStorage {
         value = prop.wrappedValue
     }
 }
-extension ValueStorage where T: HasDefaultLiteral {
-    public init(strongWith repeater: Repeater<T>?)  {
-        self.init(unsafeStrong: T(), repeater: repeater)
-    }
-}
 extension ValueStorage {
     /// Returns storage with `strong` reference that has no thread-safe working context
     ///
