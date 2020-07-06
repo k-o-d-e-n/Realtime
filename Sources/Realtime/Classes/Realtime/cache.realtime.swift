@@ -554,7 +554,7 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     var isConnectionActive: AnyListenable<Bool> { return AnyListenable(Constant(true)) }
 
     static let root: Cache = Cache(node: .root)
-    var observers: [Node: _Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
+    var observers: [Node: _RepeaterObsoleted<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
 
     func clear() {
         childs.removeAll()
@@ -617,9 +617,9 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         }
     }
 
-    private func repeater(for node: Node) -> _Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> {
+    private func repeater(for node: Node) -> _RepeaterObsoleted<(RealtimeDataProtocol, DatabaseDataEvent)> {
         guard let rep = observers[node] else {
-            let rep = _Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>(dispatcher: .default)
+            let rep = _RepeaterObsoleted<(RealtimeDataProtocol, DatabaseDataEvent)>(dispatcher: .default)
             observers[node] = rep
             return rep
         }
@@ -627,7 +627,7 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     }
 
     func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
-        let repeater: _Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
+        let repeater: _RepeaterObsoleted<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
 
         return repeater.add(Closure
             .just { e in

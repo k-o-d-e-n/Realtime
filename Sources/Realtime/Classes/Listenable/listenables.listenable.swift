@@ -19,14 +19,14 @@ public struct Repeater<T>: Listenable {
     }
 
     public static func unsafe(with dispatcher: Dispatcher = .default) -> Self {
-        Repeater(dispatcher: dispatcher)
+        Self(dispatcher: dispatcher)
     }
 
     public func send(_ event: ListenEvent<T>) {
-        var point: CallbackQueue<T>.Point = queue.head
-        while let next = point.next {
+        debugFatalError(condition: !queue._validate(), "CallbackQueue state is invalid")
+        var iterator = queue.makeIterator()
+        while let next = iterator.next() {
             dispatch(event, for: next)
-            point = next
         }
     }
 
@@ -53,7 +53,8 @@ extension Repeater {
     }
 }
 
-public struct _Repeater<T>: Listenable {
+@available(*, deprecated, message: "Use `Repeater` based on `CallbackQueue`")
+struct _RepeaterObsoleted<T>: Listenable {
     let sender: (ListenEvent<T>) -> Void
     let _remove: (UInt) -> Void
     let _add: (Assign<ListenEvent<T>>) -> UInt
@@ -76,7 +77,7 @@ public struct _Repeater<T>: Listenable {
     ///
     /// - Parameter dispatcher: Closure that implements method of dispatch events to listeners
     public static func unsafe(with dispatcher: Dispatcher = .default) -> Self {
-        return _Repeater(dispatcher: dispatcher)
+        return Self(dispatcher: dispatcher)
     }
     /// Creates new instance that has no thread-safe working context
     ///
@@ -107,7 +108,7 @@ public struct _Repeater<T>: Listenable {
     }
 
     public static func locked(by lock: NSLocking = NSRecursiveLock(), dispatcher: Dispatcher = .default) -> Self {
-        return _Repeater(lockedBy: lock, dispatcher: dispatcher)
+        return Self(lockedBy: lock, dispatcher: dispatcher)
     }
 
     /// Creates new instance that has thread-safe implementation using lock object.
@@ -165,11 +166,6 @@ public struct _Repeater<T>: Listenable {
         return ListeningDispose({
             self._remove(token)
         })
-    }
-}
-extension _Repeater {
-    func send(_ input: Out) {
-        self.send(.value(input))
     }
 }
 

@@ -1287,6 +1287,42 @@ extension ListenableTests {
         XCTAssertEqual(counter, 10_000)
     }
 
+    func testCallbackQueueEnqueueInIterationLoop() {
+        let queue = CallbackQueue<Int>()
+
+        let _ = queue.enqueue(.just({_ in}))
+        let _ = queue.enqueue(.just({_ in}))
+
+        var iterator = queue.makeIterator()
+        var counter = 0
+        while let _ = iterator.next() {
+            let _ = queue.enqueue(.just({_ in}))
+            guard counter < 2 else { return XCTFail("Iterator is not safe for mutability") }
+            counter += 1
+        }
+
+        XCTAssertEqual(counter, 2)
+    }
+
+    func testCallbackQueueCollapseInIterationLoop() {
+        let queue = CallbackQueue<Int>()
+
+        let _ = queue.enqueue(.just({_ in}))
+        let _ = queue.enqueue(.just({_ in}))
+        let last = queue.enqueue(.just({_ in}))
+
+        var iterator = queue.makeIterator()
+        var counter = 0
+        while let _ = iterator.next() {
+            let _ = queue.enqueue(.just({_ in}))
+            last.collapse()
+            guard counter < 3 else { return XCTFail("Iterator is not safe for mutability") }
+            counter += 1
+        }
+
+        XCTAssertEqual(counter, 3)
+    }
+
     func _testCallbackQueuePerformance() {
         let queue = CallbackQueue<Int>()
 

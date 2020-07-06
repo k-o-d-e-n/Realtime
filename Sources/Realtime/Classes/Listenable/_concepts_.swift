@@ -331,23 +331,49 @@ public struct CallbackQueue<T> {
         }
     }
 }
+extension CallbackQueue: Sequence {
+    public func makeIterator() -> Iterator {
+        Iterator(_last: tail.previous, _next: head.next)
+    }
+    public struct Iterator: IteratorProtocol {
+        let _last: Point?
+        var _next: Point?
 
+        mutating public func next() -> Point? {
+            defer {
+                _next = _last === _next ? nil : _next?.next
+            }
+            return _next
+        }
+    }
+}
 extension CallbackQueue.Point: Disposable {
     var isCollapsed: Bool { next == nil && previous == nil }
     public func dispose() {
         collapse()
     }
 }
-extension CallbackQueue: Listenable {
-    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        enqueue(assign)
-    }
-
+extension CallbackQueue {
     func send(_ event: ListenEvent<T>) {
         var point: Point = head
         while let next = point.next {
             next.call(back: event)
             point = next
         }
+    }
+}
+extension CallbackQueue {
+    func _validate() -> Bool {
+        #if DEBUG
+        var point: Point = head
+        while let next = point.next {
+            guard next.previous === point else { return false }
+            guard next === tail else { return true }
+            point = next
+        }
+        return point === head
+        #else
+        return true
+        #endif
     }
 }
