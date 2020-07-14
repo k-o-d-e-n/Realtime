@@ -107,7 +107,7 @@ extension ViewController {
             }))
             present(alert, animated: true, completion: nil)
         case 4:
-            #if canImport(SwiftUI) && FIREBASE
+            #if canImport(SwiftUI) && canImport(Combine) && FIREBASE
             if #available(iOS 13.0, *) {
                 let user = User1(in: Node.root("users/0312be1d-06b2-4ec8-a49d-84ab27c28ed1"))
                 let view = SwiftUIView(user: user)

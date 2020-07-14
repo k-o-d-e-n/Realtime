@@ -445,11 +445,11 @@ extension Database: RealtimeDatabase {
         }
         var needExcludeKey = false
         if let before = before {
-            query = query.queryEnding(atValue: before)
+            query = ascending ? query.queryEnding(atValue: before) : query.queryStarting(atValue: before)
             needExcludeKey = true
         }
         if let after = after {
-            query = query.queryStarting(atValue: after)
+            query = ascending ? query.queryStarting(atValue: after) : query.queryEnding(atValue: after)
             needExcludeKey = true
         }
         let resultLimit = limit + (needExcludeKey ? 1 : 0)
@@ -519,6 +519,15 @@ extension Database: RealtimeDatabase {
         }
     }
 
+    @inlinable
+    public func extended<E>(_ ext: E.Type) -> E? {
+        if ext == ExtendedRealtimeDatabase.self {
+            return self as? E
+        }
+        return nil
+    }
+}
+extension Database: ExtendedRealtimeDatabase {
     public func runTransaction(
         in node: Node,
         withLocalEvents: Bool,

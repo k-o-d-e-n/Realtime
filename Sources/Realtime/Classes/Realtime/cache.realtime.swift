@@ -653,10 +653,6 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         fatalError("Unimplemented")
     }
 
-    func runTransaction(in node: Node, withLocalEvents: Bool, _ updater: @escaping (RealtimeDataProtocol) -> ConcurrentIterationResult, onComplete: ((ConcurrentOperationResult) -> Void)?) {
-        fatalError("Unimplemented")
-    }
-
     // storage
 
     func load(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask {

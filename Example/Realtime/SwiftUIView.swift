@@ -6,6 +6,7 @@
 //  Copyright © 2019 CocoaPods. All rights reserved.
 //
 
+#if canImport(Combine)
 import SwiftUI
 import Realtime
 import Combine
@@ -168,3 +169,4 @@ extension AnyCancellable {
         store.add(self)
     }
 }
+#endif

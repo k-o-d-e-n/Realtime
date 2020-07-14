@@ -29,6 +29,8 @@ public struct DatabaseDataChanges: OptionSet {
     }
 }
 public extension DatabaseDataChanges {
+    /// - Has no changes. It's not used in public API
+    static let nothing: DatabaseDataChanges = DatabaseDataChanges(rawValue: 0)
     /// - A new child node is added to a location.
     static let added: DatabaseDataChanges = DatabaseDataChanges(rawValue: 1 << 0)
     /// - A child node is removed from a location.
@@ -92,6 +94,8 @@ public protocol RealtimeDatabase: class {
     var cachePolicy: CachePolicy { get set }
     /// Generates an automatically calculated database key
     func generateAutoID() -> String
+    /// Sends connection state each time when it changed
+    var isConnectionActive: AnyListenable<Bool> { get }
     /// Performs the writing of a changes that contains in passed Transaction
     ///
     /// - Parameters:
@@ -132,14 +136,6 @@ public protocol RealtimeDatabase: class {
         completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
         onCancel: ((Error) -> Void)?
     ) -> Disposable
-
-    func runTransaction(
-        in node: Node,
-        withLocalEvents: Bool,
-        _ updater: @escaping (RealtimeDataProtocol) -> ConcurrentIterationResult,
-        onComplete: ((ConcurrentOperationResult) -> Void)?
-    )
-
     /// Removes all of existing observers on passed database reference.
     ///
     /// - Parameter node: Database reference
@@ -150,8 +146,20 @@ public protocol RealtimeDatabase: class {
     ///   - node: Database reference
     ///   - token: An unsigned integer value
     func removeObserver(for node: Node, with token: UInt)
-    /// Sends connection state each time when it changed
-    var isConnectionActive: AnyListenable<Bool> { get }
+    /// Returns extended database instance if supports. Default nil.
+    func extended<E>(_ ext: E.Type) -> E?
+}
+public extension RealtimeDatabase {
+    func extended<E>(_ ext: E.Type) -> E? { nil }
+}
+
+public protocol ExtendedRealtimeDatabase: RealtimeDatabase {
+    func runTransaction(
+        in node: Node,
+        withLocalEvents: Bool,
+        _ updater: @escaping (RealtimeDataProtocol) -> ConcurrentIterationResult,
+        onComplete: ((ConcurrentOperationResult) -> Void)?
+    )
 }
 
 struct RealtimeData: RealtimeDataProtocol {
@@ -365,8 +373,8 @@ class PagingController {
             .child([]), // with .child([]) disposable has no significance
             on: node,
             limit: pageSize,
-            before: ascending ? first : nil,
-            after: ascending ? nil : first,
+            before: first,
+            after: nil,
             ascending: ascending,
             ordering: .key,
             completion: { [weak self] data, event in
@@ -416,8 +424,8 @@ class PagingController {
             .child([]), // with .child([]) disposable has no significance
             on: node,
             limit: pageSize,
-            before: ascending ? nil : last,
-            after: ascending ? last : nil,
+            before: nil,
+            after: last,
             ascending: ascending,
             ordering: .key,
             completion: { [weak self] data, event in
