@@ -133,13 +133,8 @@ extension Transaction {
         database.commit(update: updateNode, completion: completion)
     }
 
-    public enum FileCompletion {
-        case meta(RealtimeMetadata)
-        case error(Node, Error)
-    }
-
     func performUpdateFiles(_ completion: @escaping ([FileCompletion]) -> Void) {
-        storage.commit(transaction: self, completion: completion)
+        storage.commit(files: updateNode, completion: completion)
     }
 
     internal func _set<T: WritableRealtimeValue>(_ value: T, by node: Node) throws {

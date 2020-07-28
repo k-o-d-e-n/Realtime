@@ -667,8 +667,9 @@ extension Storage: RealtimeStorage {
 
         return task
     }
-    public func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
-        var nearest = transaction.updateNode
+    public func commit(files update: UpdateNode, completion: @escaping ([FileCompletion]) -> Void) {
+        guard case let updateNode as ObjectNode = update else { fatalError("Unexpected update") }
+        var nearest = updateNode
         while nearest.childs.count == 1, case .some(.object(let next)) = nearest.childs.first {
             nearest = next
         }
@@ -677,7 +678,7 @@ extension Storage: RealtimeStorage {
 
         let group = DispatchGroup()
         let lock = NSRecursiveLock()
-        var completions: [Transaction.FileCompletion] = []
+        var completions: [FileCompletion] = []
         let addCompletion: (Node, [String: Any]?, Error?) -> Void = { node, md, err in
             lock.lock()
             completions.append(

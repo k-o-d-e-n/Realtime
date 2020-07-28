@@ -229,6 +229,11 @@ struct RealtimeData: RealtimeDataProtocol {
     func decode<T>(_ type: T.Type) throws -> T where T : Decodable { return try T(from: self) }
 }
 
+public enum FileCompletion {
+    case meta(RealtimeMetadata)
+    case error(Node, Error)
+}
+
 public typealias RealtimeMetadata = [String: Any]
 public protocol RealtimeStorageCache {
     func file(for node: Node, completion: @escaping (Data?) -> Void)
@@ -237,7 +242,7 @@ public protocol RealtimeStorageCache {
 
 public protocol RealtimeStorage {
     func load(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask
-    func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void); #warning("Replace transaction parameter with UpdateNode")
+    func commit(files update: UpdateNode, completion: @escaping ([FileCompletion]) -> Void)
 }
 
 public protocol RealtimeTask {
