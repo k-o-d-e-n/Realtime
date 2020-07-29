@@ -9,11 +9,11 @@
 /* Begin PBXAggregateTarget section */
 		"Realtime::RealtimePackageTests::ProductTarget" /* RealtimePackageTests */ = {
 			isa = PBXAggregateTarget;
-			buildConfigurationList = OBJ_164 /* Build configuration list for PBXAggregateTarget "RealtimePackageTests" */;
+			buildConfigurationList = OBJ_165 /* Build configuration list for PBXAggregateTarget "RealtimePackageTests" */;
 			buildPhases = (
 			);
 			dependencies = (
-				OBJ_167 /* PBXTargetDependency */,
+				OBJ_168 /* PBXTargetDependency */,
 			);
 			name = RealtimePackageTests;
 			productName = RealtimePackageTests;
@@ -21,149 +21,151 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		OBJ_104 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_58 /* Package.swift */; };
-		OBJ_110 /* _concepts_.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_11 /* _concepts_.swift */; };
-		OBJ_111 /* listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_12 /* listenable.swift */; };
-		OBJ_112 /* listenables.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_13 /* listenables.listenable.swift */; };
-		OBJ_113 /* listening.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_14 /* listening.listenable.swift */; };
-		OBJ_114 /* preprocessor.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_15 /* preprocessor.listenable.swift */; };
-		OBJ_115 /* support.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_16 /* support.listenable.swift */; };
-		OBJ_116 /* UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_19 /* UI.swift */; };
-		OBJ_117 /* form.support.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_20 /* form.support.realtime.swift */; };
-		OBJ_118 /* uitableview.support.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_21 /* uitableview.support.realtime.swift */; };
-		OBJ_119 /* associatedValues.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_22 /* associatedValues.collection.realtime.swift */; };
-		OBJ_120 /* basic.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_23 /* basic.realtime.swift */; };
-		OBJ_121 /* cache.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_24 /* cache.realtime.swift */; };
-		OBJ_122 /* coding.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_25 /* coding.realtime.swift */; };
-		OBJ_123 /* collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_26 /* collection.realtime.swift */; };
-		OBJ_124 /* database.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_27 /* database.realtime.swift */; };
-		OBJ_125 /* node.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_28 /* node.realtime.swift */; };
-		OBJ_126 /* object.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_29 /* object.realtime.swift */; };
-		OBJ_127 /* property.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_30 /* property.realtime.swift */; };
-		OBJ_128 /* references.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_31 /* references.collection.realtime.swift */; };
-		OBJ_129 /* representations.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_32 /* representations.realtime.swift */; };
-		OBJ_130 /* storage.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_33 /* storage.collection.realtime.swift */; };
-		OBJ_131 /* storage.property.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_34 /* storage.property.realtime.swift */; };
-		OBJ_132 /* support.databaseValue.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_35 /* support.databaseValue.realtime.swift */; };
-		OBJ_133 /* transaction.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_36 /* transaction.realtime.swift */; };
-		OBJ_134 /* values.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_37 /* values.collection.realtime.swift */; };
-		OBJ_135 /* view.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_38 /* view.collection.realtime.swift */; };
-		OBJ_136 /* wrappers.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_39 /* wrappers.collection.realtime.swift */; };
-		OBJ_137 /* SortedArray.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_40 /* SortedArray.swift */; };
-		OBJ_138 /* realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_41 /* realtime.swift */; };
-		OBJ_140 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
-		OBJ_141 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
-		OBJ_149 /* firebase.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_43 /* firebase.swift */; };
-		OBJ_151 /* Realtime.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Realtime::Realtime::Product" /* Realtime.framework */; };
-		OBJ_152 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
-		OBJ_153 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
-		OBJ_162 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_6 /* Package.swift */; };
-		OBJ_174 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_81 /* Entities.swift */; };
-		OBJ_175 /* ListenableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_45 /* ListenableTests.swift */; };
-		OBJ_176 /* RealtimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_46 /* RealtimeTests.swift */; };
-		OBJ_177 /* XCTestManifests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_47 /* XCTestManifests.swift */; };
+		A419BC8324D18079004DA520 /* Entities.swift in Sources */ = {isa = PBXBuildFile; fileRef = A419BC8224D18079004DA520 /* Entities.swift */; };
+		OBJ_103 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_60 /* Package.swift */; };
+		OBJ_109 /* _concepts_.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_11 /* _concepts_.swift */; };
+		OBJ_110 /* listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_12 /* listenable.swift */; };
+		OBJ_111 /* listenables.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_13 /* listenables.listenable.swift */; };
+		OBJ_112 /* listening.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_14 /* listening.listenable.swift */; };
+		OBJ_113 /* preprocessor.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_15 /* preprocessor.listenable.swift */; };
+		OBJ_114 /* support.listenable.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_16 /* support.listenable.swift */; };
+		OBJ_115 /* UI.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_19 /* UI.swift */; };
+		OBJ_116 /* form.support.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_20 /* form.support.realtime.swift */; };
+		OBJ_117 /* uitableview.support.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_21 /* uitableview.support.realtime.swift */; };
+		OBJ_118 /* app.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_22 /* app.realtime.swift */; };
+		OBJ_119 /* associatedValues.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_23 /* associatedValues.collection.realtime.swift */; };
+		OBJ_120 /* basic.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_24 /* basic.realtime.swift */; };
+		OBJ_121 /* cache.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_25 /* cache.realtime.swift */; };
+		OBJ_122 /* coding.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_26 /* coding.realtime.swift */; };
+		OBJ_123 /* collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_27 /* collection.realtime.swift */; };
+		OBJ_124 /* database.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_28 /* database.realtime.swift */; };
+		OBJ_125 /* listenable.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_29 /* listenable.realtime.swift */; };
+		OBJ_126 /* node.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_30 /* node.realtime.swift */; };
+		OBJ_127 /* object.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_31 /* object.realtime.swift */; };
+		OBJ_128 /* property.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_32 /* property.realtime.swift */; };
+		OBJ_129 /* references.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_33 /* references.collection.realtime.swift */; };
+		OBJ_130 /* representations.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_34 /* representations.realtime.swift */; };
+		OBJ_131 /* storage.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_35 /* storage.collection.realtime.swift */; };
+		OBJ_132 /* storage.property.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_36 /* storage.property.realtime.swift */; };
+		OBJ_133 /* support.databaseValue.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_37 /* support.databaseValue.realtime.swift */; };
+		OBJ_134 /* transaction.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_38 /* transaction.realtime.swift */; };
+		OBJ_135 /* values.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_39 /* values.collection.realtime.swift */; };
+		OBJ_136 /* view.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_40 /* view.collection.realtime.swift */; };
+		OBJ_137 /* wrappers.collection.realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_41 /* wrappers.collection.realtime.swift */; };
+		OBJ_138 /* SortedArray.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_42 /* SortedArray.swift */; };
+		OBJ_139 /* realtime.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_43 /* realtime.swift */; };
+		OBJ_141 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
+		OBJ_142 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
+		OBJ_150 /* firebase.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_45 /* firebase.swift */; };
+		OBJ_152 /* Realtime.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Realtime::Realtime::Product" /* Realtime.framework */; };
+		OBJ_153 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
+		OBJ_154 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
+		OBJ_163 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_6 /* Package.swift */; };
+		OBJ_175 /* ListenableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_47 /* ListenableTests.swift */; };
+		OBJ_176 /* RealtimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_48 /* RealtimeTests.swift */; };
+		OBJ_177 /* XCTestManifests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_49 /* XCTestManifests.swift */; };
 		OBJ_179 /* Realtime.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Realtime::Realtime::Product" /* Realtime.framework */; };
 		OBJ_180 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
 		OBJ_181 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
-		OBJ_189 /* AllTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_50 /* AllTests.swift */; };
-		OBJ_190 /* XCTestManifests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_51 /* XCTestManifests.swift */; };
+		OBJ_189 /* AllTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_52 /* AllTests.swift */; };
+		OBJ_190 /* XCTestManifests.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_53 /* XCTestManifests.swift */; };
 		OBJ_192 /* RealtimeTestLib.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Realtime::RealtimeTestLib::Product" /* RealtimeTestLib.framework */; };
 		OBJ_193 /* Realtime.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Realtime::Realtime::Product" /* Realtime.framework */; };
 		OBJ_194 /* Promise_swift.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "Promise.swift::Promise.swift::Product" /* Promise_swift.framework */; };
 		OBJ_195 /* CAtomics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = "SwiftAtomics::CAtomics::Product" /* CAtomics.framework */; };
-		OBJ_205 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_65 /* Package.swift */; };
-		OBJ_87 /* CAtomics.c in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_61 /* CAtomics.c */; };
-		OBJ_89 /* CAtomics.h in Headers */ = {isa = PBXBuildFile; fileRef = OBJ_63 /* CAtomics.h */; settings = {ATTRIBUTES = (Public, ); }; };
-		OBJ_96 /* Promise.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_56 /* Promise.swift */; };
-		OBJ_97 /* Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_57 /* Support.swift */; };
+		OBJ_205 /* Package.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_67 /* Package.swift */; };
+		OBJ_86 /* CAtomics.c in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_63 /* CAtomics.c */; };
+		OBJ_88 /* CAtomics.h in Headers */ = {isa = PBXBuildFile; fileRef = OBJ_65 /* CAtomics.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		OBJ_95 /* Promise.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_58 /* Promise.swift */; };
+		OBJ_96 /* Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = OBJ_59 /* Support.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		A4AB88DF23A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7624D17EC5004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Realtime::Realtime";
 			remoteInfo = Realtime;
 		};
-		A4AB88E023A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7724D17EC5004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Promise.swift::Promise.swift";
 			remoteInfo = Promise.swift;
 		};
-		A4AB88E123A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7824D17EC5004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "SwiftAtomics::CAtomics";
 			remoteInfo = CAtomics;
 		};
-		A4AB88E223A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7924D17EC5004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Promise.swift::Promise.swift";
 			remoteInfo = Promise.swift;
 		};
-		A4AB88E323A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7A24D17EC5004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "SwiftAtomics::CAtomics";
 			remoteInfo = CAtomics;
 		};
-		A4AB88E423A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7B24D17EC5004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Realtime::Realtime";
 			remoteInfo = Realtime;
 		};
-		A4AB88E523A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7C24D17EC5004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Promise.swift::Promise.swift";
 			remoteInfo = Promise.swift;
 		};
-		A4AB88E623A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7D24D17EC5004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "SwiftAtomics::CAtomics";
 			remoteInfo = CAtomics;
 		};
-		A4AB88E723A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7E24D17EC6004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Realtime::RealtimeTestLib";
 			remoteInfo = RealtimeTestLib;
 		};
-		A4AB88E823A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC7F24D17EC6004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Realtime::Realtime";
 			remoteInfo = Realtime;
 		};
-		A4AB88E923A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC8024D17EC6004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "Promise.swift::Promise.swift";
 			remoteInfo = Promise.swift;
 		};
-		A4AB88EA23A3BE6600B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC8124D17EC6004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = "SwiftAtomics::CAtomics";
 			remoteInfo = CAtomics;
 		};
-		A4AB88EB23A3BE6800B1E9B9 /* PBXContainerItemProxy */ = {
+		A419BC8424D18079004DA520 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = OBJ_1 /* Project object */;
 			proxyType = 1;
@@ -173,6 +175,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A419BC8224D18079004DA520 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
 		OBJ_11 /* _concepts_.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _concepts_.swift; sourceTree = "<group>"; };
 		OBJ_12 /* listenable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = listenable.swift; sourceTree = "<group>"; };
 		OBJ_13 /* listenables.listenable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = listenables.listenable.swift; sourceTree = "<group>"; };
@@ -182,46 +185,47 @@
 		OBJ_19 /* UI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UI.swift; sourceTree = "<group>"; };
 		OBJ_20 /* form.support.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = form.support.realtime.swift; sourceTree = "<group>"; };
 		OBJ_21 /* uitableview.support.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = uitableview.support.realtime.swift; sourceTree = "<group>"; };
-		OBJ_22 /* associatedValues.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = associatedValues.collection.realtime.swift; sourceTree = "<group>"; };
-		OBJ_23 /* basic.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = basic.realtime.swift; sourceTree = "<group>"; };
-		OBJ_24 /* cache.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = cache.realtime.swift; sourceTree = "<group>"; };
-		OBJ_25 /* coding.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = coding.realtime.swift; sourceTree = "<group>"; };
-		OBJ_26 /* collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = collection.realtime.swift; sourceTree = "<group>"; };
-		OBJ_27 /* database.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = database.realtime.swift; sourceTree = "<group>"; };
-		OBJ_28 /* node.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = node.realtime.swift; sourceTree = "<group>"; };
-		OBJ_29 /* object.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = object.realtime.swift; sourceTree = "<group>"; };
-		OBJ_30 /* property.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = property.realtime.swift; sourceTree = "<group>"; };
-		OBJ_31 /* references.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = references.collection.realtime.swift; sourceTree = "<group>"; };
-		OBJ_32 /* representations.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = representations.realtime.swift; sourceTree = "<group>"; };
-		OBJ_33 /* storage.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = storage.collection.realtime.swift; sourceTree = "<group>"; };
-		OBJ_34 /* storage.property.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = storage.property.realtime.swift; sourceTree = "<group>"; };
-		OBJ_35 /* support.databaseValue.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = support.databaseValue.realtime.swift; sourceTree = "<group>"; };
-		OBJ_36 /* transaction.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = transaction.realtime.swift; sourceTree = "<group>"; };
-		OBJ_37 /* values.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = values.collection.realtime.swift; sourceTree = "<group>"; };
-		OBJ_38 /* view.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = view.collection.realtime.swift; sourceTree = "<group>"; };
-		OBJ_39 /* wrappers.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = wrappers.collection.realtime.swift; sourceTree = "<group>"; };
-		OBJ_40 /* SortedArray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortedArray.swift; sourceTree = "<group>"; };
-		OBJ_41 /* realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = realtime.swift; sourceTree = "<group>"; };
-		OBJ_43 /* firebase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = firebase.swift; sourceTree = "<group>"; };
-		OBJ_45 /* ListenableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenableTests.swift; sourceTree = "<group>"; };
-		OBJ_46 /* RealtimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTests.swift; sourceTree = "<group>"; };
-		OBJ_47 /* XCTestManifests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XCTestManifests.swift; sourceTree = "<group>"; };
-		OBJ_50 /* AllTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllTests.swift; sourceTree = "<group>"; };
-		OBJ_51 /* XCTestManifests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XCTestManifests.swift; sourceTree = "<group>"; };
-		OBJ_56 /* Promise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Promise.swift; sourceTree = "<group>"; };
-		OBJ_57 /* Support.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support.swift; sourceTree = "<group>"; };
-		OBJ_58 /* Package.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; name = Package.swift; path = "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime/.build/checkouts/promise.swift/Package.swift"; sourceTree = "<group>"; };
+		OBJ_22 /* app.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = app.realtime.swift; sourceTree = "<group>"; };
+		OBJ_23 /* associatedValues.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = associatedValues.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_24 /* basic.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = basic.realtime.swift; sourceTree = "<group>"; };
+		OBJ_25 /* cache.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = cache.realtime.swift; sourceTree = "<group>"; };
+		OBJ_26 /* coding.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = coding.realtime.swift; sourceTree = "<group>"; };
+		OBJ_27 /* collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_28 /* database.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = database.realtime.swift; sourceTree = "<group>"; };
+		OBJ_29 /* listenable.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = listenable.realtime.swift; sourceTree = "<group>"; };
+		OBJ_30 /* node.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = node.realtime.swift; sourceTree = "<group>"; };
+		OBJ_31 /* object.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = object.realtime.swift; sourceTree = "<group>"; };
+		OBJ_32 /* property.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = property.realtime.swift; sourceTree = "<group>"; };
+		OBJ_33 /* references.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = references.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_34 /* representations.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = representations.realtime.swift; sourceTree = "<group>"; };
+		OBJ_35 /* storage.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = storage.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_36 /* storage.property.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = storage.property.realtime.swift; sourceTree = "<group>"; };
+		OBJ_37 /* support.databaseValue.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = support.databaseValue.realtime.swift; sourceTree = "<group>"; };
+		OBJ_38 /* transaction.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = transaction.realtime.swift; sourceTree = "<group>"; };
+		OBJ_39 /* values.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = values.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_40 /* view.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = view.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_41 /* wrappers.collection.realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = wrappers.collection.realtime.swift; sourceTree = "<group>"; };
+		OBJ_42 /* SortedArray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortedArray.swift; sourceTree = "<group>"; };
+		OBJ_43 /* realtime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = realtime.swift; sourceTree = "<group>"; };
+		OBJ_45 /* firebase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = firebase.swift; sourceTree = "<group>"; };
+		OBJ_47 /* ListenableTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListenableTests.swift; sourceTree = "<group>"; };
+		OBJ_48 /* RealtimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTests.swift; sourceTree = "<group>"; };
+		OBJ_49 /* XCTestManifests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XCTestManifests.swift; sourceTree = "<group>"; };
+		OBJ_52 /* AllTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllTests.swift; sourceTree = "<group>"; };
+		OBJ_53 /* XCTestManifests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XCTestManifests.swift; sourceTree = "<group>"; };
+		OBJ_58 /* Promise.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Promise.swift; sourceTree = "<group>"; };
+		OBJ_59 /* Support.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support.swift; sourceTree = "<group>"; };
 		OBJ_6 /* Package.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; path = Package.swift; sourceTree = "<group>"; };
-		OBJ_61 /* CAtomics.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = CAtomics.c; sourceTree = "<group>"; };
-		OBJ_63 /* CAtomics.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CAtomics.h; sourceTree = "<group>"; };
-		OBJ_65 /* Package.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; name = Package.swift; path = "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime/.build/checkouts/swift-atomics/Package.swift"; sourceTree = "<group>"; };
-		OBJ_73 /* js */ = {isa = PBXFileReference; lastKnownFileType = folder; path = js; sourceTree = SOURCE_ROOT; };
-		OBJ_74 /* Example */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Example; sourceTree = SOURCE_ROOT; };
-		OBJ_75 /* Realtime.podspec */ = {isa = PBXFileReference; lastKnownFileType = text; path = Realtime.podspec; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.ruby; };
-		OBJ_76 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
-		OBJ_77 /* run_gyb.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = run_gyb.sh; sourceTree = "<group>"; };
-		OBJ_78 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
-		OBJ_81 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
+		OBJ_60 /* Package.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; name = Package.swift; path = "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime/.build/checkouts/promise.swift/Package.swift"; sourceTree = "<group>"; };
+		OBJ_63 /* CAtomics.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = CAtomics.c; sourceTree = "<group>"; };
+		OBJ_65 /* CAtomics.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CAtomics.h; sourceTree = "<group>"; };
+		OBJ_67 /* Package.swift */ = {isa = PBXFileReference; explicitFileType = sourcecode.swift; name = Package.swift; path = "/Users/K-o-D-e-N/Documents/Projects/iOS/Realtime/Realtime/.build/checkouts/swift-atomics/Package.swift"; sourceTree = "<group>"; };
+		OBJ_75 /* js */ = {isa = PBXFileReference; lastKnownFileType = folder; path = js; sourceTree = SOURCE_ROOT; };
+		OBJ_76 /* Example */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Example; sourceTree = SOURCE_ROOT; };
+		OBJ_77 /* Realtime.podspec */ = {isa = PBXFileReference; lastKnownFileType = text; path = Realtime.podspec; sourceTree = "<group>"; };
+		OBJ_78 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		OBJ_79 /* run_gyb.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = run_gyb.sh; sourceTree = "<group>"; };
+		OBJ_80 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		"Promise.swift::Promise.swift::Product" /* Promise_swift.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Promise_swift.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		"Realtime::Realtime+Firebase::Product" /* Realtime_Firebase.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realtime_Firebase.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		"Realtime::Realtime::Product" /* Realtime.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realtime.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -231,22 +235,22 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		OBJ_139 /* Frameworks */ = {
+		OBJ_140 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_140 /* Promise_swift.framework in Frameworks */,
-				OBJ_141 /* CAtomics.framework in Frameworks */,
+				OBJ_141 /* Promise_swift.framework in Frameworks */,
+				OBJ_142 /* CAtomics.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		OBJ_150 /* Frameworks */ = {
+		OBJ_151 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_151 /* Realtime.framework in Frameworks */,
-				OBJ_152 /* Promise_swift.framework in Frameworks */,
-				OBJ_153 /* CAtomics.framework in Frameworks */,
+				OBJ_152 /* Realtime.framework in Frameworks */,
+				OBJ_153 /* Promise_swift.framework in Frameworks */,
+				OBJ_154 /* CAtomics.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -271,14 +275,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		OBJ_90 /* Frameworks */ = {
+		OBJ_89 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 0;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		OBJ_98 /* Frameworks */ = {
+		OBJ_97 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 0;
 			files = (
@@ -305,24 +309,26 @@
 			isa = PBXGroup;
 			children = (
 				OBJ_18 /* Support */,
-				OBJ_22 /* associatedValues.collection.realtime.swift */,
-				OBJ_23 /* basic.realtime.swift */,
-				OBJ_24 /* cache.realtime.swift */,
-				OBJ_25 /* coding.realtime.swift */,
-				OBJ_26 /* collection.realtime.swift */,
-				OBJ_27 /* database.realtime.swift */,
-				OBJ_28 /* node.realtime.swift */,
-				OBJ_29 /* object.realtime.swift */,
-				OBJ_30 /* property.realtime.swift */,
-				OBJ_31 /* references.collection.realtime.swift */,
-				OBJ_32 /* representations.realtime.swift */,
-				OBJ_33 /* storage.collection.realtime.swift */,
-				OBJ_34 /* storage.property.realtime.swift */,
-				OBJ_35 /* support.databaseValue.realtime.swift */,
-				OBJ_36 /* transaction.realtime.swift */,
-				OBJ_37 /* values.collection.realtime.swift */,
-				OBJ_38 /* view.collection.realtime.swift */,
-				OBJ_39 /* wrappers.collection.realtime.swift */,
+				OBJ_22 /* app.realtime.swift */,
+				OBJ_23 /* associatedValues.collection.realtime.swift */,
+				OBJ_24 /* basic.realtime.swift */,
+				OBJ_25 /* cache.realtime.swift */,
+				OBJ_26 /* coding.realtime.swift */,
+				OBJ_27 /* collection.realtime.swift */,
+				OBJ_28 /* database.realtime.swift */,
+				OBJ_29 /* listenable.realtime.swift */,
+				OBJ_30 /* node.realtime.swift */,
+				OBJ_31 /* object.realtime.swift */,
+				OBJ_32 /* property.realtime.swift */,
+				OBJ_33 /* references.collection.realtime.swift */,
+				OBJ_34 /* representations.realtime.swift */,
+				OBJ_35 /* storage.collection.realtime.swift */,
+				OBJ_36 /* storage.property.realtime.swift */,
+				OBJ_37 /* support.databaseValue.realtime.swift */,
+				OBJ_38 /* transaction.realtime.swift */,
+				OBJ_39 /* values.collection.realtime.swift */,
+				OBJ_40 /* view.collection.realtime.swift */,
+				OBJ_41 /* wrappers.collection.realtime.swift */,
 			);
 			path = Realtime;
 			sourceTree = "<group>";
@@ -337,42 +343,25 @@
 			path = Support;
 			sourceTree = "<group>";
 		};
-		OBJ_42 /* Realtime+Firebase */ = {
+		OBJ_44 /* Realtime+Firebase */ = {
 			isa = PBXGroup;
 			children = (
-				OBJ_43 /* firebase.swift */,
+				OBJ_45 /* firebase.swift */,
 			);
 			name = "Realtime+Firebase";
 			path = "Sources/Realtime+Firebase";
 			sourceTree = SOURCE_ROOT;
 		};
-		OBJ_44 /* RealtimeTestLib */ = {
+		OBJ_46 /* RealtimeTestLib */ = {
 			isa = PBXGroup;
 			children = (
-				OBJ_45 /* ListenableTests.swift */,
-				OBJ_46 /* RealtimeTests.swift */,
-				OBJ_47 /* XCTestManifests.swift */,
+				A419BC8224D18079004DA520 /* Entities.swift */,
+				OBJ_47 /* ListenableTests.swift */,
+				OBJ_48 /* RealtimeTests.swift */,
+				OBJ_49 /* XCTestManifests.swift */,
 			);
 			name = RealtimeTestLib;
 			path = Tests/RealtimeTestLib;
-			sourceTree = SOURCE_ROOT;
-		};
-		OBJ_48 /* Tests */ = {
-			isa = PBXGroup;
-			children = (
-				OBJ_49 /* RealtimeTests */,
-			);
-			name = Tests;
-			sourceTree = SOURCE_ROOT;
-		};
-		OBJ_49 /* RealtimeTests */ = {
-			isa = PBXGroup;
-			children = (
-				OBJ_50 /* AllTests.swift */,
-				OBJ_51 /* XCTestManifests.swift */,
-			);
-			name = RealtimeTests;
-			path = Tests/RealtimeTests;
 			sourceTree = SOURCE_ROOT;
 		};
 		OBJ_5 /*  */ = {
@@ -380,85 +369,102 @@
 			children = (
 				OBJ_6 /* Package.swift */,
 				OBJ_7 /* Sources */,
-				OBJ_48 /* Tests */,
-				OBJ_52 /* Dependencies */,
-				OBJ_66 /* Products */,
-				OBJ_73 /* js */,
-				OBJ_74 /* Example */,
-				OBJ_75 /* Realtime.podspec */,
-				OBJ_76 /* LICENSE */,
-				OBJ_77 /* run_gyb.sh */,
-				OBJ_78 /* README.md */,
-				OBJ_79 /* Example */,
+				OBJ_50 /* Tests */,
+				OBJ_54 /* Dependencies */,
+				OBJ_68 /* Products */,
+				OBJ_75 /* js */,
+				OBJ_76 /* Example */,
+				OBJ_77 /* Realtime.podspec */,
+				OBJ_78 /* LICENSE */,
+				OBJ_79 /* run_gyb.sh */,
+				OBJ_80 /* README.md */,
 			);
 			name = "";
 			sourceTree = "<group>";
 		};
-		OBJ_52 /* Dependencies */ = {
+		OBJ_50 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
-				OBJ_53 /* Promise.swift */,
-				OBJ_59 /* SwiftAtomics 5.0.1 */,
+				OBJ_51 /* RealtimeTests */,
+			);
+			name = Tests;
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_51 /* RealtimeTests */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_52 /* AllTests.swift */,
+				OBJ_53 /* XCTestManifests.swift */,
+			);
+			name = RealtimeTests;
+			path = Tests/RealtimeTests;
+			sourceTree = SOURCE_ROOT;
+		};
+		OBJ_54 /* Dependencies */ = {
+			isa = PBXGroup;
+			children = (
+				OBJ_55 /* Promise.swift */,
+				OBJ_61 /* SwiftAtomics 5.0.1 */,
 			);
 			name = Dependencies;
 			sourceTree = "<group>";
 		};
-		OBJ_53 /* Promise.swift */ = {
+		OBJ_55 /* Promise.swift */ = {
 			isa = PBXGroup;
 			children = (
-				OBJ_54 /* Promise.swift */,
-				OBJ_58 /* Package.swift */,
+				OBJ_56 /* Promise.swift */,
+				OBJ_60 /* Package.swift */,
 			);
 			name = Promise.swift;
 			sourceTree = SOURCE_ROOT;
 		};
-		OBJ_54 /* Promise.swift */ = {
+		OBJ_56 /* Promise.swift */ = {
 			isa = PBXGroup;
 			children = (
-				OBJ_55 /* Classes */,
+				OBJ_57 /* Classes */,
 			);
 			name = Promise.swift;
 			path = .build/checkouts/promise.swift/Sources/Promise.swift;
 			sourceTree = SOURCE_ROOT;
 		};
-		OBJ_55 /* Classes */ = {
+		OBJ_57 /* Classes */ = {
 			isa = PBXGroup;
 			children = (
-				OBJ_56 /* Promise.swift */,
-				OBJ_57 /* Support.swift */,
+				OBJ_58 /* Promise.swift */,
+				OBJ_59 /* Support.swift */,
 			);
 			path = Classes;
 			sourceTree = "<group>";
 		};
-		OBJ_59 /* SwiftAtomics 5.0.1 */ = {
+		OBJ_61 /* SwiftAtomics 5.0.1 */ = {
 			isa = PBXGroup;
 			children = (
-				OBJ_60 /* CAtomics */,
-				OBJ_64 /* SwiftAtomics */,
-				OBJ_65 /* Package.swift */,
+				OBJ_62 /* CAtomics */,
+				OBJ_66 /* SwiftAtomics */,
+				OBJ_67 /* Package.swift */,
 			);
 			name = "SwiftAtomics 5.0.1";
 			sourceTree = SOURCE_ROOT;
 		};
-		OBJ_60 /* CAtomics */ = {
+		OBJ_62 /* CAtomics */ = {
 			isa = PBXGroup;
 			children = (
-				OBJ_61 /* CAtomics.c */,
-				OBJ_62 /* include */,
+				OBJ_63 /* CAtomics.c */,
+				OBJ_64 /* include */,
 			);
 			name = CAtomics;
 			path = ".build/checkouts/swift-atomics/Sources/CAtomics";
 			sourceTree = SOURCE_ROOT;
 		};
-		OBJ_62 /* include */ = {
+		OBJ_64 /* include */ = {
 			isa = PBXGroup;
 			children = (
-				OBJ_63 /* CAtomics.h */,
+				OBJ_65 /* CAtomics.h */,
 			);
 			path = include;
 			sourceTree = "<group>";
 		};
-		OBJ_64 /* SwiftAtomics */ = {
+		OBJ_66 /* SwiftAtomics */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -466,15 +472,15 @@
 			path = ".build/checkouts/swift-atomics/Sources/SwiftAtomics";
 			sourceTree = SOURCE_ROOT;
 		};
-		OBJ_66 /* Products */ = {
+		OBJ_68 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				"Promise.swift::Promise.swift::Product" /* Promise_swift.framework */,
 				"SwiftAtomics::CAtomics::Product" /* CAtomics.framework */,
-				"Realtime::Realtime::Product" /* Realtime.framework */,
-				"Realtime::RealtimeTestLib::Product" /* RealtimeTestLib.framework */,
 				"Realtime::RealtimeTests::Product" /* RealtimeTests.xctest */,
+				"Realtime::RealtimeTestLib::Product" /* RealtimeTestLib.framework */,
 				"Realtime::Realtime+Firebase::Product" /* Realtime_Firebase.framework */,
+				"Promise.swift::Promise.swift::Product" /* Promise_swift.framework */,
+				"Realtime::Realtime::Product" /* Realtime.framework */,
 			);
 			name = Products;
 			sourceTree = BUILT_PRODUCTS_DIR;
@@ -483,19 +489,11 @@
 			isa = PBXGroup;
 			children = (
 				OBJ_8 /* Realtime */,
-				OBJ_42 /* Realtime+Firebase */,
-				OBJ_44 /* RealtimeTestLib */,
+				OBJ_44 /* Realtime+Firebase */,
+				OBJ_46 /* RealtimeTestLib */,
 			);
 			name = Sources;
 			sourceTree = SOURCE_ROOT;
-		};
-		OBJ_79 /* Example */ = {
-			isa = PBXGroup;
-			children = (
-				OBJ_80 /* Realtime */,
-			);
-			path = Example;
-			sourceTree = "<group>";
 		};
 		OBJ_8 /* Realtime */ = {
 			isa = PBXGroup;
@@ -506,21 +504,13 @@
 			path = Sources/Realtime;
 			sourceTree = SOURCE_ROOT;
 		};
-		OBJ_80 /* Realtime */ = {
-			isa = PBXGroup;
-			children = (
-				OBJ_81 /* Entities.swift */,
-			);
-			path = Realtime;
-			sourceTree = "<group>";
-		};
 		OBJ_9 /* Classes */ = {
 			isa = PBXGroup;
 			children = (
 				OBJ_10 /* Listenable */,
 				OBJ_17 /* Realtime */,
-				OBJ_40 /* SortedArray.swift */,
-				OBJ_41 /* realtime.swift */,
+				OBJ_42 /* SortedArray.swift */,
+				OBJ_43 /* realtime.swift */,
 			);
 			path = Classes;
 			sourceTree = "<group>";
@@ -528,11 +518,11 @@
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
-		OBJ_88 /* Headers */ = {
+		OBJ_87 /* Headers */ = {
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_89 /* CAtomics.h in Headers */,
+				OBJ_88 /* CAtomics.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -541,10 +531,10 @@
 /* Begin PBXNativeTarget section */
 		"Promise.swift::Promise.swift" /* Promise.swift */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = OBJ_92 /* Build configuration list for PBXNativeTarget "Promise.swift" */;
+			buildConfigurationList = OBJ_91 /* Build configuration list for PBXNativeTarget "Promise.swift" */;
 			buildPhases = (
-				OBJ_95 /* Sources */,
-				OBJ_98 /* Frameworks */,
+				OBJ_94 /* Sources */,
+				OBJ_97 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -557,9 +547,9 @@
 		};
 		"Promise.swift::SwiftPMPackageDescription" /* Promise.swiftPackageDescription */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = OBJ_100 /* Build configuration list for PBXNativeTarget "Promise.swiftPackageDescription" */;
+			buildConfigurationList = OBJ_99 /* Build configuration list for PBXNativeTarget "Promise.swiftPackageDescription" */;
 			buildPhases = (
-				OBJ_103 /* Sources */,
+				OBJ_102 /* Sources */,
 			);
 			buildRules = (
 			);
@@ -571,16 +561,16 @@
 		};
 		"Realtime::Realtime" /* Realtime */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = OBJ_106 /* Build configuration list for PBXNativeTarget "Realtime" */;
+			buildConfigurationList = OBJ_105 /* Build configuration list for PBXNativeTarget "Realtime" */;
 			buildPhases = (
-				OBJ_109 /* Sources */,
-				OBJ_139 /* Frameworks */,
+				OBJ_108 /* Sources */,
+				OBJ_140 /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				OBJ_142 /* PBXTargetDependency */,
 				OBJ_143 /* PBXTargetDependency */,
+				OBJ_144 /* PBXTargetDependency */,
 			);
 			name = Realtime;
 			productName = Realtime;
@@ -589,17 +579,17 @@
 		};
 		"Realtime::Realtime+Firebase" /* Realtime+Firebase */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = OBJ_145 /* Build configuration list for PBXNativeTarget "Realtime+Firebase" */;
+			buildConfigurationList = OBJ_146 /* Build configuration list for PBXNativeTarget "Realtime+Firebase" */;
 			buildPhases = (
-				OBJ_148 /* Sources */,
-				OBJ_150 /* Frameworks */,
+				OBJ_149 /* Sources */,
+				OBJ_151 /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				OBJ_154 /* PBXTargetDependency */,
 				OBJ_155 /* PBXTargetDependency */,
 				OBJ_156 /* PBXTargetDependency */,
+				OBJ_157 /* PBXTargetDependency */,
 			);
 			name = "Realtime+Firebase";
 			productName = Realtime_Firebase;
@@ -608,9 +598,9 @@
 		};
 		"Realtime::RealtimeTestLib" /* RealtimeTestLib */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = OBJ_170 /* Build configuration list for PBXNativeTarget "RealtimeTestLib" */;
+			buildConfigurationList = OBJ_171 /* Build configuration list for PBXNativeTarget "RealtimeTestLib" */;
 			buildPhases = (
-				OBJ_173 /* Sources */,
+				OBJ_174 /* Sources */,
 				OBJ_178 /* Frameworks */,
 			);
 			buildRules = (
@@ -647,9 +637,9 @@
 		};
 		"Realtime::SwiftPMPackageDescription" /* RealtimePackageDescription */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = OBJ_158 /* Build configuration list for PBXNativeTarget "RealtimePackageDescription" */;
+			buildConfigurationList = OBJ_159 /* Build configuration list for PBXNativeTarget "RealtimePackageDescription" */;
 			buildPhases = (
-				OBJ_161 /* Sources */,
+				OBJ_162 /* Sources */,
 			);
 			buildRules = (
 			);
@@ -661,11 +651,11 @@
 		};
 		"SwiftAtomics::CAtomics" /* CAtomics */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = OBJ_83 /* Build configuration list for PBXNativeTarget "CAtomics" */;
+			buildConfigurationList = OBJ_82 /* Build configuration list for PBXNativeTarget "CAtomics" */;
 			buildPhases = (
-				OBJ_86 /* Sources */,
-				OBJ_88 /* Headers */,
-				OBJ_90 /* Frameworks */,
+				OBJ_85 /* Sources */,
+				OBJ_87 /* Headers */,
+				OBJ_89 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -707,7 +697,7 @@
 				en,
 			);
 			mainGroup = OBJ_5 /*  */;
-			productRefGroup = OBJ_66 /* Products */;
+			productRefGroup = OBJ_68 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -726,71 +716,73 @@
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		OBJ_103 /* Sources */ = {
+		OBJ_102 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_104 /* Package.swift in Sources */,
+				OBJ_103 /* Package.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		OBJ_109 /* Sources */ = {
+		OBJ_108 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_110 /* _concepts_.swift in Sources */,
-				OBJ_111 /* listenable.swift in Sources */,
-				OBJ_112 /* listenables.listenable.swift in Sources */,
-				OBJ_113 /* listening.listenable.swift in Sources */,
-				OBJ_114 /* preprocessor.listenable.swift in Sources */,
-				OBJ_115 /* support.listenable.swift in Sources */,
-				OBJ_116 /* UI.swift in Sources */,
-				OBJ_117 /* form.support.realtime.swift in Sources */,
-				OBJ_118 /* uitableview.support.realtime.swift in Sources */,
+				OBJ_109 /* _concepts_.swift in Sources */,
+				OBJ_110 /* listenable.swift in Sources */,
+				OBJ_111 /* listenables.listenable.swift in Sources */,
+				OBJ_112 /* listening.listenable.swift in Sources */,
+				OBJ_113 /* preprocessor.listenable.swift in Sources */,
+				OBJ_114 /* support.listenable.swift in Sources */,
+				OBJ_115 /* UI.swift in Sources */,
+				OBJ_116 /* form.support.realtime.swift in Sources */,
+				OBJ_117 /* uitableview.support.realtime.swift in Sources */,
+				OBJ_118 /* app.realtime.swift in Sources */,
 				OBJ_119 /* associatedValues.collection.realtime.swift in Sources */,
 				OBJ_120 /* basic.realtime.swift in Sources */,
 				OBJ_121 /* cache.realtime.swift in Sources */,
 				OBJ_122 /* coding.realtime.swift in Sources */,
 				OBJ_123 /* collection.realtime.swift in Sources */,
 				OBJ_124 /* database.realtime.swift in Sources */,
-				OBJ_125 /* node.realtime.swift in Sources */,
-				OBJ_126 /* object.realtime.swift in Sources */,
-				OBJ_127 /* property.realtime.swift in Sources */,
-				OBJ_128 /* references.collection.realtime.swift in Sources */,
-				OBJ_129 /* representations.realtime.swift in Sources */,
-				OBJ_130 /* storage.collection.realtime.swift in Sources */,
-				OBJ_131 /* storage.property.realtime.swift in Sources */,
-				OBJ_132 /* support.databaseValue.realtime.swift in Sources */,
-				OBJ_133 /* transaction.realtime.swift in Sources */,
-				OBJ_134 /* values.collection.realtime.swift in Sources */,
-				OBJ_135 /* view.collection.realtime.swift in Sources */,
-				OBJ_136 /* wrappers.collection.realtime.swift in Sources */,
-				OBJ_137 /* SortedArray.swift in Sources */,
-				OBJ_138 /* realtime.swift in Sources */,
+				OBJ_125 /* listenable.realtime.swift in Sources */,
+				OBJ_126 /* node.realtime.swift in Sources */,
+				OBJ_127 /* object.realtime.swift in Sources */,
+				OBJ_128 /* property.realtime.swift in Sources */,
+				OBJ_129 /* references.collection.realtime.swift in Sources */,
+				OBJ_130 /* representations.realtime.swift in Sources */,
+				OBJ_131 /* storage.collection.realtime.swift in Sources */,
+				OBJ_132 /* storage.property.realtime.swift in Sources */,
+				OBJ_133 /* support.databaseValue.realtime.swift in Sources */,
+				OBJ_134 /* transaction.realtime.swift in Sources */,
+				OBJ_135 /* values.collection.realtime.swift in Sources */,
+				OBJ_136 /* view.collection.realtime.swift in Sources */,
+				OBJ_137 /* wrappers.collection.realtime.swift in Sources */,
+				OBJ_138 /* SortedArray.swift in Sources */,
+				OBJ_139 /* realtime.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		OBJ_148 /* Sources */ = {
+		OBJ_149 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_149 /* firebase.swift in Sources */,
+				OBJ_150 /* firebase.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		OBJ_161 /* Sources */ = {
+		OBJ_162 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_162 /* Package.swift in Sources */,
+				OBJ_163 /* Package.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		OBJ_173 /* Sources */ = {
+		OBJ_174 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_174 /* Entities.swift in Sources */,
+				A419BC8324D18079004DA520 /* Entities.swift in Sources */,
 				OBJ_175 /* ListenableTests.swift in Sources */,
 				OBJ_176 /* RealtimeTests.swift in Sources */,
 				OBJ_177 /* XCTestManifests.swift in Sources */,
@@ -814,113 +806,113 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		OBJ_86 /* Sources */ = {
+		OBJ_85 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_87 /* CAtomics.c in Sources */,
+				OBJ_86 /* CAtomics.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		OBJ_95 /* Sources */ = {
+		OBJ_94 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 0;
 			files = (
-				OBJ_96 /* Promise.swift in Sources */,
-				OBJ_97 /* Support.swift in Sources */,
+				OBJ_95 /* Promise.swift in Sources */,
+				OBJ_96 /* Support.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		OBJ_142 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = "Promise.swift::Promise.swift" /* Promise.swift */;
-			targetProxy = A4AB88E023A3BE6600B1E9B9 /* PBXContainerItemProxy */;
-		};
 		OBJ_143 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = "SwiftAtomics::CAtomics" /* CAtomics */;
-			targetProxy = A4AB88E123A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			target = "Promise.swift::Promise.swift" /* Promise.swift */;
+			targetProxy = A419BC7724D17EC5004DA520 /* PBXContainerItemProxy */;
 		};
-		OBJ_154 /* PBXTargetDependency */ = {
+		OBJ_144 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = "Realtime::Realtime" /* Realtime */;
-			targetProxy = A4AB88E423A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			target = "SwiftAtomics::CAtomics" /* CAtomics */;
+			targetProxy = A419BC7824D17EC5004DA520 /* PBXContainerItemProxy */;
 		};
 		OBJ_155 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = "Promise.swift::Promise.swift" /* Promise.swift */;
-			targetProxy = A4AB88E523A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			target = "Realtime::Realtime" /* Realtime */;
+			targetProxy = A419BC7624D17EC5004DA520 /* PBXContainerItemProxy */;
 		};
 		OBJ_156 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = "SwiftAtomics::CAtomics" /* CAtomics */;
-			targetProxy = A4AB88E623A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			target = "Promise.swift::Promise.swift" /* Promise.swift */;
+			targetProxy = A419BC7924D17EC5004DA520 /* PBXContainerItemProxy */;
 		};
-		OBJ_167 /* PBXTargetDependency */ = {
+		OBJ_157 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = "SwiftAtomics::CAtomics" /* CAtomics */;
+			targetProxy = A419BC7A24D17EC5004DA520 /* PBXContainerItemProxy */;
+		};
+		OBJ_168 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Realtime::RealtimeTests" /* RealtimeTests */;
-			targetProxy = A4AB88EB23A3BE6800B1E9B9 /* PBXContainerItemProxy */;
+			targetProxy = A419BC8424D18079004DA520 /* PBXContainerItemProxy */;
 		};
 		OBJ_182 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Realtime::Realtime" /* Realtime */;
-			targetProxy = A4AB88DF23A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			targetProxy = A419BC7B24D17EC5004DA520 /* PBXContainerItemProxy */;
 		};
 		OBJ_183 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Promise.swift::Promise.swift" /* Promise.swift */;
-			targetProxy = A4AB88E223A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			targetProxy = A419BC7C24D17EC5004DA520 /* PBXContainerItemProxy */;
 		};
 		OBJ_184 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "SwiftAtomics::CAtomics" /* CAtomics */;
-			targetProxy = A4AB88E323A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			targetProxy = A419BC7D24D17EC5004DA520 /* PBXContainerItemProxy */;
 		};
 		OBJ_196 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Realtime::RealtimeTestLib" /* RealtimeTestLib */;
-			targetProxy = A4AB88E723A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			targetProxy = A419BC7E24D17EC6004DA520 /* PBXContainerItemProxy */;
 		};
 		OBJ_197 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Realtime::Realtime" /* Realtime */;
-			targetProxy = A4AB88E823A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			targetProxy = A419BC7F24D17EC6004DA520 /* PBXContainerItemProxy */;
 		};
 		OBJ_198 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "Promise.swift::Promise.swift" /* Promise.swift */;
-			targetProxy = A4AB88E923A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			targetProxy = A419BC8024D17EC6004DA520 /* PBXContainerItemProxy */;
 		};
 		OBJ_199 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = "SwiftAtomics::CAtomics" /* CAtomics */;
-			targetProxy = A4AB88EA23A3BE6600B1E9B9 /* PBXContainerItemProxy */;
+			targetProxy = A419BC8124D17EC6004DA520 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		OBJ_101 /* Debug */ = {
+		OBJ_100 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				LD = /usr/bin/true;
-				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5";
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.0.0";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
-		OBJ_102 /* Release */ = {
+		OBJ_101 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				LD = /usr/bin/true;
-				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5";
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.0.0";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
-		OBJ_107 /* Debug */ = {
+		OBJ_106 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ENABLE_TESTABILITY = YES;
@@ -951,7 +943,7 @@
 			};
 			name = Debug;
 		};
-		OBJ_108 /* Release */ = {
+		OBJ_107 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ENABLE_TESTABILITY = YES;
@@ -982,7 +974,7 @@
 			};
 			name = Release;
 		};
-		OBJ_146 /* Debug */ = {
+		OBJ_147 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ENABLE_TESTABILITY = YES;
@@ -1013,7 +1005,7 @@
 			};
 			name = Debug;
 		};
-		OBJ_147 /* Release */ = {
+		OBJ_148 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ENABLE_TESTABILITY = YES;
@@ -1044,37 +1036,37 @@
 			};
 			name = Release;
 		};
-		OBJ_159 /* Debug */ = {
+		OBJ_160 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				LD = /usr/bin/true;
-				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.1";
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.2.0";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
-		OBJ_160 /* Release */ = {
+		OBJ_161 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				LD = /usr/bin/true;
-				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.1";
+				OTHER_SWIFT_FLAGS = "-swift-version 5 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 5.2.0";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
-		OBJ_165 /* Debug */ = {
+		OBJ_166 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 			};
 			name = Debug;
 		};
-		OBJ_166 /* Release */ = {
+		OBJ_167 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 			};
 			name = Release;
 		};
-		OBJ_171 /* Debug */ = {
+		OBJ_172 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ENABLE_TESTABILITY = YES;
@@ -1105,7 +1097,7 @@
 			};
 			name = Debug;
 		};
-		OBJ_172 /* Release */ = {
+		OBJ_173 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ENABLE_TESTABILITY = YES;
@@ -1196,7 +1188,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				LD = /usr/bin/true;
-				OTHER_SWIFT_FLAGS = "-swift-version 4.2 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 4.2";
+				OTHER_SWIFT_FLAGS = "-swift-version 4.2 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 4.2.0";
 				SWIFT_VERSION = 4.2;
 			};
 			name = Debug;
@@ -1205,7 +1197,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				LD = /usr/bin/true;
-				OTHER_SWIFT_FLAGS = "-swift-version 4.2 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 4.2";
+				OTHER_SWIFT_FLAGS = "-swift-version 4.2 -I $(TOOLCHAIN_DIR)/usr/lib/swift/pm/4_2 -target x86_64-apple-macosx10.10 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.15.sdk -package-description-version 4.2.0";
 				SWIFT_VERSION = 4.2;
 			};
 			name = Release;
@@ -1261,7 +1253,7 @@
 			};
 			name = Release;
 		};
-		OBJ_84 /* Debug */ = {
+		OBJ_83 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
@@ -1289,7 +1281,7 @@
 			};
 			name = Debug;
 		};
-		OBJ_85 /* Release */ = {
+		OBJ_84 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
@@ -1317,7 +1309,7 @@
 			};
 			name = Release;
 		};
-		OBJ_93 /* Debug */ = {
+		OBJ_92 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ENABLE_TESTABILITY = YES;
@@ -1345,7 +1337,7 @@
 			};
 			name = Debug;
 		};
-		OBJ_94 /* Release */ = {
+		OBJ_93 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ENABLE_TESTABILITY = YES;
@@ -1376,56 +1368,47 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		OBJ_100 /* Build configuration list for PBXNativeTarget "Promise.swiftPackageDescription" */ = {
+		OBJ_105 /* Build configuration list for PBXNativeTarget "Realtime" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				OBJ_101 /* Debug */,
-				OBJ_102 /* Release */,
+				OBJ_106 /* Debug */,
+				OBJ_107 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		OBJ_106 /* Build configuration list for PBXNativeTarget "Realtime" */ = {
+		OBJ_146 /* Build configuration list for PBXNativeTarget "Realtime+Firebase" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				OBJ_107 /* Debug */,
-				OBJ_108 /* Release */,
+				OBJ_147 /* Debug */,
+				OBJ_148 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		OBJ_145 /* Build configuration list for PBXNativeTarget "Realtime+Firebase" */ = {
+		OBJ_159 /* Build configuration list for PBXNativeTarget "RealtimePackageDescription" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				OBJ_146 /* Debug */,
-				OBJ_147 /* Release */,
+				OBJ_160 /* Debug */,
+				OBJ_161 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		OBJ_158 /* Build configuration list for PBXNativeTarget "RealtimePackageDescription" */ = {
+		OBJ_165 /* Build configuration list for PBXAggregateTarget "RealtimePackageTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				OBJ_159 /* Debug */,
-				OBJ_160 /* Release */,
+				OBJ_166 /* Debug */,
+				OBJ_167 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		OBJ_164 /* Build configuration list for PBXAggregateTarget "RealtimePackageTests" */ = {
+		OBJ_171 /* Build configuration list for PBXNativeTarget "RealtimeTestLib" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				OBJ_165 /* Debug */,
-				OBJ_166 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		OBJ_170 /* Build configuration list for PBXNativeTarget "RealtimeTestLib" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				OBJ_171 /* Debug */,
-				OBJ_172 /* Release */,
+				OBJ_172 /* Debug */,
+				OBJ_173 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -1457,20 +1440,29 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		OBJ_83 /* Build configuration list for PBXNativeTarget "CAtomics" */ = {
+		OBJ_82 /* Build configuration list for PBXNativeTarget "CAtomics" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				OBJ_84 /* Debug */,
-				OBJ_85 /* Release */,
+				OBJ_83 /* Debug */,
+				OBJ_84 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		OBJ_92 /* Build configuration list for PBXNativeTarget "Promise.swift" */ = {
+		OBJ_91 /* Build configuration list for PBXNativeTarget "Promise.swift" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				OBJ_93 /* Debug */,
-				OBJ_94 /* Release */,
+				OBJ_92 /* Debug */,
+				OBJ_93 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		OBJ_99 /* Build configuration list for PBXNativeTarget "Promise.swiftPackageDescription" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				OBJ_100 /* Debug */,
+				OBJ_101 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

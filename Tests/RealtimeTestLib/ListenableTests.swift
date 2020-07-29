@@ -1311,7 +1311,7 @@ extension ListenableTests {
         }
     }
     #if canImport(Combine)
-    @available(iOS 13.0, *)
+    @available(iOS 13.0, macOS 10.15, *)
     func _testCombinePassthroughSubjectPerformance() { /// fails
         var disposes: [Disposable] = []
         let repeater = PassthroughSubject<Int, Error>()
