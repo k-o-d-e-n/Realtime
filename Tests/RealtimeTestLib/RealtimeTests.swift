@@ -1,5 +1,7 @@
 import XCTest
+#if !os(Linux)
 import SystemConfiguration
+#endif
 @testable import Realtime
 
 extension XCTestCase {
@@ -1518,7 +1520,7 @@ extension RealtimeTests {
             e.map({ XCTFail($0.describingErrorDescription) })
         }
     }
-
+#if !os(Linux)
     func testTimoutOnLoad() {
         func isNetworkReachable(with flags: SCNetworkReachabilityFlags) -> Bool {
             let isReachable = flags.contains(.reachable)
@@ -1562,6 +1564,7 @@ extension RealtimeTests {
             e.map { XCTFail($0.describingErrorDescription) }
         }
     }
+#endif
 }
 
 // MARK: Operators

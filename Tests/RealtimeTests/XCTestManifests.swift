@@ -3,9 +3,6 @@ import RealtimeTestLib
 
 #if !os(macOS)
 public func allTests() -> [XCTestCaseEntry] {
-    return [
-        testCase(RealtimeTests.allTests),
-        testCase(ListenableTests.allTests)
-    ]
+    return RealtimeTestLib.__allTests()
 }
 #endif
