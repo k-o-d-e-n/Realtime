@@ -2,6 +2,21 @@
 
 import PackageDescription
 
+var packageDependencies: [Package.Dependency] = [
+    .package(name: "Promise.swift", url: "https://github.com/k-o-d-e-n/promise.swift.git", .branch("master"))
+]
+var targetDependencies: [Target.Dependency] = [
+    .product(name: "Promise.swift", package: "Promise.swift")
+]
+#if os(Linux)
+packageDependencies += [
+    .package(url: "https://github.com/apple/swift-se-0282-experimental", .branch("master"))
+]
+targetDependencies += [
+    .product(name: "SE0282_Experimental", package: "swift-se-0282-experimental"),
+]
+#endif
+
 let package = Package(
     name: "Realtime",
     products: [
@@ -18,17 +33,11 @@ let package = Package(
             targets: ["Realtime+Firebase"]
         ),
     ],
-    dependencies: [
-        .package(url: "https://github.com/apple/swift-se-0282-experimental.git", .branch("master")),
-        .package(name: "Promise.swift", url: "https://github.com/k-o-d-e-n/promise.swift.git", .branch("master"))
-    ],
+    dependencies: packageDependencies,
     targets: [
         .target(
             name: "Realtime",
-            dependencies: [
-                .product(name: "SE0282_Experimental", package: "swift-se-0282-experimental"),
-                .product(name: "Promise.swift", package: "Promise.swift")
-            ]
+            dependencies: targetDependencies
         ),
         .target(
             name: "Realtime+Firebase",
@@ -37,8 +46,7 @@ let package = Package(
         .target(
             name: "RealtimeTestLib",
             dependencies: ["Realtime"],
-            path: "./Tests/RealtimeTestLib",
-            sources: ["./", "../../Example/Realtime/Entities.swift"]
+            path: "./Tests/RealtimeTestLib"
         ),
         .testTarget(
             name: "RealtimeTests",

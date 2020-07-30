@@ -78,7 +78,7 @@
 		A44331B52020E9E900BA2FDE /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		A44866B823A422D6006500ED /* Realtime_FDB.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Realtime_FDB.entitlements; sourceTree = "<group>"; };
 		A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTableController.swift; sourceTree = "<group>"; };
-		A491423E21D0F535006F6858 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Entities.swift; sourceTree = "<group>"; };
+		A491423E21D0F535006F6858 /* Entities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Entities.swift; path = ../../Tests/RealtimeTestLib/Entities.swift; sourceTree = "<group>"; };
 		A4AAA56E21A1F1300085C3BA /* _concepts_.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _concepts_.swift; sourceTree = "<group>"; };
 		A4AAA57021A1F32D0085C3BA /* DispatchBenchmark.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DispatchBenchmark.h; sourceTree = "<group>"; };
 		A4AAA57121A1F36B0085C3BA /* Realtime_Tests-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Realtime_Tests-Bridging-Header.h"; sourceTree = "<group>"; };
