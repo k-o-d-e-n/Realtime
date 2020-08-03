@@ -52,7 +52,7 @@ Pod::Spec.new do |s|
       firebase.dependency 'Firebase/Storage'
   end
   s.test_spec 'Tests' do |test_spec|
-    test_spec.source_files = 'Tests/RealtimeTestLib/**.*', 'Example/Realtime/Entities.swift'
+    test_spec.source_files = 'Tests/RealtimeTestLib/**.*'
   end
   s.xcconfig = {
       "FRAMEWORK_SEARCH_PATHS" => "'$(PODS_ROOT)'"

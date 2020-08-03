@@ -17,6 +17,7 @@ public protocol UpdateNode: RealtimeDataProtocol {
     ///   - container: `inout` dictionary container.
     ///   - reducer: Closure to reduce
     func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows
+    func reduceFiles<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?, RealtimeMetadata?) throws -> Void) rethrows
 }
 extension UpdateNode {
     public var database: RealtimeDatabase? { return Cache.root }
@@ -72,6 +73,7 @@ class ValueNode: UpdateNode {
     func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
         try reducer(&container, location, value)
     }
+    public func reduceFiles<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?, RealtimeMetadata?) throws -> Void) rethrows {}
 
     required init(node: Node, value: RealtimeDatabaseValue?) {
         debugFatalError(
@@ -213,6 +215,9 @@ final class FileNode: ValueNode {
     }
 
     override func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {}
+    public override func reduceFiles<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?, RealtimeMetadata?) throws -> Void) rethrows {
+        try reducer(&container, location, value, metadata)
+    }
     var database: RealtimeDatabase? { return nil }
 }
 
@@ -259,6 +264,14 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
             switch node {
             case .value(let v as UpdateNode), .object(let v as UpdateNode): try v.reduceValues(into: &container, reducer)
             case .file: break
+            }
+        }
+    }
+    public func reduceFiles<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?, RealtimeMetadata?) throws -> Void) rethrows {
+        try childs.forEach { (node) in
+            switch node {
+            case .file(let v as UpdateNode), .object(let v as UpdateNode): try v.reduceFiles(into: &container, reducer)
+            case .value: break
             }
         }
     }
@@ -658,10 +671,6 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         fatalError("Unimplemented")
     }
 
-    func runTransaction(in node: Node, withLocalEvents: Bool, _ updater: @escaping (RealtimeDataProtocol) -> ConcurrentIterationResult, onComplete: ((ConcurrentOperationResult) -> Void)?) {
-        fatalError("Unimplemented")
-    }
-
     // storage
 
     func load(for node: Node, timeout: DispatchTimeInterval) -> RealtimeStorageTask {
@@ -694,12 +703,13 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         func resume() {}
     }
 
-    func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
-        let results = transaction.updateNode.files.map { (file) -> Transaction.FileCompletion in
+    func commit(files update: UpdateNode, completion: @escaping ([FileCompletion]) -> Void) {
+        guard case let updateNode as ObjectNode = update else { fatalError("Unexpected update") }
+        let results = updateNode.files.map { (file) -> FileCompletion in
             do {
                 let nearest = self.nearestChild(by: Array(file.location.map({ $0.key }).reversed().dropFirst()))
                 if nearest.leftPath.isEmpty {
-                    try update(dbNode: nearest.node, with: file.value)
+                    try self.update(dbNode: nearest.node, with: file.value)
                 } else {
                     var nearestNode: ObjectNode
                     switch nearest.node {

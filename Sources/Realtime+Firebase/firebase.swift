@@ -445,11 +445,11 @@ extension Database: RealtimeDatabase {
         }
         var needExcludeKey = false
         if let before = before {
-            query = query.queryEnding(atValue: before)
+            query = ascending ? query.queryEnding(atValue: before) : query.queryStarting(atValue: before)
             needExcludeKey = true
         }
         if let after = after {
-            query = query.queryStarting(atValue: after)
+            query = ascending ? query.queryStarting(atValue: after) : query.queryEnding(atValue: after)
             needExcludeKey = true
         }
         let resultLimit = limit + (needExcludeKey ? 1 : 0)
@@ -519,6 +519,15 @@ extension Database: RealtimeDatabase {
         }
     }
 
+    @inlinable
+    public func extended<E>(_ ext: E.Type) -> E? {
+        if ext == ExtendedRealtimeDatabase.self {
+            return self as? E
+        }
+        return nil
+    }
+}
+extension Database: ExtendedRealtimeDatabase {
     public func runTransaction(
         in node: Node,
         withLocalEvents: Bool,
@@ -658,8 +667,9 @@ extension Storage: RealtimeStorage {
 
         return task
     }
-    public func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
-        var nearest = transaction.updateNode
+    public func commit(files update: UpdateNode, completion: @escaping ([FileCompletion]) -> Void) {
+        guard case let updateNode as ObjectNode = update else { fatalError("Unexpected update") }
+        var nearest = updateNode
         while nearest.childs.count == 1, case .some(.object(let next)) = nearest.childs.first {
             nearest = next
         }
@@ -668,7 +678,7 @@ extension Storage: RealtimeStorage {
 
         let group = DispatchGroup()
         let lock = NSRecursiveLock()
-        var completions: [Transaction.FileCompletion] = []
+        var completions: [FileCompletion] = []
         let addCompletion: (Node, [String: Any]?, Error?) -> Void = { node, md, err in
             lock.lock()
             completions.append(

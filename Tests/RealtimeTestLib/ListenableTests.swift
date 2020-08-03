@@ -132,7 +132,7 @@ public final class ListenableTests: XCTestCase {
         backgroundProperty <== .red
         backgroundProperty <== .green
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2), execute: exp.fulfill)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2), execute: { exp.fulfill() })
 
         waitForExpectations(timeout: 5) { (err) in
             err.map { XCTFail($0.localizedDescription) }
@@ -902,7 +902,7 @@ extension ListenableTests {
                 }
             })
             .map(UInt32.init)
-            .map(arc4random_uniform)
+            .map(getRandomNum)
             .do(onValue: { print($0) })
             .asAny()
             .shared(connectionLive: .continuous)
@@ -948,7 +948,7 @@ extension ListenableTests {
                 }
             })
             .map(UInt32.init)
-            .map(arc4random_uniform)
+            .map(getRandomNum)
             .do(onValue: { print($0) })
             .asAny()
             .shared(connectionLive: .repeatable)
@@ -999,7 +999,7 @@ extension ListenableTests {
                 }
             })
             .map(UInt32.init)
-            .map(arc4random_uniform)
+            .map(getRandomNum)
             .do(onValue: { print($0) })
             .asAny()
             .share(connectionLive: .repeatable)
@@ -1051,7 +1051,7 @@ extension ListenableTests {
                 }
             })
             .map(UInt32.init)
-            .map(arc4random_uniform)
+            .map(getRandomNum)
             .do(onValue: { print($0) })
             .asAny()
             .share(connectionLive: .continuous)
@@ -1360,7 +1360,7 @@ extension ListenableTests {
         }
     }
     #if canImport(Combine)
-    @available(iOS 13.0, *)
+    @available(iOS 13.0, macOS 10.15, *)
     func _testCombinePassthroughSubjectPerformance() { /// fails
         var disposes: [Disposable] = []
         let repeater = PassthroughSubject<Int, Error>()

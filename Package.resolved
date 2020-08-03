@@ -11,12 +11,12 @@
         }
       },
       {
-        "package": "SwiftAtomics",
-        "repositoryURL": "https://github.com/glessard/swift-atomics.git",
+        "package": "swift-se-0282-experimental",
+        "repositoryURL": "https://github.com/apple/swift-se-0282-experimental.git",
         "state": {
-          "branch": null,
-          "revision": "c0628620f3636f2abcfbfaaf871edfa619b4db1b",
-          "version": "5.0.1"
+          "branch": "master",
+          "revision": "eb8cb744ad9a4301b0d15922890277632fcfb6b8",
+          "version": null
         }
       }
     ]

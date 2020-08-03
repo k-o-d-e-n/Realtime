@@ -98,7 +98,7 @@ public enum RelationProperty {
 
 #if os(Linux)
 extension String {
-    init(format: String, args: [String]) {
+    public init(format: String, args: [String]) {
         var result = ""
 
 		let appendCharacter = { (character: Character) in
@@ -108,7 +108,7 @@ extension String {
 		    result += (argument ?? "")
 		}
 
-		var indices = format.characters.indices
+		var indices = format.indices
 		var args = Array(args.reversed())
 
 		while indices.count > 0 {

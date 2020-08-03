@@ -163,11 +163,7 @@ class RealtimeTableController: UITableViewController {
     }
 
     @objc func refreshData(_ control: UIRefreshControl) {
-        if ascending {
-            _ = pagingControl.next()
-        } else {
-            _ = pagingControl.previous()
-        }
+        _ = pagingControl.previous()
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3)) {
             if control.isRefreshing {
                 control.endRefreshing()
