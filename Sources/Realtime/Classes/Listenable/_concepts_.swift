@@ -375,7 +375,7 @@ extension CallbackQueue {
         var point: Point = head
         while let next = point.next {
             guard next.previous === point else { return false }
-            guard next === tail else { return true }
+            guard next !== tail else { return true }
             point = next
         }
         return point === head

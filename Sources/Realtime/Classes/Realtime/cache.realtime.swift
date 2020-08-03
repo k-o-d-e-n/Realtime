@@ -554,7 +554,9 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     var isConnectionActive: AnyListenable<Bool> { return AnyListenable(Constant(true)) }
 
     static let root: Cache = Cache(node: .root)
-    var observers: [Node: _RepeaterObsoleted<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
+    var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
+    var disposables: [UInt: Disposable] = [:]
+    var counter: UInt = 0
 
     func clear() {
         childs.removeAll()
@@ -606,7 +608,7 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     }
 
     func removeObserver(for node: Node, with token: UInt) {
-        observers[node]?.remove(token)
+        disposables.removeValue(forKey: token)?.dispose()
     }
 
     func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
@@ -617,9 +619,9 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         }
     }
 
-    private func repeater(for node: Node) -> _RepeaterObsoleted<(RealtimeDataProtocol, DatabaseDataEvent)> {
+    private func repeater(for node: Node) -> Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> {
         guard let rep = observers[node] else {
-            let rep = _RepeaterObsoleted<(RealtimeDataProtocol, DatabaseDataEvent)>(dispatcher: .default)
+            let rep = Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>(dispatcher: .default)
             observers[node] = rep
             return rep
         }
@@ -627,10 +629,11 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     }
 
     func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
-        let repeater: _RepeaterObsoleted<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
+        let repeater: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
 
-        return repeater.add(Closure
-            .just { e in
+        defer { counter += 1 }
+        disposables[counter] = repeater.listening(
+            Closure.just { e in
                 switch e {
                 case .value(let val): onUpdate(val.0, event)
                 case .error(let err): onCancel?(err)
@@ -644,7 +647,9 @@ final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
                     return received == defined
                 default: return false
                 }
-            }))
+            })
+        )
+        return counter
     }
 
     func observe(_ event: DatabaseDataEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
