@@ -332,10 +332,17 @@ public struct CallbackQueue<T> {
     }
 }
 extension CallbackQueue: Sequence {
+    public typealias Iterator = Array<Point>.Iterator
     public func makeIterator() -> Iterator {
-        Iterator(_last: tail.previous, _next: head.next)
+        var currentElements: [Point] = []
+        var point: Point = head
+        while let next = point.next, tail !== next {
+            currentElements.append(next)
+            point = next
+        }
+        return currentElements.makeIterator()
     }
-    public struct Iterator: IteratorProtocol {
+    public struct _Iterator: IteratorProtocol {
         let _last: Point?
         var _next: Point?
 

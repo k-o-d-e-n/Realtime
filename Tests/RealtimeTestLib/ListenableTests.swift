@@ -1231,6 +1231,7 @@ extension ListenableTests {
 }
 #endif
 
+typealias _Repeater = _RepeaterObsoleted
 extension ListenableTests {
     func testCallbackQueueEnqueueDequeue() {
         let queue = CallbackQueue<String>()
@@ -1335,12 +1336,23 @@ extension ListenableTests {
             queue.send(.value(0))
         }
     }
-    func _testRepeaterPerformance() {
-        let repeater = _Repeater<Int>(dispatcher: .default)
+    func _testRepeaterObsoletedPerformance() {
+        let repeater = _RepeaterObsoleted<Int>(dispatcher: .default)
 
         for _ in 0..<10_000_000 {
             let _ = repeater.add(.just({ _ in
             }))
+        }
+
+        measure {
+            repeater.send(.value(0))
+        }
+    }
+    func _testRepeaterPerformance() {
+        let repeater = Repeater<Int>(dispatcher: .default)
+
+        for _ in 0..<10_000_000 {
+            let _ = repeater.listening(.just { _ in })
         }
 
         measure {
