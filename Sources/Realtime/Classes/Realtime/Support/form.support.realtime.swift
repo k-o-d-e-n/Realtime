@@ -33,7 +33,8 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     fileprivate var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
     fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe())
     fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.repeater!.compactMap(), _model.repeater!.compactMap())
-    fileprivate lazy var _didSelect: Repeater<IndexPath> = .unsafe()
+    public typealias DidSelectEvent = (form: Form<Model>, indexPath: IndexPath)
+    private lazy var _didSelect: Repeater<DidSelectEvent> = .unsafe()
 
     var dynamicValues: [String: Any] = [:]
     var state: RowState = [.free, .pending]
@@ -64,8 +65,12 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
     }
 
-    open func onSelect(_ doit: @escaping (IndexPath, Row<View, Model>) -> Void) {
+    open func onSelect(_ doit: @escaping (DidSelectEvent, Row<View, Model>) -> Void) {
         _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+    }
+
+    open func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {
+        _didSelect.send(.value((form, indexPath)))
     }
 
     override func free() {
@@ -73,8 +78,8 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         _model.wrappedValue = nil
     }
 
-    public func sendSelectEvent(at indexPath: IndexPath) {
-        _didSelect.send(.value(indexPath))
+    public func sendSelectEvent(_ form: Form<Model>, at indexPath: IndexPath) {
+        _didSelect.send(.value((form, indexPath)))
     }
 
     public func removeAllValues() {
@@ -173,7 +178,7 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
     func reloadCell(at indexPath: IndexPath) { fatalError() }
     func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {}
     func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {}
-    func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
+    func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {}
 
     func willDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
     func didEndDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
@@ -265,9 +270,9 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
     override func willDisplaySection(_ tableView: UITableView, at index: Int) {}
     override func didEndDisplaySection(_ tableView: UITableView, at index: Int) {}
 
-    override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
-        rows[indexPath.row]._didSelect.send(.value(indexPath))
+    override func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {
+        form.tableView?.deselectRow(at: indexPath, animated: true)
+        rows[indexPath.row].didSelect(form, didSelectRowAt: indexPath)
     }
 
     override func reloadCell(at indexPath: IndexPath) {
@@ -443,9 +448,9 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         }
     }
 
-    override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        if let cell = tableView.cellForRow(at: indexPath) {
-            reuseController.active(at: cell)?._didSelect.send(.value(indexPath))
+    override func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {
+        if let cell = form.tableView?.cellForRow(at: indexPath) {
+            reuseController.active(at: cell)?.didSelect(form, didSelectRowAt: indexPath)
         }
     }
 
@@ -664,7 +669,7 @@ open class Form<Model: AnyObject> {
     }
 
     open func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        sections[indexPath.section].didSelect(tableView, didSelectRowAt: indexPath)
+        sections[indexPath.section].didSelect(self, didSelectRowAt: indexPath)
     }
 
     open func reloadVisible() {

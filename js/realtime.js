@@ -1331,7 +1331,7 @@ class Transaction {
         );
       }
       const ancestorKey = Object.keys(this.values).find(k => key.startsWith(k));
-      if (ancestorKey) {
+      if (ancestorKey) { // TODO: Resolve this vulnerability
         console.warn(
           "Transaction: already has value ",
           { [ancestorKey]: this.values[ancestorKey] },

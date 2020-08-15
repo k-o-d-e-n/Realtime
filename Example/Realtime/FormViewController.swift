@@ -239,12 +239,12 @@ class FormViewController: UITableViewController {
                 cell.textLabel?.text <== name
             }, nil)
         })
-        row.onSelect({ (ip, row) in
+        row.onSelect({ (ctx, row) in
             guard let c = row.view, let user = row.model else { return }
 
             let isAdded = c.accessoryType == .none
             c.accessoryType = isAdded ? .checkmark : .none
-            let follower = Global.rtUsers[ip.row]
+            let follower = Global.rtUsers[ctx.indexPath.row]
             let contains = user.followers.contains(follower)
             if isAdded, !contains {
                 user.followers.insert(element: follower)
