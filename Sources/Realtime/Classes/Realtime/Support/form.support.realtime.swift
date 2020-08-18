@@ -8,7 +8,7 @@
 #if os(iOS)
 import UIKit
 
-public enum CellBuilder<View> {
+public enum RowViewBuilder<View> {
     case reuseIdentifier(String)
     case `static`(View)
     case custom((UITableView, IndexPath) -> View)
@@ -32,6 +32,7 @@ extension RowState {
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     fileprivate var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
     fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe())
+    public typealias UpdateEvent = (view: View, model: Model)
     fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.repeater!.compactMap(), _model.repeater!.compactMap())
     public typealias DidSelectEvent = (form: Form<Model>, indexPath: IndexPath)
     private lazy var _didSelect: Repeater<DidSelectEvent> = .unsafe()
@@ -45,15 +46,15 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         get { return _model.wrappedValue }
     }
 
-    let cellBuilder: CellBuilder<View>
+    let viewBuilder: RowViewBuilder<View>
 
-    public required init(cellBuilder: CellBuilder<View>) {
-        self.cellBuilder = cellBuilder
+    public required init(viewBuilder: RowViewBuilder<View>) {
+        self.viewBuilder = viewBuilder
     }
     deinit {}
 
     public convenience init(reuseIdentifier: String) {
-        self.init(cellBuilder: .reuseIdentifier(reuseIdentifier))
+        self.init(viewBuilder: .reuseIdentifier(reuseIdentifier))
     }
 
     open subscript<T>(dynamicMember member: String) -> T? {
@@ -61,8 +62,22 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         get { return dynamicValues[member] as? T }
     }
 
+    public func mapUpdate() -> Accumulator<(View, Model)>.CompactMap<(UpdateEvent, Row<View, Model>)> {
+        _update.compactMap({ [weak self] event -> (UpdateEvent, Row<View, Model>)? in
+            guard let `self` = self else { return nil }
+            return (event, self)
+        })
+    }
+
     open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
         _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+    }
+
+    open func mapSelect() -> Repeater<DidSelectEvent>.CompactMap<(DidSelectEvent, Row<View, Model>)> {
+        _didSelect.compactMap({ [weak self] event -> (DidSelectEvent, Row<View, Model>)? in
+            guard let `self` = self else { return nil }
+            return (event, self)
+        })
     }
 
     open func onSelect(_ doit: @escaping (DidSelectEvent, Row<View, Model>) -> Void) {
@@ -88,10 +103,10 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
 }
 extension Row where View: UITableViewCell {
     public convenience init(static view: View) {
-        self.init(cellBuilder: .static(view))
+        self.init(viewBuilder: .static(view))
     }
     internal func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
-        switch cellBuilder {
+        switch viewBuilder {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath)
         case .static(let cell): return cell
@@ -104,7 +119,7 @@ public extension Row where View: UIView {
         return state.contains(.displaying) && super._isVisible
     }
     internal func build(for tableView: UITableView, at section: Int) -> UIView? {
-        switch cellBuilder {
+        switch viewBuilder {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableHeaderFooterView(withIdentifier: identifier)
         case .static(let view): return view
@@ -129,7 +144,7 @@ extension Row {
         if !state.contains(.displaying) || self.view !== view {
             self.indexPath = indexPath
             self.view = view
-            _model.wrappedValue = model
+            self.model = model
             state.insert(.displaying)
             state.remove(.free)
         }
@@ -302,10 +317,10 @@ open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, 
     lazy var _rowModel: Repeater<RowModel> = Repeater.unsafe()
 
     public required init() {
-        super.init(cellBuilder: .custom({ _,_  in fatalError("Reuse form row does not responsible for cell building") }))
+        super.init(viewBuilder: .custom({ _,_  in fatalError("Reuse form row does not responsible for cell building") }))
     }
 
-    public required init(cellBuilder: CellBuilder<View>) {
+    public required init(viewBuilder: RowViewBuilder<View>) {
         fatalError("Use init() initializer instead")
     }
 
@@ -392,11 +407,11 @@ public struct ReuseRowSectionDataSource<RowModel> {
 extension AnyRealtimeCollection: DynamicSectionDataSource {}
 
 open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
-    typealias CellBuilder = (UITableView, IndexPath) -> UITableViewCell
+    typealias ViewBuilder = (UITableView, IndexPath) -> UITableViewCell
     var updateDispose: Disposable?
     var reuseController: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell> = ReuseController()
     let rowBuilder: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell>.RowBuilder
-    let cellBuilder: CellBuilder
+    let viewBuilder: ViewBuilder
     var dataSource: ReuseRowSectionDataSource<RowModel>
 
     var tableView: UITableView?
@@ -411,17 +426,17 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
 
     public init<Cell: UITableViewCell>(
         _ dataSource: ReuseRowSectionDataSource<RowModel>,
-        cell cellBuilder: @escaping (UITableView, IndexPath) -> Cell,
+        cell viewBuilder: @escaping (UITableView, IndexPath) -> Cell,
         row rowBuilder: @escaping () -> ReuseFormRow<Cell, Model, RowModel>
     ) {
         self.dataSource = dataSource
-        self.cellBuilder = unsafeBitCast(cellBuilder, to: CellBuilder.self)
+        self.viewBuilder = unsafeBitCast(viewBuilder, to: ViewBuilder.self)
         self.rowBuilder = unsafeBitCast(rowBuilder, to: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell>.RowBuilder.self)
         super.init(headerTitle: nil, footerTitle: nil)
     }
 
     override func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
-        return cellBuilder(tableView, indexPath)
+        return viewBuilder(tableView, indexPath)
     }
 
     override func dequeueRow(for cell: UITableViewCell, at index: Int) -> Row<UITableViewCell, Model> {

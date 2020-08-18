@@ -220,7 +220,11 @@ class RealtimeTableController: UITableViewController {
 
 extension RealtimeTableController: RealtimeEditingTableDataSource {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        print("Did select row at \(indexPath): \(Global.rtUsers[indexPath.row])")
+        let user = Global.rtUsers[indexPath.row]
+        print("Did select row at \(indexPath): \(user)")
+        let formViewController = FormViewController(user: user)
+        let navController = UINavigationController(rootViewController: formViewController)
+        present(navController, animated: true, completion: nil)
     }
 
     override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
