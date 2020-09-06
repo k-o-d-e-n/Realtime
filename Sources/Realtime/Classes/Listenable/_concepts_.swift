@@ -268,15 +268,16 @@ protocol CallbackProtocol: CallbackPoint {
     associatedtype T
     func call(back event: ListenEvent<T>)
 }
-struct CallbackQueue<T> {
+#warning("TODO: Add threadsafe callback version with atomic references")
+public struct CallbackQueue<T> {
     let head: Head = Head()
     let tail: Tail = Tail()
 
-    class Point: CallbackProtocol {
+    public class Point: CallbackProtocol {
         var next: Point?
-        var previous: Point?
+        weak var previous: Point?
 
-        func call(back event: ListenEvent<T>) {}
+        public func call(back event: ListenEvent<T>) {}
     }
 
     final class Head: Point {
@@ -297,6 +298,10 @@ struct CallbackQueue<T> {
 
         init(_ sink: Assign<ListenEvent<T>>) {
             self.sink = sink
+        }
+
+        deinit {
+            collapse()
         }
 
         override func call(back event: ListenEvent<T>) {
@@ -326,22 +331,56 @@ struct CallbackQueue<T> {
         }
     }
 }
+extension CallbackQueue: Sequence {
+    public typealias Iterator = Array<Point>.Iterator
+    public func makeIterator() -> Iterator {
+        var currentElements: [Point] = []
+        var point: Point = head
+        while let next = point.next, tail !== next {
+            currentElements.append(next)
+            point = next
+        }
+        return currentElements.makeIterator()
+    }
+    public struct _Iterator: IteratorProtocol {
+        let _last: Point?
+        var _next: Point?
 
+        mutating public func next() -> Point? {
+            defer {
+                _next = _last === _next ? nil : _next?.next
+            }
+            return _next
+        }
+    }
+}
 extension CallbackQueue.Point: Disposable {
-    func dispose() {
+    var isCollapsed: Bool { next == nil && previous == nil }
+    public func dispose() {
         collapse()
     }
 }
-extension CallbackQueue: Listenable {
-    func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
-        enqueue(assign)
-    }
-
+extension CallbackQueue {
     func send(_ event: ListenEvent<T>) {
         var point: Point = head
         while let next = point.next {
             next.call(back: event)
             point = next
         }
+    }
+}
+extension CallbackQueue {
+    func _validate() -> Bool {
+        #if DEBUG
+        var point: Point = head
+        while let next = point.next {
+            guard next.previous === point else { return false }
+            guard next !== tail else { return true }
+            point = next
+        }
+        return point === head
+        #else
+        return true
+        #endif
     }
 }

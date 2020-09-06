@@ -227,6 +227,20 @@ extension OtherTests {
 
         XCTAssertEqual(§property, "string")
     }
+
+    func testUnsafeMutablePointerRetainsObject() {
+        var i = 0
+        let pointer = UnsafeMutablePointer<NSObject>.allocate(capacity: 1)
+        pointer.initialize(to: NSObject())
+        func getResult() {
+            return i = Int(bitPattern: pointer)
+        }
+        getResult()
+        XCTAssertEqual(i, Int(bitPattern: pointer))
+        weak var obj = pointer.pointee
+        pointer.deinitialize(count: 1).deallocate()
+        XCTAssertNil(obj)
+    }
 }
 
 internal func _makeCollectionDescription<C: Collection>(_ collection: C,

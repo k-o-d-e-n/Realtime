@@ -713,7 +713,7 @@ extension ListenableTests {
         exp.expectedFulfillmentCount = 20
         exp.assertForOverFulfill = true
         var store = ListeningDisposeStore()
-        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock(), dispatcher: .queue(DispatchQueue(label: "repeater")))
+        let repeater = _Repeater<Int>(lockedBy: NSRecursiveLock(), dispatcher: .queue(DispatchQueue(label: "repeater")))
         let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { (_) in
             repeater.send(.value(5))
         }
@@ -743,7 +743,7 @@ extension ListenableTests {
         exp.expectedFulfillmentCount = 20
         exp.assertForOverFulfill = true
         var store = ListeningDisposeStore()
-        let repeater = Repeater<Int>.locked(by: NSRecursiveLock())
+        let repeater = _Repeater<Int>.locked(by: NSRecursiveLock())
         let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { (_) in
             DispatchQueue.global().async {
                 repeater.send(.value(5))
@@ -776,7 +776,7 @@ extension ListenableTests {
         var value: Int?
         let repeater = Repeater<Int>(dispatcher: .custom({ (assign, e) in
             RunLoop.current.perform {
-                assign.assign(e)
+                assign.call(back: e)
             }
         }))
         repeater.listening({
@@ -923,7 +923,8 @@ extension ListenableTests {
         XCTAssertEqual(value_counter, 3)
 
         switch sharedSource!.liveStrategy {
-        case .continuous(let dispose): XCTAssertFalse((dispose as? ListeningDispose)?.isDisposed ?? true)
+        case .continuous(let dispose):
+            XCTAssertFalse((dispose as? SingleDispose<CallbackQueue<Int>.Callback>)?.isDisposed ?? true)
         case .repeatable: XCTFail("Unexpected strategy")
         }
 
@@ -1230,6 +1231,7 @@ extension ListenableTests {
 }
 #endif
 
+typealias _Repeater = _RepeaterObsoleted
 extension ListenableTests {
     func testCallbackQueueEnqueueDequeue() {
         let queue = CallbackQueue<String>()
@@ -1286,6 +1288,42 @@ extension ListenableTests {
         XCTAssertEqual(counter, 10_000)
     }
 
+    func testCallbackQueueEnqueueInIterationLoop() {
+        let queue = CallbackQueue<Int>()
+
+        let _ = queue.enqueue(.just({_ in}))
+        let _ = queue.enqueue(.just({_ in}))
+
+        var iterator = queue.makeIterator()
+        var counter = 0
+        while let _ = iterator.next() {
+            let _ = queue.enqueue(.just({_ in}))
+            guard counter < 2 else { return XCTFail("Iterator is not safe for mutability") }
+            counter += 1
+        }
+
+        XCTAssertEqual(counter, 2)
+    }
+
+    func testCallbackQueueCollapseInIterationLoop() {
+        let queue = CallbackQueue<Int>()
+
+        let _ = queue.enqueue(.just({_ in}))
+        let _ = queue.enqueue(.just({_ in}))
+        let last = queue.enqueue(.just({_ in}))
+
+        var iterator = queue.makeIterator()
+        var counter = 0
+        while let _ = iterator.next() {
+            let _ = queue.enqueue(.just({_ in}))
+            last.collapse()
+            guard counter < 3 else { return XCTFail("Iterator is not safe for mutability") }
+            counter += 1
+        }
+
+        XCTAssertEqual(counter, 3)
+    }
+
     func _testCallbackQueuePerformance() {
         let queue = CallbackQueue<Int>()
 
@@ -1298,12 +1336,23 @@ extension ListenableTests {
             queue.send(.value(0))
         }
     }
-    func _testRepeaterPerformance() {
-        let repeater = Repeater<Int>(dispatcher: .default)
+    func _testRepeaterObsoletedPerformance() {
+        let repeater = _RepeaterObsoleted<Int>(dispatcher: .default)
 
         for _ in 0..<10_000_000 {
             let _ = repeater.add(.just({ _ in
             }))
+        }
+
+        measure {
+            repeater.send(.value(0))
+        }
+    }
+    func _testRepeaterPerformance() {
+        let repeater = Repeater<Int>(dispatcher: .default)
+
+        for _ in 0..<10_000_000 {
+            let _ = repeater.listening(.just { _ in })
         }
 
         measure {

@@ -34,6 +34,7 @@ func print(from function: String = #function, total time: TimeInterval) {
 }
 /*
 extension ConceptTests {
+    typealias TestingPromise<T> = __Promise<T>
 
     // MARK: GCD
 
@@ -143,7 +144,7 @@ extension ConceptTests {
         print(total: endDate.timeIntervalSince(startDate))
     }
 
-    // MARK: _Promise
+    // MARK: TestingPromise
 
     /// Measures the average time needed to create a resolved `Promise` and get into a `then` block
     /// chained to it.
@@ -157,7 +158,7 @@ extension ConceptTests {
         // Act.
         DispatchQueue.main.async {
             let time = dispatch_benchmark(Constants.iterationCount) {
-                _Promise<Bool>(true).then(on: queue) { _ in
+                TestingPromise<Bool>(true).then(on: queue) { _ in
                     semaphore.signal()
                     expectation.fulfill()
                 }
@@ -184,7 +185,7 @@ extension ConceptTests {
             var fulfilled_counter = 0
             var expected_counter = 0
             let time = dispatch_benchmark(Constants.iterationCount) {
-                _Promise<Bool>(true)
+                TestingPromise<Bool>(true)
                     .then(on: queue) { $0 }
                     .then(on: queue) { _ in
                         fulfilled_counter += 1
@@ -215,7 +216,7 @@ extension ConceptTests {
         // Act.
         DispatchQueue.main.async {
             let time = dispatch_benchmark(Constants.iterationCount) {
-                _Promise<Bool>(true).then(on: queue) { _ in
+                TestingPromise<Bool>(true).then(on: queue) { _ in
                     }.then(on: queue) { _ in
                     }.then(on: queue) { _ in
                         semaphore.signal()
@@ -236,10 +237,10 @@ extension ConceptTests {
         // Arrange.
         let queue = DispatchQueue(label: #function, qos: .userInitiated, attributes: .concurrent)
         let group = DispatchGroup()
-        var promises = [_Promise<Bool>]()
+        var promises = [TestingPromise<Bool>]()
         for _ in 0..<Constants.iterationCount {
             group.enter()
-            let promise = _Promise<Bool>()
+            let promise = TestingPromise<Bool>()
             promise.then(on: queue) { _ in
                 group.leave()
             }

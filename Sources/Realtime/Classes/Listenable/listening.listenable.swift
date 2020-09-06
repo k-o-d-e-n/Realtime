@@ -76,9 +76,7 @@ public final class SingleDispose<T: Disposable>: Disposable {
     public convenience init(strong value: T?) {
         self.init(storage: .unsafe(strong: value))
     }
-//    public convenience init(unowned value: AnyObject) {
-//        self.init(storage: .unsafe(unowned: value))
-//    }
+
     public func dispose() {
         storage?.wrappedValue?.dispose()
         storage?.wrappedValue = nil

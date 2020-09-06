@@ -9,6 +9,52 @@ import Foundation
 
 /// Provides subscribing and delivering events to listeners
 public struct Repeater<T>: Listenable {
+    let queue: CallbackQueue<T> = CallbackQueue()
+    let dispatcher: Dispatcher
+
+    public enum Dispatcher {
+        case `default`
+        case queue(DispatchQueue)
+        case custom((CallbackQueue<T>.Point, ListenEvent<T>) -> Void)
+    }
+
+    public static func unsafe(with dispatcher: Dispatcher = .default) -> Self {
+        Self(dispatcher: dispatcher)
+    }
+
+    public func send(_ event: ListenEvent<T>) {
+        debugFatalError(condition: !queue._validate(), "CallbackQueue state is invalid")
+        var iterator = queue.makeIterator()
+        while let next = iterator.next() {
+            dispatch(event, for: next)
+        }
+    }
+
+    private func dispatch(_ event: ListenEvent<T>, for callback: CallbackQueue<T>.Point) {
+        switch dispatcher {
+        case .custom(let disp):
+            disp(callback, event)
+        case .queue(let dq):
+            dq.async {
+                callback.call(back: event)
+            }
+        case .default:
+            callback.call(back: event)
+        }
+    }
+
+    public func listening(_ assign: Assign<ListenEvent<T>>) -> Disposable {
+        SingleDispose(weak: queue.enqueue(assign))
+    }
+}
+extension Repeater {
+    public func send(_ input: Out) {
+        self.send(.value(input))
+    }
+}
+
+@available(*, deprecated, message: "Use `Repeater` based on `CallbackQueue`")
+struct _RepeaterObsoleted<T>: Listenable {
     let sender: (ListenEvent<T>) -> Void
     let _remove: (UInt) -> Void
     let _add: (Assign<ListenEvent<T>>) -> UInt
@@ -30,8 +76,8 @@ public struct Repeater<T>: Listenable {
     /// Returns repeater that has no thread-safe context
     ///
     /// - Parameter dispatcher: Closure that implements method of dispatch events to listeners
-    public static func unsafe(with dispatcher: Dispatcher = .default) -> Repeater<T> {
-        return Repeater(dispatcher: dispatcher)
+    public static func unsafe(with dispatcher: Dispatcher = .default) -> Self {
+        return Self(dispatcher: dispatcher)
     }
     /// Creates new instance that has no thread-safe working context
     ///
@@ -61,8 +107,8 @@ public struct Repeater<T>: Listenable {
         }
     }
 
-    public static func locked(by lock: NSLocking = NSRecursiveLock(), dispatcher: Dispatcher = .default) -> Repeater<T> {
-        return Repeater(lockedBy: lock, dispatcher: dispatcher)
+    public static func locked(by lock: NSLocking = NSRecursiveLock(), dispatcher: Dispatcher = .default) -> Self {
+        return Self(lockedBy: lock, dispatcher: dispatcher)
     }
 
     /// Creates new instance that has thread-safe implementation using lock object.
@@ -120,11 +166,6 @@ public struct Repeater<T>: Listenable {
         return ListeningDispose({
             self._remove(token)
         })
-    }
-}
-extension Repeater {
-    func send(_ input: Out) {
-        self.send(.value(input))
     }
 }
 
@@ -240,7 +281,7 @@ public struct ValueStorage<T> {
     ///
     /// - Parameter error: Error instance
     public func sendError(_ error: Error) {
-        repeater?.sender(.error(error))
+        repeater?.send(.error(error))
     }
 
     /// Replaces stored value with new value without emitting change event
