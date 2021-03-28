@@ -88,9 +88,9 @@ class SwiftUIViewModel: ObservableObject {
 }
 
 class User1: Object {
-    lazy var name: ReadonlyProperty<String> = "name".property(in: self)
-    lazy var birthdate: ReadonlyProperty<Date> = "birthdate".date(in: self)
-    lazy var photo: ReadonlyFile<UIImage> = "photo".readonlyJpeg(in: self)
+    lazy var name: ReadonlyProperty<String> = l().property(in: self)
+    lazy var birthdate: ReadonlyProperty<Date> = l().date(in: self)
+    lazy var photo: ReadonlyFile<UIImage> = l().readonlyJpeg(in: self)
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {

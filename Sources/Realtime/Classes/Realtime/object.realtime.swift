@@ -906,6 +906,10 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         """
     }
 }
+extension RealtimeValue {
+    @inlinable
+    public func l(_ name: String = #function) -> String { name }
+}
 
 extension RTime: Listenable where Base: Object {
     public typealias Out = Base

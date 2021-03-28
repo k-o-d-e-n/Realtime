@@ -19,8 +19,8 @@ enum Global {
 }
 
 class Conversation: Object {
-    lazy var chairman: Reference<User> = "chairman".reference(in: self, mode: .fullPath)
-    lazy var secretary: Reference<User?> = "secretary".reference(in: self, mode: .fullPath)
+    lazy var chairman: Reference<User> = l().reference(in: self, mode: .fullPath)
+    lazy var secretary: Reference<User?> = l().reference(in: self, mode: .fullPath)
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -32,12 +32,12 @@ class Conversation: Object {
 }
 
 class Group: Object {
-    lazy var name: Property<String> = "name".property(in: self)
-    lazy var users: MutableReferences<User> = "users".references(in: self, mode: .path(from: Global.rtUsers.node!))
-    lazy var conversations: AssociatedValues<User, User> = "conversations".dictionary(in: self, keys: Global.rtUsers.node!)
-    lazy var manager: Relation<User?> = "manager".relation(in: self, .one(name: "ownedGroup"))
+    lazy var name: Property<String> = l().property(in: self)
+    lazy var users: MutableReferences<User> = l().references(in: self, mode: .path(from: Global.rtUsers.node!))
+    lazy var conversations: AssociatedValues<User, User> = l().dictionary(in: self, keys: Global.rtUsers.node!)
+    lazy var manager: Relation<User?> = l().relation(in: self, .one(name: "ownedGroup"))
 
-    lazy var _manager: Relation<User?> = "_manager".relation(in: self, .many(format: "ownedGroups/%@"))
+    lazy var _manager: Relation<User?> = l().relation(in: self, .many(format: "ownedGroups/%@"))
 
     override open class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -52,21 +52,15 @@ class Group: Object {
 }
 
 class User: Object {
-    lazy var name: Property<String> = "name".property(in: self)
-    lazy var age: Property<UInt8> = "age".property(in: self)
-    lazy var photo: File<Data?> = "photo".file(in: self, representer: .realtimeDataValue)
-    lazy var groups: MutableReferences<Group> = "groups".references(in: self, mode: .path(from: Global.rtGroups.node!))
-    lazy var followers: MutableReferences<User> = "followers".references(in: self, mode: .path(from: Global.rtUsers.node!))
-    lazy var scheduledConversations: Values<Conversation> = "scheduledConversations".values(in: self)
+    lazy var name: Property<String> = l().property(in: self)
+    lazy var age: Property<UInt8> = l().property(in: self)
+    lazy var photo: File<Data?> = l().file(in: self, representer: .realtimeDataValue)
+    lazy var groups: MutableReferences<Group> = l().references(in: self, mode: .path(from: Global.rtGroups.node!))
+    lazy var followers: MutableReferences<User> = l().references(in: self, mode: .path(from: Global.rtUsers.node!))
+    lazy var scheduledConversations: Values<Conversation> = l().values(in: self)
 
-    lazy var ownedGroup: Relation<Group?> = "ownedGroup".relation(in: self, .one(name: "manager"))
-    lazy var ownedGroups: Relations<Group> = "ownedGroups".relations(in: self, .one(name: "_manager"))
-
-    //    override class var keyPaths: [String: AnyKeyPath] {
-    //        return super.keyPaths.merging(["name": \RealtimeUser.name, "age": \RealtimeUser.age], uniquingKeysWith: { (_, new) -> AnyKeyPath in
-    //            return new
-    //        })
-    //    }
+    lazy var ownedGroup: Relation<Group?> = l().relation(in: self, .one(name: "manager"))
+    lazy var ownedGroups: Relations<Group> = l().relations(in: self, .one(name: "_manager"))
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
@@ -84,7 +78,7 @@ class User: Object {
 }
 
 class User2: User {
-    lazy var human: Property<String> = "human".property(in: self)
+    lazy var human: Property<String> = l().property(in: self)
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {

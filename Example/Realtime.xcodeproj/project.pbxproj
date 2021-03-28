@@ -75,6 +75,7 @@
 		A41BC0122040098800D1A9E8 /* RealtimeViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RealtimeViewController.swift; sourceTree = "<group>"; };
 		A41FD588211EF890006DC3F7 /* other.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = other.swift; sourceTree = "<group>"; };
 		A432591523740FB30011B0B6 /* SwiftUIView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftUIView.swift; sourceTree = "<group>"; };
+		A43FAD7726108C0200C74BA5 /* Realtime_Example.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Realtime_Example.entitlements; sourceTree = "<group>"; };
 		A44331B52020E9E900BA2FDE /* Auth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Auth.swift; sourceTree = "<group>"; };
 		A44866B823A422D6006500ED /* Realtime_FDB.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Realtime_FDB.entitlements; sourceTree = "<group>"; };
 		A4773C3020DFEAB2002D182A /* RealtimeTableController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeTableController.swift; sourceTree = "<group>"; };
@@ -134,6 +135,7 @@
 		607FACC71AFB9204008FA782 = {
 			isa = PBXGroup;
 			children = (
+				A43FAD7726108C0200C74BA5 /* Realtime_Example.entitlements */,
 				A4D60701234296EB003D0BAD /* Package.swift */,
 				607FACF51AFB993E008FA782 /* Podspec Metadata */,
 				607FACD21AFB9204008FA782 /* Example for Realtime */,
@@ -720,6 +722,7 @@
 			baseConfigurationReference = 3DB9A4432EA52B60DC2077FE /* Pods-Example-Realtime_Example.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Realtime_Example.entitlements;
 				DEVELOPMENT_TEAM = 39RU298KG9;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -764,10 +767,12 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "k-o-d-e-n.Realtime-Example";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG FIREBASE";
 				SWIFT_ENFORCE_EXCLUSIVE_ACCESS = full;
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -776,6 +781,7 @@
 			baseConfigurationReference = A78E0E14222A121AB507E9B1 /* Pods-Example-Realtime_Example.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Realtime_Example.entitlements;
 				DEVELOPMENT_TEAM = 39RU298KG9;
 				ENABLE_TESTABILITY = YES;
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -820,10 +826,12 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "k-o-d-e-n.Realtime-Example";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG FIREBASE";
 				SWIFT_ENFORCE_EXCLUSIVE_ACCESS = full;
 				SWIFT_SWIFT3_OBJC_INFERENCE = Default;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
