@@ -17,56 +17,6 @@ internal let lazyStoragePath = "$__lazy_storage_$_"
 internal let lazyStoragePath = ".storage"
 #endif
 
-public struct RealtimeError: LocalizedError {
-    let description: String
-    public let source: Source
-
-    public var localizedDescription: String { return description }
-
-    init(source: Source, description: String) {
-        self.source = source
-        self.description = description
-    }
-
-    /// Shows part or process of Realtime where error is happened.
-    ///
-    /// - value: Error from someone class of property
-    /// - collection: Error from someone class of collection
-    /// - listening: Error from Listenable part
-    /// - coding: Error on coding process
-    /// - transaction: Error in `Transaction`
-    /// - cache: Error in cache
-    public enum Source {
-        indirect case external(Error, Source)
-
-        case value
-        case file
-        case collection
-
-        case listening
-        case coding
-        case objectCoding([String: Error])
-        case transaction([Error])
-        case cache
-        case database
-        case storage
-    }
-
-    init(external error: Error, in source: Source, description: String = "") {
-        self.source = .external(error, source)
-        self.description = "External error: \(String(describing: error))"
-    }
-    init<T>(initialization type: T.Type, _ data: Any) {
-        self.init(source: .coding, description: "Failed initialization type: \(T.self) with data: \(data)")
-    }
-    init<T>(decoding type: T.Type, _ data: Any, reason: String) {
-        self.init(source: .coding, description: "Failed decoding data: \(data) to type: \(T.self). Reason: \(reason)")
-    }
-    init<T>(encoding value: T, reason: String) {
-        self.init(source: .coding, description: "Failed encoding value of type: \(value). Reason: \(reason)")
-    }
-}
-
 /// A type that contains key of database node
 public protocol DatabaseKeyRepresentable {
     var dbKey: String! { get }

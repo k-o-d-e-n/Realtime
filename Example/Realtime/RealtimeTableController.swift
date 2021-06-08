@@ -150,9 +150,7 @@ class RealtimeTableController: UITableViewController {
     let listeningControl: Repeater<Bool> = .unsafe()
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        #if FIREBASE
-        Global.rtUsers.dataExplorer = .viewByPages(control: pagingControl, size: 2, ascending: ascending)
-        #endif
+        Global.rtUsers.dataExplorer = .viewByPages(control: pagingControl, size: 5, ascending: ascending)
         listeningControl.send(.value(true))
         Global.rtUsers.runObserving()
     }
@@ -165,11 +163,7 @@ class RealtimeTableController: UITableViewController {
     }
 
     @objc func refreshData(_ control: UIRefreshControl) {
-        if ascending {
-            _ = pagingControl.next()
-        } else {
-            _ = pagingControl.previous()
-        }
+        _ = pagingControl.previous()
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3)) {
             if control.isRefreshing {
                 control.endRefreshing()
@@ -226,7 +220,11 @@ class RealtimeTableController: UITableViewController {
 
 extension RealtimeTableController: RealtimeEditingTableDataSource {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        print("Did select row at \(indexPath)")
+        let user = Global.rtUsers[indexPath.row]
+        print("Did select row at \(indexPath): \(user)")
+        let formViewController = FormViewController(user: user)
+        let navController = UINavigationController(rootViewController: formViewController)
+        present(navController, animated: true, completion: nil)
     }
 
     override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {

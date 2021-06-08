@@ -626,7 +626,7 @@ public final class SectionedTableViewDelegate<Model, Section>: TableViewDelegate
     /// Sets new source of elements
     public func tableView<C: BidirectionalCollection>(_ tableView: UITableView, newData: C)
         where C.Element == Section {
-            self.reuseController.freeAll()
+            reuseController.freeAll()
             self.sections = AnySharedCollection(newData)
             tableView.reloadData()
     }

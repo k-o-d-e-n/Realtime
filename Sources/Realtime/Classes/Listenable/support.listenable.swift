@@ -33,11 +33,6 @@ public extension Listenable {
         })
     }
 }
-extension Property: RealtimeListener {
-    public func take(realtime value: T) {
-        self <== value
-    }
-}
 
 public protocol RealtimeCompatible {
     associatedtype Current = Self
@@ -71,11 +66,6 @@ extension Optional: _Optional {
 }
 
 public extension Listenable {
-    func bind<T>(to property: Property<T>) -> Disposable where T == Out {
-        return listening(onValue: { value in
-            property <== value
-        })
-    }
     func bind<T>(to obj: T, _ keyPath: WritableKeyPath<T, Out>, onError: ((Error) -> Void)? = nil) -> Disposable {
         var object = obj
         return listening({ (state) in
@@ -460,10 +450,6 @@ extension Constant: Publisher {
 }
 extension SequenceListenable: Publisher {
     public typealias Output = Element
-    public typealias Failure = Error
-}
-extension ReadonlyProperty: Publisher {
-    public typealias Output = PropertyState<T>
     public typealias Failure = Error
 }
 #endif

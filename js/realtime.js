@@ -224,7 +224,7 @@ class Property extends RealtimeValue {
     { val, optional = false, readonly = false, representer } = {}
   ) {
     super(ref);
-    this.value = val;
+    this.value = val; // TODO: remove?
     Object.defineProperty(this, "value", {
       value: val,
       writable: !readonly,
@@ -839,7 +839,6 @@ exports.Values = class Values extends RealtimeCollection {
     if (this.viewWritable) {
       const linkKey = this.view.ref.push().key;
       let viewElement = {};
-      viewElement[dev.InternalKeys.index] = this.length;
       viewElement[dev.InternalKeys.link] = linkKey;
       let valuePayload = {};
       if (element.raw) {
@@ -1017,7 +1016,6 @@ exports.AssociatedValues = class AssociatedValues extends RealtimeCollection {
     if (this.viewWritable && isRealtimeValue) {
       const linkKey = this.view.ref.push().key;
       let viewElement = {};
-      viewElement[dev.InternalKeys.index] = this.length;
       viewElement[dev.InternalKeys.link] = linkKey;
       let keyPayload = {};
       if (element[0].raw) {
@@ -1289,7 +1287,7 @@ exports.PagingDataExplorer = class PagingDataExplorer {
   }
 }
 
-exports.Transaction = class Transaction {
+class Transaction {
   constructor(database, storage) {
     this.database = database;
     this.storage = storage;
@@ -1333,7 +1331,7 @@ exports.Transaction = class Transaction {
         );
       }
       const ancestorKey = Object.keys(this.values).find(k => key.startsWith(k));
-      if (ancestorKey) {
+      if (ancestorKey) { // TODO: Resolve this vulnerability
         console.warn(
           "Transaction: already has value ",
           { [ancestorKey]: this.values[ancestorKey] },
@@ -1409,6 +1407,7 @@ exports.Transaction = class Transaction {
     });
   }
 }
+exports.Transaction = Transaction;
 
 class ObjectUpdaterHandler {
   constructor(transaction) {

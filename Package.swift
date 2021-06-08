@@ -1,15 +1,25 @@
-// swift-tools-version:5.1
-// The swift-tools-version declares the minimum version of Swift required to build this package.
+// swift-tools-version:5.2
 
 import PackageDescription
 
+var packageDependencies: [Package.Dependency] = [
+    .package(name: "Promise.swift", url: "https://github.com/k-o-d-e-n/promise.swift.git", .branch("master"))
+]
+var targetDependencies: [Target.Dependency] = [
+    .product(name: "Promise.swift", package: "Promise.swift")
+]
+#if os(Linux)
+packageDependencies += [
+    .package(url: "https://github.com/apple/swift-se-0282-experimental", .branch("master"))
+]
+targetDependencies += [
+    .product(name: "SE0282_Experimental", package: "swift-se-0282-experimental"),
+]
+#endif
+
 let package = Package(
     name: "Realtime",
-    platforms: [
-        .iOS(.v13), .macOS(.v10_15)
-    ],
     products: [
-        // Products define the executables and libraries produced by a package, and make them visible to other packages.
         .library(
             name: "Realtime",
             targets: ["Realtime"]
@@ -23,17 +33,11 @@ let package = Package(
             targets: ["Realtime+Firebase"]
         ),
     ],
-    dependencies: [
-        // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/glessard/swift-atomics.git", from: "5.0.1"),
-        .package(url: "https://github.com/k-o-d-e-n/promise.swift.git", .branch("master"))
-    ],
+    dependencies: packageDependencies,
     targets: [
-        // Targets are the basic building blocks of a package. A target can define a module or a test suite.
-        // Targets can depend on other targets in this package, and on products in packages which this package depends on.
         .target(
             name: "Realtime",
-            dependencies: ["CAtomics", "Promise.swift"]
+            dependencies: targetDependencies
         ),
         .target(
             name: "Realtime+Firebase",
@@ -42,8 +46,7 @@ let package = Package(
         .target(
             name: "RealtimeTestLib",
             dependencies: ["Realtime"],
-            path: "./Tests/RealtimeTestLib",
-            sources: ["./", "../../Example/Realtime/Entities.swift"]
+            path: "./Tests/RealtimeTestLib"
         ),
         .testTarget(
             name: "RealtimeTests",

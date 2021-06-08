@@ -892,6 +892,7 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
             }
             values.append(",\n")
         }
+        // TODO: It seems, Int(bitPattern:) can used to get object address
         return """
         \(type(of: self)): \(withUnsafePointer(to: self, String.init(describing:))) {
             ref: \(node?.absolutePath ?? "not referred"),
@@ -904,6 +905,10 @@ open class Object: _RealtimeValue, ChangeableRealtimeValue, WritableRealtimeValu
         }
         """
     }
+}
+extension RealtimeValue {
+    @inlinable
+    public func l(_ name: String = #function) -> String { name }
 }
 
 extension RTime: Listenable where Base: Object {

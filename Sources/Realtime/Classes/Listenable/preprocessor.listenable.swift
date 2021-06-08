@@ -277,7 +277,7 @@ public struct Once<T: Listenable>: Listenable {
     }
 
     public func listening(_ assign: Assign<ListenEvent<T.Out>>) -> Disposable {
-        let disposable: SingleDispose = SingleDispose(weak: nil)
+        let disposable: SingleDispose<ListeningDispose> = SingleDispose(weak: nil)
         let dispose = ListeningDispose(
             listenable
                 .filter({ _ in disposable.isDisposed == false })
@@ -1067,11 +1067,6 @@ public extension Listenable where Out: Comparable {
 public extension Listenable where Out: _Optional {
     func `default`(_ defaultValue: Out.Wrapped) -> Preprocessor<Self, Out.Wrapped> {
         return map({ $0.wrapped ?? defaultValue })
-    }
-}
-public extension Listenable where Out: _Optional, Out.Wrapped: HasDefaultLiteral {
-    func `default`() -> Preprocessor<Self, Out.Wrapped> {
-        return map({ $0.wrapped ?? Out.Wrapped() })
     }
 }
 

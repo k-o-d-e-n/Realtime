@@ -132,7 +132,7 @@ public final class ListenableTests: XCTestCase {
         backgroundProperty <== .red
         backgroundProperty <== .green
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2), execute: exp.fulfill)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2), execute: { exp.fulfill() })
 
         waitForExpectations(timeout: 5) { (err) in
             err.map { XCTFail($0.localizedDescription) }
@@ -713,7 +713,7 @@ extension ListenableTests {
         exp.expectedFulfillmentCount = 20
         exp.assertForOverFulfill = true
         var store = ListeningDisposeStore()
-        let repeater = Repeater<Int>(lockedBy: NSRecursiveLock(), dispatcher: .queue(DispatchQueue(label: "repeater")))
+        let repeater = _Repeater<Int>(lockedBy: NSRecursiveLock(), dispatcher: .queue(DispatchQueue(label: "repeater")))
         let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { (_) in
             repeater.send(.value(5))
         }
@@ -743,7 +743,7 @@ extension ListenableTests {
         exp.expectedFulfillmentCount = 20
         exp.assertForOverFulfill = true
         var store = ListeningDisposeStore()
-        let repeater = Repeater<Int>.locked(by: NSRecursiveLock())
+        let repeater = _Repeater<Int>.locked(by: NSRecursiveLock())
         let timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { (_) in
             DispatchQueue.global().async {
                 repeater.send(.value(5))
@@ -776,7 +776,7 @@ extension ListenableTests {
         var value: Int?
         let repeater = Repeater<Int>(dispatcher: .custom({ (assign, e) in
             RunLoop.current.perform {
-                assign.assign(e)
+                assign.call(back: e)
             }
         }))
         repeater.listening({
@@ -902,7 +902,7 @@ extension ListenableTests {
                 }
             })
             .map(UInt32.init)
-            .map(arc4random_uniform)
+            .map(getRandomNum)
             .do(onValue: { print($0) })
             .asAny()
             .shared(connectionLive: .continuous)
@@ -923,7 +923,8 @@ extension ListenableTests {
         XCTAssertEqual(value_counter, 3)
 
         switch sharedSource!.liveStrategy {
-        case .continuous(let dispose): XCTAssertFalse((dispose as? ListeningDispose)?.isDisposed ?? true)
+        case .continuous(let dispose):
+            XCTAssertFalse((dispose as? SingleDispose<CallbackQueue<Int>.Callback>)?.isDisposed ?? true)
         case .repeatable: XCTFail("Unexpected strategy")
         }
 
@@ -947,7 +948,7 @@ extension ListenableTests {
                 }
             })
             .map(UInt32.init)
-            .map(arc4random_uniform)
+            .map(getRandomNum)
             .do(onValue: { print($0) })
             .asAny()
             .shared(connectionLive: .repeatable)
@@ -998,7 +999,7 @@ extension ListenableTests {
                 }
             })
             .map(UInt32.init)
-            .map(arc4random_uniform)
+            .map(getRandomNum)
             .do(onValue: { print($0) })
             .asAny()
             .share(connectionLive: .repeatable)
@@ -1050,7 +1051,7 @@ extension ListenableTests {
                 }
             })
             .map(UInt32.init)
-            .map(arc4random_uniform)
+            .map(getRandomNum)
             .do(onValue: { print($0) })
             .asAny()
             .share(connectionLive: .continuous)
@@ -1229,3 +1230,151 @@ extension ListenableTests {
     }
 }
 #endif
+
+typealias _Repeater = _RepeaterObsoleted
+extension ListenableTests {
+    func testCallbackQueueEnqueueDequeue() {
+        let queue = CallbackQueue<String>()
+
+        let cb = queue.enqueue(.just({ (string) in
+            print(string)
+        }))
+
+        XCTAssertTrue(queue.head.next === cb)
+        XCTAssertTrue(queue.tail.previous === cb)
+
+        let point = queue.dequeue()
+
+        XCTAssertTrue(point === cb)
+        XCTAssertNil(point?.next)
+        XCTAssertNil(point?.previous)
+        XCTAssertTrue(queue.head.next === queue.tail)
+        XCTAssertTrue(queue.tail.previous === queue.head)
+    }
+
+    func testCallbackQueueEnqueueCollapse() {
+        let queue = CallbackQueue<String>()
+
+        let cb = queue.enqueue(.just({ (string) in
+            print(string)
+        }))
+
+        XCTAssertTrue(queue.head.next === cb)
+        XCTAssertTrue(queue.tail.previous === cb)
+
+        cb.collapse()
+
+        XCTAssertNil(cb.next)
+        XCTAssertNil(cb.previous)
+        XCTAssertTrue(queue.head.next === queue.tail)
+        XCTAssertTrue(queue.tail.previous === queue.head)
+    }
+
+    func testCallbackQueueIteration() {
+        let queue = CallbackQueue<Int>()
+
+        var counter: Int = 0
+        for i in 0..<10_000 {
+            let _ = queue.enqueue(.just({ (num) in
+                counter += 1
+                XCTAssertEqual(i, num.value)
+            }))
+        }
+
+        while let callback = queue.dequeue() {
+            callback.call(back: .value(counter))
+        }
+
+        XCTAssertEqual(counter, 10_000)
+    }
+
+    func testCallbackQueueEnqueueInIterationLoop() {
+        let queue = CallbackQueue<Int>()
+
+        let _ = queue.enqueue(.just({_ in}))
+        let _ = queue.enqueue(.just({_ in}))
+
+        var iterator = queue.makeIterator()
+        var counter = 0
+        while let _ = iterator.next() {
+            let _ = queue.enqueue(.just({_ in}))
+            guard counter < 2 else { return XCTFail("Iterator is not safe for mutability") }
+            counter += 1
+        }
+
+        XCTAssertEqual(counter, 2)
+    }
+
+    func testCallbackQueueCollapseInIterationLoop() {
+        let queue = CallbackQueue<Int>()
+
+        let _ = queue.enqueue(.just({_ in}))
+        let _ = queue.enqueue(.just({_ in}))
+        let last = queue.enqueue(.just({_ in}))
+
+        var iterator = queue.makeIterator()
+        var counter = 0
+        while let _ = iterator.next() {
+            let _ = queue.enqueue(.just({_ in}))
+            last.collapse()
+            guard counter < 3 else { return XCTFail("Iterator is not safe for mutability") }
+            counter += 1
+        }
+
+        XCTAssertEqual(counter, 3)
+    }
+
+    func _testCallbackQueuePerformance() {
+        let queue = CallbackQueue<Int>()
+
+        for _ in 0..<10_000_000 {
+            let _ = queue.enqueue(.just({ _ in
+            }))
+        }
+
+        measure {
+            queue.send(.value(0))
+        }
+    }
+    func _testRepeaterObsoletedPerformance() {
+        let repeater = _RepeaterObsoleted<Int>(dispatcher: .default)
+
+        for _ in 0..<10_000_000 {
+            let _ = repeater.add(.just({ _ in
+            }))
+        }
+
+        measure {
+            repeater.send(.value(0))
+        }
+    }
+    func _testRepeaterPerformance() {
+        let repeater = Repeater<Int>(dispatcher: .default)
+
+        for _ in 0..<10_000_000 {
+            let _ = repeater.listening(.just { _ in })
+        }
+
+        measure {
+            repeater.send(.value(0))
+        }
+    }
+    #if canImport(Combine)
+    @available(iOS 13.0, macOS 10.15, *)
+    func _testCombinePassthroughSubjectPerformance() { /// fails
+        var disposes: [Disposable] = []
+        let repeater = PassthroughSubject<Int, Error>()
+
+        for _ in 0..<10_000_000 {
+            repeater.sink(
+                receiveCompletion: { _ in },
+                receiveValue: { _ in }
+            ).add(to: &disposes)
+        }
+
+        measure {
+            repeater.send(0)
+        }
+    }
+    #endif
+}

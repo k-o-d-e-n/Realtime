@@ -17,6 +17,7 @@ public protocol UpdateNode: RealtimeDataProtocol {
     ///   - container: `inout` dictionary container.
     ///   - reducer: Closure to reduce
     func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows
+    func reduceFiles<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?, RealtimeMetadata?) throws -> Void) rethrows
 }
 extension UpdateNode {
     public var database: RealtimeDatabase? { return Cache.root }
@@ -72,6 +73,7 @@ class ValueNode: UpdateNode {
     func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {
         try reducer(&container, location, value)
     }
+    public func reduceFiles<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?, RealtimeMetadata?) throws -> Void) rethrows {}
 
     required init(node: Node, value: RealtimeDatabaseValue?) {
         debugFatalError(
@@ -188,7 +190,7 @@ extension ValueNode: RealtimeDataProtocol, Sequence {
     }
 }
 
-class FileNode: ValueNode {
+final class FileNode: ValueNode {
     var metadata: [String: Any] = [:]
 
     required init(node: Node, value: RealtimeDatabaseValue?) {
@@ -213,6 +215,9 @@ class FileNode: ValueNode {
     }
 
     override func reduceValues<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?) throws -> Void) rethrows {}
+    public override func reduceFiles<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?, RealtimeMetadata?) throws -> Void) rethrows {
+        try reducer(&container, location, value, metadata)
+    }
     var database: RealtimeDatabase? { return nil }
 }
 
@@ -259,6 +264,14 @@ class ObjectNode: UpdateNode, CustomStringConvertible {
             switch node {
             case .value(let v as UpdateNode), .object(let v as UpdateNode): try v.reduceValues(into: &container, reducer)
             case .file: break
+            }
+        }
+    }
+    public func reduceFiles<C>(into container: inout C, _ reducer: (inout C, Node, RealtimeDatabaseValue?, RealtimeMetadata?) throws -> Void) rethrows {
+        try childs.forEach { (node) in
+            switch node {
+            case .file(let v as UpdateNode), .object(let v as UpdateNode): try v.reduceFiles(into: &container, reducer)
+            case .value: break
             }
         }
     }
@@ -550,11 +563,13 @@ extension CacheNode {
     }
 }
 
-class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
+final class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     var isConnectionActive: AnyListenable<Bool> { return AnyListenable(Constant(true)) }
 
     static let root: Cache = Cache(node: .root)
     var observers: [Node: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)>] = [:]
+    var disposables: [UInt: Disposable] = [:]
+    var counter: UInt = 0
 
     func clear() {
         childs.removeAll()
@@ -606,7 +621,7 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     }
 
     func removeObserver(for node: Node, with token: UInt) {
-        observers[node]?.remove(token)
+        disposables.removeValue(forKey: token)?.dispose()
     }
 
     func load(for node: Node, timeout: DispatchTimeInterval, completion: @escaping (RealtimeDataProtocol) -> Void, onCancel: ((Error) -> Void)?) {
@@ -629,8 +644,9 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
     func observe(_ event: DatabaseDataEvent, on node: Node, onUpdate: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void, onCancel: ((Error) -> Void)?) -> UInt {
         let repeater: Repeater<(RealtimeDataProtocol, DatabaseDataEvent)> = self.repeater(for: node)
 
-        return repeater.add(Closure
-            .just { e in
+        defer { counter += 1 }
+        disposables[counter] = repeater.listening(
+            Closure.just { e in
                 switch e {
                 case .value(let val): onUpdate(val.0, event)
                 case .error(let err): onCancel?(err)
@@ -644,16 +660,14 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
                     return received == defined
                 default: return false
                 }
-            }))
+            })
+        )
+        return counter
     }
 
     func observe(_ event: DatabaseDataEvent, on node: Node, limit: UInt, before: Any?, after: Any?, ascending: Bool, ordering: RealtimeDataOrdering,
                  completion: @escaping (RealtimeDataProtocol, DatabaseDataEvent) -> Void,
                  onCancel: ((Error) -> Void)?) -> Disposable {
-        fatalError("Unimplemented")
-    }
-
-    func runTransaction(in node: Node, withLocalEvents: Bool, _ updater: @escaping (RealtimeDataProtocol) -> ConcurrentIterationResult, onComplete: ((ConcurrentOperationResult) -> Void)?) {
         fatalError("Unimplemented")
     }
 
@@ -689,12 +703,13 @@ class Cache: ObjectNode, RealtimeDatabase, RealtimeStorage {
         func resume() {}
     }
 
-    func commit(transaction: Transaction, completion: @escaping ([Transaction.FileCompletion]) -> Void) {
-        let results = transaction.updateNode.files.map { (file) -> Transaction.FileCompletion in
+    func commit(files update: UpdateNode, completion: @escaping ([FileCompletion]) -> Void) {
+        guard case let updateNode as ObjectNode = update else { fatalError("Unexpected update") }
+        let results = updateNode.files.map { (file) -> FileCompletion in
             do {
                 let nearest = self.nearestChild(by: Array(file.location.map({ $0.key }).reversed().dropFirst()))
                 if nearest.leftPath.isEmpty {
-                    try update(dbNode: nearest.node, with: file.value)
+                    try self.update(dbNode: nearest.node, with: file.value)
                 } else {
                     var nearestNode: ObjectNode
                     switch nearest.node {

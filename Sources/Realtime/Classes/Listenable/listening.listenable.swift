@@ -7,26 +7,31 @@
 
 import Foundation
 #if os(Linux)
-import Atomics
+import SE0282_Experimental
 
-extension AtomicBool {
-    var isTrue: Bool {
-        mutating get { return value }
+final class AtomicBool {
+    private let _value: UnsafeAtomic<Int>
+
+    init(bool value: Bool) {
+        self._value = .create(initialValue: value ? 1 : 0)
     }
 
-    mutating func swapAndResult() -> Bool {
-        guard !load() else { return false }
-        store(true)
-        return true
+    deinit {
+        _value.destroy()
+    }
+
+    var boolValue: Bool {
+        _value.load(ordering: .relaxed) == 1
+    }
+
+    func swap(to value: Bool) -> Bool {
+        _value.compareExchange(expected: value ? 0 : 1, desired: value ? 1 : 0, ordering: .relaxed).exchanged
     }
 
     static func initialize(_ value: Bool) -> AtomicBool {
-        var value = AtomicBool()
-        value.initialize(false)
-        return value
+        AtomicBool(bool: value)
     }
 }
-
 #else
 struct AtomicBool {
     var _invalidated: Int32
@@ -36,13 +41,13 @@ struct AtomicBool {
     }
 
     static func initialize(_ value: Bool) -> AtomicBool {
-        return AtomicBool(value)
+        AtomicBool(value)
     }
 
-    var isTrue: Bool { return _invalidated == 1 }
+    var boolValue: Bool { _invalidated == 1 }
 
-    mutating func swapAndResult() -> Bool {
-        return OSAtomicCompareAndSwap32Barrier(0, 1, &_invalidated)
+    mutating func swap(to value: Bool) -> Bool {
+        OSAtomicCompareAndSwap32Barrier(0, 1, &_invalidated)
     }
 }
 #endif
@@ -59,42 +64,43 @@ public struct EmptyDispose: Disposable {
     public func dispose() {}
 }
 
-public final class SingleDispose: Disposable {
-    var storage: ValueStorage<AnyObject?>?
+public final class SingleDispose<T: Disposable>: Disposable {
+    var storage: ValueStorage<T?>?
     public var isDisposed: Bool { return storage == nil }
 
-    init(storage: ValueStorage<AnyObject?>) {
+    init(storage: ValueStorage<T?>) {
         self.storage = storage
     }
     deinit { dispose() }
 
-    public convenience init(strong value: AnyObject?) {
+    public convenience init(strong value: T?) {
         self.init(storage: .unsafe(strong: value))
     }
-    public convenience init(weak value: AnyObject?) {
-        self.init(storage: .unsafe(weak: value))
-    }
-//    public convenience init(unowned value: AnyObject) {
-//        self.init(storage: .unsafe(unowned: value))
-//    }
+
     public func dispose() {
+        storage?.wrappedValue?.dispose()
         storage?.wrappedValue = nil
         storage = nil
     }
-    public func replace(with newDispose: AnyObject) {
+    public func replace(with newDispose: T) {
         storage?.wrappedValue = newDispose
+    }
+}
+extension SingleDispose where T: AnyObject {
+    public convenience init(weak value: T?) {
+        self.init(storage: .unsafe(weak: value))
     }
 }
 
 public final class ListeningDispose: Disposable {
     let _dispose: () -> Void
-    var invalidated: AtomicBool = AtomicBool.initialize(false)
-    public var isDisposed: Bool { return invalidated.isTrue }
+    var invalidated: AtomicBool = .initialize(false)
+    public var isDisposed: Bool { invalidated.boolValue }
     public init(_ dispose: @escaping () -> Void) {
         self._dispose = dispose
     }
     public func dispose() {
-        if invalidated.swapAndResult() {
+        if invalidated.swap(to: true) {
             _dispose()
         }
     }

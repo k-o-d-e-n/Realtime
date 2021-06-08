@@ -37,3 +37,4 @@ GoogleService-Info.plist
 Auth.swift
 
 \.build/
+Realtime.xcodeproj

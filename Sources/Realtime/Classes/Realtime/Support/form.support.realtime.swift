@@ -7,12 +7,11 @@
 
 #if os(iOS)
 import UIKit
-
 #if canImport(Combine)
 import Combine
 #endif
 
-public enum CellBuilder<View> {
+public enum RowViewBuilder<View> {
     case reuseIdentifier(String)
     case `static`(View)
     case custom((UITableView, IndexPath) -> View)
@@ -34,6 +33,8 @@ extension RowState {
 
 @dynamicMemberLookup
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
+    public typealias UpdateEvent = (view: View, model: Model)
+    public typealias DidSelectEvent = (form: Form<Model>, indexPath: IndexPath)
     fileprivate var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
     #if canImport(Combine)
     @available(iOS 13.0, macOS 10.15, *)
@@ -41,11 +42,11 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     @available(iOS 13.0, macOS 10.15, *)
     fileprivate lazy var _update: AnyPublisher<(View, Model), Never> = _view.compactMap({ $0 }).combineLatest(_model.compactMap({ $0 })).eraseToAnyPublisher()
     @available(iOS 13.0, macOS 10.15, *)
-    fileprivate lazy var _didSelect: PassthroughSubject<IndexPath, Never> = PassthroughSubject()
+    fileprivate lazy var _didSelect: PassthroughSubject<DidSelectEvent, Never> = PassthroughSubject()
     #else
     fileprivate lazy var _model: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe())
-    fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.compactMap({ $0 }), _model.compactMap({ $0 }))
-    fileprivate lazy var _didSelect: Repeater<IndexPath> = .unsafe()
+    fileprivate lazy var _update: Accumulator = Accumulator(repeater: .unsafe(), _view.repeater!.compactMap(), _model.repeater!.compactMap())
+    private lazy var _didSelect: Repeater<DidSelectEvent> = .unsafe()
     #endif
 
     var dynamicValues: [String: Any] = [:]
@@ -75,20 +76,38 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         }
     }
 
-    let cellBuilder: CellBuilder<View>
+    let viewBuilder: RowViewBuilder<View>
 
-    public required init(cellBuilder: CellBuilder<View>) {
-        self.cellBuilder = cellBuilder
+    public required init(viewBuilder: RowViewBuilder<View>) {
+        self.viewBuilder = viewBuilder
     }
     deinit {}
 
     public convenience init(reuseIdentifier: String) {
-        self.init(cellBuilder: .reuseIdentifier(reuseIdentifier))
+        self.init(viewBuilder: .reuseIdentifier(reuseIdentifier))
     }
 
     open subscript<T>(dynamicMember member: String) -> T? {
         set { dynamicValues[member] = newValue }
         get { return dynamicValues[member] as? T }
+    }
+
+    public func mapUpdate() -> AnyListenable<(UpdateEvent, Row<View, Model>)> {
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            return AnyListenable(_update.compactMap({ [weak self] event -> (UpdateEvent, Row<View, Model>)? in
+                guard let `self` = self else { return nil }
+                return (event, self)
+            }))
+        } else {
+            fatalError()
+        }
+        #else
+        return AnyListenable(_update.compactMap({ [weak self] event -> (UpdateEvent, Row<View, Model>)? in
+            guard let `self` = self else { return nil }
+            return (event, self)
+        }))
+        #endif
     }
 
     open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
@@ -101,13 +120,41 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         #endif
     }
 
-    open func onSelect(_ doit: @escaping (IndexPath, Row<View, Model>) -> Void) {
+    public func mapSelect() -> AnyListenable<(DidSelectEvent, Row<View, Model>)> {
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            return AnyListenable(_didSelect.compactMap({ [weak self] event -> (DidSelectEvent, Row<View, Model>)? in
+                guard let `self` = self else { return nil }
+                return (event, self)
+            }))
+        } else {
+            fatalError()
+        }
+        #else
+        return AnyListenable(_didSelect.compactMap({ [weak self] event -> (DidSelectEvent, Row<View, Model>)? in
+            guard let `self` = self else { return nil }
+            return (event, self)
+        }))
+        #endif
+    }
+
+    open func onSelect(_ doit: @escaping (DidSelectEvent, Row<View, Model>) -> Void) {
         #if canImport(Combine)
         if #available(iOS 13.0, macOS 10.15, *) {
             _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
         }
         #else
         _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        #endif
+    }
+
+    open func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            _didSelect.send((form, indexPath))
+        }
+        #else
+        _didSelect.send(.value((form, indexPath)))
         #endif
     }
 
@@ -122,13 +169,13 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         #endif
     }
 
-    public func sendSelectEvent(at indexPath: IndexPath) {
+    public func sendSelectEvent(_ form: Form<Model>, at indexPath: IndexPath) {
         #if canImport(Combine)
         if #available(iOS 13.0, macOS 10.15, *) {
-            _didSelect.send(indexPath)
+            _didSelect.send((form, indexPath))
         }
         #else
-        _didSelect.send(indexPath)
+        _didSelect.send((form, indexPath))
         #endif
     }
 
@@ -138,10 +185,10 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
 }
 extension Row where View: UITableViewCell {
     public convenience init(static view: View) {
-        self.init(cellBuilder: .static(view))
+        self.init(viewBuilder: .static(view))
     }
     internal func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
-        switch cellBuilder {
+        switch viewBuilder {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath)
         case .static(let cell): return cell
@@ -154,7 +201,7 @@ public extension Row where View: UIView {
         return state.contains(.displaying) && super._isVisible
     }
     internal func build(for tableView: UITableView, at section: Int) -> UIView? {
-        switch cellBuilder {
+        switch viewBuilder {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableHeaderFooterView(withIdentifier: identifier)
         case .static(let view): return view
@@ -228,7 +275,7 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
     func reloadCell(at indexPath: IndexPath) { fatalError() }
     func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {}
     func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {}
-    func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
+    func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {}
 
     func willDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
     func didEndDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
@@ -320,14 +367,14 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
     override func willDisplaySection(_ tableView: UITableView, at index: Int) {}
     override func didEndDisplaySection(_ tableView: UITableView, at index: Int) {}
 
-    override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        tableView.deselectRow(at: indexPath, animated: true)
+    override func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {
+        form.tableView?.deselectRow(at: indexPath, animated: true)
         #if canImport(Combine)
         if #available(iOS 13.0, macOS 10.15, *) {
-            rows[indexPath.row]._didSelect.send(indexPath)
+            rows[indexPath.row].didSelect(form, didSelectRowAt: indexPath)
         }
         #else
-        rows[indexPath.row]._didSelect.send(indexPath)
+        rows[indexPath.row].didSelect(form, didSelectRowAt: indexPath)
         #endif
     }
 
@@ -363,10 +410,10 @@ open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, 
     #endif
 
     public required init() {
-        super.init(cellBuilder: .custom({ _,_  in fatalError("Reuse form row does not responsible for cell building") }))
+        super.init(viewBuilder: .custom({ _,_  in fatalError("Reuse form row does not responsible for cell building") }))
     }
 
-    public required init(cellBuilder: CellBuilder<View>) {
+    public required init(viewBuilder: RowViewBuilder<View>) {
         fatalError("Use init() initializer instead")
     }
 
@@ -459,11 +506,11 @@ public struct ReuseRowSectionDataSource<RowModel> {
 extension AnyRealtimeCollection: DynamicSectionDataSource {}
 
 open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
-    typealias CellBuilder = (UITableView, IndexPath) -> UITableViewCell
+    typealias ViewBuilder = (UITableView, IndexPath) -> UITableViewCell
     var updateDispose: Disposable?
     var reuseController: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell> = ReuseController()
     let rowBuilder: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell>.RowBuilder
-    let cellBuilder: CellBuilder
+    let viewBuilder: ViewBuilder
     var dataSource: ReuseRowSectionDataSource<RowModel>
 
     var tableView: UITableView?
@@ -478,17 +525,17 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
 
     public init<Cell: UITableViewCell>(
         _ dataSource: ReuseRowSectionDataSource<RowModel>,
-        cell cellBuilder: @escaping (UITableView, IndexPath) -> Cell,
+        cell viewBuilder: @escaping (UITableView, IndexPath) -> Cell,
         row rowBuilder: @escaping () -> ReuseFormRow<Cell, Model, RowModel>
     ) {
         self.dataSource = dataSource
-        self.cellBuilder = unsafeBitCast(cellBuilder, to: CellBuilder.self)
+        self.viewBuilder = unsafeBitCast(viewBuilder, to: ViewBuilder.self)
         self.rowBuilder = unsafeBitCast(rowBuilder, to: ReuseController<ReuseFormRow<UITableViewCell, Model, RowModel>, UITableViewCell>.RowBuilder.self)
         super.init(headerTitle: nil, footerTitle: nil)
     }
 
     override func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
-        return cellBuilder(tableView, indexPath)
+        return viewBuilder(tableView, indexPath)
     }
 
     override func dequeueRow(for cell: UITableViewCell, at index: Int) -> Row<UITableViewCell, Model> {
@@ -521,14 +568,14 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         }
     }
 
-    override func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        if let cell = tableView.cellForRow(at: indexPath) {
+    override func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {
+        if let cell = form.tableView?.cellForRow(at: indexPath) {
             #if canImport(Combine)
             if #available(iOS 13.0, macOS 10.15, *) {
-                reuseController.active(at: cell)?._didSelect.send(indexPath)
+                reuseController.active(at: cell)?.didSelect(form, didSelectRowAt: indexPath)
             }
             #else
-            reuseController.active(at: cell)?._didSelect.send(indexPath)
+            reuseController.active(at: cell)?.didSelect(form, didSelectRowAt: indexPath)
             #endif
         }
     }
@@ -748,7 +795,7 @@ open class Form<Model: AnyObject> {
     }
 
     open func didSelect(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        sections[indexPath.section].didSelect(tableView, didSelectRowAt: indexPath)
+        sections[indexPath.section].didSelect(self, didSelectRowAt: indexPath)
     }
 
     open func reloadVisible() {

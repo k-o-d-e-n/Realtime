@@ -17,8 +17,6 @@ enum InternalKeys: String, CodingKey {
     case linkItems = "__l_itms"
     /// key of RealtimeCollection in 'links' branch which stores prototypes of all collection elements
     case items = "__itms"
-    /// key of collection element prototype which indicates priority
-    case index = "__i"
     /// key to store user payload data
     case payload = "__pl"
     /// key of associated collection element prototype

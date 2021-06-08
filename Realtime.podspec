@@ -31,19 +31,28 @@ Pod::Spec.new do |s|
   s.ios.deployment_target = '9.0'
   s.osx.deployment_target = '10.10'
   s.swift_version = '5.0'
-  s.source_files = 'Sources/Realtime/**/*'
   s.exclude_files = 'Sources/Realtime/support.databaseValue.realtime.swift.gyb'
-  s.dependency 'Promise.swift', '~> 0.6.1'
   s.static_framework = true
   s.default_subspec = 'Core'
-  s.subspec 'Core'
+  s.subspec 'Core' do |core|
+      core.source_files = 'Sources/Realtime/Classes/Realtime/*.swift', 'Sources/Realtime/Classes/*.swift'
+      core.dependency 'Realtime/Listenable'
+  end
+  s.subspec 'Listenable' do |listenable|
+      listenable.source_files = 'Sources/Realtime/Classes/Listenable/**/*', 'Sources/Realtime/Classes/realtime.swift'
+      listenable.dependency 'Promise.swift', '~> 0.6.1'
+  end
+  s.subspec 'UI' do |ui|
+      ui.source_files = 'Sources/Realtime/Classes/Realtime/Support/**/*'
+  end
   s.subspec 'Firebase' do |firebase|
-      firebase.source_files = 'Sources/Realtime+Firebase/**/*', 'Sources/Realtime/**/*'
+      firebase.source_files = 'Sources/Realtime+Firebase/**/*'
+      firebase.dependency 'Realtime/Core'
       firebase.dependency 'Firebase/Database'
       firebase.dependency 'Firebase/Storage'
   end
   s.test_spec 'Tests' do |test_spec|
-    test_spec.source_files = 'Tests/RealtimeTestLib/**.*', 'Example/Realtime/Entities.swift'
+    test_spec.source_files = 'Tests/RealtimeTestLib/**.*'
   end
   s.xcconfig = {
       "FRAMEWORK_SEARCH_PATHS" => "'$(PODS_ROOT)'"

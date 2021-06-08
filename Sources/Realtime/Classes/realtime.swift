@@ -39,79 +39,54 @@ internal func debugFatalError(condition: @autoclosure () -> Bool = true,
     }
 }
 
-public final class RealtimeApp {
-    /// Default database instance
-    public let database: RealtimeDatabase
-    public let storage: RealtimeStorage
-    public let configuration: Configuration
+infix operator <==: AssignmentPrecedence
 
-    init(db: RealtimeDatabase, storage: RealtimeStorage, configuration: Configuration) {
-        self.database = db
-        self.storage = storage
-        self.configuration = configuration
+public struct RealtimeError: LocalizedError {
+    let description: String
+    public let source: Source
+
+    public var localizedDescription: String { return description }
+
+    init(source: Source, description: String) {
+        self.source = source
+        self.description = description
     }
 
-    /// Creates default configuration for Realtime application.
+    /// Shows part or process of Realtime where error is happened.
     ///
-    /// Should call once in `application(_:didFinishLaunchingWithOptions:)`.
-    ///
-    /// - Parameters:
-    ///   - database: Realtime database instance
-    ///   - cachePolicy: Cache policy. Default value = .default
-    ///   - linksNode: Database reference where will be store service data
-    /// is related with creation external links.
-    public static func initialize(
-        with database: RealtimeDatabase,
-        storage: RealtimeStorage,
-        configuration: Configuration = Configuration()
-    ) {
-        guard !_isInitialized else {
-            fatalError("Realtime application already initialized. Call it only once.")
-        }
+    /// - value: Error from someone class of property
+    /// - collection: Error from someone class of collection
+    /// - listening: Error from Listenable part
+    /// - coding: Error on coding process
+    /// - transaction: Error in `Transaction`
+    /// - cache: Error in cache
+    public enum Source {
+        indirect case external(Error, Source)
 
-        RealtimeApp._app = RealtimeApp(db: database, storage: storage, configuration: configuration)
-        database.cachePolicy = configuration.cachePolicy
-        RealtimeApp._isInitialized = true
+        case value
+        case file
+        case collection
+
+        case listening
+        case coding
+        case objectCoding([String: Error])
+        case transaction([Error])
+        case cache
+        case database
+        case storage
     }
 
-    public struct Configuration {
-        public let linksNode: Node
-        public let maxNodeDepth: UInt
-        public let unavailableSymbols: CharacterSet
-        public let cachePolicy: CachePolicy
-        public let storageCache: RealtimeStorageCache?
-
-        /// Default configuration based on Firebase Realtime Database
-        public init(linksNode: BranchNode? = nil,
-                    maxNodeDepth: UInt = .max,
-                    unavailableSymbols: CharacterSet = CharacterSet(),
-                    cachePolicy: CachePolicy = .noCache,
-                    storageCache: RealtimeStorageCache? = nil
-        ) {
-            self.linksNode = linksNode ?? BranchNode(key: InternalKeys.links)
-            self.maxNodeDepth = maxNodeDepth
-            self.unavailableSymbols = unavailableSymbols
-            self.cachePolicy = cachePolicy
-            self.storageCache = storageCache
-
-            debugFatalError(
-                condition: self.linksNode.key.split(separator: "/")
-                    .contains(where: { $0.rangeOfCharacter(from: self.unavailableSymbols) != nil }),
-                "Key has unavailable symbols"
-            )
-        }
+    init(external error: Error, in source: Source, description: String = "") {
+        self.source = .external(error, source)
+        self.description = "External error: \(String(describing: error))"
     }
-}
-extension RealtimeApp {
-    internal static var _isInitialized: Bool = false
-    fileprivate static var _app: RealtimeApp?
-    /// Instance that contained Realtime database configuration
-    public static var app: RealtimeApp {
-        guard let app = _app else {
-            fatalError("Realtime is not initialized. You must call RealtimeApp.initialize(...) in application(_:didFinishLaunchingWithOptions:)")
-        }
-        return app
+    init<T>(initialization type: T.Type, _ data: Any) {
+        self.init(source: .coding, description: "Failed initialization type: \(T.self) with data: \(data)")
     }
-    public static var cache: RealtimeDatabase & RealtimeStorage { return Cache.root }
-    public var connectionObserver: AnyListenable<Bool> { return database.isConnectionActive }
+    init<T>(decoding type: T.Type, _ data: Any, reason: String) {
+        self.init(source: .coding, description: "Failed decoding data: \(data) to type: \(T.self). Reason: \(reason)")
+    }
+    init<T>(encoding value: T, reason: String) {
+        self.init(source: .coding, description: "Failed encoding value of type: \(value). Reason: \(reason)")
+    }
 }
