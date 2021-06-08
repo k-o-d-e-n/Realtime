@@ -13,18 +13,19 @@ import Combine
 
 @available(iOS 13.0.0, *)
 struct SwiftUIView: View {
-    @ObservedObject var model: SwiftUIViewModel
+    /// @ObservedObject var model: SwiftUIViewModel
+    @ObservedObject var model: User1
     @State var loading: Bool = false
     var cancels: ListeningDisposeStore = ListeningDisposeStore()
 
     init(user: User1) {
-        self.model = SwiftUIViewModel(user)
+        self.model = user
     }
 
     var body: some View {
         VStack {
             if !loading {
-                Image(uiImage: model.image ?? UIImage()).cornerRadius(10)
+                Image(uiImage: model.photo ?? UIImage()).cornerRadius(10)
                 TupleView(
                     (
                         Text("Name").italic(),
@@ -34,7 +35,7 @@ struct SwiftUIView: View {
                 TupleView(
                     (
                         Text("Birthdate").italic(),
-                        Text(model.birthdate ?? "").bold()
+                        Text(model.birthdate.mapValue(String.init(describing:)) ?? "").bold()
                     )
                 )
             } else {
@@ -44,13 +45,8 @@ struct SwiftUIView: View {
     }
 
     func onAppear() {
-        self.loading = true
-        self.model
-            .load()
-            .delay(for: .seconds(1), scheduler: DispatchQueue.main)
-            .map({ _ in false })
-            .bind(to: self, \.loading, onCompletion: { _ in self.loading = false })
-            .add(to: self.cancels)
+        _ = model.photo.load()
+        _ = model.load()
     }
 }
 
@@ -87,10 +83,33 @@ class SwiftUIViewModel: ObservableObject {
     }
 }
 
-class User1: Object {
-    lazy var name: ReadonlyProperty<String> = l().property(in: self)
-    lazy var birthdate: ReadonlyProperty<Date> = l().date(in: self)
-    lazy var photo: ReadonlyFile<UIImage> = l().readonlyJpeg(in: self)
+protocol KotlinLike {}
+extension KotlinLike {
+    func `let`(_ completion: (Self) -> Void) -> Self {
+        completion(self); return self
+    }
+}
+extension _RealtimeValue: KotlinLike {}
+
+@available(iOS 13.0, *)
+class User1: Object, ObservableObject {
+    let disposes: ListeningDisposeStore = ListeningDisposeStore()
+    lazy var name: Property<String> = l().property(in: self).let { prop in
+        /// make delay to prevent sent values immediatelly
+        prop.delay(for: 0.1, scheduler: DispatchQueue.main).sink(receiveCompletion: {_ in}, receiveValue: { [weak self] _ in self?.objectWillChange.send() }).add(to: disposes)
+    }
+    lazy var birthdate: Property<Date> = l().date(in: self).let { prop in
+        prop.delay(for: 0.1, scheduler: DispatchQueue.main).sink(receiveCompletion: {_ in}, receiveValue: { [weak self] _ in self?.objectWillChange.send() }).add(to: disposes)
+    }
+    lazy var photo: ReadonlyFile<UIImage> = l().readonlyJpeg(in: self).let { prop in
+        prop.delay(for: 0.1, scheduler: DispatchQueue.main).sink(receiveCompletion: {_ in}, receiveValue: { [weak self] _ in self?.objectWillChange.send() }).add(to: disposes)
+    }
+
+    lazy var objectWillChange: ObservableObjectPublisher = ObservableObjectPublisher()
+    /// lazy var objectWillChange: AnyPublisher<Void, Never> = photo.combineLatest(name, birthdate)
+    ///    .mapError({ _ -> Never in fatalError() })
+    ///    .map({ _ in () })
+    ///    .eraseToAnyPublisher()
 
     override class func lazyPropertyKeyPath(for label: String) -> AnyKeyPath? {
         switch label {
