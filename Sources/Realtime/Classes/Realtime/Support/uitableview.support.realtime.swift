@@ -16,33 +16,32 @@ protocol ReuseItemProtocol {
 }
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
-    #if canImport(Combine)
     @available(iOS 13.0, macOS 10.15, *)
     lazy var _view: CurrentValueSubject<View?, Never> = CurrentValueSubject(nil)
-    #else
-    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe(with: .queue(.main)))
-    #endif
+    lazy var _view_obsoleted: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe(with: .queue(.main)))
     public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
 
     open internal(set) weak var view: View? {
         set {
             #if canImport(Combine)
             if #available(iOS 13.0, macOS 10.15, *) {
-                self._view.value = newValue
+                _view.value = newValue
+            } else {
+                _view_obsoleted.wrappedValue = newValue
             }
             #else
-            self._view.value = newValue
+            _view.value = newValue
             #endif
         }
         get {
             #if canImport(Combine)
             if #available(iOS 13.0, macOS 10.15, *) {
-                return self._view.value
+                return _view.value
             } else {
-                fatalError()
+                return _view_obsoleted.wrappedValue
             }
             #else
-            return self._view.value
+            return _view_obsoleted.wrappedValue
             #endif
         }
     }
@@ -120,13 +119,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 
     func free() {
         disposeStorage.dispose()
-        #if canImport(Combine)
-        if #available(iOS 13.0, macOS 10.15, *) {
-            _view.value = nil
-        }
-        #else
-        _view.value = nil
-        #endif
+        view = nil
     }
 }
 extension ReuseItem {
@@ -204,7 +197,7 @@ extension ReuseItem where View: UIView {
 }
 
 /// A type that responsible for editing of table
-public protocol RealtimeEditingTableDataSource: class {
+public protocol RealtimeEditingTableDataSource: AnyObject {
     func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool
     func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool
     func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath)
