@@ -7,22 +7,8 @@
 //  Copyright © 2018 Denis Koryttsev. All rights reserved.
 //
 
-protocol ReuseItemProtocol {
-    func free()
-}
-
-open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
-    lazy var _view: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe(with: .queue(.main)))
-    public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
-
-    open internal(set) weak var view: View? {
-        set { self._view.wrappedValue = newValue }
-        get { return self._view.wrappedValue }
-    }
-
-    public init() {}
-    deinit { free() }
-
+#if canImport(Realtime)
+extension ReuseItem {
     /// Connects listanable value with view
     ///
     /// Use this function if listenable has been modified somehow
@@ -36,7 +22,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 
         guard source.canObserve else { return }
         if source.runObserving() {
-            ListeningDispose(source.stopObserving).add(to: disposeStorage)
+            ListeningDispose(source.stopObserving).add(to: &disposeStorage)
         } else {
             debugFatalError("Observing is not running")
         }
@@ -48,7 +34,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         sources.forEach { source in
             guard source.canObserve else { return }
             if source.runObserving() {
-                ListeningDispose(source.stopObserving).add(to: disposeStorage)
+                ListeningDispose(source.stopObserving).add(to: &disposeStorage)
             } else {
                 debugFatalError("Observing is not running")
             }
@@ -88,12 +74,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
                     }
                 }
             })
-            .add(to: disposeStorage)
-    }
-
-    func free() {
-        disposeStorage.dispose()
-        _view.wrappedValue = nil
+            .add(to: &disposeStorage)
     }
 }
 extension ReuseItem {
@@ -118,6 +99,7 @@ extension ReuseItem {
         bind(value, source, assign, { _, e in error(e) })
     }
 }
+#endif
 
 struct ReuseController<Row, Key: Hashable> where Row: ReuseItemProtocol {
     var freeItems: [Row] = []
@@ -165,36 +147,6 @@ extension ReuseController {
 
 #if os(iOS)
 import UIKit
-
-extension ReuseItem where View: UIView {
-    var _isVisible: Bool { return view.map { !$0.isHidden && $0.window != nil } ?? false }
-}
-
-/// A type that responsible for editing of table
-public protocol RealtimeEditingTableDataSource: class {
-    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool
-    func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath)
-    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath)
-    func tableView(
-        _ tableView: UITableView,
-        targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath,
-        toProposedIndexPath proposedDestinationIndexPath: IndexPath
-    ) -> IndexPath
-}
-public extension RealtimeEditingTableDataSource {
-    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool { return tableView.isEditing }
-    func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool { return false }
-    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {}
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {}
-    func tableView(
-        _ tableView: UITableView,
-        targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath,
-        toProposedIndexPath proposedDestinationIndexPath: IndexPath
-        ) -> IndexPath {
-        return proposedDestinationIndexPath
-    }
-}
 
 /*
 protocol ReuseElement: class {
@@ -255,10 +207,11 @@ open class CollectibleViewDelegate<View, Cell: AnyObject & Hashable, Model, Sect
 
 open class TableViewDelegate<View, Item: AnyObject & Hashable, Model, Section>: CollectibleViewDelegate<View, Item, Model, Section> {
     open weak var tableDelegate: UITableViewDelegate?
-    open weak var editingDataSource: RealtimeEditingTableDataSource?
+    open weak var editingDataSource: UITableViewEditingDataSource?
     open weak var prefetchingDataSource: UITableViewDataSourcePrefetching?
 }
 
+#if canImport(Realtime)
 /// A class that provides tools to manage UITableView data source reactively.
 public final class SingleSectionTableViewDelegate<Model>: TableViewDelegate<UITableView, UITableViewCell, Model, Void> {
     fileprivate lazy var delegateService: Service = Service(self)
@@ -501,7 +454,7 @@ extension ReuseSection where View: UIView {
             onError: { error in
                 debugPrintLog(String(describing: error))
             }
-        ).add(to: disposeStorage)
+        ).add(to: &disposeStorage)
         self.items = items
     }
     func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
@@ -527,7 +480,7 @@ extension ReuseSection where View: UIView {
             onError: { error in
                 debugPrintLog(String(describing: error))
             }
-        ).add(to: disposeStorage)
+        ).add(to: &disposeStorage)
         self.items = items
     }
 }
@@ -1068,4 +1021,6 @@ extension CollectionViewDelegate {
         }
     }
 }
+#endif
+
 #endif

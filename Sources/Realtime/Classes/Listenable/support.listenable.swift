@@ -405,6 +405,12 @@ extension Publisher where Self: Listenable, Output == Out {
         )
     }
 }
+@available(iOS 13.0, macOS 10.15, *)
+extension PassthroughSubject: Listenable {}
+@available(iOS 13.0, macOS 10.15, *)
+extension CurrentValueSubject: Listenable {}
+@available(iOS 13.0, macOS 10.15, *)
+extension AnyPublisher: Listenable {}
 
 @available(iOS 13.0, macOS 10.15, *)
 extension ListeningDispose: Subscription {

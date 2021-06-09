@@ -10,7 +10,6 @@ import UIKit
 import Realtime
 
 class TextCell: UITableViewCell {
-    var listenings: [Disposable] = []
     lazy var titleLabel: UILabel = self.textLabel!.add(to: self.contentView)
     lazy var textField: UITextField = UITextField().add(to: self.contentView) { textField in
         textField.autocorrectionType = .default
@@ -126,7 +125,11 @@ class FormViewController: UITableViewController {
 
     init(user: User? = nil) {
         self.editingUser = user
-        super.init(nibName: nil, bundle: nil)
+        if #available(iOS 13.0, *) {
+            super.init(style: .insetGrouped)
+        } else {
+            super.init(style: .grouped)
+        }
     }
     
     required init?(coder: NSCoder) {
@@ -393,11 +396,10 @@ class FormViewController: UITableViewController {
     }
 }
 
-extension FormViewController: RealtimeEditingTableDataSource {
+extension FormViewController: UITableViewEditingDataSource {
     override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat { tableView.sectionHeaderHeight }
     override func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat { 0.0 }
     override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
         form[indexPath.section][indexPath.row].editingStyle ?? .none
     }
 }
-
