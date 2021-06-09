@@ -141,7 +141,9 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
     override func reloadCell(at indexPath: IndexPath) {
         let row = rows[indexPath.row]
         if row.isVisible, let view = row.view, let model = row.model {
+            #if COMBINE || REALTIME_UI
             row._update.send((view, model))
+            #endif
         }
     }
 

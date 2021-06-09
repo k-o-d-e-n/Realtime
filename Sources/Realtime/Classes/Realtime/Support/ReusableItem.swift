@@ -16,7 +16,7 @@ protocol ReuseItemProtocol {
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     #if COMBINE
     public var disposeStorage: [AnyCancellable] = [] // TODO: Rename `disposeStorage`
-    #else
+    #elseif REALTIME_UI
     public var disposeStorage: [Disposable] = []
     #endif
 
@@ -28,7 +28,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     func free() {
         #if COMBINE
         disposeStorage.removeAll()
-        #else
+        #elseif REALTIME_UI
         disposeStorage.forEach({ $0.dispose() })
         disposeStorage.removeAll()
         #endif
@@ -36,7 +36,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     }
 }
 
-#if os(iOS)
+#if os(iOS) || os(tvOS)
 extension ReuseItem where View: UIView {
     var _isVisible: Bool { return view.map { !$0.isHidden && $0.window != nil } ?? false }
 }

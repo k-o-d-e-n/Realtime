@@ -41,13 +41,13 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     public typealias DidSelectEvent = (form: Form<Model>, indexPath: IndexPath)
     #if COMBINE
     var internalDispose: [AnyCancellable] = []
-    #else
+    #elseif REALTIME_UI
     var internalDispose: [Disposable] = []
     #endif
     #if COMBINE
     lazy var _update: PassthroughSubject<UpdateEvent, Never> = PassthroughSubject()
     fileprivate lazy var _didSelect: PassthroughSubject<DidSelectEvent, Never> = PassthroughSubject()
-    #else
+    #elseif REALTIME_UI
     lazy var _update: Repeater<UpdateEvent> = .unsafe()
     fileprivate lazy var _didSelect: Repeater<DidSelectEvent> = .unsafe()
     #endif
@@ -81,7 +81,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
             return (event, self)
         }).eraseToAnyPublisher()
     }
-    #else
+    #elseif REALTIME_UI
     public func mapUpdate() -> AnyListenable<(UpdateEvent, Row<View, Model>)> {
         AnyListenable(_update.compactMap({ [weak self] event -> (UpdateEvent, Row<View, Model>)? in
             guard let `self` = self else { return nil }
@@ -93,7 +93,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
         #if COMBINE
         _update.sink(receiveValue: { [unowned self] in doit($0, self) }).store(in: &internalDispose)
-        #else
+        #elseif REALTIME_UI
         _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: &internalDispose)
         #endif
     }
@@ -105,7 +105,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
             return (event, self)
         }).eraseToAnyPublisher()
     }
-    #else
+    #elseif REALTIME_UI
     public func mapSelect() -> AnyListenable<(DidSelectEvent, Row<View, Model>)> {
         AnyListenable(_didSelect.compactMap({ [weak self] event -> (DidSelectEvent, Row<View, Model>)? in
             guard let `self` = self else { return nil }
@@ -117,7 +117,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     open func onSelect(_ doit: @escaping (DidSelectEvent, Row<View, Model>) -> Void) {
         #if COMBINE
         _didSelect.sink(receiveValue: { [unowned self] in doit($0, self) }).store(in: &internalDispose)
-        #else
+        #elseif REALTIME_UI
         _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: &internalDispose)
         #endif
     }
@@ -125,7 +125,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     open func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {
         #if COMBINE
         _didSelect.send((form, indexPath))
-        #else
+        #elseif REALTIME_UI
         _didSelect.send(.value((form, indexPath)))
         #endif
     }
@@ -138,7 +138,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     public func sendSelectEvent(_ form: Form<Model>, at indexPath: IndexPath) {
         #if COMBINE
         _didSelect.send((form, indexPath))
-        #else
+        #elseif REALTIME_UI
         _didSelect.send((form, indexPath))
         #endif
     }
@@ -193,7 +193,9 @@ extension Row {
             self.model = model
             state.insert(.displaying)
             state.remove(.free)
+            #if COMBINE || REALTIME_UI
             _update.send((view, model))
+            #endif
         }
     }
     func didEndDisplay(with view: View, indexPath: IndexPath) {

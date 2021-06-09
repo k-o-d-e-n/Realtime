@@ -24,7 +24,6 @@ Pod::Spec.new do |s|
   s.swift_version = '5.0'
   s.default_subspec = 'Core'
   s.subspec 'Core' do |core|
-    # custom.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => 'CUSTOM' }
     core.source_files = [
         'Sources/Realtime/Classes/Realtime/Support/Form.swift',
         'Sources/Realtime/Classes/Realtime/Support/Row.swift',
@@ -35,11 +34,7 @@ Pod::Spec.new do |s|
   end
   s.subspec 'Combine' do |combine|
     combine.dependency 'RealtimeForm/Core'
-    combine.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => 'COMBINE' }
+    combine.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => ['$(inherited)', 'COMBINE'] }
     combine.ios.deployment_target = '13.0'
-  end
-  s.subspec 'Realtime' do |realtime|
-    realtime.dependency 'RealtimeForm/Core'
-    realtime.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => 'REALTIME' }
   end
 end

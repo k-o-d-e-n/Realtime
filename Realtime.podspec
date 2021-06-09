@@ -44,6 +44,7 @@ Pod::Spec.new do |s|
   end
   s.subspec 'UI' do |ui|
       ui.source_files = 'Sources/Realtime/Classes/Realtime/Support/**/*'
+      ui.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => ['$(inherited)', 'REALTIME_UI'] }
   end
   s.subspec 'Firebase' do |firebase|
       firebase.source_files = 'Sources/Realtime+Firebase/**/*'
