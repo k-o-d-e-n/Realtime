@@ -7,7 +7,7 @@
 //  Copyright © 2018 Denis Koryttsev. All rights reserved.
 //
 
-#if canImport(Combine)
+#if COMBINE && canImport(Combine)
 import Combine
 #endif
 
@@ -16,54 +16,30 @@ protocol ReuseItemProtocol {
 }
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
-    #if canImport(Combine)
-    @available(iOS 13.0, macOS 10.15, *)
-    lazy var _view: CurrentValueSubject<View?, Never> = CurrentValueSubject(nil)
-    @available(iOS 13.0, macOS 10.15, *)
-    public lazy var disposeStorage: [AnyCancellable] = []
-    #endif
-    #if canImport(Realtime)
-    lazy var _view_obsoleted: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe(with: .queue(.main)))
-    public var disposeStorage_obsoleted: ListeningDisposeStore = ListeningDisposeStore()
+    #if COMBINE
+    public var disposeStorage: [AnyCancellable] = []
+    #else//if REALTIME
+    public var disposeStorage: [Disposable] = []
     #endif
 
-    open internal(set) weak var view: View? {
-        set {
-            #if canImport(Combine)
-            if #available(iOS 13.0, macOS 10.15, *) {
-                _view.value = newValue
-            } else {
-                #if canImport(Realtime)
-                _view_obsoleted.wrappedValue = newValue
-                #endif
-            }
-            #elseif canImport(Realtime)
-            _view_obsoleted.wrappedValue = newValue
-            #endif
-        }
-        get {
-            #if canImport(Combine)
-            if #available(iOS 13.0, macOS 10.15, *) {
-                return _view.value
-            } else {
-                #if canImport(Realtime)
-                return _view_obsoleted.wrappedValue
-                #else
-                fatalError()
-                #endif
-            }
-            #elseif canImport(Realtime)
-            return _view_obsoleted.wrappedValue
-            #else
-            fatalError()
-            #endif
-        }
-    }
+    open internal(set) weak var view: View?
 
     public init() {}
     deinit { free() }
 
-    #if canImport(Realtime)
+    func free() {
+        #if COMBINE
+        disposeStorage.removeAll()
+        #else//if REALTIME
+        disposeStorage.forEach({ $0.dispose() })
+        disposeStorage.removeAll()
+        #endif
+        view = nil
+    }
+}
+
+#if canImport(Realtime)
+extension ReuseItem {
     /// Connects listanable value with view
     ///
     /// Use this function if listenable has been modified somehow
@@ -77,7 +53,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 
         guard source.canObserve else { return }
         if source.runObserving() {
-            ListeningDispose(source.stopObserving).add(to: disposeStorage)
+            ListeningDispose(source.stopObserving).add(to: &disposeStorage)
         } else {
             debugFatalError("Observing is not running")
         }
@@ -89,7 +65,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
         sources.forEach { source in
             guard source.canObserve else { return }
             if source.runObserving() {
-                ListeningDispose(source.stopObserving).add(to: disposeStorage)
+                ListeningDispose(source.stopObserving).add(to: &disposeStorage)
             } else {
                 debugFatalError("Observing is not running")
             }
@@ -129,26 +105,9 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
                     }
                 }
             })
-            .add(to: disposeStorage)
-    }
-    #endif
-
-    func free() {
-        #if canImport(Combine)
-        if #available(iOS 13.0, macOS 10.15, *) {
-            disposeStorage.removeAll()
-        } else {
-            #if canImport(Realtime)
-            disposeStorage_obsoleted.dispose()
-            #endif
-        }
-        #elseif canImport(Realtime)
-        disposeStorage_obsoleted.dispose()
-        #endif
-        view = nil
+            .add(to: &disposeStorage)
     }
 }
-#if canImport(Realtime)
 extension ReuseItem {
     public func set<T: Listenable>(
         _ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
@@ -556,7 +515,7 @@ extension ReuseSection where View: UIView {
             onError: { error in
                 debugPrintLog(String(describing: error))
             }
-        ).add(to: disposeStorage)
+        ).add(to: &disposeStorage)
         self.items = items
     }
     func willDisplaySection(_ tableView: UITableView, items: AnyRealtimeCollection<Model>, at index: Int) {
@@ -582,7 +541,7 @@ extension ReuseSection where View: UIView {
             onError: { error in
                 debugPrintLog(String(describing: error))
             }
-        ).add(to: disposeStorage)
+        ).add(to: &disposeStorage)
         self.items = items
     }
 }

@@ -30,6 +30,7 @@ Pod::Spec.new do |s|
   s.subspec 'Combine' do |combine|
     combine.dependency 'RealtimeForm/Core'
     combine.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => 'COMBINE' }
+    combine.ios.deployment_target = '13.0'
   end
   s.subspec 'Realtime' do |realtime|
     realtime.dependency 'RealtimeForm/Core'

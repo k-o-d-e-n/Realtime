@@ -7,8 +7,10 @@
 
 #if os(iOS)
 import UIKit
-#if canImport(Combine)
+#if COMBINE && canImport(Combine)
 import Combine
+/// #elseif REALTIME && canImport(Realtime)
+/// import Realtime
 #endif
 
 public enum RowViewBuilder<View> {
@@ -33,65 +35,26 @@ extension RowState {
 
 @dynamicMemberLookup
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
-    public typealias UpdateEvent = (view: View, model: Model)
+    public typealias UpdateEvent = (view: View, model: Model) // TODO: May be it is reasonable to add Self
     public typealias DidSelectEvent = (form: Form<Model>, indexPath: IndexPath)
-    #if canImport(Combine)
-    @available(iOS 13.0, macOS 10.15, *)
-    fileprivate lazy var internalDispose: [AnyCancellable] = []
-    #elseif canImport(Realtime)
-    fileprivate var internalDispose: ListeningDisposeStore = ListeningDisposeStore()
+    #if COMBINE
+    fileprivate var internalDispose: [AnyCancellable] = []
+    #else//if REALTIME
+    fileprivate var internalDispose: [Disposable] = []
     #endif
-
-    #if canImport(Combine)
-    @available(iOS 13.0, macOS 10.15, *)
-    fileprivate lazy var _model: CurrentValueSubject<Model?, Never> = CurrentValueSubject(nil)
-    @available(iOS 13.0, macOS 10.15, *)
-    fileprivate lazy var _update: AnyPublisher<(View, Model), Never> = _view.compactMap({ $0 }).combineLatest(_model.compactMap({ $0 })).eraseToAnyPublisher()
-    @available(iOS 13.0, macOS 10.15, *)
+    #if COMBINE
+    fileprivate lazy var _update: PassthroughSubject<UpdateEvent, Never> = PassthroughSubject()
     fileprivate lazy var _didSelect: PassthroughSubject<DidSelectEvent, Never> = PassthroughSubject()
-    #endif
-    #if canImport(Realtime)
-    fileprivate lazy var _model_obsoleted: ValueStorage<Model?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe())
-    fileprivate lazy var _update_obsoleted: Accumulator = Accumulator(repeater: .unsafe(), _view_obsoleted.repeater!.compactMap(), _model_obsoleted.repeater!.compactMap())
-    private lazy var _didSelect_obsoleted: Repeater<DidSelectEvent> = .unsafe()
+    #else//if REALTIME
+    fileprivate lazy var _update: Repeater<UpdateEvent> = .unsafe()
+    fileprivate lazy var _didSelect: Repeater<DidSelectEvent> = .unsafe()
     #endif
 
     var dynamicValues: [String: Any] = [:]
     var state: RowState = [.free, .pending]
     open var indexPath: IndexPath?
 
-    open internal(set) weak var model: Model? {
-        set {
-            #if canImport(Combine)
-            if #available(iOS 13.0, macOS 10.15, *) {
-                _model.value = newValue
-            } else {
-                #if canImport(Realtime)
-                _model_obsoleted.wrappedValue = newValue
-                #endif
-            }
-            #elseif canImport(Realtime)
-            _model_obsoleted.wrappedValue = newValue
-            #endif
-        }
-        get {
-            #if canImport(Combine)
-            if #available(iOS 13.0, macOS 10.15, *) {
-                return _model.value
-            } else {
-                #if canImport(Realtime)
-                return _model_obsoleted.wrappedValue
-                #else
-                fatalError()
-                #endif
-            }
-            #elseif canImport(Realtime)
-            return _model_obsoleted.wrappedValue
-            #else
-            fatalError()
-            #endif
-        }
-    }
+    open internal(set) weak var model: Model?
 
     let viewBuilder: RowViewBuilder<View>
 
@@ -109,107 +72,59 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         get { return dynamicValues[member] as? T }
     }
 
-    #if canImport(Realtime)
-    private func _mapUpdate_obsoleted() -> AnyListenable<(UpdateEvent, Row<View, Model>)> {
-        AnyListenable(_update_obsoleted.compactMap({ [weak self] event -> (UpdateEvent, Row<View, Model>)? in
-            guard let `self` = self else { return nil }
-            return (event, self)
-        }))
-    }
-    #endif
-    #if canImport(Combine)
-    @available(iOS 13.0, macOS 10.15, *)
-    private func _mapUpdate_combine() -> AnyPublisher<(UpdateEvent, Row<View, Model>), Never> {
+    #if COMBINE
+    public func mapUpdate() -> AnyPublisher<(UpdateEvent, Row<View, Model>), Never> {
         _update.compactMap({ [weak self] event -> (UpdateEvent, Row<View, Model>)? in
             guard let `self` = self else { return nil }
             return (event, self)
         }).eraseToAnyPublisher()
     }
-    #endif
-    #if canImport(Realtime)
+    #else//if REALTIME
     public func mapUpdate() -> AnyListenable<(UpdateEvent, Row<View, Model>)> {
-        #if canImport(Combine)
-        if #available(iOS 13.0, macOS 10.15, *) {
-            return AnyListenable(_mapUpdate_combine())
-        } else {
-            return _mapUpdate_obsoleted()
-        }
-        #else
-        return _mapUpdate_obsoleted()
-        #endif
-    }
-    #endif
-
-    open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
-        #if canImport(Combine)
-        if #available(iOS 13.0, macOS 10.15, *) {
-            _update.sink(receiveValue: { [unowned self] in doit($0, self) }).store(in: &internalDispose)
-        } else {
-            #if canImport(Realtime)
-            _update_obsoleted.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
-            #endif
-        }
-        #elseif canImport(Realtime)
-        _update_obsoleted.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
-        #endif
-    }
-
-    #if canImport(Realtime)
-    private func _mapSelect_obsoleted() -> AnyListenable<(DidSelectEvent, Row<View, Model>)> {
-        AnyListenable(_didSelect_obsoleted.compactMap({ [weak self] event -> (DidSelectEvent, Row<View, Model>)? in
+        AnyListenable(_update.compactMap({ [weak self] event -> (UpdateEvent, Row<View, Model>)? in
             guard let `self` = self else { return nil }
             return (event, self)
         }))
     }
     #endif
-    #if canImport(Combine)
-    @available(iOS 13.0, macOS 10.15, *)
-    private func _mapSelect_obsoleted() -> AnyPublisher<(DidSelectEvent, Row<View, Model>), Never> {
+
+    open func onUpdate(_ doit: @escaping ((view: View, model: Model), Row<View, Model>) -> Void) {
+        #if COMBINE
+        _update.sink(receiveValue: { [unowned self] in doit($0, self) }).store(in: &internalDispose)
+        #else//if REALTIME
+        _update.listening(onValue: Closure.guarded(self, assign: doit)).add(to: &internalDispose)
+        #endif
+    }
+
+    #if COMBINE
+    public func mapSelect() -> AnyPublisher<(DidSelectEvent, Row<View, Model>), Never> {
         _didSelect.compactMap({ [weak self] event -> (DidSelectEvent, Row<View, Model>)? in
             guard let `self` = self else { return nil }
             return (event, self)
         }).eraseToAnyPublisher()
     }
-    #endif
-    #if canImport(Realtime)
+    #else//if REALTIME
     public func mapSelect() -> AnyListenable<(DidSelectEvent, Row<View, Model>)> {
-        #if canImport(Combine)
-        if #available(iOS 13.0, macOS 10.15, *) {
-            return AnyListenable()
-        } else {
-            return _mapSelect_obsoleted()
-        }
-        #else
-        return _mapSelect_obsoleted()
-        #endif
+        AnyListenable(_didSelect.compactMap({ [weak self] event -> (DidSelectEvent, Row<View, Model>)? in
+            guard let `self` = self else { return nil }
+            return (event, self)
+        }))
     }
     #endif
 
     open func onSelect(_ doit: @escaping (DidSelectEvent, Row<View, Model>) -> Void) {
-        #if canImport(Combine)
-        if #available(iOS 13.0, macOS 10.15, *) {
-            _didSelect.sink(receiveValue: { [unowned self] in doit($0, self) }).store(in: &internalDispose)
-        } else {
-            #if canImport(Realtime)
-            _didSelect_obsoleted.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
-            #endif
-        }
-        #elseif canImport(Realtime)
-        _didSelect_obsoleted.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        #if COMBINE
+        _didSelect.sink(receiveValue: { [unowned self] in doit($0, self) }).store(in: &internalDispose)
+        #else//if REALTIME
+        _didSelect.listening(onValue: Closure.guarded(self, assign: doit)).add(to: &internalDispose)
         #endif
     }
 
     open func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {
-        #if canImport(Combine)
-        if #available(iOS 13.0, macOS 10.15, *) {
-            _didSelect.send((form, indexPath))
-        } else {
-            #if canImport(Realtime)
-            _didSelect_obsoleted.send(.value((form, indexPath)))
-            #endif
-        }
-        #elseif canImport(Realtime)
-        _didSelect_obsoleted.send(.value((form, indexPath)))
+        #if COMBINE
+        _didSelect.send((form, indexPath))
+        #else//if REALTIME
+        _didSelect.send(.value((form, indexPath)))
         #endif
     }
 
@@ -219,20 +134,14 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     }
 
     public func sendSelectEvent(_ form: Form<Model>, at indexPath: IndexPath) {
-        #if canImport(Combine)
-        if #available(iOS 13.0, macOS 10.15, *) {
-            _didSelect.send((form, indexPath))
-        } else {
-            #if canImport(Realtime)
-            _didSelect_obsoleted.send((form, indexPath))
-            #endif
-        }
-        #elseif canImport(Realtime)
-        _didSelect_obsoleted.send((form, indexPath))
+        #if COMBINE
+        _didSelect.send((form, indexPath))
+        #else//if REALTIME
+        _didSelect.send((form, indexPath))
         #endif
     }
 
-    public func removeAllValues() {
+    public func removeAllDynamicValues() {
         dynamicValues.removeAll()
     }
 }
@@ -278,11 +187,11 @@ extension Row {
     func willDisplay(with view: View, model: Model, indexPath: IndexPath) {
         if !state.contains(.displaying) || self.view !== view {
             self.indexPath = indexPath
-            // TODO: Update called twice, initially on `view`, then on `model`
             self.view = view
             self.model = model
             state.insert(.displaying)
             state.remove(.free)
+            _update.send((view, model))
         }
     }
     func didEndDisplay(with view: View, indexPath: IndexPath) {
@@ -292,7 +201,7 @@ extension Row {
             free()
             state.insert([.pending, .free])
         } else {
-//                debugLog("\(row.state) \n \(row.view as Any) \n\(cell)")
+            /// debugLog("\(row.state) \n \(row.view as Any) \n\(cell)")
         }
     }
 }
@@ -428,9 +337,8 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 
     override func reloadCell(at indexPath: IndexPath) {
         let row = rows[indexPath.row]
-        if row.isVisible {
-            // TODO: Current action is insufficiently
-            row.view = row.view
+        if row.isVisible, let view = row.view, let model = row.model {
+            row._update.send((view, model))
         }
     }
 
@@ -450,12 +358,10 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
 }
 
 open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, Model> {
-    #if canImport(Combine)
-    @available(iOS 13.0, macOS 10.15, *)
+    #if COMBINE
     lazy var _rowModel: PassthroughSubject<RowModel, Never> = PassthroughSubject()
-    #endif
-    #if canImport(Realtime)
-    lazy var _rowModel_obsoleted: Repeater<RowModel> = Repeater.unsafe()
+    #else//if REALTIME
+    lazy var _rowModel: Repeater<RowModel> = Repeater.unsafe()
     #endif
 
     public required init() {
@@ -467,16 +373,10 @@ open class ReuseFormRow<View: AnyObject, Model: AnyObject, RowModel>: Row<View, 
     }
 
     public func onRowModel(_ doit: @escaping (RowModel, ReuseFormRow<View, Model, RowModel>) -> Void) {
-        #if canImport(Combine)
-        if #available(iOS 13.0, macOS 10.15, *) {
-            _rowModel.sink(receiveValue: { [unowned self] in doit($0, self) }).store(in: &internalDispose)
-        } else {
-            #if canImport(Realtime)
-            _rowModel_obsoleted.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
-            #endif
-        }
-        #elseif canImport(Realtime)
-        _rowModel_obsoleted.listening(onValue: Closure.guarded(self, assign: doit)).add(to: internalDispose)
+        #if COMBINE
+        _rowModel.sink(receiveValue: { [unowned self] in doit($0, self) }).store(in: &internalDispose)
+        #else//if REALTIME
+        _rowModel.listening(onValue: Closure.guarded(self, assign: doit)).add(to: &internalDispose)
         #endif
     }
 }
@@ -603,14 +503,10 @@ open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
         if !item.state.contains(.displaying) || item.view !== cell {
             item.view = cell
             item.model = model
-            #if canImport(Combine)
-            if #available(iOS 13.0, macOS 10.15, *) {
-                item._rowModel.send(dataSource.collection[indexPath.row])
-            } else {
-                item._rowModel_obsoleted.send(dataSource.collection[indexPath.row])
-            }
-            #elseif canImport(Realtime)
-            item._rowModel_obsoleted.send(dataSource.collection[indexPath.row])
+            #if COMBINE
+            item._rowModel.send(dataSource.collection[indexPath.row])
+            #else//if REALTIME
+            item._rowModel.send(dataSource.collection[indexPath.row])
             #endif
             item.state.insert(.displaying)
             item.state.remove(.free)
