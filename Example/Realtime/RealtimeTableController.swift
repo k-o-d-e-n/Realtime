@@ -218,7 +218,7 @@ class RealtimeTableController: UITableViewController {
     }
 }
 
-extension RealtimeTableController: RealtimeEditingTableDataSource {
+extension RealtimeTableController: UITableViewEditingDataSource {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         let user = Global.rtUsers[indexPath.row]
         print("Did select row at \(indexPath): \(user)")

@@ -25,7 +25,13 @@ Pod::Spec.new do |s|
   s.default_subspec = 'Core'
   s.subspec 'Core' do |core|
     # custom.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => 'CUSTOM' }
-    core.source_files = 'Sources/Realtime/Classes/Realtime/Support/**/*'
+    core.source_files = [
+        'Sources/Realtime/Classes/Realtime/Support/Form.swift',
+        'Sources/Realtime/Classes/Realtime/Support/Row.swift',
+        'Sources/Realtime/Classes/Realtime/Support/Section.swift',
+        'Sources/Realtime/Classes/Realtime/Support/ReusableItem.swift',
+        'Sources/Realtime/Classes/Realtime/Support/UITableView.swift'
+    ]
   end
   s.subspec 'Combine' do |combine|
     combine.dependency 'RealtimeForm/Core'

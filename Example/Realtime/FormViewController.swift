@@ -396,11 +396,10 @@ class FormViewController: UITableViewController {
     }
 }
 
-extension FormViewController: RealtimeEditingTableDataSource {
+extension FormViewController: UITableViewEditingDataSource {
     override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat { tableView.sectionHeaderHeight }
     override func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat { 0.0 }
     override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
         form[indexPath.section][indexPath.row].editingStyle ?? .none
     }
 }
-

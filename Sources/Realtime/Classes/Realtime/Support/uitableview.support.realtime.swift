@@ -7,37 +7,6 @@
 //  Copyright © 2018 Denis Koryttsev. All rights reserved.
 //
 
-#if COMBINE && canImport(Combine)
-import Combine
-#endif
-
-protocol ReuseItemProtocol {
-    func free()
-}
-
-open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
-    #if COMBINE
-    public var disposeStorage: [AnyCancellable] = [] // TODO: Rename `disposeStorage`
-    #else//if REALTIME
-    public var disposeStorage: [Disposable] = []
-    #endif
-
-    open internal(set) weak var view: View?
-
-    public init() {}
-    deinit { free() }
-
-    func free() {
-        #if COMBINE
-        disposeStorage.removeAll()
-        #else//if REALTIME
-        disposeStorage.forEach({ $0.dispose() })
-        disposeStorage.removeAll()
-        #endif
-        view = nil
-    }
-}
-
 #if canImport(Realtime)
 extension ReuseItem {
     /// Connects listanable value with view
@@ -179,36 +148,6 @@ extension ReuseController {
 #if os(iOS)
 import UIKit
 
-extension ReuseItem where View: UIView {
-    var _isVisible: Bool { return view.map { !$0.isHidden && $0.window != nil } ?? false }
-}
-
-/// A type that responsible for editing of table
-public protocol RealtimeEditingTableDataSource: AnyObject {
-    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool
-    func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath)
-    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath)
-    func tableView(
-        _ tableView: UITableView,
-        targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath,
-        toProposedIndexPath proposedDestinationIndexPath: IndexPath
-    ) -> IndexPath
-}
-public extension RealtimeEditingTableDataSource {
-    func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool { return tableView.isEditing }
-    func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool { return false }
-    func tableView(_ tableView: UITableView, moveRowAt sourceIndexPath: IndexPath, to destinationIndexPath: IndexPath) {}
-    func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {}
-    func tableView(
-        _ tableView: UITableView,
-        targetIndexPathForMoveFromRowAt sourceIndexPath: IndexPath,
-        toProposedIndexPath proposedDestinationIndexPath: IndexPath
-        ) -> IndexPath {
-        return proposedDestinationIndexPath
-    }
-}
-
 /*
 protocol ReuseElement: class {
     associatedtype BaseView
@@ -268,7 +207,7 @@ open class CollectibleViewDelegate<View, Cell: AnyObject & Hashable, Model, Sect
 
 open class TableViewDelegate<View, Item: AnyObject & Hashable, Model, Section>: CollectibleViewDelegate<View, Item, Model, Section> {
     open weak var tableDelegate: UITableViewDelegate?
-    open weak var editingDataSource: RealtimeEditingTableDataSource?
+    open weak var editingDataSource: UITableViewEditingDataSource?
     open weak var prefetchingDataSource: UITableViewDataSourcePrefetching?
 }
 
