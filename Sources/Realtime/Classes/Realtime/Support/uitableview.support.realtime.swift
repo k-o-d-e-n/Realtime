@@ -17,7 +17,7 @@ protocol ReuseItemProtocol {
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     #if COMBINE
-    public var disposeStorage: [AnyCancellable] = []
+    public var disposeStorage: [AnyCancellable] = [] // TODO: Rename `disposeStorage`
     #else//if REALTIME
     public var disposeStorage: [Disposable] = []
     #endif

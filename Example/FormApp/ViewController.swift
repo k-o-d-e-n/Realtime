@@ -120,6 +120,7 @@ class ViewController: UITableViewController {
             let title: String
         }
     }
+    var cancels: [AnyCancellable] = []
     var form: Form<Model>!
 
     private var genderOptions = [
@@ -149,11 +150,14 @@ class ViewController: UITableViewController {
         tableView.register(TextCell.self, forCellReuseIdentifier: textInputCellIdentifier)
         tableView.register(SubtitleCell.self, forCellReuseIdentifier: valueCellIdentifier)
 
+        let model = Model()
+
         let profile = StaticSection<Model>(headerTitle: "Profile", footerTitle: nil)
         let name: Row<TextCell, Model> = Row(reuseIdentifier: textInputCellIdentifier)
         name.onSelect { event, row in
             row.view?.textField.becomeFirstResponder()
         }
+        /*/// Closure approach
         name.onUpdate { update, row in
             update.view.imageView?.image = UIImage(systemName: "person")
             update.view.titleLabel.text = "Name"
@@ -163,6 +167,17 @@ class ViewController: UITableViewController {
                 .assign(to: \.name, on: update.model)
                 .store(in: &row.disposeStorage)
         }
+        */
+        /// Publisher approach
+        name.updatePublisher()
+            .handleEvents(receiveOutput: { update, row in
+                update.view.imageView?.image = UIImage(systemName: "person")
+                update.view.titleLabel.text = "Name"
+                update.view.textField.text = update.model.name
+            })
+            .flatMap(maxPublishers: .max(1), { $0.0.view.textField.publisher(for: \.text, options: .new) })
+            .assign(to: \.name, on: model)
+            .store(in: &cancels)
         profile.addRow(name)
         let birthdate: Row<UITableViewCell, Model> = Row(reuseIdentifier: defaultCellIdentifier)
         let datePicker: UIDatePicker = UIDatePicker()
@@ -282,7 +297,7 @@ class ViewController: UITableViewController {
         }
         actions.addRow(action)
 
-        form = Form(model: Model(), sections: [profile, pet, terms])
+        form = Form(model: model, sections: [profile, pet, terms])
         form.tableView = tableView
         tableView.sectionFooterHeight = UITableView.automaticDimension
     }

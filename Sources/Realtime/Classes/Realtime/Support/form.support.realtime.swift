@@ -33,6 +33,7 @@ extension RowState {
     static let removed: RowState = RowState(rawValue: 1 << 3)
 }
 
+// TODO: It seems we can get rid of Model at all, by passing model just to closure
 @dynamicMemberLookup
 open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     public typealias UpdateEvent = (view: View, model: Model) // TODO: May be it is reasonable to add Self
@@ -73,7 +74,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     }
 
     #if COMBINE
-    public func mapUpdate() -> AnyPublisher<(UpdateEvent, Row<View, Model>), Never> {
+    public func updatePublisher() -> AnyPublisher<(UpdateEvent, Row<View, Model>), Never> {
         _update.compactMap({ [weak self] event -> (UpdateEvent, Row<View, Model>)? in
             guard let `self` = self else { return nil }
             return (event, self)
@@ -97,7 +98,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     }
 
     #if COMBINE
-    public func mapSelect() -> AnyPublisher<(DidSelectEvent, Row<View, Model>), Never> {
+    public func selectPublisher() -> AnyPublisher<(DidSelectEvent, Row<View, Model>), Never> {
         _didSelect.compactMap({ [weak self] event -> (DidSelectEvent, Row<View, Model>)? in
             guard let `self` = self else { return nil }
             return (event, self)
@@ -459,6 +460,7 @@ public struct ReuseRowSectionDataSource<RowModel> {
 }
 extension AnyRealtimeCollection: DynamicSectionDataSource {}
 
+// TODO: Try use register approach like in `CollectibleViewDelegate`, it can make possible to avoid usage of `ReuseFormRow`
 open class ReuseRowSection<Model: AnyObject, RowModel>: Section<Model> {
     typealias ViewBuilder = (UITableView, IndexPath) -> UITableViewCell
     var updateDispose: Disposable?
