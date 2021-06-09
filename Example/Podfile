@@ -23,6 +23,10 @@ abstract_target 'Example' do
   end
 end
 
+target 'FormApp' do
+  pod 'RealtimeForm/Combine', :path => '../'
+end
+
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     if (['Realtime'].include? target.name)

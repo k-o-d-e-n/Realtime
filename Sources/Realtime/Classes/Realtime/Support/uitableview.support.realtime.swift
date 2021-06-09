@@ -16,10 +16,16 @@ protocol ReuseItemProtocol {
 }
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
+    #if canImport(Combine)
     @available(iOS 13.0, macOS 10.15, *)
     lazy var _view: CurrentValueSubject<View?, Never> = CurrentValueSubject(nil)
+    @available(iOS 13.0, macOS 10.15, *)
+    public lazy var disposeStorage: [AnyCancellable] = []
+    #endif
+    #if canImport(Realtime)
     lazy var _view_obsoleted: ValueStorage<View?> = ValueStorage.unsafe(weak: nil, repeater: .unsafe(with: .queue(.main)))
-    public var disposeStorage: ListeningDisposeStore = ListeningDisposeStore()
+    public var disposeStorage_obsoleted: ListeningDisposeStore = ListeningDisposeStore()
+    #endif
 
     open internal(set) weak var view: View? {
         set {
@@ -27,10 +33,12 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
             if #available(iOS 13.0, macOS 10.15, *) {
                 _view.value = newValue
             } else {
+                #if canImport(Realtime)
                 _view_obsoleted.wrappedValue = newValue
+                #endif
             }
-            #else
-            _view.value = newValue
+            #elseif canImport(Realtime)
+            _view_obsoleted.wrappedValue = newValue
             #endif
         }
         get {
@@ -38,10 +46,16 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
             if #available(iOS 13.0, macOS 10.15, *) {
                 return _view.value
             } else {
+                #if canImport(Realtime)
                 return _view_obsoleted.wrappedValue
+                #else
+                fatalError()
+                #endif
             }
-            #else
+            #elseif canImport(Realtime)
             return _view_obsoleted.wrappedValue
+            #else
+            fatalError()
             #endif
         }
     }
@@ -49,6 +63,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     public init() {}
     deinit { free() }
 
+    #if canImport(Realtime)
     /// Connects listanable value with view
     ///
     /// Use this function if listenable has been modified somehow
@@ -116,12 +131,24 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
             })
             .add(to: disposeStorage)
     }
+    #endif
 
     func free() {
-        disposeStorage.dispose()
+        #if canImport(Combine)
+        if #available(iOS 13.0, macOS 10.15, *) {
+            disposeStorage.removeAll()
+        } else {
+            #if canImport(Realtime)
+            disposeStorage_obsoleted.dispose()
+            #endif
+        }
+        #elseif canImport(Realtime)
+        disposeStorage_obsoleted.dispose()
+        #endif
         view = nil
     }
 }
+#if canImport(Realtime)
 extension ReuseItem {
     public func set<T: Listenable>(
         _ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
@@ -144,6 +171,7 @@ extension ReuseItem {
         bind(value, source, assign, { _, e in error(e) })
     }
 }
+#endif
 
 struct ReuseController<Row, Key: Hashable> where Row: ReuseItemProtocol {
     var freeItems: [Row] = []
@@ -285,6 +313,7 @@ open class TableViewDelegate<View, Item: AnyObject & Hashable, Model, Section>: 
     open weak var prefetchingDataSource: UITableViewDataSourcePrefetching?
 }
 
+#if canImport(Realtime)
 /// A class that provides tools to manage UITableView data source reactively.
 public final class SingleSectionTableViewDelegate<Model>: TableViewDelegate<UITableView, UITableViewCell, Model, Void> {
     fileprivate lazy var delegateService: Service = Service(self)
@@ -1094,4 +1123,6 @@ extension CollectionViewDelegate {
         }
     }
 }
+#endif
+
 #endif

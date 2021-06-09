@@ -10,7 +10,6 @@ import UIKit
 import Realtime
 
 class TextCell: UITableViewCell {
-    var listenings: [Disposable] = []
     lazy var titleLabel: UILabel = self.textLabel!.add(to: self.contentView)
     lazy var textField: UITextField = UITextField().add(to: self.contentView) { textField in
         textField.autocorrectionType = .default

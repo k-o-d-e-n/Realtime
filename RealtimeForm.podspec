@@ -1,0 +1,38 @@
+#
+# Be sure to run `pod lib lint Realtime.podspec' to ensure this is a
+# valid spec before submitting.
+#
+# Any lines starting with a # are optional, but their use is encouraged
+# To learn more about a Podspec see http://guides.cocoapods.org/syntax/podspec.html
+#
+
+Pod::Spec.new do |s|
+  s.name             = 'RealtimeForm'
+  s.version          = '0.9.7'
+  s.summary          = 'Reactive input form.'
+  s.description      = <<-DESC
+  Reactive input form based on Combine for UIKit.
+                       DESC
+
+  s.homepage         = 'https://github.com/k-o-d-e-n/Realtime'
+  s.license          = { :type => 'MIT', :file => 'LICENSE' }
+  s.author           = { 'k-o-d-e-n' => 'koden.u8800@gmail.com' }
+  s.source           = { :git => 'https://github.com/k-o-d-e-n/Realtime.git', :tag => '0.9.7' }
+  s.social_media_url = 'https://twitter.com/K_o_D_e_N'
+  s.ios.deployment_target = '9.0'
+  # s.osx.deployment_target = '10.10'
+  s.swift_version = '5.0'
+  s.default_subspec = 'Core'
+  s.subspec 'Core' do |core|
+    # custom.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => 'CUSTOM' }
+    core.source_files = 'Sources/Realtime/Classes/Realtime/Support/**/*'
+  end
+  s.subspec 'Combine' do |combine|
+    combine.dependency 'RealtimeForm/Core'
+    combine.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => 'COMBINE' }
+  end
+  s.subspec 'Realtime' do |realtime|
+    realtime.dependency 'RealtimeForm/Core'
+    realtime.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => 'REALTIME' }
+  end
+end
