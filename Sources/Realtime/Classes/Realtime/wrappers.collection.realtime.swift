@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: Index
 
-internal protocol _AnyIndexBox: class {
+internal protocol _AnyIndexBox: AnyObject {
     var _typeID: ObjectIdentifier { get }
 
     func _unbox<T : Comparable>() -> T?

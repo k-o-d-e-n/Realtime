@@ -234,6 +234,8 @@ users.changes
 
 ### Forms
 
+Available as separated module with `Combine` support.
+
 ```swift
 class User: Object {
     var name: Property<String>
@@ -329,6 +331,9 @@ it, simply add the following line to your Podfile:
 
 ```ruby
 pod 'Realtime'
+```
+```ruby
+pod 'RealtimeForm/Combine', :git => 'https://github.com/k-o-d-e-n/Realtime.git', :branch => 'master'
 ```
 
 ## Author

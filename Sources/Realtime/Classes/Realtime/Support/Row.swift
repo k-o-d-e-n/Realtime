@@ -5,19 +5,19 @@
 //  Created by Denis Koryttsev on 09.06.2021.
 //
 
-import Foundation
+#if os(iOS) || os(tvOS)
+
 #if COMBINE && canImport(Combine)
 import Combine
 /// #elseif REALTIME && canImport(Realtime)
 /// import Realtime
 #endif
 
-#if os(iOS) || os(tvOS)
-
 public enum RowViewBuilder<View> {
     case reuseIdentifier(String)
     case `static`(View)
     case custom((UITableView, IndexPath) -> View)
+    case `internal`
 }
 
 struct RowState: OptionSet {
@@ -67,6 +67,12 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
 
     public convenience init(reuseIdentifier: String) {
         self.init(viewBuilder: .reuseIdentifier(reuseIdentifier))
+    }
+    convenience override init() {
+        self.init(viewBuilder: .internal)
+    }
+    public convenience init(static view: View) {
+        self.init(viewBuilder: .static(view))
     }
 
     open subscript<T>(dynamicMember member: String) -> T? {
@@ -133,6 +139,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     override func free() {
         super.free()
         model = nil
+        indexPath = nil
     }
 
     public func sendSelectEvent(_ form: Form<Model>, at indexPath: IndexPath) {
@@ -148,15 +155,13 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
     }
 }
 extension Row where View: UITableViewCell {
-    public convenience init(static view: View) {
-        self.init(viewBuilder: .static(view))
-    }
     internal func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
         switch viewBuilder {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableCell(withIdentifier: identifier, for: indexPath)
         case .static(let cell): return cell
         case .custom(let closure): return closure(tableView, indexPath)
+        case .internal: fatalError("This type of row cannot build cell")
         }
     }
 }
@@ -170,6 +175,7 @@ public extension Row where View: UIView {
             return tableView.dequeueReusableHeaderFooterView(withIdentifier: identifier)
         case .static(let view): return view
         case .custom(let closure): return closure(tableView, IndexPath(row: 0, section: 0))
+        case .internal: fatalError("This type of row cannot build view")
         }
     }
 }
@@ -200,7 +206,6 @@ extension Row {
     }
     func didEndDisplay(with view: View, indexPath: IndexPath) {
         if !state.contains(.free) && self.view === view {
-            self.indexPath = nil
             state.remove(.displaying)
             free()
             state.insert([.pending, .free])

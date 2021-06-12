@@ -101,50 +101,6 @@ extension ReuseItem {
 }
 #endif
 
-struct ReuseController<Row, Key: Hashable> where Row: ReuseItemProtocol {
-    var freeItems: [Row] = []
-    var activeItems: [Key: Row] = [:]
-
-    typealias RowBuilder = () -> Row
-
-    func active(at key: Key) -> Row? {
-        return activeItems[key]
-    }
-
-    mutating func freeAll() {
-        activeItems.forEach {
-            $0.value.free()
-            freeItems.append($0.value)
-        }
-        activeItems.removeAll()
-    }
-
-    mutating func free() {
-        activeItems.forEach { $0.value.free() }
-        activeItems.removeAll()
-        freeItems.removeAll()
-    }
-}
-extension ReuseController {
-    mutating func dequeue<View: AnyObject>(at key: Key, rowBuilder: RowBuilder) -> Row where Row: ReuseItem<View> {
-        guard let item = activeItems[key] else {
-            let item = freeItems.popLast() ?? rowBuilder()
-            activeItems[key] = item
-            return item
-        }
-        item.free()
-        return item
-    }
-    @discardableResult
-    mutating func free<View: AnyObject>(at key: Key) -> Row? where Row: ReuseItem<View> {
-        guard let item = activeItems[key] else { return nil }
-        activeItems.removeValue(forKey: key)
-        item.free()
-        freeItems.append(item)
-        return item
-    }
-}
-
 #if os(iOS)
 import UIKit
 
@@ -304,11 +260,10 @@ extension SingleSectionTableViewDelegate {
 
         /// events
         func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            let item = delegate.reuseController.dequeue(at: cell, rowBuilder: ReuseItem.init)
             guard let bind = delegate.registeredCells[cell.typeKey] else {
                 fatalError("Unregistered cell with type \(type(of: cell))")
             }
-
+            let item = delegate.reuseController.dequeue(at: cell, rowBuilder: ReuseItem.init)
             let model = delegate.collection[indexPath.row]
             item.view = cell
             bind(item, cell, model, indexPath)
@@ -626,7 +581,7 @@ extension SectionedTableViewDelegate {
 //
 //            let sectionItem = delegate.reuseSectionController.dequeueItem(at: indexPath.section + 1, rowBuilder: ReuseSection.init)
 //            if sectionItem.isNotBeingDisplay {
-//                sectionItem.willDisplaySection(tableView, items: delegate.models(delegate.sections[indexPath.section + 1]), at: indexPath.section + 1)
+//                sectionItem.willDisplay(tableView, items: delegate.models(delegate.sections[indexPath.section + 1]), at: indexPath.section + 1)
 //            }
         }
 

@@ -21,6 +21,17 @@ extension LazyLoadable where Self: UIView {
     }
 }
 
+class TableViewCell: UITableViewCell {
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        imageView?.image = nil
+        textLabel?.text = nil
+        detailTextLabel?.text = nil
+        accessoryView = nil
+        accessoryType = .none
+    }
+}
+
 class TextCell: UITableViewCell {
     lazy var titleLabel: UILabel = self.textLabel!.add(to: self.contentView)
     lazy var textField: UITextField = UITextField().add(to: self.contentView) { textField in
@@ -60,7 +71,7 @@ class TextCell: UITableViewCell {
     }
 }
 
-class SubtitleCell: UITableViewCell {
+class SubtitleCell: TableViewCell {
     private lazy var activityIndicator: UIActivityIndicatorView = {
         let indView = UIActivityIndicatorView(style: .gray)
         contentView.addSubview(indView)
@@ -89,6 +100,11 @@ class SubtitleCell: UITableViewCell {
         }
     }
 
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        hideIndicator()
+    }
+
     func hideIndicator() {
         detailTextLabel?.isHidden = false
         activityIndicator.stopAnimating()
@@ -101,15 +117,19 @@ let valueCellIdentifier = "value"
 
 @available(iOS 13.4, *)
 class ViewController: UITableViewController {
-    class Model: ObservableObject {
-        @Published var name: String?
-        @Published var birthdate: Date?
-        @Published var gender: Gender?
+    class Model {
+        var account: String?
 
-        @Published var pet: Animal?
-        @Published var petColor: UIColor?
+        var name: String?
+        var birthdate: Date?
+        var gender: Gender?
 
-        @Published var accepted: Bool = false
+        var pet: Animal?
+        var petColor: UIColor?
+
+        @Published var attachments: [String] = []
+
+        var accepted: Bool = false
 
         struct Gender: SelectViewControllerModel {
             var id: String
@@ -137,18 +157,73 @@ class ViewController: UITableViewController {
         Model.Animal(id: "🦆", title: "🦆 Duck")
     ]
 
+    class AttachmentsDataSource: DynamicSectionDataSource {
+        let model: ViewController.Model
+        var changes: AnyPublisher<DynamicSectionEvent, Never> {
+            model.$attachments
+                .scan((oldValue: model.attachments, newValue: model.attachments)) { storage, newValue in
+                    (storage.1, newValue)
+                }
+                .filter({ $0.oldValue.count != $0.newValue.count })
+                .map({ old, new -> DynamicSectionEvent in
+                    let diff = new.difference(from: old)
+                    var insertions: [Int] = []
+                    var deletions: [Int] = []
+                    for change in diff {
+                        switch change {
+                        case .insert(let offset, _, _): insertions.append(offset)
+                        case .remove(let offset, _, _): deletions.append(offset)
+                        }
+                    }
+                    return .updated(deleted: deletions, inserted: insertions, modified: [], moved: [])
+                })
+                .receive(on: DispatchQueue.main)
+                .eraseToAnyPublisher()
+        }
+        var keepSynced: Bool { get { true } set {} }
+        var count: Int { model.attachments.count + 1 }
+        subscript(index: Int) -> RowValue {
+            model.attachments.count > index ? .element(model.attachments[index]) : .actionButton
+        }
+
+        enum RowValue {
+            case element(String)
+            case actionButton
+        }
+
+        init(_ model: ViewController.Model) {
+            self.model = model
+        }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
         title = "Form"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Print", style: .done, target: self, action: #selector(printModel))
         navigationItem.largeTitleDisplayMode = .always
         tableView.backgroundView = UIView()
         tableView.backgroundView?.backgroundColor = .systemGroupedBackground
         tableView.keyboardDismissMode = .onDrag
         tableView.tableFooterView = UIView()
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: defaultCellIdentifier)
+        tableView.register(TableViewCell.self, forCellReuseIdentifier: defaultCellIdentifier)
         tableView.register(TextCell.self, forCellReuseIdentifier: textInputCellIdentifier)
         tableView.register(SubtitleCell.self, forCellReuseIdentifier: valueCellIdentifier)
+
+        let model = Model()
+
+        let accounts = DynamicSection<Model, String>(AnyCollectionDataSource(["Twitter", "Telegram", "Facebook"])) { tv, ip, _ in
+            tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip)
+        }
+        accounts.headerTitle = "Accounts"
+        accounts.register(TableViewCell.self) { row, cell, model, ip in
+            cell.textLabel?.text = model
+        }
+        accounts.selectPublisher()
+            .sink { (form, row, acc) in
+                form.model.account = acc
+            }
+            .store(in: &cancels)
 
         let profile = StaticSection<Model>(headerTitle: "Profile", footerTitle: nil)
         let name: Row<TextCell, Model> = Row(reuseIdentifier: textInputCellIdentifier)
@@ -257,6 +332,35 @@ class ViewController: UITableViewController {
             pet.addRow(color)
         }
 
+        let attachmentsDataSource = AttachmentsDataSource(model)
+        let attachments = DynamicSection<Model, AttachmentsDataSource.RowValue>(attachmentsDataSource) { tv, ip, _ in
+            tv.dequeueReusableCell(withIdentifier: valueCellIdentifier, for: ip)
+        }
+        attachments.headerTitle = "Attachments"
+        attachments.register(SubtitleCell.self) { row, cell, model, ip in
+            switch model {
+            case .element(let name):
+                cell.imageView?.image = UIImage(systemName: "\(ip.row).circle")
+                cell.textLabel?.text = name
+            case .actionButton:
+                cell.imageView?.image = UIImage(systemName: "plus.circle")
+                cell.textLabel?.text = "Add attachment"
+            }
+        }
+        attachments.selectPublisher()
+            .sink { (form, row, rowModel) in
+                guard case .actionButton = rowModel else { return }
+                form.model.attachments.append("Attachment #\(form.model.attachments.count)")
+            }
+            .store(in: &cancels)
+        /// footer view
+        /*let addAttachment = UIButton()
+        addAttachment.setTitle("Add", for: .normal)
+        addAttachment.setTitleColor(.black, for: .normal)
+        addAttachment.setImage(UIImage(systemName: "plus.circle"), for: .normal)
+        addAttachment.addTarget(self, action: #selector(ViewController.addAttachment), for: .touchUpInside)
+        attachments.setFooterRow(Row(static: addAttachment))*/
+
         let terms: StaticSection<Model> = StaticSection(
             headerTitle: "Terms",
             footerTitle: "By accessing or using this website and related services, you agree to these Terms and Conditions, which include our Privacy Policy (Terms)."
@@ -299,11 +403,38 @@ class ViewController: UITableViewController {
         }
         actions.addRow(action)
 
-        form = Form(model: Model(), sections: [profile, pet, terms])
+        form = Form(model: model, sections: [accounts, profile, pet, attachments, terms])
         form.tableView = tableView
+        form.tableDelegate = self
+        form.editingDataSource = self
         tableView.sectionFooterHeight = UITableView.automaticDimension
     }
+
+    @objc func printModel() {
+        var output = ""
+        dump(form.model, to: &output)
+        print(output)
+    }
+    /*@objc func addAttachment() {
+        form.model.attachments.append("Attachment \(form.model.attachments.count)")
+    }*/
+
+    override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool { false }
+    override func tableView(_ tableView: UITableView, editingStyleForRowAt indexPath: IndexPath) -> UITableViewCell.EditingStyle {
+        self.tableView(tableView, canEditRowAt: indexPath) ? .delete : .none
+    }
+    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
+        indexPath.section == 3 && indexPath.row < tableView.numberOfRows(inSection: 3) - 1
+    }
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        switch editingStyle {
+        case .delete: form.model.attachments.remove(at: indexPath.row)
+        default: break
+        }
+    }
 }
+@available(iOS 13.4, *)
+extension ViewController: UITableViewEditingDataSource {}
 
 @available(iOS 13.0, *)
 public extension Combine.Publishers {

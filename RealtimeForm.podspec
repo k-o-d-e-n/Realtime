@@ -29,7 +29,9 @@ Pod::Spec.new do |s|
         'Sources/Realtime/Classes/Realtime/Support/Row.swift',
         'Sources/Realtime/Classes/Realtime/Support/Section.swift',
         'Sources/Realtime/Classes/Realtime/Support/ReusableItem.swift',
-        'Sources/Realtime/Classes/Realtime/Support/UITableView.swift'
+        'Sources/Realtime/Classes/Realtime/Support/UITableView.swift',
+        'Sources/Realtime/Classes/Realtime/Support/ReuseController.swift',
+        'Sources/Realtime/Classes/Realtime/Support/DynamicSection.swift'
     ]
   end
   s.subspec 'Combine' do |combine|

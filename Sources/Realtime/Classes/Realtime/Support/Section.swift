@@ -9,11 +9,25 @@ import Foundation
 
 #if os(iOS) || os(tvOS)
 
+struct SectionState: OptionSet {
+    let rawValue: CShort
+
+    init(rawValue: CShort) {
+        self.rawValue = rawValue
+    }
+}
+extension SectionState {
+    static let headerDisplaying: SectionState = SectionState(rawValue: 1 << 0)
+    static let footerDisplaying: SectionState = SectionState(rawValue: 1 << 1)
+}
+
 open class Section<Model: AnyObject>: RandomAccessCollection {
     open var footerTitle: String?
     open var headerTitle: String?
     open internal(set) var headerRow: Row<UIView, Model>?
     open internal(set) var footerRow: Row<UIView, Model>?
+
+    var state: SectionState = []
 
     var numberOfItems: Int { fatalError("override") }
 
@@ -30,32 +44,62 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
         self.footerRow = unsafeBitCast(row, to: Row<UIView, Model>.self)
     }
 
-    internal func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) { fatalError() }
-    internal func insertRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>, at index: Int) { fatalError() }
-    internal func moveRow(at index: Int, to newIndex: Int) { fatalError() }
+    internal func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) { fatalError("Unimplemented or unavailable") }
+    internal func insertRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>, at index: Int) { fatalError("Unimplemented or unavailable") }
+    internal func moveRow(at index: Int, to newIndex: Int) { fatalError("Unimplemented or unavailable") }
     @discardableResult
-    internal func deleteRow(at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
+    internal func deleteRow(at index: Int) -> Row<UITableViewCell, Model> { fatalError("Unimplemented or unavailable") }
+
+    func _hasVisibleRows(fromTop: Bool, excludingFinal cell: UITableViewCell? = nil) -> Bool { fatalError("override") }
 
     func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell { fatalError() }
-    func dequeueRow(for cell: UITableViewCell, at index: Int) -> Row<UITableViewCell, Model> { fatalError() }
     func reloadCell(at indexPath: IndexPath) { fatalError() }
-    func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {}
-    func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {}
+
     func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {}
 
-    func willDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
-    func didEndDisplaySection(_ tableView: UITableView, at index: Int) { fatalError("override") }
+    func willDisplay(_ tableView: UITableView, at index: Int) { }
+    func didEndDisplay(_ tableView: UITableView, at index: Int) { }
 
-    func willDisplayHeaderView(_ view: UIView, at section: Int, with model: Model) {
+    func willDisplayCell(_ cell: UITableViewCell, tableView: UITableView, at indexPath: IndexPath, with model: Model) {
+        if indexPath.row == 0, !(_hasVisibleRows(fromTop: true, excludingFinal: cell) || state.contains(.headerDisplaying)) {
+            willDisplay(tableView, at: indexPath.section)
+        } else if indexPath.row + 1 == numberOfItems, !(_hasVisibleRows(fromTop: false, excludingFinal: cell) || state.contains(.footerDisplaying)) {
+            willDisplay(tableView, at: indexPath.section)
+        }
+    }
+    func didEndDisplayCell(_ cell: UITableViewCell, tableView: UITableView, at indexPath: IndexPath) {
+        if indexPath.row == 0, !(_hasVisibleRows(fromTop: true, excludingFinal: cell) || state.contains(.headerDisplaying)) {
+            didEndDisplay(tableView, at: indexPath.section)
+        } else if indexPath.row + 1 == numberOfItems, !(_hasVisibleRows(fromTop: false, excludingFinal: cell) || state.contains(.footerDisplaying)) {
+            didEndDisplay(tableView, at: indexPath.section)
+        }
+    }
+    func willDisplayHeaderView(_ view: UIView, tableView: UITableView, at section: Int, with model: Model) {
+        if !(_hasVisibleRows(fromTop: true) || state.contains(.footerDisplaying)) {
+            willDisplay(tableView, at: section)
+        }
+        state.insert(.headerDisplaying)
         headerRow?.willDisplay(with: view, model: model, indexPath: IndexPath(row: -1, section: section))
     }
-    func didEndDisplayHeaderView(_ view: UIView, at section: Int, with model: Model) {
+    func didEndDisplayHeaderView(_ view: UIView, tableView: UITableView, at section: Int, with model: Model) {
+        if !(_hasVisibleRows(fromTop: true) || state.contains(.footerDisplaying)) {
+            didEndDisplay(tableView, at: section)
+        }
+        state.remove(.headerDisplaying)
         headerRow?.didEndDisplay(with: view, indexPath: IndexPath(row: -1, section: section))
     }
-    func willDisplayFooterView(_ view: UIView, at section: Int, with model: Model) {
+    func willDisplayFooterView(_ view: UIView, tableView: UITableView, at section: Int, with model: Model) {
+        if !(_hasVisibleRows(fromTop: false) || state.contains(.headerDisplaying)) {
+            willDisplay(tableView, at: section)
+        }
+        state.insert(.footerDisplaying)
         footerRow?.willDisplay(with: view, model: model, indexPath: IndexPath(row: .max, section: section))
     }
-    func didEndDisplayFooterView(_ view: UIView, at section: Int, with model: Model) {
+    func didEndDisplayFooterView(_ view: UIView, tableView: UITableView, at section: Int, with model: Model) {
+        if !(_hasVisibleRows(fromTop: false) || state.contains(.headerDisplaying)) {
+            didEndDisplay(tableView, at: section)
+        }
+        state.remove(.footerDisplaying)
         footerRow?.didEndDisplay(with: view, indexPath: IndexPath(row: .max, section: section))
     }
 
@@ -82,14 +126,20 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
     var rows: [Row<UITableViewCell, Model>] = []
     var removedRows: [Int: Row<UITableViewCell, Model>] = [:]
 
-    override var numberOfItems: Int { return rows.count }
+    override var numberOfItems: Int { rows.count }
 
     override func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
-        return rows[indexPath.row].buildCell(for: tableView, at: indexPath)
+        rows[indexPath.row].buildCell(for: tableView, at: indexPath)
     }
 
-    override func dequeueRow(for cell: UITableViewCell, at index: Int) -> Row<UITableViewCell, Model> {
-        return rows[index]
+    override func _hasVisibleRows(fromTop: Bool, excludingFinal cell: UITableViewCell? = nil) -> Bool {
+        if fromTop {
+            guard rows.first?.isVisible == true else { return false }
+            return cell == nil || (rows.count > 1 ? false : rows[1].isVisible)
+        } else {
+            guard rows.last?.isVisible == true else { return false }
+            return cell == nil || (rows.count > 1 ? false : rows[rows.count - 2].isVisible)
+        }
     }
 
     override open func addRow<Cell: UITableViewCell>(_ row: Row<Cell, Model>) {
@@ -112,7 +162,8 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
         return removed
     }
 
-    override func didEndDisplay(_ cell: UITableViewCell, at indexPath: IndexPath) {
+    override func didEndDisplayCell(_ cell: UITableViewCell, tableView: UITableView, at indexPath: IndexPath) {
+        super.didEndDisplayCell(cell, tableView: tableView, at: indexPath)
         if let removed = removedRows.removeValue(forKey: indexPath.row) {
             removed.state.remove(.displaying)
             if !removed.state.contains(.free) {
@@ -125,13 +176,11 @@ open class StaticSection<Model: AnyObject>: Section<Model> {
         }
     }
 
-    override func willDisplay(_ cell: UITableViewCell, at indexPath: IndexPath, with model: Model) {
+    override func willDisplayCell(_ cell: UITableViewCell, tableView: UITableView, at indexPath: IndexPath, with model: Model) {
+        super.willDisplayCell(cell, tableView: tableView, at: indexPath, with: model)
         let item = rows[indexPath.row]
         item.willDisplay(with: cell, model: model, indexPath: indexPath)
     }
-
-    override func willDisplaySection(_ tableView: UITableView, at index: Int) {}
-    override func didEndDisplaySection(_ tableView: UITableView, at index: Int) {}
 
     override func didSelect(_ form: Form<Model>, didSelectRowAt indexPath: IndexPath) {
         form.tableView?.deselectRow(at: indexPath, animated: true)

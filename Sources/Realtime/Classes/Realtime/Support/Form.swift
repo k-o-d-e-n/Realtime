@@ -196,44 +196,41 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-            form.sections[indexPath.section].willDisplay(cell, at: indexPath, with: form.model)
+            form.sections[indexPath.section].willDisplayCell(cell, tableView: tableView, at: indexPath, with: form.model)
         }
 
         func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
             if let removed = form.removedSections[indexPath.section] {
-                removed.didEndDisplay(cell, at: indexPath)
+                removed.didEndDisplayCell(cell, tableView: tableView, at: indexPath)
                 if tableView.indexPathsForVisibleRows.map({ !$0.contains(where: { $0.section == indexPath.section }) }) ?? true {
                     form.removedSections.removeValue(forKey: indexPath.section)
                 }
             } else if form.sections.indices.contains(indexPath.section) {
-                form.sections[indexPath.section].didEndDisplay(cell, at: indexPath)
+                form.sections[indexPath.section].didEndDisplayCell(cell, tableView: tableView, at: indexPath)
             }
         }
 
-        // (will/didEnd)DisplaySection calls only for header, but it doesn't correct
         func tableView(_ tableView: UITableView, willDisplayHeaderView view: UIView, forSection section: Int) {
             let s = form[section]
-            s.willDisplaySection(tableView, at: section) // if section has no header willDisplay won't called
-            s.willDisplayHeaderView(view, at: section, with: form.model)
+            s.willDisplayHeaderView(view, tableView: tableView, at: section, with: form.model)
             form.tableDelegate?.tableView?(tableView, willDisplayHeaderView: view, forSection: section)
         }
 
         func tableView(_ tableView: UITableView, didEndDisplayingHeaderView view: UIView, forSection section: Int) {
             let s = form[section]
-            s.didEndDisplaySection(tableView, at: section)
-            s.didEndDisplayHeaderView(view, at: section, with: form.model)
+            s.didEndDisplayHeaderView(view, tableView: tableView, at: section, with: form.model)
             form.tableDelegate?.tableView?(tableView, didEndDisplayingHeaderView: view, forSection: section)
         }
 
         func tableView(_ tableView: UITableView, willDisplayFooterView view: UIView, forSection section: Int) {
             let s = form[section]
-            s.willDisplayFooterView(view, at: section, with: form.model)
+            s.willDisplayFooterView(view, tableView: tableView, at: section, with: form.model)
             form.tableDelegate?.tableView?(tableView, willDisplayFooterView: view, forSection: section)
         }
 
         func tableView(_ tableView: UITableView, didEndDisplayingFooterView view: UIView, forSection section: Int) {
             let s = form[section]
-            s.didEndDisplayFooterView(view, at: section, with: form.model)
+            s.didEndDisplayFooterView(view, tableView: tableView, at: section, with: form.model)
             form.tableDelegate?.tableView?(tableView, didEndDisplayingFooterView: view, forSection: section)
         }
 

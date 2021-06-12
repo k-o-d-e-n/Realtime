@@ -9,6 +9,7 @@
 #if os(iOS)
 import UIKit
 
+// TODO: Can be replaced by `ObjectIdentifier` directly
 struct TypeKey: Hashable {
     fileprivate let type: AnyClass
 
@@ -42,6 +43,7 @@ extension SignedInteger {
 
 // MARK: UITableView - Adapter
 
+// TODO: Remove, unused
 internal class _TableViewSectionedAdapter: NSObject, UITableViewDataSource, UITableViewDelegate, UITableViewDataSourcePrefetching {
     internal func numberOfSections(in tableView: UITableView) -> Int {
         fatalError("Need override this method")

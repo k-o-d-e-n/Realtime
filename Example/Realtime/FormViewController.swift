@@ -254,12 +254,66 @@ class FormViewController: UITableViewController {
         section.addRow(photo)
         section.addRow(ownedGroup)
 
-        let followers = ReuseRowSection<User, User>(
-            ReuseRowSectionDataSource(collection: Global.rtUsers),
-            cell: { tv, ip in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) },
-            row: followerRow(editingUser)
+        let followers = DynamicSection<User, User>(
+            RealtimeCollectionDataSource(Global.rtUsers),
+            cell: { tv, ip, _ in tv.dequeueReusableCell(withIdentifier: defaultCellIdentifier, for: ip) }
         )
         followers.headerTitle = "Followers"
+        followers.register(UITableViewCell.self) { [unowned self] row, cell, follower, ip in
+            row.view?.alpha = user == follower ? 0.5 : 1
+            row.bind(
+                follower.name,
+                { (cell, name) in
+                    cell.textLabel?.text <== name
+                },
+                nil
+            )
+            row.mapSelect()
+                .listening { (event, row) in
+                    guard false, let c = row.view, let user = row.model else { return }
+
+                    let isAdded = c.accessoryType == .none
+                    c.accessoryType = isAdded ? .checkmark : .none
+                    let follower = Global.rtUsers[event.indexPath.row]
+                    let contains = user.followers.contains(follower)
+                    if isAdded, !contains {
+                        if user.isRooted {
+                            try! user.followers.write(follower, in: transaction)
+                        } else {
+                            user.followers.insert(element: follower)
+                        }
+                    } else if contains {
+                        if user.isRooted {
+                            user.followers.remove(element: follower, in: transaction)
+                        } else {
+                            user.followers.delete(element: follower)
+                        }
+                    }
+                }
+                .add(to: &row.disposeStorage)
+        }
+        followers.mapSelect()
+            .listening { [unowned self] (form, row, follower) in
+                guard let c = row.view, let user = row.model, follower != user else { return }
+
+                let isAdded = c.accessoryType == .none
+                c.accessoryType = isAdded ? .checkmark : .none
+                let contains = user.followers.contains(follower)
+                if isAdded, !contains {
+                    if user.isRooted {
+                        try! user.followers.write(follower, in: transaction)
+                    } else {
+                        user.followers.insert(element: follower)
+                    }
+                } else if contains {
+                    if user.isRooted {
+                        user.followers.remove(element: follower, in: transaction)
+                    } else {
+                        user.followers.delete(element: follower)
+                    }
+                }
+            }
+            .add(to: store)
 
         self.form = Form(model: user, sections: [section, followers])
         form.tableView = tableView
@@ -280,6 +334,31 @@ class FormViewController: UITableViewController {
                 self.navigationItem.rightBarButtonItem?.isEnabled = isEnabled
             })
             .add(to: store)
+    }
+
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard form[indexPath.section].headerTitle == "Followers" else { return }
+        tableView.deselectRow(at: indexPath, animated: true)
+        let row = form[indexPath.section][indexPath.row]
+        guard let c = row.view, let user = row.model, false else { return }
+
+        let isAdded = c.accessoryType == .none
+        c.accessoryType = isAdded ? .checkmark : .none
+        let follower = Global.rtUsers[indexPath.row]
+        let contains = user.followers.contains(follower)
+        if isAdded, !contains {
+            if user.isRooted {
+                try! user.followers.write(follower, in: transaction)
+            } else {
+                user.followers.insert(element: follower)
+            }
+        } else if contains {
+            if user.isRooted {
+                user.followers.remove(element: follower, in: transaction)
+            } else {
+                user.followers.delete(element: follower)
+            }
+        }
     }
 
     override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool { true }
@@ -358,41 +437,6 @@ class FormViewController: UITableViewController {
         Global.rtGroups.runObserving()
         groupPicker.title = "Groups"
         present(UINavigationController(rootViewController: groupPicker), animated: true, completion: nil)
-    }
-
-    private func followerRow(_ currentUser: User?) -> () -> ReuseFormRow<UITableViewCell, User, User> {
-        return { [unowned transaction] in
-            let row: ReuseFormRow<UITableViewCell, User, User> = ReuseFormRow()
-            row.onRowModel({ (user, row) in
-                row.view?.alpha = currentUser == user ? 0.5 : 1
-                row.view?.textLabel?.text <== user.name
-                row.bind(user.name, { (cell, name) in
-                    cell.textLabel?.text <== name
-                }, nil)
-            })
-            row.onSelect({ (ctx, row) in
-                guard let c = row.view, let user = row.model else { return }
-
-                let isAdded = c.accessoryType == .none
-                c.accessoryType = isAdded ? .checkmark : .none
-                let follower = Global.rtUsers[ctx.indexPath.row]
-                let contains = user.followers.contains(follower)
-                if isAdded, !contains {
-                    if user.isRooted {
-                        try! user.followers.write(follower, in: transaction)
-                    } else {
-                        user.followers.insert(element: follower)
-                    }
-                } else if contains {
-                    if user.isRooted {
-                        user.followers.remove(element: follower, in: transaction)
-                    } else {
-                        user.followers.delete(element: follower)
-                    }
-                }
-            })
-            return row
-        }
     }
 }
 
