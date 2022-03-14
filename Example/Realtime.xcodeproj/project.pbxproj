@@ -105,6 +105,7 @@
 		A4D56D1C2143FD8200641DF3 /* FormViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormViewController.swift; sourceTree = "<group>"; };
 		A4D60701234296EB003D0BAD /* Package.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Package.swift; path = ../Package.swift; sourceTree = "<group>"; };
 		A4E054512008D3B100E95A49 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		A4EA5F5E270F628700E4EEB3 /* FormApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FormApp.entitlements; sourceTree = "<group>"; };
 		A4F0FF772144901800395579 /* TableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableViewController.swift; sourceTree = "<group>"; };
 		A4FF2176234799160093C109 /* Realtime_FoundationDB.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realtime_FoundationDB.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		A4FF237F2347A3EB0093C109 /* Realtime_FoundationDBModels.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = Realtime_FoundationDBModels.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -251,6 +252,7 @@
 		A451198B266FA09600D421C8 /* FormApp */ = {
 			isa = PBXGroup;
 			children = (
+				A4EA5F5E270F628700E4EEB3 /* FormApp.entitlements */,
 				A451198C266FA09600D421C8 /* AppDelegate.swift */,
 				A451198E266FA09600D421C8 /* SceneDelegate.swift */,
 				A4511990266FA09600D421C8 /* ViewController.swift */,
@@ -1051,6 +1053,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = FormApp/FormApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 39RU298KG9;
@@ -1062,6 +1065,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "k-o-d-e-n.FormApp";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1083,6 +1087,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_ENTITLEMENTS = FormApp/FormApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 39RU298KG9;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -1092,6 +1097,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = "k-o-d-e-n.FormApp";
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

@@ -87,3 +87,53 @@ class User2: User {
         }
     }
 }
+
+
+@dynamicMemberLookup
+protocol Realtime_Object: Object {
+    associatedtype Properties
+    subscript<T>(dynamicMember member: WritableKeyPath<Properties, Property<T>>) -> T? { get }
+}
+
+@dynamicMemberLookup
+class RealtimeObject: Object, Realtime_Object {
+    private var _properties: Properties = Properties()
+
+    required init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {
+        super.init(in: node, options: options)
+    }
+
+    required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+        try super.init(data: data, event: event)
+    }
+
+    subscript<T>(dynamicMember member: WritableKeyPath<Properties, Property<T>>) -> T? {
+        let storage = _properties[keyPath: member]
+        if node != nil, let propNode = storage.node, propNode.parent != node {
+//            propNode.parent = node
+        }
+        return storage.wrappedValue
+    }
+//    subscript<T>(dynamicMember member: KeyPath<Properties, ReadonlyProperty<T>>) -> T? {
+//        _properties[keyPath: member].wrappedValue
+//    }
+//    subscript<T>(dynamicMember member: KeyPath<Properties, File<T>>) -> T? {
+//        _properties[keyPath: member].wrappedValue
+//    }
+//    subscript<T>(dynamicMember member: KeyPath<Properties, ReadonlyFile<T>>) -> T? {
+//        _properties[keyPath: member].wrappedValue
+//    }
+}
+extension RealtimeObject {
+    final class Properties {
+        lazy var name: Property<String> = Property(in: Node(key: "name"), options: .required(.realtimeDataValue))
+        lazy var age: Property<UInt8> = Property(in: Node(key: "age"), options: .required(.realtimeDataValue))
+    }
+}
+
+func testImmutable() {
+    let obj = User()
+    let immutableObj = RealtimeObject()
+    let age = immutableObj.age
+    immutableObj.name
+}

@@ -196,6 +196,7 @@ class _AnyShareCollection<C: Collection>: _AnyShareCollectionBase<C.Element> {
     public override subscript(position: RealtimeCollectionIndex) -> Element { return base[base._unbox(position._box)] }
 }
 
+@available(*, deprecated, message: "Avoid it")
 struct AnySharedCollection<Element>: Collection {
     let base: _AnyShareCollectionBase<Element>
     init<Base: Collection>(_ base: Base) where Base.Iterator.Element == Element {

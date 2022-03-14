@@ -253,11 +253,11 @@ extension Form {
         }
 
         func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-            return form.editingDataSource?.tableView(tableView, canEditRowAt: indexPath) ?? true
+            return form.editingDataSource?.tableView(tableView, canEditRowAt: indexPath) ?? false
         }
 
         func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
-            return form.editingDataSource?.tableView(tableView, canMoveRowAt: indexPath) ?? true
+            return form.editingDataSource?.tableView(tableView, canMoveRowAt: indexPath) ?? false
         }
 
         func tableView(_ tableView: UITableView, shouldIndentWhileEditingRowAt indexPath: IndexPath) -> Bool {

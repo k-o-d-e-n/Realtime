@@ -9,6 +9,9 @@
 #if COMBINE && canImport(Combine)
 import Combine
 #endif
+#if canImport(Realtime)
+import Realtime
+#endif
 
 #if COMBINE
 public enum DynamicSectionEvent {
@@ -16,6 +19,12 @@ public enum DynamicSectionEvent {
     case updated(deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)])
 }
 #elseif REALTIME_UI
+#if canImport(Realtime)
+public enum RCEvent {
+    case initial // TODO: Rename to `value` or `full` or `reload`
+    case updated(deleted: [Int], inserted: [Int], modified: [Int], moved: [(from: Int, to: Int)]) // may be [Int] replace to IndexSet?
+}
+#endif
 public typealias DynamicSectionEvent = RCEvent
 #endif
 
@@ -38,7 +47,7 @@ public struct AnyCollectionDataSource<C>: DynamicSectionDataSource where C: Rand
     #if COMBINE
     public var changes: AnyPublisher<DynamicSectionEvent, Never> { Empty().eraseToAnyPublisher() }
     #elseif REALTIME_UI
-    public var changes: AnyListenable<DynamicSectionEvent> { EmptyListenable().asAny() }
+    public var changes: AnyListenable<DynamicSectionEvent> { AnyListenable(EmptyListenable()) }
     #endif
     public var keepSynced: Bool {
         get { true }
@@ -92,7 +101,7 @@ open class DynamicSection<Model: AnyObject, RowModel>: Section<Model> {
 
     var tableView: UITableView?
     var section: Int?
-    #if REALTIME_UI
+    #if REALTIME_UI && !canImport(Realtime)
     open var scheduledUpdate: UITableView.ScheduledUpdate?
     #endif
 
@@ -188,8 +197,8 @@ open class DynamicSection<Model: AnyObject, RowModel>: Section<Model> {
         updateDispose?.dispose()
         #endif
 
-        #if COMBINE
-        updateDispose = dataSource.changes.sink(receiveValue: { [weak tableView] e in
+        #if COMBINE || canImport(Realtime)
+        let handler: (DynamicSectionEvent) -> Void = { [weak tableView] e in
             guard let tv = tableView else { return }
             tv.beginUpdates()
             switch e {
@@ -204,7 +213,12 @@ open class DynamicSection<Model: AnyObject, RowModel>: Section<Model> {
                 })
             }
             tv.endUpdates()
-        })
+        }
+        #if COMBINE
+        updateDispose = dataSource.changes.sink(receiveValue: handler)
+        #else
+        updateDispose = dataSource.changes.listening(onValue: handler)
+        #endif
         #elseif REALTIME_UI
         let onValue: (DynamicSectionEvent) -> Void = { [weak tableView, unowned self] e in
             guard let tv = tableView else { return }
@@ -262,7 +276,9 @@ open class DynamicSection<Model: AnyObject, RowModel>: Section<Model> {
         updateDispose = dataSource.changes.listening(
             onValue: onValue,
             onError: { error in
+                #if !canImport(Realtime)
                 debugPrintLog(String(describing: error))
+                #endif
             }
         )
         #endif

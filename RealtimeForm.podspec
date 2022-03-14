@@ -39,4 +39,9 @@ Pod::Spec.new do |s|
     combine.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => ['$(inherited)', 'COMBINE'] }
     combine.ios.deployment_target = '13.0'
   end
+  s.subspec 'Listenable' do |listenable|
+    listenable.dependency 'RealtimeForm/Core'
+    listenable.dependency 'Realtime/Listenable'
+    listenable.pod_target_xcconfig = { 'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => ['$(inherited)', 'REALTIME_UI'] }
+  end
 end

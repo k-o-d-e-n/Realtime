@@ -1184,13 +1184,13 @@ import Combine
 extension ListenableTests {
     func testRepeaterSubscriber() {
         let repeater = Repeater<Int>.unsafe()
-        var value: Int? = nil
+        var properties: Int? = nil
         let c = (repeater
             .map({ $0 + 10 }) as Publishers.Map<Repeater<Int>, Int>)
-            .sink(receiveCompletion: { _ in XCTFail() }, receiveValue: { value = $0 })
+            .sink(receiveCompletion: { _ in XCTFail() }, receiveValue: { properties = $0 })
 
         repeater.send(.value(10))
-        XCTAssertEqual(value, 20)
+        XCTAssertEqual(properties, 20)
     }
 
     /*

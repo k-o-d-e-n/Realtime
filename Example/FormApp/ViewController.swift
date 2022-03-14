@@ -111,6 +111,23 @@ class SubtitleCell: TableViewCell {
     }
 }
 
+@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
+extension Publisher where Self.Failure == Never {
+    func assign<Root, Cell>(to keyPath: ReferenceWritableKeyPath<Root, Self.Output>, on object: Root, undoManager: UndoManager, row: Row<Cell, Root>, undoRow: @escaping (Cell, Output) -> Void) -> AnyCancellable
+    where Root: AnyObject {
+        handleEvents(receiveOutput: { _ in
+            undoManager.beginUndoGrouping()
+            let oldValue = object[keyPath: keyPath]
+            undoManager.registerUndo(withTarget: object) { target in
+                target[keyPath: keyPath] = oldValue
+                row.view.map({ undoRow($0, oldValue) })
+            }
+            undoManager.endUndoGrouping()
+        })
+        .assign(to: keyPath, on: object)
+    }
+}
+
 let defaultCellIdentifier = "default"
 let textInputCellIdentifier = "input"
 let valueCellIdentifier = "value"
@@ -200,7 +217,11 @@ class ViewController: UITableViewController {
         super.viewDidLoad()
 
         title = "Form"
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Print", style: .done, target: self, action: #selector(printModel))
+        navigationItem.rightBarButtonItems = [
+            UIBarButtonItem(title: "Print", style: .done, target: self, action: #selector(printModel)),
+            UIBarButtonItem(barButtonSystemItem: .undo, target: self, action: #selector(undo)),
+            UIBarButtonItem(title: "Reset", style: .plain, target: self, action: #selector(reset))
+        ]
         navigationItem.largeTitleDisplayMode = .always
         tableView.backgroundView = UIView()
         tableView.backgroundView?.backgroundColor = .systemGroupedBackground
@@ -209,6 +230,9 @@ class ViewController: UITableViewController {
         tableView.register(TableViewCell.self, forCellReuseIdentifier: defaultCellIdentifier)
         tableView.register(TextCell.self, forCellReuseIdentifier: textInputCellIdentifier)
         tableView.register(SubtitleCell.self, forCellReuseIdentifier: valueCellIdentifier)
+        #if targetEnvironment(macCatalyst)
+        tableView.sectionHeaderHeight = UITableView.automaticDimension
+        #endif
 
         let model = Model()
 
@@ -266,13 +290,19 @@ class ViewController: UITableViewController {
                 row.model?.birthdate = datePicker.date
             }
         }
-        birthdate.onUpdate { update, row in
+        birthdate.onUpdate { [unowned self] update, row in
             update.view.imageView?.image = UIImage(systemName: "calendar")
             update.view.textLabel?.text = "Birthdate"
             update.view.accessoryView = datePicker
             datePicker.publisher(for: UIControl.Event.valueChanged)
                 .map({ $0.0.date })
-                .assign(to: \.birthdate, on: update.model)
+                .assign(
+                    to: \.birthdate,
+                    on: update.model,
+                    undoManager: self.undoManager!,
+                    row: row,
+                    undoRow: { ($0.accessoryView as? UIDatePicker)?.date = $1 ?? Date() }
+                )
                 .store(in: &row.disposeStorage)
         }
         profile.addRow(birthdate)
@@ -283,7 +313,12 @@ class ViewController: UITableViewController {
             update.view.textLabel?.text = "Gender"
             segmentedControl.publisher(for: UIControl.Event.valueChanged)
                 .map({ self.genderOptions[$0.0.selectedSegmentIndex] })
-                .assign(to: \.gender, on: update.model)
+                .assign(
+                    to: \.gender, on: update.model,
+                    undoManager: self.undoManager!,
+                    row: row,
+                    undoRow: { ($0.accessoryView as? UISegmentedControl)?.selectedSegmentIndex = $1.flatMap(genderOptions.firstIndex(of:)) ?? UISegmentedControl.noSegment }
+                )
                 .store(in: &row.disposeStorage)
         }
         profile.addRow(gender)
@@ -325,7 +360,12 @@ class ViewController: UITableViewController {
                     .handleEvents(receiveOutput: {
                         row.view?.accessoryView?.backgroundColor = $0
                     })
-                    .assign(to: \.petColor, on: row.model!)
+                    .assign(
+                        to: \.petColor, on: row.model!,
+                        undoManager: self.undoManager!,
+                        row: row,
+                        undoRow: { $0.accessoryView?.backgroundColor = $1 }
+                    )
                     .store(in: &row.disposeStorage)
                 self.present(colorPicker, animated: true)
             }
@@ -410,6 +450,51 @@ class ViewController: UITableViewController {
         tableView.sectionFooterHeight = UITableView.automaticDimension
     }
 
+    var _undoManager: FormUndoManager = FormUndoManager()
+    override var undoManager: UndoManager? { _undoManager }
+    override var canBecomeFirstResponder: Bool { true }
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        resignFirstResponder()
+    }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        becomeFirstResponder()
+        undoManager?.groupsByEvent = false
+        undoManager?.beginUndoGrouping()
+    }
+
+    final class FormUndoManager: UndoManager {
+        var nestedGroupCount: Int?
+        var canUndoNestedGroup: Bool { nestedGroupCount.map({ $0 > 0 }) == true }
+
+        override func beginUndoGrouping() {
+            if groupingLevel == 1 {
+                if let count = nestedGroupCount {
+                    nestedGroupCount = count + 1
+                } else {
+                    nestedGroupCount = 1
+                }
+            }
+            super.beginUndoGrouping()
+        }
+        override func endUndoGrouping() {
+            if groupingLevel == 1 {
+                nestedGroupCount = nil
+            }
+            super.endUndoGrouping()
+        }
+    }
+    @objc func undo() {
+        if _undoManager.canUndoNestedGroup {
+            undoManager?.undoNestedGroup()
+            navigationItem.rightBarButtonItems?[1].isEnabled = _undoManager.canUndoNestedGroup
+        }
+    }
+    @objc func reset() {
+        undoManager?.endUndoGrouping()
+        undoManager?.undo()
+    }
     @objc func printModel() {
         var output = ""
         dump(form.model, to: &output)

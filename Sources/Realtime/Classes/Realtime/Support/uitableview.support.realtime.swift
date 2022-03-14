@@ -17,8 +17,8 @@ extension ReuseItem {
     ///   - value: Listenable value
     ///   - source: Source of value
     ///   - assign: Closure that calls on receieve value
-    public func bind<T: Listenable, S: RealtimeValueActions>(_ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
-        set(value, assign, error)
+    public func bind<T: Listenable, S: RealtimeValueActions>(_ properties: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
+        set(properties, assign, error)
 
         guard source.canObserve else { return }
         if source.runObserving() {
@@ -28,8 +28,8 @@ extension ReuseItem {
         }
     }
 
-    public func bind<T: Listenable>(_ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
-        set(value, assign, error)
+    public func bind<T: Listenable>(_ properties: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
+        set(properties, assign, error)
 
         sources.forEach { source in
             guard source.canObserve else { return }
@@ -46,18 +46,18 @@ extension ReuseItem {
     /// - Parameters:
     ///   - value: Listenable value
     ///   - assign: Closure that calls on receieve value
-    public func bind<T: Listenable & RealtimeValueActions>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
-        bind(value, value, assign, error)
+    public func bind<T: Listenable & RealtimeValueActions>(_ properties: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
+        bind(properties, properties, assign, error)
     }
 
-    public func set<T: Listenable>(_ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
+    public func set<T: Listenable>(_ properties: T, _ assign: @escaping (View, T.Out) -> Void, _ error: ((View, Error) -> Void)?) {
         debugFatalError(
             condition: self.view == nil,
             "No view in binding time"
         )
         // bindingView works if view setup before binding
         weak var bindingView = self.view
-        value
+        properties
             .listening({ [weak self] (event) in
                 if let view = self?.view {
                     switch event {
@@ -79,24 +79,24 @@ extension ReuseItem {
 }
 extension ReuseItem {
     public func set<T: Listenable>(
-        _ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
+        _ properties: T, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
     ) {
-        set(value, assign, { _, e in error(e) })
+        set(properties, assign, { _, e in error(e) })
     }
     public func bind<T: Listenable & RealtimeValueActions>(
-        _ value: T, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
+        _ properties: T, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
     ) {
-        bind(value, assign, { _, e in error(e) })
+        bind(properties, assign, { _, e in error(e) })
     }
     public func bind<T: Listenable>(
-        _ value: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
+        _ properties: T, sources: [RealtimeValueActions], _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
     ) {
-        bind(value, sources: sources, assign, { _, e in error(e) })
+        bind(properties, sources: sources, assign, { _, e in error(e) })
     }
     public func bind<T: Listenable, S: RealtimeValueActions>(
-        _ value: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
+        _ properties: T, _ source: S, _ assign: @escaping (View, T.Out) -> Void, _ error: @escaping (Error) -> Void
     ) {
-        bind(value, source, assign, { _, e in error(e) })
+        bind(properties, source, assign, { _, e in error(e) })
     }
 }
 #endif

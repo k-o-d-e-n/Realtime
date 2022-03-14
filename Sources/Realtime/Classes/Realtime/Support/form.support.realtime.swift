@@ -68,6 +68,11 @@ extension AssociatedValues: DynamicSectionDataSource {}
 extension References: DynamicSectionDataSource {}
 extension MapRealtimeCollection: DynamicSectionDataSource {}
 extension FlattenRealtimeCollection: DynamicSectionDataSource {}*/
+extension ExplicitAssociatedValues: DynamicSectionDataSource {}
+extension AssociatedValues: DynamicSectionDataSource {}
+extension References: DynamicSectionDataSource {}
+extension ExplicitValues: DynamicSectionDataSource {}
+extension Values: DynamicSectionDataSource {}
 
 public struct RealtimeCollectionDataSource<Model>: DynamicSectionDataSource {
     let base: AnyRealtimeCollection<Model>

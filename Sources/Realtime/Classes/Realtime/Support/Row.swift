@@ -12,6 +12,9 @@ import Combine
 /// #elseif REALTIME && canImport(Realtime)
 /// import Realtime
 #endif
+#if canImport(Realtime)
+import Realtime
+#endif
 
 public enum RowViewBuilder<View> {
     case reuseIdentifier(String)

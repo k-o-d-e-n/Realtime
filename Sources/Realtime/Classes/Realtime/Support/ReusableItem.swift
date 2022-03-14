@@ -8,13 +8,16 @@
 #if COMBINE && canImport(Combine)
 import Combine
 #endif
+#if canImport(Realtime)
+import Realtime
+#endif
 
 protocol ReuseItemProtocol {
     func free()
 }
 
 open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
-    #if COMBINE
+    #if COMBINE && canImport(Combine)
     public var disposeStorage: [AnyCancellable] = [] // TODO: Rename `disposeStorage`
     #elseif REALTIME_UI
     public var disposeStorage: [Disposable] = []
@@ -26,7 +29,7 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
     deinit { free() }
 
     func free() {
-        #if COMBINE
+        #if COMBINE && canImport(Combine)
         disposeStorage.removeAll()
         #elseif REALTIME_UI
         disposeStorage.forEach({ $0.dispose() })

@@ -12,8 +12,8 @@ import SE0282_Experimental
 final class AtomicBool {
     private let _value: UnsafeAtomic<Int>
 
-    init(bool value: Bool) {
-        self._value = .create(initialValue: value ? 1 : 0)
+    init(bool properties: Bool) {
+        self._value = .create(initialValue: properties ? 1 : 0)
     }
 
     deinit {
@@ -24,12 +24,12 @@ final class AtomicBool {
         _value.load(ordering: .relaxed) == 1
     }
 
-    func swap(to value: Bool) -> Bool {
-        _value.compareExchange(expected: value ? 0 : 1, desired: value ? 1 : 0, ordering: .relaxed).exchanged
+    func swap(to properties: Bool) -> Bool {
+        _value.compareExchange(expected: properties ? 0 : 1, desired: properties ? 1 : 0, ordering: .relaxed).exchanged
     }
 
-    static func initialize(_ value: Bool) -> AtomicBool {
-        AtomicBool(bool: value)
+    static func initialize(_ properties: Bool) -> AtomicBool {
+        AtomicBool(bool: properties)
     }
 }
 #else

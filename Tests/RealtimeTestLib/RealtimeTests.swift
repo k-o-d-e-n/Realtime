@@ -2179,18 +2179,18 @@ final class PropertyWrappers: Object {
     @File<Data?>(in: Node(key: "wrapper3"), options: .optional(.realtimeDataValue))
     var wrapper3: Data??
 
-    required init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {
-        super.init(in: node, options: options)
-        if let n = node {
-            forceEnumerateAllChilds { (_, val: _RealtimeValue) in
-                val.node?.parent = n
-            }
-        }
-    }
-
-    required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
-        try super.init(data: data, event: event)
-    }
+//    required init(in node: Node? = nil, options: RealtimeValueOptions = RealtimeValueOptions()) {
+//        super.init(in: node, options: options)
+//        if let n = node {
+//            forceEnumerateAllChilds { (_, val: _RealtimeValue) in
+//                val.node?.parent = n
+//            }
+//        }
+//    }
+//
+//    required init(data: RealtimeDataProtocol, event: DatabaseDataEvent) throws {
+//        try super.init(data: data, event: event)
+//    }
 }
 
 extension RealtimeTests {
@@ -2202,7 +2202,7 @@ extension RealtimeTests {
 
         XCTAssertEqual(wrappers.$wrapper1.node?.absolutePath, "parent/wrapper1")
         XCTAssertEqual(wrappers.$wrapper2.node?.absolutePath, "parent/wrapper2")
-        XCTAssertEqual(wrappers.$wrapper3.node?.absolutePath, "parent/wrapper3")
+        XCTAssertEqual(wrappers.$wrapper3.node?.absolutePath, "parent/wrapper3") /// fails because `wrapper3` has not be accessed
 
 //        checkDidRemove(wrappers.$wrapper1)
 //        checkDidRemove(wrappers.$wrapper2)
