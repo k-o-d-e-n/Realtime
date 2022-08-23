@@ -43,4 +43,8 @@ open class ReuseItem<View: AnyObject>: ReuseItemProtocol {
 extension ReuseItem where View: UIView {
     var _isVisible: Bool { return view.map { !$0.isHidden && $0.window != nil } ?? false }
 }
+#elseif os(macOS)
+extension ReuseItem where View: NSView {
+    var _isVisible: Bool { return view.map { !$0.isHidden && $0.window != nil } ?? false }
+}
 #endif

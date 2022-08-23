@@ -64,6 +64,12 @@ public struct EmptyDispose: Disposable {
     public func dispose() {}
 }
 
+public struct RetainDispose<T>: Disposable {
+    let token: T
+    public init(token: T) { self.token = token }
+    public func dispose() {}
+}
+
 public final class SingleDispose<T: Disposable>: Disposable {
     var storage: ValueStorage<T?>?
     public var isDisposed: Bool { return storage == nil }

@@ -5,8 +5,6 @@
 //  Created by Denis Koryttsev on 09.06.2021.
 //
 
-#if os(iOS) || os(tvOS)
-
 #if COMBINE && canImport(Combine)
 import Combine
 /// #elseif REALTIME && canImport(Realtime)
@@ -19,7 +17,11 @@ import Realtime
 public enum RowViewBuilder<View> {
     case reuseIdentifier(String)
     case `static`(View)
+    #if os(iOS) || os(tvOS)
     case custom((UITableView, IndexPath) -> View)
+    #elseif os(macOS)
+    case custom((NSTableView, IndexPath) -> View)
+    #endif
     case `internal`
 }
 
@@ -157,6 +159,7 @@ open class Row<View: AnyObject, Model: AnyObject>: ReuseItem<View> {
         dynamicValues.removeAll()
     }
 }
+#if os(iOS) || os(tvOS)
 extension Row where View: UITableViewCell {
     internal func buildCell(for tableView: UITableView, at indexPath: IndexPath) -> UITableViewCell {
         switch viewBuilder {
@@ -177,11 +180,50 @@ public extension Row where View: UIView {
         case .reuseIdentifier(let identifier):
             return tableView.dequeueReusableHeaderFooterView(withIdentifier: identifier)
         case .static(let view): return view
-        case .custom(let closure): return closure(tableView, IndexPath(row: 0, section: 0))
+        case .custom(let closure): return closure(tableView, IndexPath(row: 0, section: section))
         case .internal: fatalError("This type of row cannot build view")
         }
     }
 }
+#elseif os(macOS)
+extension Row where View: NSTableRowView {
+    internal func buildCell(for tableView: NSTableView, at indexPath: IndexPath) -> NSTableRowView {
+        switch viewBuilder {
+        case .reuseIdentifier(let identifier):
+            let identifier = NSUserInterfaceItemIdentifier(identifier)
+            guard let cell = tableView.makeView(withIdentifier: identifier, owner: tableView) as? NSTableRowView else {
+                let cell = View()
+                cell.identifier = identifier
+                return cell
+            }
+            return cell
+        case .static(let cell): return cell
+        case .custom(let closure): return closure(tableView, indexPath)
+        case .internal: fatalError("This type of row cannot build cell")
+        }
+    }
+}
+public extension Row where View: NSTableRowView {
+    var isVisible: Bool {
+        return state.contains(.displaying) && super._isVisible
+    }
+    internal func build(for tableView: NSTableView, at section: Int) -> NSTableRowView? {
+        switch viewBuilder {
+        case .reuseIdentifier(let identifier):
+            let identifier = NSUserInterfaceItemIdentifier(identifier)
+            guard let cell = tableView.makeView(withIdentifier: identifier, owner: tableView) as? NSTableRowView else {
+                let cell = View()
+                cell.identifier = identifier
+                return cell
+            }
+            return cell
+        case .static(let view): return view
+        case .custom(let closure): return closure(tableView, IndexPath(item: 0, section: section))
+        case .internal: fatalError("This type of row cannot build view")
+        }
+    }
+}
+#endif
 extension Row: CustomDebugStringConvertible {
     public var debugDescription: String {
         return """
@@ -217,5 +259,3 @@ extension Row {
         }
     }
 }
-
-#endif

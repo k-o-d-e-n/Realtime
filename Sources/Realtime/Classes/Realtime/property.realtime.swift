@@ -979,8 +979,20 @@ public extension MutationPoint where T: Codable {
 #if canImport(Combine)
 import Combine
 
+@available(iOS 13.0, macOS 10.15, *)
 extension ReadonlyProperty: Publisher {
     public typealias Output = PropertyState<T>
     public typealias Failure = Error
+
+    public func receive<S>(subscriber: S) where S : Subscriber, Failure == S.Failure, Output == S.Input {
+        let dispose = listening({ (event) in
+            switch event {
+            case .value(let v):
+                _ = subscriber.receive(v)
+            case .error(let e): subscriber.receive(completion: .failure(e))
+            }
+        })
+        subscriber.receive(subscription: ListeningDispose(dispose))
+    }
 }
 #endif

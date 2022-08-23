@@ -181,7 +181,7 @@ extension URLSession: RealtimeCompatible {
 
 // MARK: - UI
 
-#if os(iOS)
+#if os(iOS) || os(tvOS)
 import UIKit
 
 public extension Listenable where Self.Out == String? {
@@ -453,3 +453,55 @@ extension SequenceListenable: Publisher {
     public typealias Failure = Error
 }
 #endif
+
+#if os(macOS)
+public struct NotificationEvent<Object: AnyObject>: Listenable {
+    unowned var object: Object
+    let event: Notification.Name
+
+    public func listening(_ assign: Assign<ListenEvent<Notification>>) -> Disposable {
+        let token = NotificationCenter.default.addObserver(forName: event, object: object, queue: nil) { notif in
+            assign.assign(.value(notif))
+        }
+        return Dispose(token: token)
+    }
+    struct Dispose: Disposable {
+        let token: NSObjectProtocol
+        func dispose() {
+            NotificationCenter.default.removeObserver(token)
+        }
+    }
+}
+/// extension NSControl: RealtimeCompatible {}
+extension RTime where Base: NSObject {
+    public func onEvent(_ notificationName: Notification.Name) -> NotificationEvent<Base> {
+        NotificationEvent(object: base, event: notificationName)
+    }
+}
+#endif
+
+extension NSObject: RealtimeCompatible {
+    public struct KeyValueObserving<Object: NSObject, Value>: Listenable {
+        unowned var object: Object
+        let keyPath: KeyPath<Object, Value>
+        let options: NSKeyValueObservingOptions
+
+        public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
+            guard #available(macOS 10.15, *) else { return EmptyDispose() }
+            return object.publisher(for: keyPath, options: options).sink(receiveValue: {
+                assign.assign(.value($0))
+            })
+        }
+        struct Dispose: Disposable {
+            let token: NSObjectProtocol
+            func dispose() {
+                NotificationCenter.default.removeObserver(token)
+            }
+        }
+    }
+}
+extension RTime where Base: NSObject {
+    public func onChange<T>(of keyPath: KeyPath<Base, T>, options: NSKeyValueObservingOptions = [.initial, .new]) -> NSObject.KeyValueObserving<Base, T> {
+        NSObject.KeyValueObserving(object: base, keyPath: keyPath, options: options)
+    }
+}

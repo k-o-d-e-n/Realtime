@@ -1121,7 +1121,7 @@ public extension Representer where V: Codable {
 public enum DateCodingStrategy {
     case secondsSince1970
     case millisecondsSince1970
-    @available(iOS 10.0, macOS 10.12, *)
+    ///@available(iOS 10.0, macOS 10.12, *)
     case iso8601(ISO8601DateFormatter)
     case formatted(DateFormatter)
 }

@@ -5,8 +5,6 @@
 //  Created by Denis Koryttsev on 11.06.2021.
 //
 
-#if os(iOS) || os(tvOS)
-
 struct ReuseController<Row, Key: Hashable> where Row: ReuseItemProtocol {
     var freeItems: [Row] = []
     var activeItems: [Key: Row] = [:]
@@ -50,5 +48,3 @@ extension ReuseController {
         return item
     }
 }
-
-#endif
