@@ -132,7 +132,7 @@ open class Section<Model: AnyObject>: RandomAccessCollection {
 }
 public extension Section {
     var visibleIndexPaths: [IndexPath] {
-        return compactMap({ $0.indexPath })
+        return compactMap({ $0.isVisible ? $0.indexPath : nil })
     }
 }
 

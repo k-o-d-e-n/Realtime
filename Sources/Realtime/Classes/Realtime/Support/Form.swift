@@ -140,32 +140,39 @@ open class Form<Model: AnyObject> {
 
     open func insertSection(_ section: Section<Model>, at index: Int, with animation: __TableView.RowAnimation = .automatic) {
         sections.insert(section, at: index)
-        if let tv = tableView, tv.window != nil {
+        if let tv = tableView {
             #if os(iOS) || os(tvOS)
-            tv.insertSections([index], with: animation)
+            if tv.window != nil {
+                tv.insertSections([index], with: animation)
+            }
             #else
             let start = rows(until: index)
-            tv.insertRows(at: IndexSet(start ..< start + section.count), withAnimation: animation)
+            tv.insertRows(at: IndexSet(start ..< start + section.numberOfRows), withAnimation: animation)
             #endif
         }
     }
 
     open func deleteSections(at indexes: IndexSet, with animation: __TableView.RowAnimation = .automatic) {
+        #if os(iOS) || os(tvOS)
         indexes.reversed().forEach { removedSections[$0] = sections.remove(at: $0) }
         if performsUpdates {
-            #if os(iOS) || os(tvOS)
             tableView?.deleteSections(indexes, with: animation)
-            #else
+        }
+        #else
+        if performsUpdates {
             let rowIndexes = rowIndexes(for: indexes)
             tableView?.removeRows(at: rowIndexes, withAnimation: .automatic)
-            #endif
         }
+        indexes.reversed().forEach { removedSections[$0] = sections.remove(at: $0) }
+        #endif
     }
 
     open func reloadRows(at indexPaths: [IndexPath], with animation: __TableView.RowAnimation = .automatic) {
-        if performsUpdates, let tv = tableView, tv.window != nil {
+        if performsUpdates, let tv = tableView {
             #if os(iOS) || os(tvOS)
-            tv.reloadRows(at: indexPaths, with: animation)
+            if tv.window != nil {
+                tv.reloadRows(at: indexPaths, with: animation)
+            }
             #else
             let indexes = indexPaths.reduce(into: IndexSet()) { pr, ip in
                 let row = row(for: ip)
@@ -177,9 +184,11 @@ open class Form<Model: AnyObject> {
     }
 
     open func reloadSections(_ sections: IndexSet, with animation: __TableView.RowAnimation = .automatic) {
-        if performsUpdates, let tv = tableView, tv.window != nil {
+        if performsUpdates, let tv = tableView {
             #if os(iOS) || os(tvOS)
-            tv.reloadSections(sections, with: animation)
+            if tv.window != nil {
+                tv.reloadSections(sections, with: animation)
+            }
             #else
             let rowIndexes = rowIndexes(for: sections)
             tv.reloadData(forRowIndexes: rowIndexes, columnIndexes: [])
@@ -441,7 +450,7 @@ extension Form {
     func rowIndexes(for sections: IndexSet) -> IndexSet {
         sections.reduce(into: IndexSet()) { partialResult, index in
             let start = rows(until: index)
-            partialResult.insert(integersIn: start ..< self[index].numberOfRows)
+            partialResult.insert(integersIn: start ..< start + self[index].numberOfRows)
         }
     }
 }
@@ -493,6 +502,9 @@ extension Form {
                 partialResult += section.numberOfRows
             }
         }
+        func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
+            tableView.floatsGroupRows && form.indexPath(for: row).type == .header
+        }
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? { nil }
         func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
             let (indexPath, type, section) = form.indexPath(for: row)
@@ -511,7 +523,7 @@ extension Form {
             case .footer:
                 guard let footerView = section.footerRow?.build(for: tableView, at: indexPath.section) else {
                     guard let title = section.footerTitle else { return nil }
-                    let identifier = NSUserInterfaceItemIdentifier("form.default-headerView")
+                    let identifier = NSUserInterfaceItemIdentifier("form.default-footerView")
                     let defaultView = tableView.makeView(withIdentifier: identifier, owner: tableView) as? TitledSupplementaryRow ?? TitledSupplementaryRow(identifier: identifier)
                     defaultView.titleLabel.stringValue = title
                     return defaultView

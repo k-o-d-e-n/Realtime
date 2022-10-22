@@ -487,7 +487,7 @@ extension NSObject: RealtimeCompatible {
         let options: NSKeyValueObservingOptions
 
         public func listening(_ assign: Assign<ListenEvent<Value>>) -> Disposable {
-            guard #available(macOS 10.15, *) else { return EmptyDispose() }
+            guard #available(iOS 13, macOS 10.15, *) else { return EmptyDispose() }
             return object.publisher(for: keyPath, options: options).sink(receiveValue: {
                 assign.assign(.value($0))
             })
